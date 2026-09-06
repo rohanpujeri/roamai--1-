@@ -56,6 +56,8 @@ export default function App() {
   const [activeTripId, setActiveTripId] = useState<string>('');
   const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_roamai' | 'auth'>('landing');
   const [wizardDestId, setWizardDestId] = useState<string>('');
+  const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
+  const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatingDestName, setGeneratingDestName] = useState<string>('');
   const [activeDayNumber, setActiveDayNumber] = useState<number>(1);
@@ -153,11 +155,23 @@ export default function App() {
   // Start planning from landing page
   const handleStartPlanning = (destId: string = '') => {
     setWizardDestId(destId);
+    setWizardEditingTrip(null);
+    setWizardInitialStep(1);
     if (!session) {
       setInitialAuthMode('signin');
       setIntendedView('wizard');
       setCurrentView('auth');
     } else {
+      setCurrentView('wizard');
+    }
+  };
+
+  // Back to Step 6 from generated Itinerary to edit preferences & regenerate
+  const handleBackToStep6 = () => {
+    if (activeTrip) {
+      setWizardEditingTrip(activeTrip);
+      setWizardDestId(activeTrip.destination);
+      setWizardInitialStep(6);
       setCurrentView('wizard');
     }
   };
@@ -632,8 +646,16 @@ export default function App() {
             {currentView === 'wizard' && (
               <CreateTripWizard
                 initialDestinationId={wizardDestId}
+                initialStep={wizardInitialStep}
+                initialTrip={wizardEditingTrip}
                 onGenerateTrip={handleGenerateTrip}
-                onCancel={() => setCurrentView('landing')}
+                onCancel={() => {
+                  if (wizardEditingTrip) {
+                    setCurrentView('itinerary');
+                  } else {
+                    setCurrentView('landing');
+                  }
+                }}
               />
             )}
 
@@ -645,6 +667,7 @@ export default function App() {
                   activeDayNumber={activeDayNumber}
                   onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
                   onEnterTripMode={() => setCurrentView('trip_mode')}
+                  onBackToStep6={handleBackToStep6}
                   onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
                   onReplaceActivity={handleReplaceActivity}
                   onMoveActivityUp={handleMoveActivityUp}

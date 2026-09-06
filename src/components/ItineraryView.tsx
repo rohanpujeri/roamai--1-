@@ -7,6 +7,7 @@ import {
   Sun,
   Plus,
   ArrowRight,
+  ArrowLeft,
   Share2,
   Download,
   Info,
@@ -23,6 +24,7 @@ interface ItineraryViewProps {
   activeDayNumber: number;
   onSelectDay: (dayNumber: number) => void;
   onEnterTripMode: () => void;
+  onBackToStep6?: () => void;
   onOpenActivityDetails: (activity: Activity) => void;
   onReplaceActivity: (activityId: string) => void;
   onMoveActivityUp: (activityId: string) => void;
@@ -40,6 +42,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   activeDayNumber,
   onSelectDay,
   onEnterTripMode,
+  onBackToStep6,
   onOpenActivityDetails,
   onReplaceActivity,
   onMoveActivityUp,
@@ -121,7 +124,19 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </div>
 
             {/* Quick Actions in Header */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {onBackToStep6 && (
+                <button
+                  id="back-to-step-6-btn"
+                  onClick={onBackToStep6}
+                  className="px-4 py-3 rounded-2xl bg-white/90 hover:bg-white text-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm border border-white/60 dark:border-slate-700 backdrop-blur-md shadow-lg flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                  title="Back to Step 6 to edit styles and preferences"
+                >
+                  <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Back to Step 6</span>
+                </button>
+              )}
+
               <button
                 id="enter-trip-mode-btn"
                 onClick={onEnterTripMode}

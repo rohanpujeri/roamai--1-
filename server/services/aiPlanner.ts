@@ -164,6 +164,11 @@ export async function generateTripFromInputs(params: {
     }
   });
   
+  const stylesList = params.preferences.styles.length > 0 ? params.preferences.styles.join(', ') : 'Culture, Food, Nature, Scenic Sightseeing';
+  const foodPref = params.preferences.food || 'No preference';
+  const alcoholPref = params.preferences.alcohol || 'No';
+  const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : '';
+
   const prompt = `You are a world-class AI travel planner and local expert.
 Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
 Destination: "${destName}" (${destAddress}).
@@ -172,12 +177,34 @@ Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
 Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
-Budget Persona & Real-World Pricing Rules:
-${params.budgetTier === 'Budget' ? '- BACKPACKER & BUDGET CALIBRATION: Feature authentic high-value local eateries, famous dhabas, street food, budget homestays/hostel vibes, economical local transit, free viewpoints & low-cost entrance spots.' : ''}
-${params.budgetTier === 'Moderate' ? '- MODERATE COMFORT CALIBRATION: Feature 3-star boutique stays, cozy Airbnbs, top-rated local cafes & bistros, private cabs, and balanced experiences.' : ''}
-${params.budgetTier === 'Premium' ? '- PREMIUM UPGRADE CALIBRATION: Feature 4-star boutique resorts, scenic rooftop fine dining, curated guided heritage/nature experiences, and private chauffeured transit.' : ''}
-${params.budgetTier === 'Luxury' ? '- LUXURY & 5-STAR CALIBRATION: Feature 5-star heritage palaces/villas, chef-curated gourmet dining, exclusive private boats/safaris, and high-comfort VIP hospitality.' : ''}
-Preferences: ${params.preferences.styles.join(', ')}. Pace: ${params.preferences.pace}. Food: ${params.preferences.food}.
+
+USER PREFERENCES TO STRICTLY ADHERE TO:
+1. TRAVEL STYLES (${stylesList}):
+   - The itinerary MUST directly reflect the selected styles:
+     ${params.preferences.styles.includes('Adventure') ? '• ADVENTURE: Include outdoor thrills, hiking/trekking trails, watersports, or viewpoints with climbs.' : ''}
+     ${params.preferences.styles.includes('Relaxation') ? '• RELAXATION: Include peaceful lakeside/beach walks, gardens, scenic viewpoints, or unhurried tea lounges.' : ''}
+     ${params.preferences.styles.includes('Food') ? '• FOOD: Include famous local food streets, heritage bakeries, regional culinary legends, and authentic tasting spots.' : ''}
+     ${params.preferences.styles.includes('Nature') ? '• NATURE: Feature national parks, waterfalls, botanical gardens, lakes, mountain viewpoints, or wildlife reserves.' : ''}
+     ${params.preferences.styles.includes('Culture') ? '• CULTURE: Feature historic forts, palaces, heritage architecture, art galleries, museums, or local craft hubs.' : ''}
+     ${params.preferences.styles.includes('Nightlife') ? '• NIGHTLIFE: Include lively evening streets, night markets, rooftop lounges, or live music venues.' : ''}
+     ${params.preferences.styles.includes('Photography') ? '• PHOTOGRAPHY: Include photogenic golden-hour viewpoints, architectural vistas, and scenic photo spots.' : ''}
+     ${params.preferences.styles.includes('Shopping') ? '• SHOPPING: Include vibrant local bazaars, spice/tea markets, artisan souvenir emporiums, or flea markets.' : ''}
+     ${params.preferences.styles.includes('Spiritual') ? '• SPIRITUAL: Feature iconic historic temples, ashrams, sacred ghats, shrines, or meditation spots.' : ''}
+     ${params.preferences.styles.includes('Hidden gems') ? '• HIDDEN GEMS: Include offbeat, secret, uncrowded scenic spots and local-favorite corners.' : ''}
+     ${params.preferences.styles.includes('Luxury') ? '• LUXURY: Feature fine dining, exclusive heritage tours, and high-end viewpoints.' : ''}
+     ${params.preferences.styles.includes('Backpacking') ? '• BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points.' : ''}
+
+2. FOOD PREFERENCE (${foodPref}):
+   ${foodPref === 'Vegetarian' ? '• STRICT VEGETARIAN REQUIREMENT: ALL proposed dining, breakfast, lunch, and dinner activities MUST be 100% pure vegetarian restaurants or renowned veg-friendly regional kitchens in the destination.' : ''}
+   ${foodPref === 'Vegan' ? '• STRICT VEGAN REQUIREMENT: All meals and cafe stops must be plant-based and vegan-friendly organic eateries.' : ''}
+   ${foodPref === 'Non-vegetarian' ? '• NON-VEGETARIAN: Feature famous authentic regional non-veg specialties, seafood, or traditional local meat preparations.' : ''}
+   ${foodPref === 'No preference' ? '• Include a diverse mix of authentic regional culinary highlights.' : ''}
+
+3. ALCOHOL PREFERENCE (${alcoholPref}):
+   ${alcoholPref === 'No' ? '• ZERO ALCOHOL VENUES: Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars.' : '• Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks.'}
+
+4. SPECIAL REQUESTS & CUSTOM NOTES:
+   ${customNotesText ? `• CRITICAL USER REQUEST: "${customNotesText}". MUST explicitly integrate this request into the relevant daily activities, dining options, or schedule notes!` : '• None specified.'}
 
 STRICT ACCURACY & TIMELINE RULES:
 1. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning exploration 09:00 AM - 11:30 AM, Lunch & local market 01:00 PM - 02:30 PM, Afternoon attraction/scenic spot 03:30 PM - 05:30 PM, Evening dining/sunset/night stroll 07:30 PM - 09:30 PM). NEVER generate only 1 or 2 activities for any day.

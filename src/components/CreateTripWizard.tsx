@@ -36,6 +36,7 @@ import {
   Ticket
 } from 'lucide-react';
 import {
+  Trip,
   TravelStyle,
   FoodPreference,
   AlcoholPreference,
@@ -54,6 +55,8 @@ import { fetchAiDestinationTravelIntelligence, DestinationTravelIntelligence } f
 
 interface CreateTripWizardProps {
   initialDestinationId?: string;
+  initialStep?: number;
+  initialTrip?: Trip | null;
   onGenerateTrip: (tripParams: {
     destinationId: string;
     destinationPlace?: SelectedDestinationPlace;
@@ -248,22 +251,42 @@ export const calculateTierBudget = (
 
 export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   initialDestinationId = '',
+  initialStep = 1,
+  initialTrip = null,
   onGenerateTrip,
   onCancel
 }) => {
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [currentStep, setCurrentStep] = useState<number>(initialStep || 1);
   const totalSteps = 6;
 
+  useEffect(() => {
+    if (initialStep && initialStep >= 1 && initialStep <= 6) {
+      setCurrentStep(initialStep);
+    }
+  }, [initialStep]);
+
   // Step 1: Destination (Google Places Interactive Map)
-  const [selectedDestinationPlace, setSelectedDestinationPlace] = useState<SelectedDestinationPlace | null>(null);
-  const [selectedDestId, setSelectedDestId] = useState<string>(initialDestinationId);
+  const [selectedDestinationPlace, setSelectedDestinationPlace] = useState<SelectedDestinationPlace | null>(() => {
+    if (initialTrip) {
+      return {
+        placeId: initialTrip.destination,
+        name: initialTrip.destination,
+        address: initialTrip.destinationStateOrCountry || initialTrip.destination,
+        latitude: initialTrip.days[0]?.activities[0]?.coordinates?.lat || 0,
+        longitude: initialTrip.days[0]?.activities[0]?.coordinates?.lng || 0,
+        photoUrl: initialTrip.heroImage
+      };
+    }
+    return null;
+  });
+  const [selectedDestId, setSelectedDestId] = useState<string>(() => initialTrip?.destination || initialDestinationId);
 
   // Step 2: Starting Point / Departure Location & Geolocation
-  const [startCity, setStartCity] = useState<string>('');
+  const [startCity, setStartCity] = useState<string>(() => initialTrip?.startCity || '');
   const [customStartCity, setCustomStartCity] = useState<string>('');
   const [isCustomCityInput, setIsCustomCityInput] = useState<boolean>(false);
   const [originSearch, setOriginSearch] = useState<string>('');
-  const [originSelectionMode, setOriginSelectionMode] = useState<'ask_location' | 'manual' | 'detected'>('ask_location');
+  const [originSelectionMode, setOriginSelectionMode] = useState<'ask_location' | 'manual' | 'detected'>(() => initialTrip?.startCity ? 'manual' : 'ask_location');
   const [locatingStatus, setLocatingStatus] = useState<'idle' | 'locating' | 'success' | 'error'>('idle');
   const [locationErrorMsg, setLocationErrorMsg] = useState<string>('');
   const [detectedLocationData, setDetectedLocationData] = useState<{
@@ -275,23 +298,23 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   } | null>(null);
 
   // Step 3: Dates, Duration & Mode of Travel
-  const [durationDays, setDurationDays] = useState<number>(4);
-  const [startDate, setStartDate] = useState<string>(() => getTodayFormattedDate());
-  const [endDate, setEndDate] = useState<string>(() => getCalculatedEndDate(getTodayFormattedDate(), 4));
-  const [travelMode, setTravelMode] = useState<TravelMode>('Flight');
+  const [durationDays, setDurationDays] = useState<number>(() => initialTrip?.durationDays || 4);
+  const [startDate, setStartDate] = useState<string>(() => initialTrip?.startDate || getTodayFormattedDate());
+  const [endDate, setEndDate] = useState<string>(() => initialTrip?.endDate || getCalculatedEndDate(getTodayFormattedDate(), 4));
+  const [travelMode, setTravelMode] = useState<TravelMode>(() => initialTrip?.travelMode || 'Flight');
 
   // Step 4: Travellers
-  const [companionType, setCompanionType] = useState<TravelCompanion>('Friends');
-  const [travellersCount, setTravellersCount] = useState<number>(3);
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([
+  const [companionType, setCompanionType] = useState<TravelCompanion>(() => initialTrip?.companionType || 'Friends');
+  const [travellersCount, setTravellersCount] = useState<number>(() => initialTrip?.travellersCount || 3);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>(() => initialTrip?.preferences?.groupMembers || [
     { id: 'm1', name: 'Traveller 1', styles: ['Adventure', 'Culture'], food: 'No preference' },
     { id: 'm2', name: 'Traveller 2', styles: ['Food', 'Nature'], food: 'No preference' },
     { id: 'm3', name: 'Traveller 3', styles: ['Relaxation', 'Hidden gems'], food: 'No preference' }
   ]);
 
   // Step 5: Budget
-  const [budgetTier, setBudgetTier] = useState<BudgetTier>('Moderate');
-  const [customBudget, setCustomBudget] = useState<number>(30000);
+  const [budgetTier, setBudgetTier] = useState<BudgetTier>(() => initialTrip?.budgetTier || 'Moderate');
+  const [customBudget, setCustomBudget] = useState<number>(() => initialTrip?.targetBudget || 30000);
   const [aiBudgetResult, setAiBudgetResult] = useState<RealTripBudgetResult | null>(null);
   const [isFetchingAiBudget, setIsFetchingAiBudget] = useState<boolean>(false);
 
@@ -299,11 +322,12 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   const [aiDestinationInfo, setAiDestinationInfo] = useState<DestinationTravelIntelligence | null>(null);
   const [isLoadingAiInfo, setIsLoadingAiInfo] = useState<boolean>(false);
 
-  // Step 6: Preferences (default nothing selected)
-  const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>([]);
-  const [foodPreference, setFoodPreference] = useState<FoodPreference | null>(null);
-  const [alcoholPreference, setAlcoholPreference] = useState<AlcoholPreference | null>(null);
-  const [selectedIdealDays, setSelectedIdealDays] = useState<string[]>([]);
+  // Step 6: Preferences (default nothing selected unless editing)
+  const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>(() => initialTrip?.preferences?.styles || []);
+  const [foodPreference, setFoodPreference] = useState<FoodPreference | null>(() => initialTrip?.preferences?.food || null);
+  const [alcoholPreference, setAlcoholPreference] = useState<AlcoholPreference | null>(() => initialTrip?.preferences?.alcohol || null);
+  const [selectedIdealDays, setSelectedIdealDays] = useState<string[]>(() => initialTrip?.preferences?.idealDay || []);
+  const [customNotes, setCustomNotes] = useState<string>(() => initialTrip?.preferences?.customNotes || '');
 
   // Dynamically resolved destination preset for downstream logistics & AI calculation
   const selectedDestination: DestinationPreset = useMemo(() => {
@@ -658,6 +682,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
           startCity: effectiveStartCity,
           idealDay: selectedIdealDays,
           avoidances: [],
+          customNotes: customNotes.trim() || undefined,
           groupMembers: companionType === 'Friends' || companionType === 'Group' ? groupMembers : undefined
         }
       });
@@ -701,6 +726,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     setFoodPreference(null);
     setAlcoholPreference(null);
     setSelectedIdealDays([]);
+    setCustomNotes('');
   };
 
   // Adjust travellers count sync with members
@@ -1714,7 +1740,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
               const totalSelectedCount =
                 selectedStyles.length +
                 (foodPreference ? 1 : 0) +
-                (alcoholPreference ? 1 : 0);
+                (alcoholPreference ? 1 : 0) +
+                (customNotes.trim() ? 1 : 0);
 
               return (
                 <motion.div
@@ -1730,7 +1757,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       <Sparkles className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold text-slate-800">
                         {totalSelectedCount === 0
-                          ? 'All questions are optional — tap any choice to customize your AI plan'
+                          ? 'All questions are optional — tap any choice or type preferences to customize your AI plan'
                           : `${totalSelectedCount} preference${totalSelectedCount > 1 ? 's' : ''} customized`}
                       </span>
                     </div>
@@ -1858,6 +1885,34 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+
+                  {/* 4. Any Other Preferences / Special Requests */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                        <span>4. Any other preferences?</span>
+                        <span className="text-[10px] font-normal text-slate-300 lowercase">(optional special requests or interests)</span>
+                      </label>
+                      {customNotes && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomNotes('')}
+                          className="text-[10px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <textarea
+                        value={customNotes}
+                        onChange={(e) => setCustomNotes(e.target.value)}
+                        rows={3}
+                        placeholder="e.g., Must include sunset viewpoints, wheelchair friendly spots, interested in vintage cafes, local craft markets, avoid crowded spots..."
+                        className="w-full bg-white text-[#314158] placeholder:text-slate-400 border border-slate-200 rounded-2xl p-3.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none resize-none shadow-xs"
+                      />
                     </div>
                   </div>
                 </motion.div>
