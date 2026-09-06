@@ -1,0 +1,10 @@
+{
+  "name": "2 Remix RoamAI",
+  "description": "AI-powered personalized travel planner and adaptive travel companion that plans, prepares, and adapts itineraries in real-time.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
