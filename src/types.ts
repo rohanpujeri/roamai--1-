@@ -5,6 +5,7 @@ export type TravelStyle =
   | 'Nature'
   | 'Culture'
   | 'Food'
+  | 'Sightseeing'
   | 'Photography'
   | 'Shopping'
   | 'Luxury'
@@ -104,6 +105,27 @@ export interface Activity {
   completed?: boolean;
 }
 
+export interface HotelStayRecommendation {
+  id: string;
+  dayNumber?: number; // 1-indexed day or undefined if general
+  name: string;
+  category: 'Resort' | 'Boutique Hotel' | 'Homestay / Villa' | 'Hostel / Budget' | 'Luxury Hotel' | 'Eco-Lodge';
+  budgetTier: BudgetTier;
+  pricePerNight: number; // in INR
+  priceFormatted: string; // e.g. "₹3,400 / night"
+  locationArea: string; // e.g. "Mullayanagiri Valley" or "Central Promenade"
+  rating: number; // e.g. 4.7
+  reviewCount?: number; // e.g. 380
+  reviewSnippet: string;
+  amenities: string[];
+  imageUrl: string;
+  bookingSearchUrl: string;
+  recommendedFor: string;
+  matchReason: string;
+  isCustomAdded?: boolean;
+  notes?: string;
+}
+
 export interface DayItinerary {
   dayNumber: number;
   date: string;
@@ -116,6 +138,7 @@ export interface DayItinerary {
     rainChance: number;
   };
   activities: Activity[];
+  suggestedStay?: HotelStayRecommendation;
 }
 
 export interface PackingItem {
@@ -181,6 +204,7 @@ export interface Trip {
   requirements: RequirementDocument[];
   bookings: BookingItem[];
   expenses?: ExpenseItem[];
+  hotelRecommendations?: HotelStayRecommendation[];
   clothingAdvice: string;
   createdAt: string;
   lastModified?: string;

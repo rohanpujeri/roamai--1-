@@ -1,7 +1,8 @@
 import { Activity, TravelStyle } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
-import { resolvePlaceImage } from '../utils/placeImages';
+import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
 
 export interface AlternativePlaceOption {
   id: string;
@@ -48,15 +49,8 @@ User Travel Styles: ${userStyles.join(', ') || 'Culture, Food, Nature, Hidden ge
 
 Provide 4 unique, real places in or near ${destination} matching the vibe, including uncrowded gems, authentic food spots, or scenic viewpoints.`;
 
-    const modelsToTry = [
-      'gemini-3.5-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-flash-lite',
-      'gemini-flash-latest',
-      'gemini-3.7-flash'
-    ];
     let response: any = null;
-    for (const modelName of modelsToTry) {
+    for (const modelName of PREFERRED_GEMINI_MODELS) {
       try {
         response = await ai.models.generateContent({
           model: modelName,
@@ -147,8 +141,8 @@ export function getDynamicAlternativeOptions(
       title: isFood
         ? `Local Artisan Bistro & Tasting Kitchen in ${destination}`
         : isAdventure
-        ? `Scenic Natural Trail & Panorama Lookout in ${destination}`
-        : `Peaceful Scenic Viewpoint & Lounge in ${destination}`,
+          ? `Scenic Natural Trail & Panorama Lookout in ${destination}`
+          : `Peaceful Scenic Viewpoint & Lounge in ${destination}`,
       category: isFood ? 'Food' : isAdventure ? 'Adventure' : 'Relaxation',
       location: `${destination} Heritage & Cultural Quarter`,
       estimatedCost: Math.max(150, Math.round((currentActivity.estimatedCost || 500) * 0.85)),

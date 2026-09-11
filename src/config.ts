@@ -16,10 +16,10 @@ export const config = {
   },
   app: {
     url: import.meta.env.VITE_APP_URL || 'http://localhost:3000',
-    name: 'RoamAI',
+    name: 'TripWise',
   },
   models: {
-    defaultAiModel: 'gemini-3.7-flash',
+    defaultAiModel: 'tripwise-engine',
   }
 };
 

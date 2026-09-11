@@ -20,75 +20,89 @@ function getCacheKey(params: BudgetEstimationParams): string {
   return `${dest}__${start}__${params.durationDays}d__${params.travellersCount}p__${mode}`;
 }
 
+export function calculateTransitBenchmark(
+  travelMode: TravelMode,
+  tier: BudgetTier,
+  travellersCount: number,
+  durationDays: number,
+  distanceKm: number = 600,
+  _destination: string = ''
+): number {
+  const isLongHaul = distanceKm > 4000;
+  const isMediumHaul = distanceKm > 1800;
+
+  switch (travelMode) {
+    case 'Flight': {
+      let baseFlightPerPerson = 6000;
+      if (isLongHaul) {
+        baseFlightPerPerson = tier === 'Budget' ? 45000 : tier === 'Moderate' ? 65000 : tier === 'Premium' ? 105000 : 210000;
+      } else if (isMediumHaul) {
+        baseFlightPerPerson = tier === 'Budget' ? 22000 : tier === 'Moderate' ? 32000 : tier === 'Premium' ? 48000 : 85000;
+      } else {
+        const flightDistFactor = Math.max(0.7, Math.min(2.2, distanceKm / 750));
+        const tierRate = tier === 'Budget' ? 4200 : tier === 'Moderate' ? 6800 : tier === 'Premium' ? 11500 : 22000;
+        baseFlightPerPerson = Math.round(tierRate * flightDistFactor);
+      }
+      const cabsCount = Math.max(1, Math.ceil(travellersCount / 4));
+      const airportCabRate = isLongHaul ? 2800 : isMediumHaul ? 2000 : (tier === 'Budget' ? 800 : 1400);
+      return Math.round(baseFlightPerPerson * travellersCount + cabsCount * airportCabRate * 2);
+    }
+    case 'Train': {
+      const trainDistFactor = Math.max(0.6, distanceKm / 600);
+      const baseTrain = tier === 'Budget' ? 650 : tier === 'Moderate' ? 1600 : tier === 'Premium' ? 2800 : 4600;
+      const trainPerPerson = Math.round(baseTrain * trainDistFactor);
+      const cabsCount = Math.max(1, Math.ceil(travellersCount / 4));
+      const stationCab = tier === 'Budget' ? 400 : 800;
+      return Math.round(trainPerPerson * travellersCount + cabsCount * stationCab * 2);
+    }
+    case 'Car / Road Trip': {
+      const carsCount = Math.max(1, Math.ceil(travellersCount / 4));
+      const roundTripDist = distanceKm * 2;
+      const fuelPerCar = Math.round((roundTripDist / 13) * 105);
+      const tollsPerCar = Math.round(roundTripDist * 1.35);
+      const tierBonus = tier === 'Budget' ? 0 : tier === 'Moderate' ? 1200 * durationDays : tier === 'Premium' ? 2600 * durationDays : 5000 * durationDays;
+      return Math.round(carsCount * (fuelPerCar + tollsPerCar + tierBonus));
+    }
+    case 'Bus': {
+      const busDistFactor = Math.max(0.6, Math.min(3.0, distanceKm / 500));
+      const baseBus = tier === 'Budget' ? 750 : tier === 'Moderate' ? 1400 : tier === 'Premium' ? 2200 : 3200;
+      const busPerPerson = Math.round(baseBus * busDistFactor);
+      return Math.round(busPerPerson * travellersCount);
+    }
+    case 'Bike / Motorcycle': {
+      const bikesCount = Math.max(1, Math.ceil(travellersCount / 2));
+      const bikePerDay = tier === 'Budget' ? 900 : tier === 'Moderate' ? 1500 : tier === 'Premium' ? 2400 : 4000;
+      const roundTripDist = distanceKm * 2;
+      const totalFuel = Math.round((roundTripDist / 32) * 105);
+      return Math.round(bikesCount * (bikePerDay * durationDays + totalFuel));
+    }
+    case 'Self-Drive Rental': {
+      const carsCount = Math.max(1, Math.ceil(travellersCount / 4));
+      const rentalPerDay = tier === 'Budget' ? 1800 : tier === 'Moderate' ? 2800 : tier === 'Premium' ? 4500 : 7500;
+      const localFuelPerDay = 650;
+      return Math.round(carsCount * (rentalPerDay + localFuelPerDay) * durationDays);
+    }
+    default:
+      return Math.round(3000 * travellersCount);
+  }
+}
+
 /**
- * Intelligent benchmark calculator based on crowdsourced real traveler spending data
+ * Dynamic benchmark calculator based on crowdsourced real traveler spending data
  */
 export function calculateFallbackRealTripBudget(params: BudgetEstimationParams): RealTripBudgetResult {
   const { destination, startCity, durationDays, travellersCount, travelMode, distanceKm = 600 } = params;
-  const distFactor = Math.max(0.6, Math.min(2.5, distanceKm / 600));
 
-  // Determine destination base daily cost index (INR)
-  const destLower = destination.toLowerCase();
-  let baseDailyCost = 3500; // default moderate day cost
-
-  if (destLower.includes('goa') || destLower.includes('manali') || destLower.includes('kasol') || destLower.includes('rishikesh') || destLower.includes('pondicherry')) {
-    baseDailyCost = 3200;
-  } else if (destLower.includes('jaipur') || destLower.includes('udaipur') || destLower.includes('jodhpur') || destLower.includes('kerala') || destLower.includes('munnar') || destLower.includes('ooty') || destLower.includes('coorg')) {
-    baseDailyCost = 3800;
-  } else if (destLower.includes('mumbai') || destLower.includes('delhi') || destLower.includes('bengaluru') || destLower.includes('bangalore')) {
-    baseDailyCost = 4200;
-  } else if (destLower.includes('dubai') || destLower.includes('paris') || destLower.includes('london') || destLower.includes('tokyo') || destLower.includes('new york')) {
-    baseDailyCost = 14000;
-  } else if (destLower.includes('bali') || destLower.includes('thailand') || destLower.includes('vietnam') || destLower.includes('phuket') || destLower.includes('sri lanka')) {
-    baseDailyCost = 5500;
+  // Base daily cost calculation scaled by distance/region
+  let baseDailyCost = 3800; // standard daily baseline
+  if (distanceKm > 4000) {
+    baseDailyCost = 11000;
+  } else if (distanceKm > 2000) {
+    baseDailyCost = 6000;
   }
 
   // Room sharing factor (2+ travelers share hotel rooms, solo pays full single)
   const roomFactor = travellersCount <= 1 ? 1 : 1 + (travellersCount - 1) * 0.65;
-
-  // Transit calculation by mode and tier
-  const getModeCost = (tier: BudgetTier) => {
-    switch (travelMode) {
-      case 'Flight': {
-        const baseFlight = tier === 'Budget' ? 4200 : tier === 'Moderate' ? 6500 : tier === 'Premium' ? 10500 : 18000;
-        const flightPerPax = Math.round(baseFlight * (0.7 + 0.3 * distFactor));
-        const transfer = tier === 'Budget' ? 600 : tier === 'Moderate' ? 1200 : tier === 'Premium' ? 2200 : 4000;
-        return flightPerPax * travellersCount + transfer;
-      }
-      case 'Train': {
-        const baseTrain = tier === 'Budget' ? 650 : tier === 'Moderate' ? 1500 : tier === 'Premium' ? 2600 : 4200;
-        const trainPerPax = Math.round(baseTrain * (0.6 + 0.4 * distFactor));
-        const cab = tier === 'Budget' ? 300 : tier === 'Moderate' ? 600 : 1200;
-        return trainPerPax * travellersCount + cab;
-      }
-      case 'Car / Road Trip': {
-        const cars = Math.max(1, Math.ceil(travellersCount / 4));
-        const rtDist = distanceKm * 2;
-        const fuel = Math.round(rtDist * 8.5);
-        const tolls = Math.round((rtDist / 100) * 120);
-        const tierBonus = tier === 'Budget' ? 0 : tier === 'Moderate' ? 1000 : tier === 'Premium' ? 2500 : 4500;
-        return cars * (fuel + tolls + tierBonus);
-      }
-      case 'Bus': {
-        const baseBus = tier === 'Budget' ? 750 : tier === 'Moderate' ? 1250 : tier === 'Premium' ? 1900 : 2600;
-        const busPerPax = Math.round(baseBus * (0.6 + 0.4 * distFactor));
-        return busPerPax * travellersCount;
-      }
-      case 'Bike / Motorcycle': {
-        const bikes = Math.max(1, Math.ceil(travellersCount / 2));
-        const dailyRent = tier === 'Budget' ? 800 : tier === 'Moderate' ? 1300 : tier === 'Premium' ? 2000 : 3200;
-        const fuel = Math.round((distanceKm * 2 / 35) * 105);
-        return bikes * (dailyRent * durationDays + fuel);
-      }
-      case 'Self-Drive Rental': {
-        const cars = Math.max(1, Math.ceil(travellersCount / 4));
-        const dailyRent = tier === 'Budget' ? 1600 : tier === 'Moderate' ? 2500 : tier === 'Premium' ? 4200 : 6800;
-        return cars * (dailyRent + 600) * durationDays;
-      }
-      default:
-        return 2000 * travellersCount;
-    }
-  };
 
   const buildTier = (
     tier: BudgetTier,
@@ -99,7 +113,7 @@ export function calculateFallbackRealTripBudget(params: BudgetEstimationParams):
     persona: string,
     logSample: string
   ): RealTripTierData => {
-    const transitCost = getModeCost(tier);
+    const transitCost = calculateTransitBenchmark(travelMode, tier, travellersCount, durationDays, distanceKm, destination);
     const totalGround = Math.round(groundDaily * durationDays * roomFactor);
     
     // Breakdown splits
@@ -185,11 +199,7 @@ export function calculateFallbackRealTripBudget(params: BudgetEstimationParams):
       Premium: premiumTierData,
       Luxury: luxuryTierData
     },
-    moneySavingTip: destLower.includes('goa')
-      ? 'Rent an Activa scooty (₹400/day) at the railway station or airport bypass instead of hailing local tourist taxis.'
-      : destLower.includes('manali') || destLower.includes('himachal')
-      ? 'Book Rohtang / Solang morning shared cabs in advance or rent local 4x4s in group to save up to 40% on mountain passes.'
-      : 'Book major attractions and regional transit 2–3 weeks ahead to avoid surge pricing.',
+    moneySavingTip: `Book key attractions, local transfers, and stays 2–3 weeks ahead to secure optimal rates in ${destination}.`,
     crowdsourcedSampleCount: Math.floor(250 + Math.random() * 400),
     peakSeasonNote: 'Estimates reflect standard seasonal rates. Peak holidays (Dec 20–Jan 5) may see a 20–35% stay surcharge.',
     aiConfidence: 'High (Calibrated from real traveler spending logs & verified live market rates)',
@@ -198,11 +208,14 @@ export function calculateFallbackRealTripBudget(params: BudgetEstimationParams):
 }
 
 /**
- * Fetch real-trip crowdsourced budget estimates from Gemini AI with fallback heuristic
+ * Fetch real-trip crowdsourced budget estimates from AI with fallback heuristic
  */
-export async function fetchAiRealTripBudget(params: BudgetEstimationParams): Promise<RealTripBudgetResult> {
+export async function fetchAiRealTripBudget(
+  params: BudgetEstimationParams,
+  forceRefresh: boolean = false
+): Promise<RealTripBudgetResult> {
   const cacheKey = getCacheKey(params);
-  if (budgetCache.has(cacheKey)) {
+  if (!forceRefresh && budgetCache.has(cacheKey)) {
     return budgetCache.get(cacheKey)!;
   }
 
@@ -210,7 +223,7 @@ export async function fetchAiRealTripBudget(params: BudgetEstimationParams): Pro
     const response = await fetch('/api/ai/estimate-budget', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify({ ...params, forceRefresh }),
     });
 
     if (response.ok) {

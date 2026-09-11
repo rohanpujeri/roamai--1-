@@ -57,7 +57,41 @@ export function calculateHaversineDistanceKm(
 }
 
 /**
- * Resolves coordinates dynamically from place objects or numerical inputs (No predefined place lists)
+/**
+ * Known coordinate dictionary for major departure and arrival hubs
+ */
+const CITY_COORDINATES_MAP: Record<string, LocationCoordinates> = {
+  bangalore: { lat: 12.9716, lng: 77.5946 },
+  bengaluru: { lat: 12.9716, lng: 77.5946 },
+  mumbai: { lat: 19.0760, lng: 72.8777 },
+  bombay: { lat: 19.0760, lng: 72.8777 },
+  delhi: { lat: 28.6139, lng: 77.2090 },
+  'new delhi': { lat: 28.6139, lng: 77.2090 },
+  chennai: { lat: 13.0827, lng: 80.2707 },
+  hyderabad: { lat: 17.3850, lng: 78.4867 },
+  kolkata: { lat: 22.5726, lng: 88.3639 },
+  pune: { lat: 18.5204, lng: 73.8567 },
+  ahmedabad: { lat: 23.0225, lng: 72.5714 },
+  jaipur: { lat: 26.9124, lng: 75.7873 },
+  goa: { lat: 15.2993, lng: 74.1240 },
+  kochi: { lat: 9.9312, lng: 76.2673 },
+  bali: { lat: -8.4095, lng: 115.1889 },
+  indonesia: { lat: -8.4095, lng: 115.1889 },
+  bangkok: { lat: 13.7563, lng: 100.5018 },
+  thailand: { lat: 13.7563, lng: 100.5018 },
+  phuket: { lat: 7.8804, lng: 98.3923 },
+  singapore: { lat: 1.3521, lng: 103.8198 },
+  dubai: { lat: 25.2048, lng: 55.2708 },
+  paris: { lat: 48.8566, lng: 2.3522 },
+  london: { lat: 51.5074, lng: -0.1278 },
+  tokyo: { lat: 35.6762, lng: 139.6503 },
+  'new york': { lat: 40.7128, lng: -74.0060 },
+  maldives: { lat: 4.1755, lng: 73.5093 },
+  sydney: { lat: -33.8688, lng: 151.2093 }
+};
+
+/**
+ * Resolves coordinates dynamically from place objects, numerical inputs, or city names
  */
 export function resolveCoordinates(
   cityNameOrPlace: string | SelectedDestinationPlace | null | undefined
@@ -73,6 +107,17 @@ export function resolveCoordinates(
       cityNameOrPlace.latitude !== 0
     ) {
       return { lat: cityNameOrPlace.latitude, lng: cityNameOrPlace.longitude };
+    }
+    const name = cityNameOrPlace.name?.toLowerCase() || '';
+    for (const [key, coords] of Object.entries(CITY_COORDINATES_MAP)) {
+      if (name.includes(key)) return coords;
+    }
+  }
+
+  if (typeof cityNameOrPlace === 'string') {
+    const clean = cityNameOrPlace.toLowerCase().trim();
+    for (const [key, coords] of Object.entries(CITY_COORDINATES_MAP)) {
+      if (clean.includes(key)) return coords;
     }
   }
 
@@ -97,8 +142,9 @@ export function evaluateTripFeasibility(params: {
     '';
 
   // 1. Calculate Coordinates and Distance
+  const resolvedOriginCoords = originCoords || resolveCoordinates(originCityName);
   const destCoords = resolveCoordinates(
-    'latitude' in destination && typeof destination.latitude === 'number'
+    'latitude' in destination && typeof destination.latitude === 'number' && destination.latitude !== 0
       ? {
         placeId: ('id' in destination && typeof destination.id === 'string' ? destination.id : 'dest'),
         name: destName,
@@ -106,34 +152,15 @@ export function evaluateTripFeasibility(params: {
         latitude: destination.latitude,
         longitude: ('longitude' in destination && typeof destination.longitude === 'number' ? destination.longitude : 0)
       }
-      : null
+      : destName
   );
 
   let distanceKm = 650;
-  if (destCoords && originCoords) {
-    distanceKm = calculateHaversineDistanceKm(originCoords, destCoords);
+  if (destCoords && resolvedOriginCoords) {
+    distanceKm = calculateHaversineDistanceKm(resolvedOriginCoords, destCoords);
   }
 
-  const destLower = `${destName} ${destAddress}`.toLowerCase();
-  const originLower = originCityName.toLowerCase();
-
-  const isIslandOrOverseas =
-    destLower.includes('iceland') ||
-    destLower.includes('maldives') ||
-    destLower.includes('mauritius') ||
-    destLower.includes('seychelles') ||
-    destLower.includes('hawaii') ||
-    destLower.includes('bali') ||
-    destLower.includes('japan') ||
-    destLower.includes('new zealand') ||
-    destLower.includes('australia') ||
-    destLower.includes('fiji') ||
-    destLower.includes('bahamas') ||
-    destLower.includes('caribbean') ||
-    destLower.includes('malta') ||
-    destLower.includes('cyprus') ||
-    destLower.includes('sri lanka') ||
-    destLower.includes('madagascar');
+  const isIslandOrOverseas = distanceKm > 2000;
 
   const isShortDist = distanceKm < 150;
   const isFarDistance = distanceKm > 1200;

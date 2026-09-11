@@ -12,12 +12,18 @@ import {
   Download,
   Info,
   CheckCircle2,
-  Compass
+  Compass,
+  Building2,
+  BedDouble,
+  ExternalLink
 } from 'lucide-react';
-import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem } from '../types';
+import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem, HotelStayRecommendation } from '../types';
 import { ActivityCard } from './ActivityCard';
 import { PreparationView } from './PreparationView';
 import { MapView } from './MapView';
+import { HotelsAndStaysView } from './HotelsAndStaysView';
+import { getTravelModeTransitCost } from './CreateTripWizard';
+import { generateHotelBookingUrls } from '../services/aiHotelAdvisor';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -35,6 +41,7 @@ interface ItineraryViewProps {
   onTogglePackingItem: (itemId: string) => void;
   onAddPackingItem: (name: string, category: PackingItem['category']) => void;
   onOpenMapSearch?: () => void;
+  onSaveHotelToTrip?: (hotel: HotelStayRecommendation, dayNumber?: number) => void;
 }
 
 export const ItineraryView: React.FC<ItineraryViewProps> = ({
@@ -51,9 +58,10 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onAddCustomActivity,
   onTogglePackingItem,
   onAddPackingItem,
-  onOpenMapSearch
+  onOpenMapSearch,
+  onSaveHotelToTrip
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation'>('itinerary');
+  const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'hotels'>('itinerary');
 
   const days = trip?.days || [];
   const currentDay = days.find(d => d.dayNumber === activeDayNumber) || days[0] || {
@@ -64,6 +72,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     weatherForecast: { temp: '26°C', condition: 'Sunny', icon: 'Sun', rainChance: 10 },
     activities: []
   };
+
+  const totalTransitCost = getTravelModeTransitCost(
+    trip?.travelMode || 'Flight',
+    trip?.budgetTier || 'Moderate',
+    trip?.durationDays || 3,
+    trip?.travellersCount || 1,
+    trip?.routeSummary?.distanceKm || 600,
+    trip?.destination || ''
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
@@ -158,8 +175,9 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               { id: 'itinerary', label: 'Day Itinerary', icon: Calendar },
               { id: 'overview', label: 'Trip Overview', icon: Sparkles },
               { id: 'map', label: 'Route Map', icon: MapPin },
-              { id: 'preparation', label: 'Preparation & Packing', icon: CheckCircle2 }
-            ] as { id: 'itinerary' | 'overview' | 'map' | 'preparation'; label: string; icon: any; badge?: string }[]
+              { id: 'preparation', label: 'Preparation & Packing', icon: CheckCircle2 },
+              { id: 'hotels', label: 'Hotels & Stays', icon: Building2, badge: 'Stays' }
+            ] as { id: 'itinerary' | 'overview' | 'map' | 'preparation' | 'hotels'; label: string; icon: any; badge?: string }[]
           ).map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -247,6 +265,59 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </div>
           </div>
 
+          {/* Day Stay Highlight / Quick Hotel Selector */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-emerald-200/60 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
+                  Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
+                </span>
+                <h5 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
+                </h5>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {currentDay?.suggestedStay
+                    ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`
+                    : `Handpicked stays matching your ${trip.budgetTier || 'Moderate'} budget`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              {currentDay?.suggestedStay && (() => {
+                const stayUrls = generateHotelBookingUrls(
+                  currentDay.suggestedStay.name,
+                  trip.destination,
+                  trip.startDate,
+                  trip.endDate,
+                  trip.travellersCount
+                );
+                return (
+                  <a
+                    href={stayUrls.primary}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    title="Check live availability & rates on booking platforms"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Book / Check Rates</span>
+                  </a>
+                );
+              })()}
+              <button
+                type="button"
+                onClick={() => setActiveTab('hotels')}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              >
+                <BedDouble className="w-4 h-4" />
+                <span>Explore Stays (Day {currentDay?.dayNumber || 1})</span>
+              </button>
+            </div>
+          </div>
+
           {/* Scheduled Day Activities Timeline */}
           <div className="max-w-4xl mx-auto space-y-4">
             <div className="flex items-center justify-between px-1">
@@ -308,8 +379,21 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   <span className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 block">{trip.destination}</span>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Transit Mode</span>
-                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">{trip.travelMode || 'Flight'}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Transit Mode</span>
+                    <span className="text-[9px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
+                      Total Travel Cost
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{trip.travelMode || 'Flight'}</span>
+                    <span className="text-sm font-black text-slate-900 dark:text-white">
+                      ₹{totalTransitCost.toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+                    Roundtrip for {trip.travellersCount} {trip.travellersCount === 1 ? 'traveler' : 'travelers'}
+                  </span>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 col-span-2 sm:col-span-1">
                   <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Total Planned Stops</span>
@@ -437,6 +521,16 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           trip={trip}
           onTogglePackingItem={onTogglePackingItem}
           onAddPackingItem={onAddPackingItem}
+        />
+      )}
+
+      {/* TAB 5: HOTELS, STAYS & RESORTS */}
+      {activeTab === 'hotels' && (
+        <HotelsAndStaysView
+          trip={trip}
+          activeDayNumber={activeDayNumber}
+          onSelectDay={onSelectDay}
+          onSaveHotelToTrip={onSaveHotelToTrip}
         />
       )}
 

@@ -3,11 +3,12 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 
-import { generateTripFromInputs, adaptTripPlanWithAI } from './server/services/aiPlanner';
-import { fetchAiRealTripBudget } from './server/services/aiBudgetEstimator';
-import { fetchAiDestinationTravelIntelligence } from './server/services/aiDestinationAdvisor';
-import { fetchAIAlternativePlaces } from './server/services/alternativePlaces';
+import { generateTripFromInputs, adaptTripPlanWithAI } from './server/services/serverPlanner';
+import { fetchAiRealTripBudget } from './server/services/serverBudgetEstimator';
+import { fetchAiDestinationTravelIntelligence } from './server/services/serverDestinationAdvisor';
+import { fetchAIAlternativePlaces } from './server/services/serverAlternativePlaces';
 import { fetchRealPlacePhoto } from './server/utils/realPlacePhotos';
+import { fetchAiHotelSuggestions } from './server/services/serverHotelAdvisor';
 
 dotenv.config();
 
@@ -55,8 +56,8 @@ async function startServer() {
 
   app.post('/api/ai/destination-advice', async (req, res) => {
     try {
-      const { destination, startCity } = req.body;
-      const intelligence = await fetchAiDestinationTravelIntelligence(destination, startCity);
+      const { destination, startCity, travelMode } = req.body;
+      const intelligence = await fetchAiDestinationTravelIntelligence(destination, startCity, travelMode);
       res.json(intelligence);
     } catch (err: any) {
       console.error('AI Destination Advice error:', err);
@@ -72,6 +73,16 @@ async function startServer() {
     } catch (err: any) {
       console.error('AI Alternative Places error:', err);
       res.status(500).json({ error: err.message || 'Failed to find alternative places' });
+    }
+  });
+
+  app.post('/api/ai/suggest-hotels', async (req, res) => {
+    try {
+      const hotels = await fetchAiHotelSuggestions(req.body);
+      res.json(hotels);
+    } catch (err: any) {
+      console.error('AI Hotel Advisor error:', err);
+      res.status(500).json({ error: err.message || 'Failed to fetch hotel recommendations' });
     }
   });
 

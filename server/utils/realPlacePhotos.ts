@@ -1,4 +1,4 @@
-import { resolvePlaceImage } from './placeImages';
+import { resolvePlaceImage } from './serverPlaceImages';
 
 const photoCache = new Map<string, string>();
 
@@ -37,7 +37,7 @@ export async function fetchRealPlacePhoto(
     try {
       const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query.replace(/\s+/g, '_'))}`;
       const res = await fetch(summaryUrl, {
-        headers: { 'User-Agent': 'RoamAI-TravelApp/1.0 (travel@roamai.app)' }
+        headers: { 'User-Agent': 'TripWise-TravelApp/1.0 (travel@tripwise.app)' }
       });
       if (res.ok) {
         const data = await res.json();
@@ -53,7 +53,7 @@ export async function fetchRealPlacePhoto(
     try {
       const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=2&prop=pageimages&pithumbsize=1000&format=json&origin=*`;
       const res = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'RoamAI-TravelApp/1.0 (travel@roamai.app)' }
+        headers: { 'User-Agent': 'TripWise-TravelApp/1.0 (travel@tripwise.app)' }
       });
       if (res.ok) {
         const data = await res.json();
@@ -74,7 +74,7 @@ export async function fetchRealPlacePhoto(
     try {
       const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=1&prop=imageinfo&iiprop=url&iiurlwidth=1000&format=json&origin=*`;
       const res = await fetch(commonsUrl, {
-        headers: { 'User-Agent': 'RoamAI-TravelApp/1.0 (travel@roamai.app)' }
+        headers: { 'User-Agent': 'TripWise-TravelApp/1.0 (travel@tripwise.app)' }
       });
       if (res.ok) {
         const data = await res.json();

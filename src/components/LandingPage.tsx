@@ -21,7 +21,7 @@ interface LandingPageProps {
   onStartPlanning: (destinationId?: string) => void;
   onOpenThemeModal?: () => void;
   onOpenMapSearch?: () => void;
-  onNavigateToWhyRoamAI?: () => void;
+  onNavigateToWhyTripWise?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -31,7 +31,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onStartPlanning,
   onOpenThemeModal,
   onOpenMapSearch,
-  onNavigateToWhyRoamAI
+  onNavigateToWhyTripWise
 }) => {
   const isDark = currentTheme?.isDark ?? false;
   const isBeachTheme = currentTheme?.id === 'beach';

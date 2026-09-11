@@ -1,7 +1,7 @@
 import { SavedPlace, PlaceSearchResult } from '../types';
 import { fetchSavedPlaces, savePlaceToBackend, deletePlaceFromBackend } from './supabaseClient';
 
-const SAVED_PLACES_STORAGE_KEY = 'roamai_saved_places_v1';
+const SAVED_PLACES_STORAGE_KEY = 'tripwise_saved_places_v1';
 
 // Calculate distance between two coordinates in kilometers using Haversine formula
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trip, Activity, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace } from './types';
+import { Trip, Activity, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation } from './types';
 
 import { generateTripFromInputs, adaptTripPlanWithAI } from './services/aiPlanner';
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
@@ -23,7 +23,7 @@ import { AlternativePlaceOption } from './services/alternativePlaces';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SnowfallEffect } from './components/SnowfallAtmosphere';
 import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
-import { WhyRoamAIPage } from './components/WhyRoamAIPage';
+import { WhyTripWisePage } from './components/WhyRoamAIPage';
 import { AuthPage } from './components/AuthPage';
 
 export default function App() {
@@ -45,7 +45,7 @@ export default function App() {
   const handleSelectTheme = (newThemeId: ThemeId) => {
     setThemeId(newThemeId);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('roamai_theme_id', newThemeId);
+      localStorage.setItem('tripwise_theme_id', newThemeId);
     }
     const themeObj = getTheme(newThemeId);
     addToast('ai', `${themeObj.name} Applied`, `${themeObj.name} is now active.`);
@@ -54,7 +54,7 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_roamai' | 'auth'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth'>('landing');
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
   const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
@@ -237,7 +237,7 @@ export default function App() {
     } catch (error: any) {
       console.error("AI Generation failed:", error);
       setIsGenerating(false);
-      const msg = error?.message || 'There was an issue planning your trip. Please check your Gemini API key.';
+      const msg = error?.message || 'There was an issue planning your trip. Please try again.';
       addToast('warning', 'Generation Failed', msg);
     }
   };
@@ -582,6 +582,47 @@ export default function App() {
     );
   };
 
+  // Save or Pin Hotel Stay to Trip
+  const handleSaveHotelToTrip = (hotel: HotelStayRecommendation, dayNumber?: number) => {
+    if (!activeTrip) return;
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTrip.id) return t;
+
+        const updatedDays = t.days.map((d) => {
+          if (dayNumber && d.dayNumber === dayNumber) {
+            return {
+              ...d,
+              suggestedStay: hotel
+            };
+          }
+          return d;
+        });
+
+        const currentRecs = t.hotelRecommendations || [];
+        const updatedRecs = currentRecs.some((h) => h.id === hotel.id)
+          ? currentRecs.map((h) => (h.id === hotel.id ? hotel : h))
+          : [hotel, ...currentRecs];
+
+        const updatedTrip = {
+          ...t,
+          days: updatedDays,
+          hotelRecommendations: updatedRecs
+        };
+
+        saveTripToBackend(updatedTrip).catch(console.warn);
+        return updatedTrip;
+      })
+    );
+
+    addToast(
+      'success',
+      'Stay Pinned to Itinerary',
+      `"${hotel.name}" saved as your stay for ${dayNumber ? `Day ${dayNumber}` : 'your trip'}.`
+    );
+  };
+
   return (
     <div 
       className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
@@ -638,7 +679,7 @@ export default function App() {
                 onStartPlanning={handleStartPlanning}
                 onOpenThemeModal={() => setIsThemeModalOpen(true)}
                 onOpenMapSearch={() => setCurrentView('map_search')}
-                onNavigateToWhyRoamAI={() => setCurrentView('why_roamai')}
+                onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
               />
             )}
 
@@ -677,6 +718,7 @@ export default function App() {
                   onTogglePackingItem={handleTogglePackingItem}
                   onAddPackingItem={handleAddPackingItem}
                   onOpenMapSearch={() => setCurrentView('map_search')}
+                  onSaveHotelToTrip={handleSaveHotelToTrip}
                 />
               </div>
             )}
@@ -729,9 +771,9 @@ export default function App() {
               </div>
             )}
 
-            {/* VIEW 7: WHY ROAMAI & COMPLETE TRAVEL LIFECYCLE */}
-            {currentView === 'why_roamai' && (
-              <WhyRoamAIPage
+            {/* VIEW 7: WHY TRIPWISE & COMPLETE TRAVEL LIFECYCLE */}
+            {(currentView === 'why_tripwise' || currentView === 'why_roamai') && (
+              <WhyTripWisePage
                 currentTheme={currentTheme}
                 onStartPlanning={() => handleStartPlanning()}
                 onOpenMapSearch={() => setCurrentView('map_search')}

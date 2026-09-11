@@ -289,7 +289,7 @@ export const TripRouteMap: React.FC<TripRouteMapProps> = ({
 
                     <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-2">
                       <span className="text-[10px] font-bold text-slate-700">
-                        Cost: {activeStop.cost || 'Free'}
+                        Cost: {activeStop.estimatedCost ? `₹${activeStop.estimatedCost.toLocaleString('en-IN')}` : 'Free'}
                       </span>
                       <button
                         onClick={() => onStartNavigation(activeStop)}

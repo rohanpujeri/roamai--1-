@@ -1,8 +1,9 @@
 import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
-import { resolvePlaceImage } from '../utils/placeImages';
+import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { getFallbackHotelRecommendations } from './serverHotelAdvisor';
 
 export interface AdaptOption {
   id: string;
@@ -358,7 +359,7 @@ STRICT ACCURACY & TIMELINE RULES:
         break;
       }
     } catch (err: any) {
-      console.warn(`[aiPlanner] Attempt with ${modelName} encountered: ${formatGenAiError(err)}, trying next...`);
+      console.warn(`[serverPlanner] Attempt with ${modelName} encountered: ${formatGenAiError(err)}, trying next...`);
       lastError = err;
     }
   }
@@ -421,6 +422,24 @@ STRICT ACCURACY & TIMELINE RULES:
     })
   );
 
+  const initialHotels = getFallbackHotelRecommendations({
+    destination: destName,
+    budgetTier: params.budgetTier,
+    durationDays: params.durationDays,
+    travellersCount: params.travellersCount,
+    companionType: params.companionType,
+    travelStyles: params.preferences?.styles,
+    daysInfo: days.map(d => ({ dayNumber: d.dayNumber, theme: d.theme }))
+  });
+
+  const daysWithStays = days.map((day) => {
+    const matchStay = initialHotels.find(h => h.dayNumber === day.dayNumber) || initialHotels[0];
+    return {
+      ...day,
+      suggestedStay: matchStay
+    };
+  });
+
   return {
     id: crypto.randomUUID(),
     title: `${destName} ${params.companionType} Getaway`,
@@ -452,7 +471,7 @@ STRICT ACCURACY & TIMELINE RULES:
       ...params.preferences,
       startCity
     },
-    days,
+    days: daysWithStays,
     packingList: (genData.packingList && genData.packingList.length > 0) ? genData.packingList : [
       { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
       { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
@@ -461,6 +480,7 @@ STRICT ACCURACY & TIMELINE RULES:
     ],
     requirements: genData.requirements || [],
     bookings: genData.bookings || [],
+    hotelRecommendations: initialHotels,
     clothingAdvice: genData.clothingAdvice || 'Comfortable breathable travel attire.',
     createdAt: new Date().toISOString().split('T')[0],
     adaptationHistory: []

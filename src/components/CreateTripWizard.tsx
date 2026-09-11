@@ -15,12 +15,8 @@ import {
   Sliders,
   Compass,
   AlertTriangle,
-  Smile,
-  ShieldAlert,
   Clock,
-  Heart,
   Navigation,
-  PlaneTakeoff,
   Locate,
   Loader2,
   AlertCircle,
@@ -29,11 +25,7 @@ import {
   RefreshCw,
   TrendingUp,
   Lightbulb,
-  Coins,
-  Bot,
-  BedDouble,
-  UtensilsCrossed,
-  Ticket
+  Coins
 } from 'lucide-react';
 import {
   Trip,
@@ -49,9 +41,10 @@ import {
   RealTripBudgetResult
 } from '../types';
 import { Step1DestinationSearch, SelectedDestinationPlace } from './Step1DestinationSearch';
-import { fetchAiRealTripBudget } from '../services/aiBudgetEstimator';
+import { fetchAiRealTripBudget, calculateFallbackRealTripBudget } from '../services/aiBudgetEstimator';
 import { evaluateTripFeasibility, DestinationFeasibility } from '../utils/travelFeasibility';
-import { fetchAiDestinationTravelIntelligence, DestinationTravelIntelligence } from '../services/aiDestinationAdvisor';
+import { fetchAiDestinationTravelIntelligence, getGenericDynamicIntelligence, DestinationTravelIntelligence } from '../services/aiDestinationAdvisor';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface CreateTripWizardProps {
   initialDestinationId?: string;
@@ -104,15 +97,6 @@ const TRAVEL_STYLES: { id: TravelStyle; label: string; icon: string; desc: strin
   { id: 'Hidden gems', label: 'Hidden gems', icon: '🗺️', desc: 'Secret coves & uncrowded spots' }
 ];
 
-const IDEAL_DAYS = [
-  'Wake up early and explore',
-  'Slow morning + sightseeing',
-  'Adventure all day',
-  'Food + cafes',
-  'Beach + nightlife',
-  'Photography + hidden places'
-];
-
 const getTodayFormattedDate = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -151,69 +135,72 @@ const getCalculatedDaysBetween = (startString: string, endString: string) => {
   return 4;
 };
 
-// Helper to estimate transit cost based on travel mode, budget tier, duration, travellers, and distance
+// Helper to estimate realistic transit cost based on travel mode, budget tier, duration, travellers, and distance
 export const getTravelModeTransitCost = (
   mode: TravelMode,
   tier: BudgetTier,
   duration: number,
   travellers: number,
-  distanceKm: number = 600
+  distanceKm: number = 600,
+  _destinationName: string = ''
 ) => {
-  // Distance scaling factor (base is ~600km)
-  const distFactor = Math.max(0.6, Math.min(2.5, distanceKm / 600));
+  const isLongHaul = distanceKm > 4000;
+  const isMediumHaul = distanceKm > 1800;
 
   switch (mode) {
     case 'Flight': {
-      // Per person roundtrip flights + airport cabs
-      const baseFlight =
-        tier === 'Budget' ? 4500 : tier === 'Moderate' ? 6500 : tier === 'Premium' ? 10500 : 18000;
-      const flightPerPerson = Math.round(baseFlight * (0.7 + 0.3 * distFactor));
-      const airportTransfer = tier === 'Budget' ? 600 : 1200;
-      return flightPerPerson * travellers + airportTransfer;
+      let baseFlightPerPerson = 6000;
+      if (isLongHaul) {
+        baseFlightPerPerson = tier === 'Budget' ? 45000 : tier === 'Moderate' ? 65000 : tier === 'Premium' ? 105000 : 210000;
+      } else if (isMediumHaul) {
+        baseFlightPerPerson = tier === 'Budget' ? 22000 : tier === 'Moderate' ? 32000 : tier === 'Premium' ? 48000 : 85000;
+      } else {
+        // Domestic / Regional flights scaled by distance
+        const distFactor = Math.max(0.7, Math.min(2.2, distanceKm / 750));
+        const tierRate = tier === 'Budget' ? 4200 : tier === 'Moderate' ? 6800 : tier === 'Premium' ? 11500 : 22000;
+        baseFlightPerPerson = Math.round(tierRate * distFactor);
+      }
+      const cabsCount = Math.max(1, Math.ceil(travellers / 4));
+      const airportCabRate = isLongHaul ? 2800 : isMediumHaul ? 2000 : (tier === 'Budget' ? 800 : 1400);
+      return Math.round(baseFlightPerPerson * travellers + cabsCount * airportCabRate * 2);
     }
     case 'Train': {
-      // Per person roundtrip rail fares + station local transit
-      const baseTrain =
-        tier === 'Budget' ? 700 : tier === 'Moderate' ? 1600 : tier === 'Premium' ? 2800 : 4500;
-      const trainPerPerson = Math.round(baseTrain * (0.6 + 0.4 * distFactor));
-      const stationCab = tier === 'Budget' ? 300 : 600;
-      return trainPerPerson * travellers + stationCab;
+      const distFactor = Math.max(0.6, distanceKm / 600);
+      const baseTrain = tier === 'Budget' ? 650 : tier === 'Moderate' ? 1600 : tier === 'Premium' ? 2800 : 4600;
+      const trainPerPerson = Math.round(baseTrain * distFactor);
+      const cabsCount = Math.max(1, Math.ceil(travellers / 4));
+      const stationCab = tier === 'Budget' ? 400 : 800;
+      return Math.round(trainPerPerson * travellers + cabsCount * stationCab * 2);
     }
     case 'Car / Road Trip': {
-      // Highway fuel + FASTag tolls per car (1 car per 4-5 people)
       const carsCount = Math.max(1, Math.ceil(travellers / 4));
       const roundTripDist = distanceKm * 2;
-      const fuelPerCar = Math.round(roundTripDist * 8.5);
-      const tollsPerCar = Math.round((roundTripDist / 100) * 120);
-      const tierComfortBonus = tier === 'Budget' ? 0 : tier === 'Moderate' ? 1000 : tier === 'Premium' ? 2500 : 4500;
-      return carsCount * (fuelPerCar + tollsPerCar + tierComfortBonus);
+      const fuelPerCar = Math.round((roundTripDist / 13) * 105);
+      const tollsPerCar = Math.round(roundTripDist * 1.35);
+      const tierBonus = tier === 'Budget' ? 0 : tier === 'Moderate' ? 1200 * duration : tier === 'Premium' ? 2600 * duration : 5000 * duration;
+      return Math.round(carsCount * (fuelPerCar + tollsPerCar + tierBonus));
     }
     case 'Bus': {
-      // Per person roundtrip intercity Volvo/sleeper bus
-      const baseBus =
-        tier === 'Budget' ? 800 : tier === 'Moderate' ? 1300 : tier === 'Premium' ? 2000 : 2800;
-      const busPerPerson = Math.round(baseBus * (0.6 + 0.4 * distFactor));
-      return busPerPerson * travellers;
+      const distFactor = Math.max(0.6, Math.min(3.0, distanceKm / 500));
+      const baseBus = tier === 'Budget' ? 750 : tier === 'Moderate' ? 1400 : tier === 'Premium' ? 2200 : 3200;
+      const busPerPerson = Math.round(baseBus * distFactor);
+      return Math.round(busPerPerson * travellers);
     }
     case 'Bike / Motorcycle': {
-      // 1 bike per 2 riders, rental + fuel per day
       const bikesCount = Math.max(1, Math.ceil(travellers / 2));
-      const bikePerDay =
-        tier === 'Budget' ? 900 : tier === 'Moderate' ? 1400 : tier === 'Premium' ? 2200 : 3500;
+      const bikePerDay = tier === 'Budget' ? 900 : tier === 'Moderate' ? 1500 : tier === 'Premium' ? 2400 : 4000;
       const roundTripDist = distanceKm * 2;
-      const totalFuel = Math.round((roundTripDist / 35) * 105);
-      return bikesCount * (bikePerDay * duration + totalFuel);
+      const totalFuel = Math.round((roundTripDist / 32) * 105);
+      return Math.round(bikesCount * (bikePerDay * duration + totalFuel));
     }
     case 'Self-Drive Rental': {
-      // Rental car at destination (1 car per 4 people) per day + fuel
       const carsCount = Math.max(1, Math.ceil(travellers / 4));
-      const rentalPerDay =
-        tier === 'Budget' ? 1600 : tier === 'Moderate' ? 2500 : tier === 'Premium' ? 4200 : 6800;
-      const dailyFuel = 600;
-      return carsCount * (rentalPerDay + dailyFuel) * duration;
+      const rentalPerDay = tier === 'Budget' ? 1800 : tier === 'Moderate' ? 2800 : tier === 'Premium' ? 4500 : 7500;
+      const localFuelPerDay = 650;
+      return Math.round(carsCount * (rentalPerDay + localFuelPerDay) * duration);
     }
     default:
-      return 2500 * travellers;
+      return Math.round(3000 * travellers);
   }
 };
 
@@ -243,7 +230,7 @@ export const calculateTierBudget = (
   }
 
   const groundTotal = groundDailyPerPerson * duration * groupFactor;
-  const transitTotal = getTravelModeTransitCost(travelMode, tier, duration, travellers, distanceKm);
+  const transitTotal = getTravelModeTransitCost(travelMode, tier, duration, travellers, distanceKm, destination?.name);
   const totalMin = groundTotal + transitTotal;
 
   return Math.max(2500, Math.round(totalMin / 500) * 500);
@@ -326,18 +313,22 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>(() => initialTrip?.preferences?.styles || []);
   const [foodPreference, setFoodPreference] = useState<FoodPreference | null>(() => initialTrip?.preferences?.food || null);
   const [alcoholPreference, setAlcoholPreference] = useState<AlcoholPreference | null>(() => initialTrip?.preferences?.alcohol || null);
-  const [selectedIdealDays, setSelectedIdealDays] = useState<string[]>(() => initialTrip?.preferences?.idealDay || []);
   const [customNotes, setCustomNotes] = useState<string>(() => initialTrip?.preferences?.customNotes || '');
 
   // Dynamically resolved destination preset for downstream logistics & AI calculation
   const selectedDestination: DestinationPreset = useMemo(() => {
     if (selectedDestinationPlace) {
+      const addr = (typeof selectedDestinationPlace.address === 'string' && selectedDestinationPlace.address.trim())
+        ? selectedDestinationPlace.address.trim()
+        : (selectedDestinationPlace.name || 'Destination');
+      const firstRegion = addr.includes(',') ? addr.split(',')[0].trim() : addr;
+
       return {
-        id: selectedDestinationPlace.placeId,
-        name: selectedDestinationPlace.name,
-        tagline: `Journey to ${selectedDestinationPlace.name}`,
-        region: selectedDestinationPlace.address.split(',')[0] || selectedDestinationPlace.name,
-        country: selectedDestinationPlace.address.includes('India') ? 'India' : 'International',
+        id: selectedDestinationPlace.placeId || 'custom-dest',
+        name: selectedDestinationPlace.name || 'Selected Destination',
+        tagline: `Journey to ${selectedDestinationPlace.name || 'Selected Destination'}`,
+        region: firstRegion || selectedDestinationPlace.name || 'Explore',
+        country: addr.toLowerCase().includes('india') ? 'India' : 'International',
         heroImage:
           selectedDestinationPlace.photoUrl ||
           'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
@@ -346,7 +337,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         avgCostPerDay: 7000,
         bestMonths: 'Year-round',
         popularFor: ['Culture', 'Food', 'Nature', 'Sightseeing'] as TravelStyle[],
-        shortDescription: selectedDestinationPlace.address
+        shortDescription: addr
       };
     }
     return {
@@ -380,7 +371,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     });
   }, [selectedDestinationPlace, selectedDestination, effectiveStartCity, detectedLocationData]);
 
-  // Automatically fetch AI travel mode and minimum required days for the selected destination
+  // Tracks if user has explicitly clicked a travel mode
+  const isTravelModeManuallyPickedRef = useRef<boolean>(false);
+
+  // Automatically fetch AI travel mode and travel-based minimum required days for the selected destination
   useEffect(() => {
     const destName =
       selectedDestinationPlace?.name ||
@@ -389,18 +383,40 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
     if (!destName) return;
 
+    // Reset manual travel mode pick when destination or start city changes
+    isTravelModeManuallyPickedRef.current = false;
+
+    // Provide instant responsive baseline (0ms) so user never perceives lag
+    const instantGeneric = getGenericDynamicIntelligence(destName, effectiveStartCity, travelMode);
+    setAiDestinationInfo((prev) => (prev && prev.destination.toLowerCase() === destName.toLowerCase() ? prev : instantGeneric));
+    
+    if (instantGeneric.minimumRequiredDays && instantGeneric.minimumRequiredDays > 0) {
+      setDurationDays((curr) => {
+        if (curr < instantGeneric.minimumRequiredDays) {
+          setEndDate(getCalculatedEndDate(startDate, instantGeneric.minimumRequiredDays));
+          return instantGeneric.minimumRequiredDays;
+        }
+        return curr;
+      });
+    }
+
     let isMounted = true;
     setIsLoadingAiInfo(true);
 
-    fetchAiDestinationTravelIntelligence(destName, effectiveStartCity)
+    fetchAiDestinationTravelIntelligence(destName, effectiveStartCity, travelMode)
       .then((info) => {
         if (!isMounted) return;
         setAiDestinationInfo(info);
         if (info.minimumRequiredDays && info.minimumRequiredDays > 0) {
-          setDurationDays(info.minimumRequiredDays);
-          setEndDate(getCalculatedEndDate(startDate, info.minimumRequiredDays));
+          setDurationDays((curr) => {
+            if (curr < info.minimumRequiredDays) {
+              setEndDate(getCalculatedEndDate(startDate, info.minimumRequiredDays));
+              return info.minimumRequiredDays;
+            }
+            return curr;
+          });
         }
-        if (info.recommendedTravelMode) {
+        if (!isTravelModeManuallyPickedRef.current && info.recommendedTravelMode) {
           setTravelMode(info.recommendedTravelMode);
         }
       })
@@ -416,24 +432,32 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     };
   }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity]);
 
-  // Keep durationDays aligned with the minimum required trip duration for the chosen destination
-  useEffect(() => {
-    const minRequired = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
-    if (durationDays < minRequired) {
-      setDurationDays(minRequired);
-      setEndDate(getCalculatedEndDate(startDate, minRequired));
+  // Dynamically computed effective minimum trip days based on destination distance AND selected travel mode
+  const effectiveMinDays = useMemo(() => {
+    const activeModeItem = aiDestinationInfo?.modesBreakdown?.find((m) => m.mode === travelMode);
+    if (activeModeItem?.minRequiredDaysForMode && activeModeItem.minRequiredDaysForMode > 0) {
+      return Math.max(1, Math.ceil(activeModeItem.minRequiredDaysForMode));
     }
-  }, [destinationFeasibility.minDurationDays, aiDestinationInfo?.minimumRequiredDays, startDate]);
+    return Math.max(1, Math.ceil(aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays || 3));
+  }, [aiDestinationInfo, travelMode, destinationFeasibility.minDurationDays]);
+
+  // Keep durationDays aligned with the minimum required trip duration for the chosen destination & travel mode
+  useEffect(() => {
+    if (durationDays < effectiveMinDays) {
+      setDurationDays(effectiveMinDays);
+      setEndDate(getCalculatedEndDate(startDate, effectiveMinDays));
+    }
+  }, [effectiveMinDays, startDate]);
 
   // Keep travelMode aligned with physically possible travel modes for this destination & route
   useEffect(() => {
-    if (aiDestinationInfo?.recommendedTravelMode) {
+    if (!isTravelModeManuallyPickedRef.current && aiDestinationInfo?.recommendedTravelMode) {
       setTravelMode(aiDestinationInfo.recommendedTravelMode);
     } else {
       const isCurrentModeAvailable = destinationFeasibility.availableTravelModes.some(
         (m) => m.id === travelMode
       );
-      if (!isCurrentModeAvailable) {
+      if (!isCurrentModeAvailable && destinationFeasibility.availableTravelModes.length > 0) {
         setTravelMode(destinationFeasibility.defaultRecommendedMode);
       }
     }
@@ -453,6 +477,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
           isRecommended: item.isRecommended,
           suitabilityScore: item.suitabilityScore,
           durationEstimate: item.durationEstimate,
+          transitDaysRoundTrip: item.transitDaysRoundTrip,
+          minRequiredDaysForMode: item.minRequiredDaysForMode,
           estimatedCostRange: item.estimatedCostRange,
           hasSwitchOrTransfer: item.hasSwitchOrTransfer,
           transferGuide: item.transferGuide,
@@ -469,13 +495,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       isRecommended: m.id === travelMode,
       suitabilityScore: 85,
       durationEstimate: 'Direct transit',
+      transitDaysRoundTrip: 1,
+      minRequiredDaysForMode: destinationFeasibility.minDurationDays || 3,
       estimatedCostRange: '',
       hasSwitchOrTransfer: false,
       transferGuide: undefined,
       pros: '',
       cons: ''
     }));
-  }, [aiDestinationInfo?.modesBreakdown, destinationFeasibility.availableTravelModes, effectiveStartCity, selectedDestination.name, travelMode]);
+  }, [aiDestinationInfo?.modesBreakdown, destinationFeasibility.availableTravelModes, destinationFeasibility.minDurationDays, effectiveStartCity, selectedDestination.name, travelMode]);
 
   // Route Details Calculation
   const currentRouteDetails = useMemo(() => ({
@@ -491,30 +519,42 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   // Tracks if user has manually moved the slider or overridden the AI tier default
   const isCustomBudgetManuallyEditedRef = useRef<boolean>(false);
 
-  // AI Real-Trip Budget Fetcher based on crowdsourced traveler logs
+  // Instantaneous and background AI Real-Trip Budget Fetcher
   const loadAiBudget = useCallback(
     async (forced: boolean = false) => {
       const destName = selectedDestinationPlace?.name || selectedDestination.name;
       if (!destName || destName === 'Selected Destination' || destName === 'Custom Destination') return;
 
+      const estimationParams = {
+        destination: destName,
+        startCity: effectiveStartCity,
+        durationDays,
+        travellersCount,
+        travelMode,
+        companionType,
+        distanceKm: currentRouteDetails.distanceKm
+      };
+
+      // 1. Instantly set benchmark budget so UI responds with 0ms lag
+      const instantBudget = calculateFallbackRealTripBudget(estimationParams);
+      setAiBudgetResult(instantBudget);
+
+      const instantTierData = instantBudget.tiers[budgetTier];
+      if (instantTierData && (forced || !isCustomBudgetManuallyEditedRef.current)) {
+        setCustomBudget(instantTierData.totalCost);
+      }
+
+      // 2. Fetch refined crowdsourced AI calculation asynchronously in background
       setIsFetchingAiBudget(true);
       try {
-        const result = await fetchAiRealTripBudget({
-          destination: destName,
-          startCity: effectiveStartCity,
-          durationDays,
-          travellersCount,
-          travelMode,
-          companionType,
-          distanceKm: currentRouteDetails.distanceKm
-        });
+        const result = await fetchAiRealTripBudget(estimationParams, forced);
         setAiBudgetResult(result);
         const tierData = result.tiers[budgetTier];
         if (tierData && (forced || !isCustomBudgetManuallyEditedRef.current)) {
           setCustomBudget(tierData.totalCost);
         }
       } catch (err) {
-        console.error('Failed to load AI real-trip budget:', err);
+        console.warn('AI budget background calibration fallback active:', err);
       } finally {
         setIsFetchingAiBudget(false);
       }
@@ -532,19 +572,44 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     ]
   );
 
-  // Auto-fetch real trip budget whenever user is on budget step or changes key variables
+  // Trigger active AI cost calibration whenever user enters Step 5
   useEffect(() => {
-    if (currentStep === 5 || currentStep === 4) {
-      loadAiBudget();
+    if (currentStep === 5) {
+      loadAiBudget(true);
     }
+  }, [currentStep, loadAiBudget]);
+
+  // Auto-prefetch real trip budget in the background without blocking UI
+  useEffect(() => {
+    const destName = selectedDestinationPlace?.name || selectedDestination.name;
+    if (!destName || destName === 'Selected Destination' || destName === 'Custom Destination') return;
+
+    // Immediately provide instant benchmark so step 5 is always warm
+    const instantBudget = calculateFallbackRealTripBudget({
+      destination: destName,
+      startCity: effectiveStartCity,
+      durationDays,
+      travellersCount,
+      travelMode,
+      companionType,
+      distanceKm: currentRouteDetails.distanceKm
+    });
+    setAiBudgetResult(instantBudget);
+
+    const timer = setTimeout(() => {
+      loadAiBudget();
+    }, 350);
+
+    return () => clearTimeout(timer);
   }, [
-    currentStep,
     selectedDestinationPlace?.name,
     selectedDestination.name,
+    effectiveStartCity,
     durationDays,
     travellersCount,
     travelMode,
-    companionType
+    companionType,
+    currentRouteDetails.distanceKm
   ]);
 
   // Browser Geolocation Detector
@@ -638,18 +703,17 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
     if (currentStep < totalSteps) {
       if (currentStep === 4) {
-        // Entering Step 5 (Budget): calculate default based on selected tier and trigger AI real-trip load
-        loadAiBudget();
-        setCustomBudget(
-          calculateTierBudget(
+        if (!isCustomBudgetManuallyEditedRef.current) {
+          const tierCost = calculateTierBudget(
             budgetTier,
             selectedDestination,
             durationDays,
             travellersCount,
             travelMode,
             currentRouteDetails.distanceKm
-          )
-        );
+          );
+          setCustomBudget(tierCost);
+        }
       }
       setCurrentStep(currentStep + 1);
     } else {
@@ -680,7 +744,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
           alcohol: alcoholPreference || 'No',
           travelMode,
           startCity: effectiveStartCity,
-          idealDay: selectedIdealDays,
+          idealDay: [],
           avoidances: [],
           customNotes: customNotes.trim() || undefined,
           groupMembers: companionType === 'Friends' || companionType === 'Group' ? groupMembers : undefined
@@ -713,19 +777,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     setAlcoholPreference((prev) => (prev === alc ? null : alc));
   };
 
-  const toggleIdealDay = (item: string) => {
-    if (selectedIdealDays.includes(item)) {
-      setSelectedIdealDays(selectedIdealDays.filter((i) => i !== item));
-    } else {
-      setSelectedIdealDays([...selectedIdealDays, item]);
-    }
-  };
-
   const clearAllStep6Preferences = () => {
     setSelectedStyles([]);
     setFoodPreference(null);
     setAlcoholPreference(null);
-    setSelectedIdealDays([]);
     setCustomNotes('');
   };
 
@@ -838,16 +893,17 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
         {/* Wizard Step Content */}
         <div className="wizard-step-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/80 dark:border-white/15 mb-6 text-left">
-          <AnimatePresence mode="wait">
-            {/* STEP 1: DESTINATION INTERACTIVE MAP SEARCH */}
-            {currentStep === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
+          <ErrorBoundary name="WizardStepContent">
+            <AnimatePresence mode="wait">
+              {/* STEP 1: DESTINATION INTERACTIVE MAP SEARCH */}
+              {currentStep === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
                 <Step1DestinationSearch
                   selectedPlace={selectedDestinationPlace}
                   onSelectPlace={(place) => {
@@ -1061,34 +1117,37 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                       Choose Trip Duration
                     </label>
+                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Exact Travel Min: {effectiveMinDays} {effectiveMinDays === 1 ? 'Day' : 'Days'} ({travelMode})
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                     {(() => {
-                      const minDays = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+                      const minDays = effectiveMinDays;
                       const durationOptions = [
                         {
                           days: minDays,
-                          label: `${minDays} Days`,
-                          sub: `${minDays - 1} Nights (AI Min)`,
+                          label: `${minDays} ${minDays === 1 ? 'Day' : 'Days'}`,
+                          sub: `Go & Return (${travelMode})`,
                           isPlus: false
                         },
                         {
                           days: minDays + 1,
                           label: `${minDays + 1} Days`,
-                          sub: `${minDays} Nights`,
+                          sub: `+1 Day Stay`,
                           isPlus: false
                         },
                         {
                           days: minDays + 2,
                           label: `${minDays + 2} Days`,
-                          sub: `${minDays + 1} Nights (Ideal)`,
+                          sub: `+2 Days Stay (Recommended)`,
                           isPlus: false
                         },
                         {
                           days: minDays + 3,
                           label: `${minDays + 3}+ Days`,
-                          sub: `${minDays + 2}+ Nights`,
+                          sub: `+3+ Days Stay`,
                           isPlus: true
                         }
                       ];
@@ -1131,7 +1190,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         type="button"
                         onClick={() => {
                           const today = getTodayFormattedDate();
-                          const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+                          const minReq = effectiveMinDays;
                           setStartDate(today);
                           setEndDate(getCalculatedEndDate(today, Math.max(durationDays, minReq)));
                         }}
@@ -1146,7 +1205,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       value={startDate}
                       onChange={(e) => {
                         const newStart = e.target.value;
-                        const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+                        const minReq = effectiveMinDays;
                         setStartDate(newStart);
                         if (newStart && endDate) {
                           const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
@@ -1174,10 +1233,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     <input
                       type="date"
                       value={endDate}
-                      min={getCalculatedEndDate(startDate, aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays)}
+                      min={getCalculatedEndDate(startDate, effectiveMinDays)}
                       onChange={(e) => {
                         const newEnd = e.target.value;
-                        const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+                        const minReq = effectiveMinDays;
                         setEndDate(newEnd);
                         if (startDate && newEnd) {
                           const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
@@ -1205,7 +1264,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       </span>
                     </div>
                     <span className="self-start sm:self-auto text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Selected: {travelMode}
+                      Selected: {travelMode} ({effectiveMinDays} {effectiveMinDays === 1 ? 'Day' : 'Days'} Roundtrip)
                     </span>
                   </div>
 
@@ -1219,7 +1278,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           key={mode.id}
                           type="button"
                           id={`travel-mode-${mode.id.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                          onClick={() => setTravelMode(mode.id)}
+                          onClick={() => {
+                            isTravelModeManuallyPickedRef.current = true;
+                            setTravelMode(mode.id);
+                            const requiredDays = mode.minRequiredDaysForMode ? Math.max(1, Math.ceil(mode.minRequiredDaysForMode)) : 2;
+                            if (durationDays < requiredDays) {
+                              setDurationDays(requiredDays);
+                              setEndDate(getCalculatedEndDate(startDate, requiredDays));
+                            }
+                          }}
                           className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${
                             isSelected
                               ? 'is-selected border-emerald-600 bg-emerald-50/90 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20'
@@ -1249,20 +1316,28 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             <h4 className="text-xs font-bold text-slate-900">{mode.label}</h4>
                             <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{mode.desc}</p>
 
-                            {mode.durationEstimate && (
-                              <div className="mt-1.5 text-[10px] font-semibold text-slate-600">
-                                ⏱️ {mode.durationEstimate} {mode.estimatedCostRange ? `• ${mode.estimatedCostRange}` : ''}
-                              </div>
-                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-600">
+                              {mode.durationEstimate && (
+                                <span>⏱️ {mode.durationEstimate}</span>
+                              )}
+                              {mode.minRequiredDaysForMode && (
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  {mode.minRequiredDaysForMode} {mode.minRequiredDaysForMode === 1 ? 'Day' : 'Days'} Roundtrip
+                                </span>
+                              )}
+                              {mode.estimatedCostRange && (
+                                <span className="text-slate-500">• {mode.estimatedCostRange}</span>
+                              )}
+                            </div>
                             
                             {mode.hasSwitchOrTransfer && (
-                              <div className="mt-1 text-[9px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
+                              <div className="mt-1.5 text-[9px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
                                 🔄 Transfer / Border switch required
                               </div>
                             )}
 
                             {mode.pros && (
-                              <div className="mt-1 text-[9px] text-emerald-700 leading-snug font-medium">
+                              <div className="mt-1.5 text-[9px] text-emerald-700 leading-snug font-medium">
                                 ✓ {mode.pros}
                               </div>
                             )}
@@ -1278,6 +1353,24 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     })}
                   </div>
                 </div>
+
+                {/* AI TRAVEL LOGISTICS & DURATION INSIGHT */}
+                {(aiDestinationInfo?.durationReason || aiDestinationInfo?.travelTransitReason) && (
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                      <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>AI Travel Transit Duration</span>
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                      {aiDestinationInfo.durationReason}
+                    </p>
+                    {aiDestinationInfo.travelTransitReason && (
+                      <p className="text-[11px] text-emerald-800/90 font-medium">
+                        💡 {aiDestinationInfo.travelTransitReason}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="wizard-option-card p-4 rounded-2xl border border-slate-100 flex items-center gap-3 text-xs text-slate-600">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1375,14 +1468,26 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
             {/* STEP 5: BUDGET */}
             {currentStep === 5 && (() => {
               // Active tier and calculations from AI Real-Trip result or fallback
-              const activeAiTier = aiBudgetResult?.tiers[budgetTier];
-              const minNeededBudget = aiBudgetResult?.tiers.Budget.totalCost || calculateTierBudget('Budget', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
-              const maxBudgetCap = Math.max(minNeededBudget + 20000, (aiBudgetResult?.tiers.Luxury.totalCost || calculateTierBudget('Luxury', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm)) * 1.3);
+              const isAiMatchingCurrentMode = aiBudgetResult?.travelMode === travelMode;
+              const activeAiTier = isAiMatchingCurrentMode ? aiBudgetResult?.tiers[budgetTier] : undefined;
+              const minNeededBudget = (isAiMatchingCurrentMode && aiBudgetResult?.tiers?.Budget?.totalCost) || calculateTierBudget('Budget', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
+              const maxBudgetCap = Math.max(minNeededBudget + 20000, ((isAiMatchingCurrentMode && aiBudgetResult?.tiers?.Luxury?.totalCost) || calculateTierBudget('Luxury', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm)) * 1.3);
               
-              // Dynamic Breakdown Calculation scaling with slider
-              const baseTransitCost = activeAiTier?.breakdown.transit ?? getTravelModeTransitCost(travelMode, budgetTier, durationDays, travellersCount, currentRouteDetails.distanceKm);
-              const currentTransitCost = Math.min(baseTransitCost, Math.max(500, Math.round(customBudget * 0.45)));
-              const groundRemaining = Math.max(0, customBudget - currentTransitCost);
+              const benchmarkTransit = getTravelModeTransitCost(travelMode, budgetTier, durationDays, travellersCount, currentRouteDetails.distanceKm, selectedDestination.name);
+              let baseTransitCost = (isAiMatchingCurrentMode && activeAiTier?.breakdown?.transit)
+                ? activeAiTier.breakdown.transit
+                : benchmarkTransit;
+
+              // If AI returned per-person transit cost (e.g. ₹75,000 for 6 pax to Tokyo), scale to total group
+              if (travellersCount > 1 && baseTransitCost < benchmarkTransit * 0.5) {
+                if (Math.abs(baseTransitCost * travellersCount - benchmarkTransit) < benchmarkTransit * 0.4) {
+                  baseTransitCost = baseTransitCost * travellersCount;
+                } else {
+                  baseTransitCost = benchmarkTransit;
+                }
+              }
+
+              const groundRemaining = Math.max(0, customBudget - baseTransitCost);
 
               const totalGroundAi = activeAiTier
                 ? (activeAiTier.breakdown.stays + activeAiTier.breakdown.food + activeAiTier.breakdown.activities + activeAiTier.breakdown.misc)
@@ -1416,7 +1521,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       {isFetchingAiBudget ? (
                         <div className="flex items-center gap-2 text-emerald-300 font-medium">
                           <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                          <span>Gemini AI is analyzing live crowdsourced costs for {selectedDestination.name}...</span>
+                          <span>TripWise is analyzing live crowdsourced costs for {selectedDestination.name}...</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-slate-200">
@@ -1435,7 +1540,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       }}
                       disabled={isFetchingAiBudget}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-[11px] font-semibold transition-colors disabled:opacity-50"
-                      title="Re-estimate budget with Gemini AI"
+                      title="Re-estimate budget with AI"
                     >
                       <RefreshCw className={`w-3 h-3 ${isFetchingAiBudget ? 'animate-spin' : ''}`} />
                       <span>{isFetchingAiBudget ? 'Calibrating...' : 'Re-estimate with AI'}</span>
@@ -1489,7 +1594,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           }
                         ]
                       ).map((b) => {
-                        const tierInfo = aiBudgetResult?.tiers[b.tier];
+                        const tierInfo = isAiMatchingCurrentMode ? aiBudgetResult?.tiers[b.tier] : undefined;
                         const tierAmount = tierInfo?.totalCost || calculateTierBudget(b.tier, selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
                         const perPerson = tierInfo?.perPersonCost || Math.round(tierAmount / travellersCount);
                         const perDay = tierInfo?.perDayPerPerson || Math.round(perPerson / durationDays);
@@ -1627,10 +1732,12 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             <span>Transit</span>
                           </div>
                           <div className="text-xs font-black mt-1 text-blue-950">
-                            ₹{currentTransitCost.toLocaleString()}
+                            ₹{baseTransitCost.toLocaleString()}
                           </div>
-                          <div className="text-[9px] text-blue-700/80 mt-0.5 truncate">
-                            {activeAiTier?.transitDescription || `${travelMode} RT`}
+                          <div className="text-[9px] text-blue-700/80 mt-0.5 truncate" title={activeAiTier?.transitDescription || `${travelMode} Roundtrip`}>
+                            {travellersCount > 1
+                              ? `Total for ${travellersCount} travelers (${travelMode})`
+                              : (activeAiTier?.transitDescription || `${travelMode} Roundtrip`)}
                           </div>
                         </div>
 
@@ -1918,7 +2025,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 </motion.div>
               );
             })()}
-          </AnimatePresence>
+            </AnimatePresence>
+          </ErrorBoundary>
         </div>
 
         {/* Bottom Actions Sticky Floating Bar */}

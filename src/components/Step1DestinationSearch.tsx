@@ -3,7 +3,6 @@ import {
   APIProvider,
   Map,
   AdvancedMarker,
-  Pin,
   InfoWindow,
   useMap
 } from '@vis.gl/react-google-maps';
@@ -19,6 +18,7 @@ import {
   MapPinned
 } from 'lucide-react';
 import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion, POPULAR_TRAVEL_DESTINATIONS } from '../services/placesService';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export interface SelectedDestinationPlace {
   placeId: string;
@@ -44,8 +44,17 @@ const MapCameraUpdater: React.FC<{
 
   useEffect(() => {
     if (!map || !targetLocation) return;
-    map.panTo(targetLocation);
-    map.setZoom(zoomLevel);
+    if (typeof targetLocation.lat !== 'number' || typeof targetLocation.lng !== 'number' || isNaN(targetLocation.lat) || isNaN(targetLocation.lng)) return;
+    try {
+      if (typeof map.panTo === 'function') {
+        map.panTo(targetLocation);
+      }
+      if (typeof map.setZoom === 'function') {
+        map.setZoom(zoomLevel);
+      }
+    } catch (e) {
+      console.warn('Map camera update error:', e);
+    }
   }, [map, targetLocation, zoomLevel]);
 
   return null;
@@ -71,14 +80,14 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
 
   // Default initial map center (India or World Overview if no place is selected)
   const defaultCenter = { lat: 20.5937, lng: 78.9629 };
-  const currentCenter = selectedPlace
+  const currentCenter = selectedPlace && typeof selectedPlace.latitude === 'number' && typeof selectedPlace.longitude === 'number' && !isNaN(selectedPlace.latitude) && !isNaN(selectedPlace.longitude)
     ? { lat: selectedPlace.latitude, lng: selectedPlace.longitude }
     : defaultCenter;
 
   // Sync search input if selectedPlace changes externally
   useEffect(() => {
     if (selectedPlace) {
-      setSearchInput(selectedPlace.name);
+      setSearchInput(selectedPlace.name || '');
       setShowInfoWindow(true);
     }
   }, [selectedPlace]);
@@ -116,7 +125,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     debounceTimerRef.current = setTimeout(async () => {
       try {
         const results = await getGooglePlacesPredictions(query);
-        setPredictions(results);
+        setPredictions(results || []);
       } catch (err) {
         console.error('Failed to fetch predictions:', err);
         setPredictions([]);
@@ -133,11 +142,11 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
 
     try {
       // If prediction already has lat/lng (e.g. from fallback geocoder), use it directly
-      if (typeof suggestion.lat === 'number' && typeof suggestion.lng === 'number') {
+      if (typeof suggestion.lat === 'number' && typeof suggestion.lng === 'number' && !isNaN(suggestion.lat) && !isNaN(suggestion.lng)) {
         const placeData: SelectedDestinationPlace = {
-          placeId: suggestion.placeId,
-          name: suggestion.mainText,
-          address: suggestion.secondaryText || suggestion.description,
+          placeId: suggestion.placeId || `dest-${Date.now()}`,
+          name: suggestion.mainText || suggestion.description || 'Destination',
+          address: suggestion.secondaryText || suggestion.description || suggestion.mainText || 'Destination Area',
           latitude: suggestion.lat,
           longitude: suggestion.lng
         };
@@ -151,11 +160,11 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
       // Otherwise fetch place details via Google PlacesService / Geocoder
       const details = await getGooglePlaceDetails(suggestion.placeId);
       const placeData: SelectedDestinationPlace = {
-        placeId: details.placeId || suggestion.placeId,
-        name: details.name || suggestion.mainText,
-        address: details.address || suggestion.secondaryText || suggestion.description,
-        latitude: details.latitude,
-        longitude: details.longitude,
+        placeId: details.placeId || suggestion.placeId || `dest-${Date.now()}`,
+        name: details.name || suggestion.mainText || 'Destination',
+        address: details.address || suggestion.secondaryText || suggestion.description || 'Destination Area',
+        latitude: typeof details.latitude === 'number' && !isNaN(details.latitude) ? details.latitude : 15.2993,
+        longitude: typeof details.longitude === 'number' && !isNaN(details.longitude) ? details.longitude : 74.1240,
         photoUrl: details.photoUrl
       };
 
@@ -166,11 +175,11 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
       console.warn('Place details fetch error, using best-effort approximation:', err);
       // Fallback place data
       const placeData: SelectedDestinationPlace = {
-        placeId: suggestion.placeId,
-        name: suggestion.mainText,
-        address: suggestion.secondaryText || suggestion.description,
-        latitude: suggestion.lat || 15.5800,
-        longitude: suggestion.lng || 73.7421
+        placeId: suggestion.placeId || `dest-${Date.now()}`,
+        name: suggestion.mainText || 'Destination',
+        address: suggestion.secondaryText || suggestion.description || 'Destination Area',
+        latitude: typeof suggestion.lat === 'number' && !isNaN(suggestion.lat) ? suggestion.lat : 15.2993,
+        longitude: typeof suggestion.lng === 'number' && !isNaN(suggestion.lng) ? suggestion.lng : 74.1240
       };
       onSelectPlace(placeData);
       setSearchInput(placeData.name);
@@ -187,6 +196,14 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     setIsDropdownOpen(false);
     onClearPlace();
   };
+
+  const hasValidSelectedCoords = Boolean(
+    selectedPlace &&
+    typeof selectedPlace.latitude === 'number' &&
+    typeof selectedPlace.longitude === 'number' &&
+    !isNaN(selectedPlace.latitude) &&
+    !isNaN(selectedPlace.longitude)
+  );
 
   return (
     <div className="space-y-4" ref={containerRef}>
@@ -218,7 +235,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
                   );
                   if (matched) {
                     onSelectPlace({
-                      placeId: `dest-${matched.name.toLowerCase()}`,
+                      placeId: `dest-${matched.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
                       name: matched.name,
                       address: `${matched.name}, ${matched.region}`,
                       latitude: matched.lat,
@@ -335,17 +352,20 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                  {selectedPlace.name}
+                  {selectedPlace.name || 'Selected Destination'}
                 </h4>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded-full">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   Selected Destination
                 </span>
               </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-1">
+                {selectedPlace.address || selectedPlace.name}
+              </p>
               <div className="flex items-center gap-2 mt-2 text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                <span>Lat: {selectedPlace.latitude.toFixed(4)}</span>
+                <span>Lat: {typeof selectedPlace.latitude === 'number' && !isNaN(selectedPlace.latitude) ? selectedPlace.latitude.toFixed(4) : '0.0000'}</span>
                 <span>•</span>
-                <span>Lng: {selectedPlace.longitude.toFixed(4)}</span>
+                <span>Lng: {typeof selectedPlace.longitude === 'number' && !isNaN(selectedPlace.longitude) ? selectedPlace.longitude.toFixed(4) : '0.0000'}</span>
               </div>
             </div>
           </div>
@@ -365,64 +385,78 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
 
       {/* 4. Interactive Google Map Container */}
       <div className="relative rounded-3xl overflow-hidden border-2 border-slate-200/80 dark:border-slate-700/80 shadow-lg h-[380px] sm:h-[420px] bg-slate-100 dark:bg-slate-950">
-        <APIProvider apiKey={apiKey} libraries={['places', 'marker', 'geometry']}>
-          <Map
-            defaultCenter={currentCenter}
-            defaultZoom={selectedPlace ? 14 : 5}
-            mapId="STEP1_DESTINATION_MAP"
-            gestureHandling="greedy"
-            disableDefaultUI={false}
-            mapTypeControl={false}
-            streetViewControl={false}
-            fullscreenControl={false}
-            className="w-full h-full"
-          >
-            {/* Camera updater that smoothly pans and zooms when location is selected */}
-            <MapCameraUpdater
-              targetLocation={
-                selectedPlace ? { lat: selectedPlace.latitude, lng: selectedPlace.longitude } : null
-              }
-              zoomLevel={14}
-            />
+        <ErrorBoundary
+          name="Step1DestinationMap"
+          fallback={
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-900 text-center space-y-3">
+              <div className="p-3.5 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                <MapPin className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                {selectedPlace ? selectedPlace.name : 'Destination Map Preview'}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+                {selectedPlace?.address || 'Map preview is active. Select your destination above to proceed.'}
+              </p>
+            </div>
+          }
+        >
+          <APIProvider apiKey={apiKey} libraries={['places', 'marker', 'geometry']}>
+            <Map
+              defaultCenter={currentCenter}
+              defaultZoom={hasValidSelectedCoords ? 14 : 5}
+              mapId="STEP1_DESTINATION_MAP"
+              gestureHandling="greedy"
+              disableDefaultUI={false}
+              mapTypeControl={false}
+              streetViewControl={false}
+              fullscreenControl={false}
+              className="w-full h-full"
+            >
+              {/* Camera updater that smoothly pans and zooms when location is selected */}
+              <MapCameraUpdater
+                targetLocation={
+                  hasValidSelectedCoords ? { lat: selectedPlace!.latitude, lng: selectedPlace!.longitude } : null
+                }
+                zoomLevel={14}
+              />
 
-            {/* Pin and marker for selected location */}
-            {selectedPlace && (
-              <AdvancedMarker
-                position={{ lat: selectedPlace.latitude, lng: selectedPlace.longitude }}
-                title={selectedPlace.name}
-                onClick={() => setShowInfoWindow(!showInfoWindow)}
-              >
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute -inset-2 rounded-full bg-emerald-500/30 animate-ping" />
-                  <Pin
-                    background="#059669"
-                    borderColor="#047857"
-                    glyphColor="#ffffff"
-                    scale={1.2}
-                  />
-                </div>
-              </AdvancedMarker>
-            )}
-
-            {/* InfoWindow for selected location */}
-            {selectedPlace && showInfoWindow && (
-              <InfoWindow
-                position={{ lat: selectedPlace.latitude, lng: selectedPlace.longitude }}
-                onCloseClick={() => setShowInfoWindow(false)}
-                pixelOffset={[0, -42]}
-              >
-                <div className="p-2 max-w-xs text-left">
-                  <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Destination Selected</span>
+              {/* Pin and marker for selected location */}
+              {hasValidSelectedCoords && (
+                <AdvancedMarker
+                  position={{ lat: selectedPlace!.latitude, lng: selectedPlace!.longitude }}
+                  title={selectedPlace!.name}
+                  onClick={() => setShowInfoWindow(!showInfoWindow)}
+                >
+                  <div className="relative flex items-center justify-center cursor-pointer group">
+                    <div className="absolute -inset-2 rounded-full bg-emerald-500/30 animate-ping" />
+                    <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-900 ring-2 ring-emerald-500/40">
+                      <MapPin className="w-5 h-5" />
+                    </div>
                   </div>
-                  <h4 className="font-bold text-slate-900 text-sm mt-0.5">{selectedPlace.name}</h4>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-snug">{selectedPlace.address}</p>
-                </div>
-              </InfoWindow>
-            )}
-          </Map>
-        </APIProvider>
+                </AdvancedMarker>
+              )}
+
+              {/* InfoWindow for selected location */}
+              {hasValidSelectedCoords && showInfoWindow && (
+                <InfoWindow
+                  position={{ lat: selectedPlace!.latitude, lng: selectedPlace!.longitude }}
+                  onCloseClick={() => setShowInfoWindow(false)}
+                  pixelOffset={[0, -36]}
+                >
+                  <div className="p-2 max-w-xs text-left">
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Destination Selected</span>
+                    </div>
+                    <h4 className="font-bold text-slate-900 text-sm mt-0.5">{selectedPlace!.name}</h4>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">{selectedPlace!.address}</p>
+                  </div>
+                </InfoWindow>
+              )}
+            </Map>
+          </APIProvider>
+        </ErrorBoundary>
 
         {/* Informational overlay when no place is chosen yet */}
         {!selectedPlace && (

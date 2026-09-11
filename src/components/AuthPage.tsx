@@ -201,25 +201,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
         <div className="p-8">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2.5 mb-6">
-              <div 
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md shrink-0"
-                style={{ background: currentTheme.heroGradient }}
-              >
-                <Compass className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-xl shrink-0 ring-2 ring-emerald-500/20">
+                <img
+                  src="/logo.png"
+                  alt="TripWise Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-3xl font-extrabold tracking-tight font-sans text-slate-900">
-                Roam<span style={{ color: currentTheme.primaryColor }}>AI</span>
+                Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
               </span>
             </div>
 
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-2">
-              {authMode === 'signup' && 'Create your RoamAI account'}
+              {authMode === 'signup' && 'Create your TripWise account'}
               {authMode === 'signin' && 'Welcome Back'}
               {authMode === 'forgot_password' && 'Reset Password'}
               {authMode === 'update_password' && 'Set New Password'}
             </h2>
             <p className="text-slate-600 font-medium text-sm">
-              {authMode === 'signup' && 'Join RoamAI to save and adapt your itineraries.'}
+              {authMode === 'signup' && 'Join TripWise to save and adapt your itineraries.'}
               {authMode === 'signin' && 'Sign in to access your personalized trips.'}
               {authMode === 'forgot_password' && 'Enter your email to receive a reset link.'}
               {authMode === 'update_password' && 'Please enter a strong new password.'}

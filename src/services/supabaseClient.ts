@@ -37,8 +37,8 @@ export async function getCurrentUser() {
   }
 }
 
-const TRIPS_LOCAL_STORAGE_KEY = 'roamai_user_trips_v2';
-const PLACES_LOCAL_STORAGE_KEY = 'roamai_saved_places_v2';
+const TRIPS_LOCAL_STORAGE_KEY = 'tripwise_user_trips_v2';
+const PLACES_LOCAL_STORAGE_KEY = 'tripwise_saved_places_v2';
 
 const getTripsStorageKey = (userId?: string) => userId ? `${TRIPS_LOCAL_STORAGE_KEY}_${userId}` : TRIPS_LOCAL_STORAGE_KEY;
 const getPlacesStorageKey = (userId?: string) => userId ? `${PLACES_LOCAL_STORAGE_KEY}_${userId}` : PLACES_LOCAL_STORAGE_KEY;

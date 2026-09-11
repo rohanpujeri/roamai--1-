@@ -19,10 +19,10 @@ interface ColorGradePreset {
 
 const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
   basic: {
-    filter: 'none',
-    sunFlare: 'transparent',
+    filter: 'brightness(1.02) contrast(1.06) saturate(1.1)',
+    sunFlare: 'radial-gradient(circle at 80% 15%, rgba(254, 240, 138, 0.25) 0%, transparent 60%)',
     shadowTint: 'transparent',
-    highlightTint: 'transparent'
+    highlightTint: 'radial-gradient(ellipse at 60% 30%, rgba(2, 132, 199, 0.12) 0%, transparent 70%)'
   },
   beach: {
     // Vibrant tropical grading: warm golden highlights, vivid turquoise oceans, deep palm greens

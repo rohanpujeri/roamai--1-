@@ -140,7 +140,7 @@ export async function generateTripFromInputs(params: {
 }
 
 /**
- * Dynamically adapt itinerary using Gemini AI based on destination and trigger
+ * Dynamically adapt itinerary using AI based on destination and trigger
  */
 export async function adaptTripPlanWithAI(
   trip: Trip,

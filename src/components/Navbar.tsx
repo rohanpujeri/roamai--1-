@@ -5,8 +5,8 @@ import { Session } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../services/supabaseClient';
 
 interface NavbarProps {
-  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_roamai';
-  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_roamai') => void;
+  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai';
+  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai') => void;
   activeTrip: Trip | null;
   savedTripsCount: number;
   currentTheme: ThemeConfig;
@@ -69,11 +69,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
               className="flex items-center gap-2.5 text-left group cursor-pointer"
             >
-              <div 
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0"
-                style={{ background: currentTheme.heroGradient }}
-              >
-                <Compass className="w-5 h-5 transition-transform group-hover:rotate-45" />
+              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-2 ring-white/30">
+                <img
+                  src="/logo.png"
+                  alt="TripWise Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
@@ -83,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                     style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.6)' } : undefined}
                   >
-                    Roam<span style={{ color: currentTheme.primaryColor }}>AI</span>
+                    Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
                   </span>
                 </div>
                 <p 
@@ -141,17 +142,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
-                onClick={() => onNavigate('why_roamai')}
-                title="About RoamAI"
-                aria-label="About RoamAI"
+                onClick={() => onNavigate('why_tripwise')}
+                title="About TripWise"
+                aria-label="About TripWise"
                 className={`w-9 h-9 rounded-xl text-sm font-bold transition-all flex items-center justify-center cursor-pointer ${
-                  currentView === 'why_roamai'
+                  currentView === 'why_tripwise' || currentView === 'why_roamai'
                     ? 'text-white font-black bg-slate-900 shadow-md'
                     : isDarkText
                     ? 'text-slate-800 font-black hover:text-slate-950 hover:bg-slate-900/10'
                     : 'text-white/90 hover:text-white hover:bg-white/10 font-black'
                 }`}
-                style={!isDarkText && currentView !== 'why_roamai' ? { textShadow: '0 1px 4px rgba(0,0,0,0.6)' } : undefined}
+                style={!isDarkText && currentView !== 'why_tripwise' && currentView !== 'why_roamai' ? { textShadow: '0 1px 4px rgba(0,0,0,0.6)' } : undefined}
               >
                 <span className="text-base font-black italic font-serif">i</span>
               </button>
@@ -313,13 +314,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
           <button
             onClick={() => {
-              onNavigate('why_roamai');
+              onNavigate('why_tripwise');
               setIsMobileMenuOpen(false);
             }}
             className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-white hover:bg-white/10 flex items-center gap-2"
           >
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span>About RoamAI (Why RoamAI)</span>
+            <span>About TripWise (Why TripWise)</span>
           </button>
           
           <div className="pt-2 border-t border-white/10">

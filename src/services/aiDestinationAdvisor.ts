@@ -14,6 +14,9 @@ export interface TravelModeViability {
   transferGuide?: string;
   desc?: string;
   tag?: string;
+  transitHoursOneWay?: number;
+  transitDaysRoundTrip?: number;
+  minRequiredDaysForMode?: number;
 }
 
 export interface DestinationTravelIntelligence {
@@ -23,6 +26,7 @@ export interface DestinationTravelIntelligence {
   minimumRequiredDays: number;
   idealDays: number;
   durationReason: string;
+  travelTransitReason?: string;
   recommendedTravelMode: TravelMode;
   recommendedTravelModeReason: string;
   transferAndSwitchTips: string;
@@ -40,85 +44,94 @@ const intelligenceCache = new Map<string, DestinationTravelIntelligence>();
  */
 export function getGenericDynamicIntelligence(
   destination: string,
-  startCity: string = 'Origin City'
+  startCity: string = 'Origin City',
+  travelMode?: TravelMode
 ): DestinationTravelIntelligence {
-  const destLower = destination.toLowerCase();
-  const isIslandOrOverseas =
-    destLower.includes('iceland') ||
-    destLower.includes('maldives') ||
-    destLower.includes('mauritius') ||
-    destLower.includes('seychelles') ||
-    destLower.includes('hawaii') ||
-    destLower.includes('bali') ||
-    destLower.includes('japan') ||
-    destLower.includes('new zealand') ||
-    destLower.includes('australia') ||
-    destLower.includes('fiji') ||
-    destLower.includes('bahamas') ||
-    destLower.includes('caribbean') ||
-    destLower.includes('malta') ||
-    destLower.includes('cyprus');
-
   const modes: TravelModeViability[] = [
     {
       mode: 'Flight',
       label: 'Flight',
       icon: '✈️',
       isRecommended: true,
-      durationEstimate: 'Direct / connecting flight',
+      durationEstimate: '2h - 4h Flight',
       estimatedCostRange: 'Flight airfare',
       suitabilityScore: 98,
-      pros: `Fastest and primary transit from ${startCity} to ${destination}.`,
+      pros: `Fastest travel transit to go from ${startCity} to ${destination} and return.`,
       cons: 'Airport check-in and transit time.',
       hasSwitchOrTransfer: false,
       desc: `Flight from ${startCity} to ${destination}`,
-      tag: 'Fast & Direct'
+      tag: 'Fast & Direct',
+      transitHoursOneWay: 3,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2 // 1 day to go + 1 day to return
+    },
+    {
+      mode: 'Train',
+      label: 'Train / Railway',
+      icon: '🚆',
+      isRecommended: false,
+      durationEstimate: '10h - 16h Rail',
+      estimatedCostRange: 'Budget friendly',
+      suitabilityScore: 82,
+      pros: 'Comfortable rail transit between cities.',
+      cons: 'Requires 1 full day to go and 1 full day to return.',
+      hasSwitchOrTransfer: false,
+      desc: `Railway transit connecting ${startCity} towards ${destination}`,
+      tag: 'Scenic Rail',
+      transitHoursOneWay: 12,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2 // 1 day to go + 1 day to return
+    },
+    {
+      mode: 'Car / Road Trip',
+      label: 'Car / Road Trip',
+      icon: '🚗',
+      isRecommended: false,
+      durationEstimate: '10h - 14h Drive',
+      estimatedCostRange: 'Fuel & tolls',
+      suitabilityScore: 80,
+      pros: 'Highway drive with direct door-to-door transit.',
+      cons: 'Driving fatigue requiring 1 day to go and 1 day to return.',
+      hasSwitchOrTransfer: false,
+      desc: `Highway road trip from ${startCity} to ${destination}`,
+      tag: 'High Flexibility',
+      transitHoursOneWay: 12,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2 // 1 day to go + 1 day to return
+    },
+    {
+      mode: 'Bus',
+      label: 'Bus / Sleeper Coach',
+      icon: '🚌',
+      isRecommended: false,
+      durationEstimate: '12h - 16h Sleeper',
+      estimatedCostRange: 'Most economical',
+      suitabilityScore: 72,
+      pros: 'Overnight sleeper coaches for intercity transit.',
+      cons: 'Requires 1 day to go and 1 day to return.',
+      hasSwitchOrTransfer: false,
+      desc: `Intercity bus from ${startCity} to ${destination}`,
+      tag: 'Budget Friendly',
+      transitHoursOneWay: 14,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2 // 1 day to go + 1 day to return
     }
   ];
 
-  if (!isIslandOrOverseas) {
-    modes.push(
-      {
-        mode: 'Train',
-        label: 'Train / Railway',
-        icon: '🚆',
-        isRecommended: false,
-        durationEstimate: 'Scenic rail',
-        estimatedCostRange: 'Budget friendly',
-        suitabilityScore: 82,
-        pros: 'Comfortable countryside views and spacious seating.',
-        cons: 'Longer travel duration.',
-        hasSwitchOrTransfer: false,
-        desc: `Railway transit connecting ${startCity} towards ${destination}`,
-        tag: 'Scenic Rail'
-      },
-      {
-        mode: 'Car / Road Trip',
-        label: 'Car / Road Trip',
-        icon: '🚗',
-        isRecommended: false,
-        durationEstimate: 'Highway route',
-        estimatedCostRange: 'Fuel & tolls',
-        suitabilityScore: 80,
-        pros: 'Full itinerary flexibility and scenic stops along the highway.',
-        cons: 'Driving fatigue on long stretches.',
-        hasSwitchOrTransfer: false,
-        desc: `Highway road trip from ${startCity} to ${destination}`,
-        tag: 'High Flexibility'
-      }
-    );
-  }
+  const selectedModeObj = travelMode ? modes.find(m => m.mode === travelMode) : modes[0];
+  const exactTravelDays = selectedModeObj?.minRequiredDaysForMode || 2;
 
   return {
     destination,
     startCity,
-    distanceKm: isIslandOrOverseas ? 6500 : 800,
-    minimumRequiredDays: isIslandOrOverseas ? 6 : 4,
-    idealDays: isIslandOrOverseas ? 8 : 6,
-    durationReason: `Exploring ${destination} comfortably requires adequate time for flights, transit, and exploring major attractions.`,
+    distanceKm: 800,
+    minimumRequiredDays: exactTravelDays,
+    idealDays: exactTravelDays + 3,
+    durationReason: `Exact travel duration: ${exactTravelDays} day(s) required to go from ${startCity} to ${destination} and come back via ${selectedModeObj?.mode || 'travel'}.`,
+    travelTransitReason: `Roundtrip travel transit accounts for ${exactTravelDays} day(s) (${Math.ceil(exactTravelDays / 2)} day to go + ${Math.ceil(exactTravelDays / 2)} day to return).`,
     recommendedTravelMode: 'Flight',
-    recommendedTravelModeReason: `Air transit is the primary and viable way to travel from ${startCity} to ${destination}.`,
-    transferAndSwitchTips: `Fly into the nearest international airport serving ${destination}, then use local transit or car rentals to explore.`,
+    recommendedTravelModeReason: `Air transit is the fastest way to travel between ${startCity} and ${destination}.`,
+    transferAndSwitchTips: `Fly into the nearest airport serving ${destination}, then use local transit or car rentals to explore.`,
     modesBreakdown: modes,
     highlightsInMinDays: [
       `Historic & Cultural landmarks of ${destination}`,
@@ -132,25 +145,26 @@ export function getGenericDynamicIntelligence(
 }
 
 /**
- * AI-powered destination intelligence fetching using Gemini AI.
- * Fetches all travel modes, transit feasibility, and minimum days dynamically without any predefined database.
+ * AI-powered destination intelligence fetching.
+ * Fetches all travel modes, transit feasibility, and travel-based minimum days dynamically.
  */
 export async function fetchAiDestinationTravelIntelligence(
   destination: string,
-  startCity: string = 'Origin City'
+  startCity: string = 'Origin City',
+  travelMode?: TravelMode
 ): Promise<DestinationTravelIntelligence> {
-  const cacheKey = `${destination.toLowerCase().trim()}____${startCity.toLowerCase().trim()}`;
+  const cacheKey = `${destination.toLowerCase().trim()}____${startCity.toLowerCase().trim()}____${(travelMode || 'all').toLowerCase()}`;
   if (intelligenceCache.has(cacheKey)) {
     return intelligenceCache.get(cacheKey)!;
   }
 
-  const genericFallback = getGenericDynamicIntelligence(destination, startCity);
+  const genericFallback = getGenericDynamicIntelligence(destination, startCity, travelMode);
 
   try {
     const response = await fetch('/api/ai/destination-advice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination, startCity }),
+      body: JSON.stringify({ destination, startCity, travelMode }),
     });
 
     if (response.ok) {

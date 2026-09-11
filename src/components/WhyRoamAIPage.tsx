@@ -20,13 +20,13 @@ import {
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 
-interface WhyRoamAIPageProps {
+export interface WhyTripWisePageProps {
   currentTheme?: ThemeConfig;
   onStartPlanning: () => void;
   onOpenMapSearch: () => void;
 }
 
-export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
+export const WhyTripWisePage: React.FC<WhyTripWisePageProps> = ({
   currentTheme,
   onStartPlanning,
   onOpenMapSearch
@@ -133,7 +133,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
 
   const techHighlights = [
     {
-      title: 'Gemini AI Intelligence',
+      title: 'Advanced AI Intelligence',
       description: 'Generates deep, contextually relevant travel plans with real-time natural language adaptation.'
     },
     {
@@ -166,7 +166,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
               }}
             >
               <Compass className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '12s' }} />
-              <span>About RoamAI Travel Platform</span>
+              <span>About TripWise Travel Platform</span>
             </div>
 
             <h1 
@@ -177,7 +177,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
             </h1>
             
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-2xl">
-              RoamAI is an all-in-one AI travel companion designed to eliminate the hours spent juggling travel blogs, spreadsheets, map pins, and unpredictable schedules with live Google Maps grounding and Gemini AI.
+              TripWise is an all-in-one AI travel companion designed to eliminate the hours spent juggling travel blogs, spreadsheets, map pins, and unpredictable schedules with live interactive maps and intelligent real-time AI synthesis.
             </p>
           </div>
 
@@ -211,7 +211,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
               <span>Built for Modern Explorers</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              Core Capabilities & What Makes RoamAI Unique
+              Core Capabilities & What Makes TripWise Unique
             </h2>
             <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm leading-relaxed">
               Explore the key intelligent modules powering your personalized travel itineraries.
@@ -287,7 +287,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
               From Daydreaming to On-the-Ground Reality
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Unlike static itinerary generators, RoamAI stays with you across every stage of your journey.
+              Unlike static itinerary generators, TripWise stays with you across every stage of your journey.
             </p>
           </div>
           <button
@@ -356,7 +356,7 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
       >
         <div className="relative z-10 max-w-2xl mx-auto space-y-3">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
-            Ready to Experience the RoamAI Difference?
+            Ready to Experience the TripWise Difference?
           </h2>
           <p className="text-white/90 text-sm sm:text-base leading-relaxed">
             Generate your personalized, fully adaptive itinerary in seconds with verified places, smart budgeting, and live navigation.
@@ -383,4 +383,6 @@ export const WhyRoamAIPage: React.FC<WhyRoamAIPageProps> = ({
     </div>
   );
 };
+
+export const WhyRoamAIPage = WhyTripWisePage;
 
