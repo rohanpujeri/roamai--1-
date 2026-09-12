@@ -61,39 +61,60 @@ export function generateHotelBookingUrls(
 ) {
   const cleanHotelName = hotelName.trim();
   const cleanDest = destination.trim();
-  const specificQuery = encodeURIComponent(`${cleanHotelName}, ${cleanDest}`);
+  const specificQuery = encodeURIComponent(`${cleanHotelName} ${cleanDest}`);
   const destQuery = encodeURIComponent(cleanDest);
   const hotelQuery = encodeURIComponent(cleanHotelName);
 
   // Format dates if available (YYYY-MM-DD)
-  const checkin = startDate && !isNaN(Date.parse(startDate)) ? new Date(startDate).toISOString().split('T')[0] : '';
-  const checkout = endDate && !isNaN(Date.parse(endDate)) ? new Date(endDate).toISOString().split('T')[0] : '';
+  let checkin = '';
+  let checkout = '';
+  if (startDate && !isNaN(Date.parse(startDate))) {
+    checkin = new Date(startDate).toISOString().split('T')[0];
+  }
+  if (endDate && !isNaN(Date.parse(endDate))) {
+    checkout = new Date(endDate).toISOString().split('T')[0];
+  }
   const adults = Math.max(1, travellersCount || 2);
 
-  // Direct specific hotel page on Google Travel / Hotels
+  // 1. Google Travel / Hotels Direct Property Rate Comparison
   const googleHotelsUrl = checkin && checkout
-    ? `https://www.google.com/travel/hotels?q=${specificQuery}&dates=${checkin}_${checkout}&adults=${adults}`
+    ? `https://www.google.com/travel/hotels?q=${specificQuery}&checkin=${checkin}&checkout=${checkout}&adults=${adults}`
     : `https://www.google.com/travel/hotels?q=${specificQuery}`;
 
-  // Direct specific property target on Booking.com
-  const bookingComUrl = checkin && checkout
-    ? `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(cleanHotelName)}&dest_type=hotel&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&no_rooms=1`
-    : `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(cleanHotelName)}&dest_type=hotel`;
+  // 2. Booking.com Direct Search for exact property in destination
+  let bookingComUrl = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(`${cleanHotelName}, ${cleanDest}`)}`;
+  if (checkin && checkout) {
+    bookingComUrl += `&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&no_rooms=1`;
+  }
 
-  // Direct specific property target on Agoda
-  const agodaUrl = `https://www.agoda.com/search?text=${encodeURIComponent(cleanHotelName + ' ' + cleanDest)}`;
+  // 3. Agoda Direct Search
+  let agodaUrl = `https://www.agoda.com/en-gb/search?text=${specificQuery}`;
+  if (checkin && checkout) {
+    agodaUrl += `&checkIn=${checkin}&checkOut=${checkout}&rooms=1&adults=${adults}`;
+  }
 
-  // Direct specific property target on MakeMyTrip
-  const makeMyTripUrl = `https://www.makemytrip.com/hotels/hotel-listing/?city=${destQuery}&searchText=${hotelQuery}${checkin && checkout ? `&checkin=${checkin}&checkout=${checkout}` : ''}`;
+  // 4. TripAdvisor Direct Property & Price Comparison
+  const tripAdvisorUrl = `https://www.tripadvisor.com/Search?q=${specificQuery}`;
 
-  // Direct official website search for this specific hotel
-  const officialSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanHotelName + ' ' + cleanDest + ' official booking')}`;
+  // 5. Expedia Direct Hotel Search
+  let expediaUrl = `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(`${cleanHotelName}, ${cleanDest}`)}`;
+  if (checkin && checkout) {
+    expediaUrl += `&startDate=${checkin}&endDate=${checkout}&adults=${adults}`;
+  }
+
+  // 6. MakeMyTrip Direct Search
+  const makeMyTripUrl = `https://www.google.com/search?q=${encodeURIComponent(`${cleanHotelName} ${cleanDest} MakeMyTrip`)}`;
+
+  // 7. Direct Official Website Search
+  const officialSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${cleanHotelName} ${cleanDest} official hotel website booking`)}`;
 
   return {
     primary: googleHotelsUrl,
     googleHotels: googleHotelsUrl,
     bookingCom: bookingComUrl,
     agoda: agodaUrl,
+    tripAdvisor: tripAdvisorUrl,
+    expedia: expediaUrl,
     makeMyTrip: makeMyTripUrl,
     officialSearch: officialSearchUrl
   };

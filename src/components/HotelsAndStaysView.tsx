@@ -546,15 +546,17 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                         </div>
 
                         {/* Quick Provider Deep-links */}
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Book Directly On:</span>
-                          <div className="flex items-center gap-1.5">
+                        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400">
+                            <span>Direct Property Booking Options:</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <a
                               href={bookingUrls.bookingCom}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 flex items-center gap-1 transition-colors"
-                              title="Book on Booking.com"
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Book directly on Booking.com"
                             >
                               <span>Booking.com</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-70" />
@@ -563,20 +565,40 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                               href={bookingUrls.agoda}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-900 flex items-center gap-1 transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                               title="Book on Agoda"
                             >
                               <span>Agoda</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-70" />
                             </a>
                             <a
-                              href={bookingUrls.makeMyTrip}
+                              href={bookingUrls.tripAdvisor}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 flex items-center gap-1 transition-colors"
-                              title="Book on MakeMyTrip"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Reviews & price comparison on TripAdvisor"
                             >
-                              <span>MakeMyTrip</span>
+                              <span>TripAdvisor</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </a>
+                            <a
+                              href={bookingUrls.expedia}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Book on Expedia"
+                            >
+                              <span>Expedia</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </a>
+                            <a
+                              href={bookingUrls.officialSearch}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Search official hotel website & direct desk booking"
+                            >
+                              <span>Official / Direct</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-70" />
                             </a>
                           </div>

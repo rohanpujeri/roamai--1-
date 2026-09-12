@@ -314,7 +314,7 @@ export function getFallbackHotelRecommendations(params: HotelRecommendationParam
 
   candidates.forEach((c, idx) => {
     const photo = pickHotelPhoto(c.category, idx);
-    const googleQuery = encodeURIComponent(`${c.name} ${destination} hotels booking`);
+    const googleQuery = encodeURIComponent(`${c.name} ${destination}`);
     stays.push({
       id: `hotel_${idx + 1}_${Date.now()}`,
       dayNumber: c.dayNumber,
@@ -444,7 +444,7 @@ RULES:
             const cat = item.category || (params.budgetTier === 'Luxury' ? 'Luxury Hotel' : params.budgetTier === 'Budget' ? 'Hostel / Budget' : 'Resort');
             const photo = pickHotelPhoto(cat, idx);
             const hotelName = item.name || `${params.destination} Stay`;
-            const googleQuery = encodeURIComponent(`${hotelName} ${params.destination} hotels booking`);
+            const googleQuery = encodeURIComponent(`${hotelName} ${params.destination}`);
             
             // Strictly enforce per-night price within the selected budget tier
             let price = typeof item.pricePerNight === 'number' && item.pricePerNight > 0
