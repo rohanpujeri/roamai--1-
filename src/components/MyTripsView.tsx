@@ -32,31 +32,21 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
   onDeleteTrip
 }) => {
   return (
-    <div className="space-y-8 text-left max-w-6xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 text-left max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/25 pb-6">
-        <div>
-          <h2 
-            className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight"
-            style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
-          >
+      <div className="p-3.5 sm:p-5 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-md">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <h2 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             My Planned Trips
           </h2>
-          <p 
-            className="text-white/90 text-sm mt-1 font-medium"
-            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}
-          >
-            Access your personalized itineraries, adaptive companion, and packing lists.
-          </p>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">
+            {trips.length} {trips.length === 1 ? 'Trip' : 'Trips'}
+          </span>
         </div>
-
-        <button
-          onClick={onPlanNewTrip}
-          className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-emerald-400/40"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Plan New Trip</span>
-        </button>
+        <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 font-medium hidden sm:block">
+          Access your personalized itineraries, adaptive companion, and live trip details.
+        </p>
       </div>
 
       {/* Empty State */}

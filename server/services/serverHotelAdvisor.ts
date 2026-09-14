@@ -86,309 +86,42 @@ function getCacheKey(params: HotelRecommendationParams): string {
   return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || 'Solo'}`;
 }
 
-export function getFallbackHotelRecommendations(params: HotelRecommendationParams): HotelStayRecommendation[] {
-  const { destination, budgetTier, durationDays = 3, companionType = 'Friends' } = params;
-
-  const tierPrices = PRICE_MAP_BY_TIER[budgetTier] || PRICE_MAP_BY_TIER.Moderate;
-  const stays: HotelStayRecommendation[] = [];
-
-  let candidates: {
-    name: string;
-    category: HotelStayRecommendation['category'];
-    area: string;
-    rating: number;
-    reviews: number;
-    snippet: string;
-    amenities: string[];
-    price: number;
-    dayNumber: number;
-    matchReason: string;
-  }[] = [];
-
-  if (budgetTier === 'Luxury') {
-    candidates = [
-      {
-        name: `${destination} 5-Star Grand Palace & Luxury Spa`,
-        category: 'Luxury Hotel',
-        area: `${destination} Premier Heritage & Luxury Quarter`,
-        rating: 4.9,
-        reviews: 820,
-        snippet: `Iconic 5-star luxury hospitality in ${destination}, signature spa therapies, curated fine-dining and dedicated butler service.`,
-        amenities: ['Private Pool Access', 'Butler Service', '5-Star Luxury Spa', 'Fine Dining Breakfast', 'Chauffeured Airport Transfer', 'Scenic Panoramic View'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.5),
-        dayNumber: 1,
-        matchReason: `Premier 5-star luxury stay for Day 1 in ${destination}. Unmatched luxury comfort and VIP amenities.`
-      },
-      {
-        name: `${destination} Royal Heritage Luxury Resort & Villas`,
-        category: 'Resort',
-        area: `${destination} Scenic Valley & Coastal Enclave`,
-        rating: 4.9,
-        reviews: 710,
-        snippet: `Private plunge pools, sunset cocktail lounges, bespoke wellness retreats, and Michelin-caliber curated dining in ${destination}.`,
-        amenities: ['Private Plunge Pool', 'Infinity Pool', 'Champagne Lounge', 'Luxury Wellness Pavilion', 'Valet Parking', '24/7 Concierge'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.35),
-        dayNumber: Math.min(2, durationDays),
-        matchReason: `Exclusive 5-star luxury resort tailored for ${companionType} in ${destination}. Perfect for evening relaxation.`
-      },
-      {
-        name: `${destination} Signature 5-Star Private Pool Suites`,
-        category: 'Luxury Hotel',
-        area: `${destination} Prime Panoramic Ridge`,
-        rating: 4.9,
-        reviews: 590,
-        snippet: `Panoramic floor-to-ceiling vistas, curated sommelier tastings, heated infinity pools, and lavish luxury suites in ${destination}.`,
-        amenities: ['Heated Infinity Pool', 'Bespoke Dining', 'Ayurvedic & Western Spa', 'Private Chauffeur', 'High-Speed Wi-Fi'],
-        price: tierPrices.max,
-        dayNumber: Math.min(3, durationDays),
-        matchReason: `Signature 5-star luxury retreat in ${destination} offering award-winning suites and elite VIP pampering.`
-      },
-      {
-        name: `${destination} Premier Boutique Luxury Retreat & Spa`,
-        category: 'Resort',
-        area: `${destination} Historic Garden Estate`,
-        rating: 4.8,
-        reviews: 490,
-        snippet: `Refined colonial and modern architecture, private courtyards, artisan cocktails, and five-star hospitality in ${destination}.`,
-        amenities: ['Spa & Hydrotherapy', 'Private Balconies', 'Fine Dining Buffet', 'Lush Gardens', 'Curated Excursions'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.6),
-        dayNumber: Math.min(4, durationDays),
-        matchReason: `Exceptional 5-star luxury stay in ${destination} guaranteeing total tranquility and personalized service.`
-      }
-    ];
-  } else if (budgetTier === 'Budget') {
-    candidates = [
-      {
-        name: `${destination} Backpackers Central Hostel & Co-Living`,
-        category: 'Hostel / Budget',
-        area: `${destination} Central Backpacker Hub`,
-        rating: 4.7,
-        reviews: 520,
-        snippet: `Vibrant backpacker social community in ${destination}, clean AC dorms/private rooms, cafe, co-working space & local walking tours.`,
-        amenities: ['Free High-Speed Wi-Fi', 'Cafe & Shared Kitchen', 'Common Lounge & Games', 'Lockers', 'Local Tours'],
-        price: tierPrices.min + 200,
-        dayNumber: 1,
-        matchReason: `Top-rated budget backpacker stay matching your ${budgetTier} budget with active social events in ${destination}.`
-      },
-      {
-        name: `${destination} Nature Valley Budget Homestay`,
-        category: 'Homestay / Villa',
-        area: `${destination} Scenic Green Belt`,
-        rating: 4.6,
-        reviews: 310,
-        snippet: `Warm local host hospitality, home-cooked regional meals, clean scenic rooms and affordable local transit in ${destination}.`,
-        amenities: ['Home-cooked Meals', 'Free Wi-Fi', 'Nature Views', 'Rental Assistance'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.4),
-        dayNumber: Math.min(2, durationDays),
-        matchReason: `Authentic regional budget homestay tailored for ${companionType} in ${destination}. Clean, safe and friendly.`
-      },
-      {
-        name: `${destination} Traveler Youth Hostel & Social Hub`,
-        category: 'Hostel / Budget',
-        area: `${destination} Vibrant Sightseeing Quarter`,
-        rating: 4.7,
-        reviews: 440,
-        snippet: `Modern co-living hostel, rooftop cafe, evening live events & friendly backpacker community in ${destination}.`,
-        amenities: ['Co-working Cafe', 'Free Wi-Fi', 'Board Games', 'Luggage Storage', 'Rooftop Terrace'],
-        price: tierPrices.max,
-        dayNumber: Math.min(3, durationDays),
-        matchReason: `High-value budget stay in ${destination} with premium hostel amenities and prime location.`
-      },
-      {
-        name: `${destination} Alpine Backpacker Eco-Lodge`,
-        category: 'Eco-Lodge',
-        area: `${destination} Nature Bypass`,
-        rating: 4.5,
-        reviews: 190,
-        snippet: `Budget-friendly wooden cottages, stargazing terrace, bonfire area, and easy access to local exploration in ${destination}.`,
-        amenities: ['Campfire / Bonfire', 'Eco-friendly', 'Free Wi-Fi', 'Tea & Coffee Corner'],
-        price: tierPrices.min + 300,
-        dayNumber: Math.min(4, durationDays),
-        matchReason: `Great value budget pick in ${destination} for relaxing in nature without overspending.`
-      }
-    ];
-  } else if (budgetTier === 'Premium') {
-    candidates = [
-      {
-        name: `${destination} 4-Star Boutique Resort & Suites`,
-        category: 'Resort',
-        area: `${destination} Scenic Promenade`,
-        rating: 4.8,
-        reviews: 580,
-        snippet: `4-star boutique suites, infinity pool, multi-cuisine dining, lush landscaped grounds & cocktail lounge in ${destination}.`,
-        amenities: ['Infinity Pool', 'Breakfast Buffet', 'Spa & Wellness', 'Balcony with Views', 'Free Wi-Fi'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.4),
-        dayNumber: 1,
-        matchReason: `Top recommended 4-star stay matching your ${budgetTier} budget with excellent amenities in ${destination}.`
-      },
-      {
-        name: `${destination} Premium Heritage Villas & Suites`,
-        category: 'Homestay / Villa',
-        area: `${destination} Private Valley View`,
-        rating: 4.7,
-        reviews: 360,
-        snippet: `Private villa suites, bonfire nights, curated regional cuisine, and expansive garden decks in ${destination}.`,
-        amenities: ['Private Balcony', 'Bonfire', 'Room Service', 'Nature Trails', 'Parking'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.2),
-        dayNumber: Math.min(2, durationDays),
-        matchReason: `Comfortable premium boutique accommodation in ${destination} offering privacy and serene surroundings.`
-      },
-      {
-        name: `${destination} Horizon Cliff Suites & Spa`,
-        category: 'Boutique Hotel',
-        area: `${destination} Central Prime Quarter`,
-        rating: 4.8,
-        reviews: 420,
-        snippet: `Rooftop cocktail lounge, panoramic suites, fitness center and top-rated breakfast spread in ${destination}.`,
-        amenities: ['Rooftop Lounge', 'Fitness Center', 'Free Wi-Fi', 'Valet Parking', 'Room Service'],
-        price: tierPrices.max,
-        dayNumber: Math.min(3, durationDays),
-        matchReason: `Signature 4-star property in ${destination} with modern comforts and great city/nature access.`
-      },
-      {
-        name: `${destination} Eco-Resort & Wellness Pavilion`,
-        category: 'Eco-Lodge',
-        area: `${destination} Lush Nature Ridge`,
-        rating: 4.7,
-        reviews: 260,
-        snippet: `Sustainable wooden villas, organic chef dining, guided nature walks, and stargazing deck in ${destination}.`,
-        amenities: ['Organic Dining', 'Guided Treks', 'Spa Pavilion', 'Free Wi-Fi'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.5),
-        dayNumber: Math.min(4, durationDays),
-        matchReason: `Curated eco-resort experience in ${destination} blending nature with premium comfort.`
-      }
-    ];
-  } else {
-    // Moderate (3-Star Boutique, Heritage Havelis, Cozy Stays)
-    candidates = [
-      {
-        name: `${destination} Boutique Retreat & Suites`,
-        category: 'Boutique Hotel',
-        area: `${destination} Historic Heritage Quarter`,
-        rating: 4.7,
-        reviews: 390,
-        snippet: `Charming 3-star boutique stay, AC rooms, rooftop cafe, clean facilities and attentive hospitality in ${destination}.`,
-        amenities: ['Breakfast Included', 'Free Wi-Fi', 'AC Rooms', 'Rooftop Cafe', 'Tour Assistance'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.4),
-        dayNumber: 1,
-        matchReason: `Comfortable 3-star boutique stay matching your Moderate budget in ${destination}.`
-      },
-      {
-        name: `${destination} Nature Valley Homestay & Cottages`,
-        category: 'Homestay / Villa',
-        area: `${destination} Tranquil Green District`,
-        rating: 4.6,
-        reviews: 280,
-        snippet: `Peaceful garden cottages, delicious home-cooked regional meals, and morning scenic views in ${destination}.`,
-        amenities: ['Home-cooked Meals', 'Free Wi-Fi', 'Balcony', 'Free Parking'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.2),
-        dayNumber: Math.min(2, durationDays),
-        matchReason: `Cozy local accommodation in ${destination} offering great value and warmth for ${companionType}.`
-      },
-      {
-        name: `${destination} Central Plaza Hotel`,
-        category: 'Boutique Hotel',
-        area: `${destination} Commercial & Sightseeing Hub`,
-        rating: 4.7,
-        reviews: 340,
-        snippet: `Spacious AC rooms, in-house restaurant, express laundry, and 24/7 travel desk in ${destination}.`,
-        amenities: ['Restaurant', 'Free Wi-Fi', 'Elevator', '24/7 Front Desk'],
-        price: tierPrices.max,
-        dayNumber: Math.min(3, durationDays),
-        matchReason: `Central location in ${destination} making it effortless to visit all key itinerary attractions.`
-      },
-      {
-        name: `${destination} Forest View Cottage Stay`,
-        category: 'Eco-Lodge',
-        area: `${destination} Lush Nature Belt`,
-        rating: 4.5,
-        reviews: 190,
-        snippet: `Wooden cottages nestled in trees, bonfire setup, outdoor seating and wholesome regional breakfast in ${destination}.`,
-        amenities: ['Bonfire', 'Scenic Deck', 'Free Wi-Fi', 'Complimentary Breakfast'],
-        price: tierPrices.min + Math.round((tierPrices.max - tierPrices.min) * 0.5),
-        dayNumber: Math.min(4, durationDays),
-        matchReason: `Relaxing moderate nature stay in ${destination} after an active day of sightseeing.`
-      }
-    ];
-  }
-
-  candidates.forEach((c, idx) => {
-    const photo = pickHotelPhoto(c.category, idx);
-    const googleQuery = encodeURIComponent(`${c.name} ${destination}`);
-    stays.push({
-      id: `hotel_${idx + 1}_${Date.now()}`,
-      dayNumber: c.dayNumber,
-      name: c.name,
-      category: c.category,
-      budgetTier,
-      pricePerNight: c.price,
-      priceFormatted: `₹${c.price.toLocaleString('en-IN')} / night`,
-      locationArea: c.area,
-      rating: c.rating,
-      reviewCount: c.reviews,
-      reviewSnippet: c.snippet,
-      amenities: c.amenities,
-      imageUrl: photo,
-      bookingSearchUrl: `https://www.google.com/travel/hotels?q=${googleQuery}`,
-      recommendedFor: `Recommended for ${companionType} looking for authentic ${budgetTier} comfort`,
-      matchReason: c.matchReason
-    });
-  });
-
-  return stays;
-}
-
-/**
- * AI-powered hotel, resort, and homestay recommendation fetcher using Gemini AI
- */
 export async function fetchAiHotelSuggestions(params: HotelRecommendationParams): Promise<HotelStayRecommendation[]> {
   const cacheKey = getCacheKey(params);
   if (hotelCache.has(cacheKey)) {
     return hotelCache.get(cacheKey)!;
   }
 
-  const fallback = getFallbackHotelRecommendations(params);
-  const geminiKey = process.env.GEMINI_API_KEY;
-
-  if (!geminiKey) {
-    hotelCache.set(cacheKey, fallback);
-    return fallback;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('[serverHotelAdvisor] No GEMINI_API_KEY available in environment');
+    return [];
   }
 
   try {
-    const ai = new GoogleGenAI({
-      apiKey: geminiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build'
-        }
-      }
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
-    const daysSummary = (params.daysInfo || [])
-      .map((d) => `Day ${d.dayNumber}: "${d.theme}" (${d.location || 'Key sights'})`)
-      .join('\n');
+    const daysSummary = params.daysInfo && params.daysInfo.length > 0
+      ? params.daysInfo.map((d) => `Day ${d.dayNumber}: ${d.theme} ${d.location ? `(${d.location})` : ''}`).join('\n')
+      : '';
 
-    const tierGuideline =
-      params.budgetTier === 'Luxury'
-        ? `STRICT LUXURY TIER MANDATE:
-- Suggest ONLY premier 5-Star Luxury Hotels, 5-Star Luxury Resorts, Royal Heritage Palaces, and VIP Private Villa Estates (e.g. Taj, Oberoi, Leela, St. Regis, Ritz-Carlton, Four Seasons, Aman, Alila, W Hotels, Evolve Back, luxury private pool villas).
-- NEVER suggest hostels, backpacker dorms, 2-star/3-star budget lodges, or basic guesthouses.
-- Nightly rate MUST be strictly in the authentic luxury tier (₹16,000 to ₹45,000+ per night in INR).
-- Amenities MUST reflect 5-star luxury (e.g. "Private Plunge Pool", "Butler Service", "5-Star Spa", "Fine Dining", "Chauffeured Airport Transfer", "Champagne Lounge").`
-        : params.budgetTier === 'Budget'
-        ? `STRICT BUDGET TIER MANDATE:
+    const tierGuideline = params.budgetTier === 'Luxury'
+      ? `STRICT LUXURY TIER MANDATE:
+- Suggest ONLY premier 5-Star luxury hotels (e.g. Taj, Oberoi, Marriott, Leela, Four Seasons), heritage palaces, and private luxury pool villas.
+- Nightly rate MUST be in the luxury tier (₹16,000 to ₹45,000+ per night in INR).`
+      : params.budgetTier === 'Budget'
+      ? `STRICT BUDGET TIER MANDATE:
 - Suggest ONLY verified Backpacker Hostels (e.g. Zostel, goSTOPS, Hosteller), shared homestays, and affordable traveler lodges.
 - NEVER suggest expensive 5-star luxury resorts.
 - Nightly rate MUST be in the budget tier (₹800 to ₹1,800 per night in INR).`
-        : params.budgetTier === 'Premium'
-        ? `STRICT PREMIUM TIER MANDATE:
+      : params.budgetTier === 'Premium'
+      ? `STRICT PREMIUM TIER MANDATE:
 - Suggest 4-Star boutique resorts, cliffside pool suites, and premium villas (₹6,500 to ₹14,000 per night in INR).`
-        : `STRICT MODERATE TIER MANDATE:
+      : `STRICT MODERATE TIER MANDATE:
 - Suggest comfortable 3-Star boutique hotels, verified Airbnb apartments, and authentic heritage havelis (₹2,500 to ₹5,200 per night in INR).`;
 
     const prompt = `You are an elite hotel concierge & accommodation specialist AI.
-Suggest 5 authentic, real-world hotels, resorts, homestays, or boutique villas in or near "${params.destination}".
+Search and suggest 5 authentic, real-world hotels, resorts, homestays, or backpacker hostels that currently exist in or near "${params.destination}".
 
 Trip Context:
 - Destination: "${params.destination}"
@@ -404,17 +137,17 @@ ${daysSummary ? `Itinerary Days Context:\n${daysSummary}` : ''}
 Provide 5 real, highly rated hotels/resorts strictly in valid JSON format:
 [
   {
-    "name": "Actual Real Hotel/Resort Name matching ${params.budgetTier} tier",
+    "name": "Actual Real Hotel/Resort Name in ${params.destination} matching ${params.budgetTier} tier",
     "category": "${params.budgetTier === 'Luxury' ? 'Luxury Hotel' : params.budgetTier === 'Budget' ? 'Hostel / Budget' : 'Resort'}",
     "budgetTier": "${params.budgetTier}",
     "pricePerNight": number (realistic per-night INR rate matching ${params.budgetTier} tier),
-    "locationArea": "Neighborhood or vicinity description (e.g. 'Mullayanagiri Foothills', 'Vagator Beachfront')",
-    "rating": number (4.7 to 5.0),
-    "reviewCount": number (e.g. 650),
+    "locationArea": "Neighborhood or vicinity description in ${params.destination}",
+    "rating": number (4.6 to 5.0),
+    "reviewCount": number (e.g. 520),
     "reviewSnippet": "1-2 sentence real guest highlight",
-    "amenities": ["Spa", "Private Pool", "Free Wi-Fi", "Breakfast Included"],
+    "amenities": ["Free Wi-Fi", "Breakfast Included", "Scenic View", "Air Conditioning"],
     "dayNumber": number (Suggested stay for which day, 1 to ${params.durationDays}),
-    "recommendedFor": "e.g. 'Luxury travelers seeking elite 5-star comfort and private pool villas'",
+    "recommendedFor": "e.g. 'Travelers seeking ${params.budgetTier} comfort in ${params.destination}'",
     "matchReason": "Why this specifically fits the ${params.budgetTier} tier"
   }
 ]
@@ -422,7 +155,7 @@ Provide 5 real, highly rated hotels/resorts strictly in valid JSON format:
 RULES:
 1. Provide REAL, authentic places that exist in "${params.destination}".
 2. All recommended stays MUST strictly adhere to the "${params.budgetTier}" tier constraints.
-3. Return ONLY valid JSON array without markdown formatting.`;
+3. Return ONLY the valid JSON array without extra text.`;
 
     for (const modelName of PREFERRED_GEMINI_MODELS) {
       try {
@@ -449,7 +182,7 @@ RULES:
             // Strictly enforce per-night price within the selected budget tier
             let price = typeof item.pricePerNight === 'number' && item.pricePerNight > 0
               ? item.pricePerNight
-              : fallback[idx % fallback.length]?.pricePerNight || tierBounds.min + Math.round((tierBounds.max - tierBounds.min) * 0.5);
+              : tierBounds.min + Math.round((tierBounds.max - tierBounds.min) * 0.5);
 
             if (price < tierBounds.min) price = tierBounds.min;
             if (price > tierBounds.max) price = tierBounds.max;
@@ -465,11 +198,11 @@ RULES:
               locationArea: item.locationArea || `${params.destination} District`,
               rating: typeof item.rating === 'number' ? item.rating : 4.7,
               reviewCount: typeof item.reviewCount === 'number' ? item.reviewCount : 320,
-              reviewSnippet: item.reviewSnippet || `Tailored to your ${params.budgetTier} budget with top verified guest ratings.`,
+              reviewSnippet: item.reviewSnippet || `Tailored to your ${params.budgetTier} budget with verified guest ratings.`,
               amenities: Array.isArray(item.amenities) && item.amenities.length > 0 ? item.amenities : ['Breakfast Included', 'Free Wi-Fi', 'Scenic View', 'Parking'],
               imageUrl: photo,
               bookingSearchUrl: `https://www.google.com/travel/hotels?q=${googleQuery}`,
-              recommendedFor: item.recommendedFor || `Perfect for ${params.companionType || 'travelers'} seeking ${params.budgetTier} tier comfort`,
+              recommendedFor: item.recommendedFor || `Perfect for ${params.companionType || 'travelers'} seeking ${params.budgetTier} tier comfort in ${params.destination}`,
               matchReason: item.matchReason || `Strictly matches your ${params.budgetTier} budget tier (₹${tierBounds.min.toLocaleString('en-IN')}–₹${tierBounds.max.toLocaleString('en-IN')}/night)`
             };
           });
@@ -485,6 +218,5 @@ RULES:
     console.warn('[serverHotelAdvisor] Gemini API error:', error);
   }
 
-  hotelCache.set(cacheKey, fallback);
-  return fallback;
+  return [];
 }

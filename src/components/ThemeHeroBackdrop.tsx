@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ThemeConfig } from '../types';
 import { MapPin, Sparkles, Compass, Eye, Image as ImageIcon } from 'lucide-react';
 import { SnowfallEffect } from './SnowfallAtmosphere';
-import { BeachWavesEffect } from './BeachWavesEffect';
 
 interface ThemeHeroBackdropProps {
   currentTheme?: ThemeConfig;
@@ -65,6 +64,7 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   currentTheme,
   isDark = false
 }) => {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
   const themeId = currentTheme?.id || 'waterfall';
   const photoUrl = currentTheme?.heroPhotoUrl || 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?q=90&w=2560&auto=format&fit=crop';
   const photoPosition = currentTheme?.heroPhotoPosition || 'center 35%';
@@ -72,6 +72,14 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   const secondaryColor = currentTheme?.secondaryColor || '#059669';
 
   const grade = COLOR_GRADE_PRESETS[themeId] || COLOR_GRADE_PRESETS.beach;
+
+  React.useEffect(() => {
+    if (themeId === 'beach' && videoRef.current) {
+      videoRef.current.play().catch(() => {
+        // Autoplay policy fallback handled gracefully by poster
+      });
+    }
+  }, [themeId]);
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0 select-none" aria-hidden="true">
@@ -85,20 +93,47 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
           transition={{ duration: 0.7, ease: 'easeOut' }}
           className="absolute inset-0 w-full h-full"
         >
-          {/* Ultra High Quality Landscape Photo with Tailored Color Grading Filters */}
-          <img
-            src={photoUrl}
-            alt={currentTheme?.name || 'Theme Scenic Scenery'}
-            referrerPolicy="no-referrer"
-            decoding="async"
-            loading="eager"
-            style={{
-              objectPosition: photoPosition,
-              filter: grade.filter,
-              imageRendering: 'auto'
-            }}
-            className="w-full h-full object-cover transition-all duration-700 select-none"
-          />
+          {/* If Beach theme, render high-performance looping real aerial beach waves video with image fallback */}
+          {themeId === 'beach' ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              loop
+              muted
+              playsInline
+              poster={photoUrl}
+              style={{
+                objectPosition: photoPosition,
+                filter: grade.filter,
+              }}
+              className="w-full h-full object-cover transition-all duration-700 select-none pointer-events-none"
+            >
+              <source src="/videos/beach-waves.mp4" type="video/mp4" />
+              <img
+                src={photoUrl}
+                alt={currentTheme?.name || 'Beach Waves'}
+                style={{
+                  objectPosition: photoPosition,
+                  filter: grade.filter,
+                }}
+                className="w-full h-full object-cover"
+              />
+            </video>
+          ) : (
+            <img
+              src={photoUrl}
+              alt={currentTheme?.name || 'Theme Scenic Scenery'}
+              referrerPolicy="no-referrer"
+              decoding="async"
+              loading="eager"
+              style={{
+                objectPosition: photoPosition,
+                filter: grade.filter,
+                imageRendering: 'auto'
+              }}
+              className="w-full h-full object-cover transition-all duration-700 select-none"
+            />
+          )}
 
           {/* Cinematic Optical Sun Flare / Key Light Accent */}
           <div
@@ -127,13 +162,9 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
       {/* 2. Theme-Specific Particle & Atmospheric Overlays */}
       {themeId === 'beach' && (
         <div className="absolute inset-0 pointer-events-none">
-          {/* Beach Sun Sparkles */}
-          <div className="absolute top-12 left-[18%] w-2 h-2 rounded-full bg-amber-300/60 blur-[0.5px] animate-pulse" style={{ animationDuration: '3.5s' }} />
-          <div className="absolute top-28 right-[24%] w-1.5 h-1.5 rounded-full bg-cyan-300/70 blur-[0.5px] animate-ping" style={{ animationDuration: '5.5s' }} />
-          <div className="absolute top-[45%] left-[12%] w-2.5 h-2.5 rounded-full bg-teal-300/40 blur-[1px] animate-pulse" style={{ animationDuration: '4.8s' }} />
-          
-          {/* Continuous Multi-layered Flowing Ocean Waves */}
-          <BeachWavesEffect height="175px" showFoam={true} showSparkles={true} />
+          {/* Subtle Sun & Crystal Water Glints */}
+          <div className="absolute top-12 left-[18%] w-1.5 h-1.5 rounded-full bg-amber-300/40 blur-[0.5px] animate-pulse" style={{ animationDuration: '3.5s' }} />
+          <div className="absolute top-28 right-[24%] w-1 h-1 rounded-full bg-cyan-300/50 blur-[0.5px] animate-ping" style={{ animationDuration: '5.5s' }} />
         </div>
       )}
 

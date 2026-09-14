@@ -27,7 +27,6 @@ import {
 import { Trip, HotelStayRecommendation, BudgetTier } from '../types';
 import {
   fetchAiHotelSuggestions,
-  getFallbackHotelRecommendations,
   generateHotelBookingUrls
 } from '../services/aiHotelAdvisor';
 
@@ -57,15 +56,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
     if (trip.hotelRecommendations && trip.hotelRecommendations.length > 0) {
       return trip.hotelRecommendations.filter((h) => !h.budgetTier || h.budgetTier === tripBudgetTier);
     }
-    return getFallbackHotelRecommendations({
-      destination: trip.destination,
-      budgetTier: tripBudgetTier,
-      durationDays: trip.durationDays || 3,
-      travellersCount: trip.travellersCount || 2,
-      companionType: trip.companionType,
-      travelStyles: trip.preferences?.styles,
-      daysInfo: trip.days?.map((d) => ({ dayNumber: d.dayNumber, theme: d.theme }))
-    });
+    return [];
   });
 
   const [selectedHotelIds, setSelectedHotelIds] = useState<Record<number, string>>(() => {
@@ -243,7 +234,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
 
       {/* Interactive Controls: Day Filter, Category Filter, and Budget Tier Switcher */}
       <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl p-5 sm:p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-5">
-        
+
         {/* Row 1: Locked Budget Tier Badge & Search Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
           <div>
@@ -290,11 +281,10 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedDayFilter('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
-                selectedDayFilter === 'all'
-                  ? 'bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-              }`}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${selectedDayFilter === 'all'
+                ? 'bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 font-black shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                }`}
             >
               All Days ({hotelList.length})
             </button>
@@ -306,11 +296,10 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                   key={day.dayNumber}
                   type="button"
                   onClick={() => setSelectedDayFilter(day.dayNumber)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isSelected
-                      ? 'bg-emerald-600 text-white font-black shadow-md ring-2 ring-emerald-500/20'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                  }`}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${isSelected
+                    ? 'bg-emerald-600 text-white font-black shadow-md ring-2 ring-emerald-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    }`}
                 >
                   <span>Day {day.dayNumber}</span>
                   {hasSelectedStay && (
@@ -338,11 +327,10 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
-                      : 'bg-white/60 hover:bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
-                  }`}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${isSelected
+                    ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                    : 'bg-white/60 hover:bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
+                    }`}
                 >
                   {cat === 'Resort' && '🌴 Resort'}
                   {cat === 'Boutique Hotel' && '🏰 Boutique Hotel'}
@@ -370,7 +358,21 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
           </span>
         </div>
 
-        {filteredHotels.length === 0 ? (
+        {isLoadingAi ? (
+          <div className="p-12 text-center bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-emerald-500/30 dark:border-emerald-500/20 space-y-4 animate-pulse">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="w-6 h-6 animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <h5 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                AI is curating authentic stays in {trip.destination}...
+              </h5>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                Finding live boutique hotels, resorts, and homestays tailored to your {activeBudgetTier} budget tier and itinerary.
+              </p>
+            </div>
+          </div>
+        ) : filteredHotels.length === 0 ? (
           <div className="p-12 text-center bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
             <Building2 className="w-10 h-10 text-slate-400 mx-auto" />
             <h5 className="text-base font-bold text-slate-700 dark:text-slate-300">
@@ -400,11 +402,10 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
               return (
                 <div
                   key={hotel.id}
-                  className={`rounded-3xl overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border transition-all duration-300 flex flex-col justify-between shadow-xl hover:shadow-2xl ${
-                    isSelectedForAnyDay
-                      ? 'border-emerald-500 ring-2 ring-emerald-500/20'
-                      : 'border-white/80 dark:border-white/15 hover:border-emerald-400'
-                  }`}
+                  className={`rounded-3xl overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border transition-all duration-300 flex flex-col justify-between shadow-xl hover:shadow-2xl ${isSelectedForAnyDay
+                    ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                    : 'border-white/80 dark:border-white/15 hover:border-emerald-400'
+                    }`}
                 >
                   <div>
                     {/* Hotel Image Banner */}
@@ -525,11 +526,10 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSelectHotelForDay(hotel, selectedDayFilter === 'all' ? hotel.dayNumber : selectedDayFilter)}
-                            className={`py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                              isSelectedForAnyDay
-                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm'
-                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                            }`}
+                            className={`py-2.5 px-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isSelectedForAnyDay
+                              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                              }`}
                           >
                             {isSelectedForAnyDay ? (
                               <>
@@ -569,6 +569,26 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                               title="Book on Agoda"
                             >
                               <span>Agoda</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </a>
+                            <a
+                              href={bookingUrls.makeMyTrip}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Book on MakeMyTrip"
+                            >
+                              <span>MakeMyTrip</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </a>
+                            <a
+                              href={bookingUrls.googleMaps}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="View official Google Maps place listing & reviews"
+                            >
+                              <span>Maps / Info</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-70" />
                             </a>
                             <a

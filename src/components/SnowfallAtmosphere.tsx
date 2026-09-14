@@ -51,39 +51,39 @@ export const SnowfallEffect: React.FC<SnowfallEffectProps> = ({
       const rnd4 = ((i * 24680 + 13579) % 233280) / 233280;
 
       let type: 'crystal' | 'dot' | 'large' | 'powder' = 'dot';
-      let size = 5;
+      let size = 3;
       let blur = 0;
-      let opacity = 0.8;
+      let opacity = 0.7;
       let duration = 6;
 
       if (i % 6 === 0) {
-        // Crisp snowflake crystal
+        // Delicate snowflake crystal (reduced from 12-22px down to 5-9px)
         type = 'crystal';
-        size = 12 + rnd1 * 10; // 12px - 22px
-        opacity = 0.85 + rnd2 * 0.15;
+        size = 5 + rnd1 * 4; // 5px - 9px
+        opacity = 0.75 + rnd2 * 0.2;
         duration = (8 + rnd3 * 6) / speedMultiplier;
         blur = 0;
       } else if (i % 7 === 1) {
-        // Large blurry foreground flake
+        // Soft background flake (reduced from 14-28px down to 4-7px)
         type = 'large';
-        size = 14 + rnd1 * 14; // 14px - 28px
-        opacity = 0.4 + rnd2 * 0.3;
-        duration = (4 + rnd3 * 3.5) / speedMultiplier; // Falls faster
-        blur = 1.8;
+        size = 4 + rnd1 * 3; // 4px - 7px
+        opacity = 0.4 + rnd2 * 0.25;
+        duration = (5 + rnd3 * 3.5) / speedMultiplier;
+        blur = 0.6;
       } else if (i % 3 === 0) {
-        // Tiny drifting powder
+        // Micro drifting powder (1.5px - 3px)
         type = 'powder';
-        size = 2 + rnd1 * 3; // 2px - 5px
-        opacity = 0.5 + rnd2 * 0.4;
+        size = 1.5 + rnd1 * 1.8; // 1.5px - 3.3px
+        opacity = 0.45 + rnd2 * 0.35;
         duration = (9 + rnd3 * 7) / speedMultiplier;
         blur = 0;
       } else {
-        // Standard fluffy snow dot
+        // Subtle gentle snow dot (2.5px - 4.5px)
         type = 'dot';
-        size = 4 + rnd1 * 6; // 4px - 10px
-        opacity = 0.7 + rnd2 * 0.3;
+        size = 2.5 + rnd1 * 2.5; // 2.5px - 5px
+        opacity = 0.6 + rnd2 * 0.3;
         duration = (6 + rnd3 * 5) / speedMultiplier;
-        blur = 0.4;
+        blur = 0.2;
       }
 
       list.push({
@@ -138,7 +138,7 @@ export const SnowfallEffect: React.FC<SnowfallEffectProps> = ({
                   width: `${flake.size}px`,
                   height: `${flake.size}px`,
                   opacity: flake.opacity,
-                  filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.8))',
+                  filter: 'drop-shadow(0 0 2px rgba(255, 255, 255, 0.6))',
                   animation: `snowfallSpin ${flake.rotationSpeed}s linear infinite ${
                     flake.rotationDirection < 0 ? 'reverse' : 'normal'
                   }`,
@@ -156,8 +156,8 @@ export const SnowfallEffect: React.FC<SnowfallEffectProps> = ({
                   opacity: flake.opacity,
                   filter:
                     flake.blur > 0
-                      ? `blur(${flake.blur}px) drop-shadow(0 0 3px rgba(255, 255, 255, 0.9))`
-                      : 'drop-shadow(0 0 2px rgba(255, 255, 255, 0.85))',
+                      ? `blur(${flake.blur}px) drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.7))`
+                      : 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.7))',
                 }}
               />
             )}

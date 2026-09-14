@@ -22,7 +22,8 @@ import { Trip, DayItinerary, ExpenseItem, ExpenseCategory } from '../types';
 
 interface DayExpenseTrackerProps {
   trip: Trip;
-  day: DayItinerary;
+  day?: DayItinerary;
+  isTotalMode?: boolean;
   onAddExpense: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
   onDeleteExpense: (expenseId: string) => void;
   className?: string;
@@ -44,11 +45,22 @@ const CATEGORY_COLORS: Record<ExpenseCategory, { bg: string; text: string; icon:
 export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
   trip,
   day,
+  isTotalMode = false,
   onAddExpense,
   onDeleteExpense,
   className = ''
 }) => {
+  const activeDay = day || trip.days[0] || {
+    dayNumber: 1,
+    date: 'Day 1',
+    theme: 'Trip Day',
+    vibe: '',
+    weatherForecast: { temp: '26°C', condition: 'Sunny', icon: 'Sun', rainChance: 10 },
+    activities: []
+  };
+
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formDayNumber, setFormDayNumber] = useState<number>(activeDay.dayNumber || 1);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState<string>('');
   const [category, setCategory] = useState<ExpenseCategory>('Food');
@@ -63,6 +75,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
     title: string;
     estimatedCost: number;
     category: string;
+    dayNumber: number;
   } | null>(null);
   const [quickLogAmount, setQuickLogAmount] = useState<string>('');
   const [quickLogPaidBy, setQuickLogPaidBy] = useState<string>('Me');
@@ -71,10 +84,16 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
 
   const currency = trip.currency || '₹';
 
-  // Calculate day metrics
-  const dayEstimatedCost = day.activities.reduce((acc, act) => acc + act.estimatedCost, 0);
+  // Calculate metrics
+  const dayEstimatedCost = isTotalMode
+    ? trip.days.flatMap((d) => d.activities).reduce((acc, act) => acc + act.estimatedCost, 0)
+    : (activeDay.activities || []).reduce((acc, act) => acc + act.estimatedCost, 0);
+
   const allExpenses = trip.expenses || [];
-  const dayExpenses = allExpenses.filter((e) => e.dayNumber === day.dayNumber);
+  const dayExpenses = isTotalMode
+    ? allExpenses
+    : allExpenses.filter((e) => e.dayNumber === activeDay.dayNumber);
+
   const dayActualCost = dayExpenses.reduce((acc, e) => acc + e.amount, 0);
 
   const difference = dayEstimatedCost - dayActualCost;
@@ -84,6 +103,11 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
   // Group members for 'Paid by'
   const groupMembers = trip.preferences.groupMembers || [];
 
+  // All activities across trip for total mode or current day activities
+  const relevantActivities = isTotalMode
+    ? trip.days.flatMap((d) => (d.activities || []).map((a) => ({ ...a, dayNumber: d.dayNumber })))
+    : (activeDay.activities || []).map((a) => ({ ...a, dayNumber: activeDay.dayNumber }));
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
@@ -92,7 +116,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
     const finalPaidBy = isCustomPaidBy ? (customPaidBy.trim() || 'Me') : paidBy;
 
     onAddExpense({
-      dayNumber: day.dayNumber,
+      dayNumber: isTotalMode ? formDayNumber : activeDay.dayNumber,
       title: title.trim(),
       amount: numAmount,
       category,
@@ -113,12 +137,13 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
     setIsFormOpen(false);
   };
 
-  const openQuickLogModal = (activityTitle: string, estimatedCost: number, actCategory: string, actId: string) => {
+  const openQuickLogModal = (activityTitle: string, estimatedCost: number, actCategory: string, actId: string, actDayNum: number) => {
     setQuickLogModalActivity({
       id: actId,
       title: activityTitle,
       estimatedCost,
-      category: actCategory
+      category: actCategory,
+      dayNumber: actDayNum
     });
     setQuickLogAmount(estimatedCost ? estimatedCost.toString() : '');
     setQuickLogPaidBy('Me');
@@ -143,7 +168,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
       : quickLogPaidBy;
 
     onAddExpense({
-      dayNumber: day.dayNumber,
+      dayNumber: quickLogModalActivity.dayNumber,
       title: quickLogModalActivity.title,
       amount: numAmount,
       category: mappedCat,
@@ -167,10 +192,12 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Day {day.dayNumber} Expense Tracker & Budget Comparison
+                {isTotalMode ? 'Total Trip Expense Tracker & Budget Comparison' : `Day ${activeDay.dayNumber} Expense Tracker & Budget Comparison`}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Compare actual spending today against estimated day budget
+                {isTotalMode
+                  ? `Compare total spending across all ${trip.durationDays} days against overall trip budget`
+                  : 'Compare actual spending today against estimated day budget'}
               </p>
             </div>
           </div>
@@ -190,7 +217,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
             ) : (
               <>
                 <Plus className="w-4 h-4" />
-                <span>+ Input Expense for Today</span>
+                <span>{isTotalMode ? '+ Input Trip Expense' : '+ Input Expense for Today'}</span>
               </>
             )}
           </button>
@@ -199,10 +226,10 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
 
       {/* Comparison Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-3 my-4">
-        {/* Card 1: Estimated Budget for the Day */}
+        {/* Card 1: Estimated Budget */}
         <div className="min-w-0 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl p-3.5 sm:p-4 border border-teal-200/80 dark:border-teal-800/60 overflow-hidden">
           <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300 block mb-1 truncate">
-            Planned Day Budget
+            {isTotalMode ? 'Planned Total Budget' : 'Planned Day Budget'}
           </span>
           <div className="flex items-baseline flex-wrap gap-x-2 gap-y-0.5 min-w-0">
             <span className="text-xl sm:text-2xl lg:text-xl xl:text-2xl font-extrabold text-teal-700 dark:text-teal-300 tracking-tight">
@@ -211,14 +238,14 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
             <span className="text-xs font-semibold text-teal-600/80 dark:text-teal-400/80 whitespace-nowrap">estimated</span>
           </div>
           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-1.5 leading-snug">
-            Based on {day.activities.length} planned activities
+            Based on {relevantActivities.length} planned activities {isTotalMode ? `across all ${trip.durationDays} days` : `on Day ${activeDay.dayNumber}`}
           </p>
         </div>
 
-        {/* Card 2: Actual Spent Today */}
+        {/* Card 2: Actual Spent */}
         <div className="min-w-0 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl p-3.5 sm:p-4 border border-teal-200/80 dark:border-teal-800/60 overflow-hidden">
           <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300 block mb-1 truncate">
-            Actual Spent Today
+            {isTotalMode ? 'Actual Spent (All Days)' : 'Actual Spent Today'}
           </span>
           <div className="flex items-baseline flex-wrap gap-x-2 gap-y-0.5 min-w-0">
             <span className="text-xl sm:text-2xl lg:text-xl xl:text-2xl font-extrabold text-teal-700 dark:text-teal-300 tracking-tight">
@@ -274,7 +301,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
           </div>
           <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
             {isUnderBudget
-              ? `${Math.max(0, 100 - percentageSpent)}% of today's budget left`
+              ? `${Math.max(0, 100 - percentageSpent)}% of ${isTotalMode ? 'trip' : "today's"} budget left`
               : `Exceeded estimated budget by ${percentageSpent - 100}%`}
           </p>
         </div>
@@ -291,16 +318,36 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
               <span className="p-1 rounded-lg bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300">
                 <Receipt className="w-4 h-4" />
               </span>
-              <span>Log Expense for Day {day.dayNumber}</span>
+              <span>{isTotalMode ? 'Log Expense Entry' : `Log Expense for Day ${activeDay.dayNumber}`}</span>
             </h4>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              {day.date}
+              {isTotalMode ? `All Days (${trip.durationDays}d)` : activeDay.date}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-3.5">
+            {/* If in total mode, select which day this expense belongs to */}
+            {isTotalMode && (
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  Trip Day *
+                </label>
+                <select
+                  value={formDayNumber}
+                  onChange={(e) => setFormDayNumber(parseInt(e.target.value, 10) || 1)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white focus:text-slate-900 cursor-pointer shadow-xs"
+                >
+                  {trip.days.map((d) => (
+                    <option key={d.dayNumber} value={d.dayNumber}>
+                      Day {d.dayNumber} ({d.date || `Day ${d.dayNumber}`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Expense Title */}
-            <div className="sm:col-span-2">
+            <div className={isTotalMode ? 'sm:col-span-1' : 'sm:col-span-2'}>
               <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                 Expense Description *
               </label>
@@ -409,7 +456,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
                 value={selectedActivityId}
                 onChange={(e) => {
                   setSelectedActivityId(e.target.value);
-                  const found = day.activities.find((a) => a.id === e.target.value);
+                  const found = relevantActivities.find((a) => a.id === e.target.value);
                   if (found && !title) {
                     setTitle(found.title);
                     if (!amount) setAmount(found.estimatedCost.toString());
@@ -417,10 +464,10 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
                 }}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white focus:text-slate-900 cursor-pointer truncate shadow-xs"
               >
-                <option value="" className="bg-white text-slate-900">-- General Day Expense --</option>
-                {day.activities.map((a) => (
+                <option value="" className="bg-white text-slate-900">-- General Expense --</option>
+                {relevantActivities.map((a) => (
                   <option key={a.id} value={a.id} className="bg-white text-slate-900">
-                    {a.time} - {a.title} ({currency}{a.estimatedCost})
+                    {isTotalMode ? `[Day ${a.dayNumber}] ` : ''}{a.time} - {a.title} ({currency}{a.estimatedCost})
                   </option>
                 ))}
               </select>
@@ -446,7 +493,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
       )}
 
       {/* Quick-Log Suggestions from Planned Itinerary */}
-      {day.activities.length > 0 && (
+      {relevantActivities.length > 0 && (
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -457,14 +504,14 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
-            {day.activities.map((act) => {
+            {relevantActivities.map((act) => {
               const isAlreadyLogged = dayExpenses.some((e) => e.activityId === act.id || e.title === act.title);
               return (
                 <button
                   key={act.id}
                   onClick={() => {
                     if (!isAlreadyLogged) {
-                      openQuickLogModal(act.title, act.estimatedCost, act.category, act.id);
+                      openQuickLogModal(act.title, act.estimatedCost, act.category, act.id, act.dayNumber);
                     }
                   }}
                   disabled={isAlreadyLogged}
@@ -478,6 +525,11 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   ) : (
                     <Plus className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                  )}
+                  {isTotalMode && (
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                      D{act.dayNumber}
+                    </span>
                   )}
                   <span className="truncate max-w-[160px]">{act.title}</span>
                   <span className="font-bold text-teal-700 dark:text-teal-400">
@@ -504,7 +556,7 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
                     Quick-Log Stop Expense
                   </h4>
                   <p className="text-xs font-semibold text-slate-500 truncate max-w-[240px]">
-                    {quickLogModalActivity.title}
+                    {quickLogModalActivity.title} (Day {quickLogModalActivity.dayNumber})
                   </p>
                 </div>
               </div>
@@ -603,15 +655,18 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
         </div>
       )}
 
-      {/* Logged Expenses List for the Day */}
+      {/* Logged Expenses List */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Recorded Expenses for Day {day.dayNumber} ({dayExpenses.length})
+            {isTotalMode
+              ? `Recorded Expenses Across All Days (${dayExpenses.length})`
+              : `Recorded Expenses for Day ${activeDay.dayNumber} (${dayExpenses.length})`}
           </h4>
           {dayExpenses.length > 0 && (
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              Total Today: {currency}{dayActualCost.toLocaleString()}
+              {isTotalMode ? 'Total Trip Spent: ' : 'Total Today: '}
+              {currency}{dayActualCost.toLocaleString()}
             </span>
           )}
         </div>
@@ -620,10 +675,10 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
           <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/30">
             <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
             <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-              No expenses recorded for Day {day.dayNumber} yet.
+              {isTotalMode ? 'No expenses recorded for this trip yet.' : `No expenses recorded for Day ${activeDay.dayNumber} yet.`}
             </p>
             <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
-              Click "+ Input Expense for Today" or use the 1-click quick-log buttons above.
+              Click "+ Input Expense" or use the 1-click quick-log buttons above.
             </p>
           </div>
         ) : (
@@ -644,6 +699,11 @@ export const DayExpenseTracker: React.FC<DayExpenseTrackerProps> = ({
                         <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                           {expense.title}
                         </span>
+                        {isTotalMode && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                            Day {expense.dayNumber}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.bg}`}>
                           {expense.category}
                         </span>

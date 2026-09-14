@@ -12,12 +12,11 @@ import {
   X,
   Loader2,
   Navigation,
-  CheckCircle2,
   Sparkles,
   Compass,
   MapPinned
 } from 'lucide-react';
-import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion, POPULAR_TRAVEL_DESTINATIONS } from '../services/placesService';
+import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion } from '../services/placesService';
 import { ErrorBoundary } from './ErrorBoundary';
 
 export interface SelectedDestinationPlace {
@@ -28,6 +27,26 @@ export interface SelectedDestinationPlace {
   longitude: number;
   photoUrl?: string;
 }
+
+export interface PopularDestinationQuickPick {
+  name: string;
+  region: string;
+  lat: number;
+  lng: number;
+}
+
+export const POPULAR_QUICK_PICKS: PopularDestinationQuickPick[] = [
+  { name: 'Goa', region: 'India', lat: 15.2993, lng: 74.1240 },
+  { name: 'Manali', region: 'Himachal Pradesh, India', lat: 32.2396, lng: 77.1887 },
+  { name: 'Ladakh (Leh)', region: 'India', lat: 34.1526, lng: 77.5771 },
+  { name: 'Jaipur', region: 'Rajasthan, India', lat: 26.9124, lng: 75.7873 },
+  { name: 'Paris', region: 'France', lat: 48.8566, lng: 2.3522 },
+  { name: 'Tokyo', region: 'Japan', lat: 35.6762, lng: 139.6503 },
+  { name: 'Bali', region: 'Indonesia', lat: -8.4095, lng: 115.1889 },
+  { name: 'Dubai', region: 'United Arab Emirates', lat: 25.2048, lng: 55.2708 },
+  { name: 'Kerala', region: 'India', lat: 9.4981, lng: 76.3388 },
+  { name: 'Swiss Alps', region: 'Switzerland', lat: 46.6863, lng: 7.8632 }
+];
 
 interface Step1DestinationSearchProps {
   selectedPlace: SelectedDestinationPlace | null;
@@ -223,25 +242,19 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
             type="text"
             value={searchInput}
             onChange={handleInputChange}
-            onKeyDown={(e) => {
+            onKeyDown={async (e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 if (predictions.length > 0) {
                   handleSelectPrediction(predictions[0]);
                 } else if (searchInput.trim()) {
-                  // Fallback match or generate location
-                  const matched = POPULAR_TRAVEL_DESTINATIONS.find(
-                    (d) => d.name.toLowerCase() === searchInput.trim().toLowerCase()
-                  );
-                  if (matched) {
-                    onSelectPlace({
-                      placeId: `dest-${matched.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-                      name: matched.name,
-                      address: `${matched.name}, ${matched.region}`,
-                      latitude: matched.lat,
-                      longitude: matched.lng
-                    });
-                    setShowInfoWindow(true);
+                  try {
+                    const freshPreds = await getGooglePlacesPredictions(searchInput.trim());
+                    if (freshPreds && freshPreds.length > 0) {
+                      handleSelectPrediction(freshPreds[0]);
+                    }
+                  } catch (err) {
+                    console.warn('Enter key search error:', err);
                   }
                 }
               }
@@ -302,39 +315,35 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
           </div>
         )}
 
-        {/* Trending Destination Quick-Pick Chips */}
+        {/* Popular Destination Quick-Pick Chips */}
         {!selectedPlace && (
           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-500" />
               Popular:
             </span>
-            {['Goa', 'Manali', 'Ladakh (Leh)', 'Jaipur', 'Paris', 'Tokyo', 'Bali', 'Dubai', 'Kerala (Munnar & Alleppey)', 'Swiss Alps (Interlaken & Zermatt)'].map((city) => {
-              const info = POPULAR_TRAVEL_DESTINATIONS.find((d) => d.name === city);
-              return (
-                <button
-                  key={city}
-                  type="button"
-                  onClick={() => {
-                    if (info) {
-                      const placeData: SelectedDestinationPlace = {
-                        placeId: `dest-${info.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-                        name: info.name,
-                        address: `${info.name}, ${info.region}`,
-                        latitude: info.lat,
-                        longitude: info.lng
-                      };
-                      onSelectPlace(placeData);
-                      setSearchInput(info.name);
-                      setShowInfoWindow(true);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
-                >
-                  {city.split(' ')[0]}
-                </button>
-              );
-            })}
+            {POPULAR_QUICK_PICKS.map((dest) => (
+              <button
+                key={dest.name}
+                type="button"
+                onClick={() => {
+                  const placeData: SelectedDestinationPlace = {
+                    placeId: `dest-${dest.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+                    name: dest.name,
+                    address: `${dest.name}, ${dest.region}`,
+                    latitude: dest.lat,
+                    longitude: dest.lng
+                  };
+                  onSelectPlace(placeData);
+                  setSearchInput(dest.name);
+                  setShowInfoWindow(true);
+                }}
+                className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
+                title={`${dest.name}, ${dest.region}`}
+              >
+                {dest.name}
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -350,23 +359,12 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
               <MapPinned className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                  {selectedPlace.name || 'Selected Destination'}
-                </h4>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded-full">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  Selected Destination
-                </span>
-              </div>
+              <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                {selectedPlace.name || 'Selected Destination'}
+              </h4>
               <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-1">
                 {selectedPlace.address || selectedPlace.name}
               </p>
-              <div className="flex items-center gap-2 mt-2 text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                <span>Lat: {typeof selectedPlace.latitude === 'number' && !isNaN(selectedPlace.latitude) ? selectedPlace.latitude.toFixed(4) : '0.0000'}</span>
-                <span>•</span>
-                <span>Lng: {typeof selectedPlace.longitude === 'number' && !isNaN(selectedPlace.longitude) ? selectedPlace.longitude.toFixed(4) : '0.0000'}</span>
-              </div>
             </div>
           </div>
 

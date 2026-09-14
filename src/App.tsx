@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trip, Activity, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation } from './types';
+import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation } from './types';
 
-import { generateTripFromInputs, adaptTripPlanWithAI } from './services/aiPlanner';
+import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } from './services/aiPlanner';
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
 import { getTheme, applyThemeToDocument, getSavedThemeId } from './services/theme';
 import { Session } from '@supabase/supabase-js';
@@ -397,24 +397,51 @@ export default function App() {
     addToast('info', 'Stop Removed', 'Itinerary updated.');
   };
 
-  // Add custom activity
-  const handleAddCustomActivity = (dayNumber: number) => {
+  // Add custom real place activity
+  const handleAddCustomActivity = async (dayNumber: number) => {
     if (!activeTrip) return;
-    const newAct: Activity = {
-      id: `custom-act-${crypto.randomUUID()}`,
-      time: '04:30 PM',
-      title: 'Spontaneous Scenic Stop & Local Tasting',
-      category: 'Sightseeing',
-      location: `${activeTrip.destination} Area`,
-      estimatedCost: 300,
-      travelTimeFromPrev: '10 min walk',
-      duration: '1 hr',
-      description: 'Relaxed scenic spot discovering local viewpoints and refreshments.',
-      imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
-      recommendationReason: 'Added by traveller during trip customization.',
-      isIndoor: false,
-      isRainSafe: false
-    };
+    const currentDay = activeTrip.days.find(d => d.dayNumber === dayNumber) || activeTrip.days[0];
+
+    addToast('info', 'Finding Real Spot...', `Curating an authentic place in ${activeTrip.destination}...`);
+
+    try {
+      const newAct = await fetchRealPlaceForDay({
+        destination: activeTrip.destination,
+        destinationStateOrCountry: activeTrip.destinationStateOrCountry,
+        dayNumber,
+        existingActivities: currentDay?.activities || [],
+        travelStyles: activeTrip.preferences?.styles,
+        budgetTier: activeTrip.budgetTier
+      });
+
+      setTrips((prev) =>
+        prev.map((t) => {
+          if (t.id !== activeTripId) return t;
+          const newDays = t.days.map((d) => {
+            if (d.dayNumber === dayNumber) {
+              return {
+                ...d,
+                activities: [...d.activities, newAct]
+              };
+            }
+            return d;
+          });
+          const updated = { ...t, days: newDays };
+          saveTripToBackend(updated).catch(console.warn);
+          return updated;
+        })
+      );
+
+      addToast('ai', 'Real Stop Added!', `Added "${newAct.title}" to Day ${dayNumber}.`);
+    } catch (err) {
+      console.error('Failed to add real place:', err);
+      addToast('warning', 'Could Not Add Spot', 'Please try again.');
+    }
+  };
+
+  // Add specific activity directly to a day's itinerary
+  const handleAddActivityToDay = (dayNumber: number, activity: Activity) => {
+    if (!activeTrip) return;
 
     setTrips((prev) =>
       prev.map((t) => {
@@ -423,7 +450,7 @@ export default function App() {
           if (d.dayNumber === dayNumber) {
             return {
               ...d,
-              activities: [...d.activities, newAct]
+              activities: [...d.activities, activity]
             };
           }
           return d;
@@ -434,7 +461,7 @@ export default function App() {
       })
     );
 
-    addToast('success', 'Stop Added', 'New spot added to today’s schedule.');
+    addToast('ai', 'Place Added to Itinerary!', `"${activity.title}" added to Day ${dayNumber}.`);
   };
 
   // Toggle packing list item
@@ -623,6 +650,57 @@ export default function App() {
     );
   };
 
+  // Add a new Day to active trip
+  const handleAddDay = () => {
+    if (!activeTrip) return;
+
+    const newDayNumber = activeTrip.days.length + 1;
+    let newDateStr = `Day ${newDayNumber}`;
+    
+    if (activeTrip.startDate) {
+      try {
+        const d = new Date(activeTrip.startDate);
+        d.setDate(d.getDate() + (newDayNumber - 1));
+        newDateStr = d.toISOString().split('T')[0];
+      } catch {
+        newDateStr = `Day ${newDayNumber}`;
+      }
+    }
+
+    const lastDay = activeTrip.days[activeTrip.days.length - 1];
+    const lastDayWeather = lastDay?.weatherForecast;
+
+    const newDay: DayItinerary = {
+      dayNumber: newDayNumber,
+      date: newDateStr,
+      theme: 'Exploration',
+      vibe: 'Exploration & Leisure',
+      weatherForecast: lastDayWeather ? { ...lastDayWeather } : {
+        temp: '26°C',
+        condition: 'Sunny',
+        icon: '☀️',
+        rainChance: 10
+      },
+      activities: []
+    };
+
+    const updatedTrip: Trip = {
+      ...activeTrip,
+      durationDays: newDayNumber,
+      days: [...activeTrip.days, newDay]
+    };
+
+    setTrips((prev) => prev.map((t) => (t.id === activeTrip.id ? updatedTrip : t)));
+    saveTripToBackend(updatedTrip).catch(console.warn);
+    setActiveDayNumber(newDayNumber);
+
+    addToast(
+      'success',
+      'Day Added',
+      `Day ${newDayNumber} has been added to your itinerary for ${activeTrip.destination}.`
+    );
+  };
+
   return (
     <div 
       className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
@@ -715,10 +793,14 @@ export default function App() {
                   onMoveActivityDown={handleMoveActivityDown}
                   onRemoveActivity={handleRemoveActivity}
                   onAddCustomActivity={handleAddCustomActivity}
+                  onAddActivityToDay={handleAddActivityToDay}
                   onTogglePackingItem={handleTogglePackingItem}
                   onAddPackingItem={handleAddPackingItem}
                   onOpenMapSearch={() => setCurrentView('map_search')}
                   onSaveHotelToTrip={handleSaveHotelToTrip}
+                  onAddExpense={handleAddExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                  onAddDay={handleAddDay}
                 />
               </div>
             )}
@@ -735,13 +817,14 @@ export default function App() {
                 onToggleActivityCompleted={handleToggleActivityComplete}
                 onAddExpense={handleAddExpense}
                 onDeleteExpense={handleDeleteExpense}
+                onAddCustomActivity={handleAddCustomActivity}
                 onExitTripMode={() => setCurrentView('itinerary')}
               />
             )}
 
             {/* VIEW 5: MY TRIPS */}
             {currentView === 'my_trips' && (
-              <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-16">
+              <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
                 <MyTripsView
                   trips={trips}
                   activeTripId={activeTripId}
@@ -763,7 +846,7 @@ export default function App() {
 
             {/* VIEW 6: GOOGLE PLACES & MAP SEARCH */}
             {currentView === 'map_search' && (
-              <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-16">
+              <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
                 <MapPlaceSearchView
                   activeTrip={activeTrip}
                   onAddPlaceToTrip={handleAddPlaceToTrip}

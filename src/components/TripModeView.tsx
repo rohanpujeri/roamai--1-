@@ -29,7 +29,10 @@ import {
   Car,
   Bus,
   Footprints,
-  Bike
+  Plus,
+  ArrowLeft,
+  PieChart,
+  LogOut
 } from 'lucide-react';
 import { Trip, Activity, ExpenseItem } from '../types';
 import { resolvePlaceImage, handleImageError } from '../utils/placeImages';
@@ -46,6 +49,7 @@ interface TripModeViewProps {
   onToggleActivityCompleted: (activityId: string) => void;
   onAddExpense?: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
   onDeleteExpense?: (expenseId: string) => void;
+  onAddCustomActivity?: (dayNumber: number) => Promise<void> | void;
   onExitTripMode: () => void;
 }
 
@@ -146,10 +150,11 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
   onToggleActivityCompleted,
   onAddExpense,
   onDeleteExpense,
+  onAddCustomActivity,
   onExitTripMode
 }) => {
-  const [showMapSidebar, setShowMapSidebar] = useState<boolean>(true);
-  const [showExpenses, setShowExpenses] = useState<boolean>(true);
+  const [activeSubView, setActiveSubView] = useState<'timeline' | 'budget'>('timeline');
+  const [budgetDayFilter, setBudgetDayFilter] = useState<number | 'total'>(activeDayNumber);
   const [selectedMapActivityId, setSelectedMapActivityId] = useState<string | null>(null);
   const [navigatingActivity, setNavigatingActivity] = useState<Activity | null>(null);
   const [selectedTravelMode, setSelectedTravelMode] = useState<NavTravelMode>('driving');
@@ -197,71 +202,65 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
   return (
     <div className="min-h-screen bg-slate-900 text-white pb-24 text-left">
       {/* Top Mobile/Desktop Status Bar */}
-      <div className="bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/90 shadow-md sticky top-0 z-30 px-4 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex h-3 w-3">
+      <div className="bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/90 shadow-md sticky top-0 z-30 px-3.5 sm:px-6 py-2">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          {/* Left: Live Status & Destination */}
+          <div className="flex items-center gap-2 min-w-0 shrink-0">
+            <div className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </div>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block">
-                Live Trip Companion
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded-lg shrink-0">
+                Live Trip
               </span>
-              <h2 className="text-sm font-bold text-white -mt-0.5">
-                {trip.destination} • Day {currentDay.dayNumber} of {trip.durationDays}
+              <h2 className="text-xs sm:text-sm font-extrabold text-white truncate">
+                {trip.destination} • Day {currentDay.dayNumber}/{trip.durationDays}
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Map Toggle Button */}
+          {/* Right: Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+            {/* Expense Tracker Button */}
             <button
-              onClick={() => setShowMapSidebar((prev) => !prev)}
-              className={`hidden md:flex px-3 py-1.5 rounded-xl text-xs font-bold items-center gap-1.5 shadow-sm transition-all cursor-pointer border ${
-                showMapSidebar
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              id="trip-mode-budget-page-btn"
+              onClick={() => setActiveSubView((prev) => (prev === 'budget' ? 'timeline' : 'budget'))}
+              className={`h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer border whitespace-nowrap active:scale-95 shrink-0 ${
+                activeSubView === 'budget'
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-emerald-500/20'
+                  : 'bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white border-slate-700/80 hover:border-slate-600'
               }`}
-              title="Toggle Side-by-Side Route Map"
+              title="Open dedicated Expense Tracker page"
             >
-              <Route className="w-3.5 h-3.5" />
-              <span>{showMapSidebar ? '🗺️ Split Map ON' : '🗺️ Split Map OFF'}</span>
+              <Wallet className={`w-3.5 h-3.5 shrink-0 ${activeSubView === 'budget' ? 'text-slate-950' : 'text-emerald-400'}`} />
+              <span>{activeSubView === 'budget' ? 'Timeline' : 'Expense Tracker'}</span>
             </button>
 
-            {/* AI Budget & Expenses Toggle Button */}
-            <button
-              onClick={() => setShowExpenses((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer border ${
-                showExpenses
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-              }`}
-              title="Toggle AI Budget & Expenses"
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              <span>{showExpenses ? '💳 AI Budget & Expenses ON' : '💳 AI Budget & Expenses OFF'}</span>
-            </button>
-
+            {/* Change Plan Button */}
             <button
               onClick={onOpenAdapt}
-              className="px-3 py-1.5 rounded-xl bg-teal-600/90 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              className="h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-xl bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer whitespace-nowrap border border-teal-500/50 shrink-0"
+              title="Adapt and customize live itinerary"
             >
-              <Zap className="w-3.5 h-3.5" />
+              <Zap className="w-3.5 h-3.5 shrink-0 text-teal-200" />
               <span>Change Plan</span>
             </button>
 
+            {/* Exit Trip Mode Button */}
             <button
               onClick={onExitTripMode}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
+              className="h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/80 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              title="Exit Trip Mode and return to itinerary overview"
             >
-              Exit Trip Mode
+              <LogOut className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+              <span>Exit</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-32">
         
         {/* Navigation Feedback Toast */}
         {navAlert && (
@@ -276,9 +275,92 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
           </motion.div>
         )}
 
-        <div className={`grid grid-cols-1 ${showMapSidebar ? 'lg:grid-cols-12 gap-6' : 'max-w-4xl mx-auto'} items-start`}>
-          {/* Left Column: Timeline, Controls & Expenses */}
-          <div className={`${showMapSidebar ? 'lg:col-span-7 xl:col-span-7' : 'w-full'} space-y-6`}>
+        {activeSubView === 'budget' ? (
+          <div className="space-y-6 pb-24">
+            {/* Top Dedicated Budget Page Header */}
+            <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-2xl flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <button
+                  id="back-to-timeline-btn"
+                  type="button"
+                  onClick={() => setActiveSubView('timeline')}
+                  className="px-3.5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 flex items-center gap-2 text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95"
+                >
+                  <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                  <span>Back to Live Timeline</span>
+                </button>
+
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-black text-white">
+                      💳 Expense Tracker
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-extrabold uppercase tracking-wide">
+                      {budgetDayFilter === 'total' ? `Total Trip (All ${trip.durationDays} Days)` : `Day ${currentDay.dayNumber} of ${trip.durationDays}`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Live category tracking, budget optimization, and planned vs. actual expense analytics for {trip.destination}.
+                  </p>
+                </div>
+              </div>
+
+              {/* Day Selector Pills for Budget Tracking + Total Button */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                {trip.days.map((day) => {
+                  const isActive = budgetDayFilter === day.dayNumber;
+                  return (
+                    <button
+                      key={day.dayNumber}
+                      onClick={() => {
+                        setBudgetDayFilter(day.dayNumber);
+                        onSelectDay(day.dayNumber);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        isActive
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/30'
+                          : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
+                      }`}
+                    >
+                      Day {day.dayNumber}
+                    </button>
+                  );
+                })}
+
+                {/* Total button next to all days */}
+                <button
+                  id="budget-filter-total-btn"
+                  type="button"
+                  onClick={() => setBudgetDayFilter('total')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    budgetDayFilter === 'total'
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/40'
+                      : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
+                  }`}
+                  title="View total budget, overall expenses and analytics across all days"
+                >
+                  <PieChart className="w-3.5 h-3.5" />
+                  <span>Total</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Dedicated Full-Width Expense Tracker (NOT side by side) */}
+            {onAddExpense && onDeleteExpense && (
+              <div id="day-expense-tracker-dedicated-page">
+                <DayExpenseTracker
+                  trip={trip}
+                  day={currentDay}
+                  isTotalMode={budgetDayFilter === 'total'}
+                  onAddExpense={onAddExpense}
+                  onDeleteExpense={onDeleteExpense}
+                  className="dark bg-slate-900/95 border-slate-700/80 text-white shadow-2xl rounded-3xl"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 pb-24">
             {/* Day Selector Pills Container */}
             <div className="p-2 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-slate-700/90 shadow-xl flex items-center gap-2 overflow-x-auto scrollbar-none">
               {trip.days.map((day) => {
@@ -287,67 +369,59 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
                   <button
                     key={day.dayNumber}
                     onClick={() => onSelectDay(day.dayNumber)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2.5 cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center cursor-pointer ${
                       isActive
                         ? 'bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/30 font-black scale-[1.02]'
                         : 'bg-slate-900/90 text-slate-200 hover:text-white hover:bg-slate-800 border border-slate-700/80 font-bold'
                     }`}
                   >
                     <span className="font-extrabold">Day {day.dayNumber}</span>
-                    <span 
-                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
-                        isActive
-                          ? 'bg-slate-950/20 text-slate-950 font-bold'
-                          : 'bg-slate-800 text-slate-300 border border-slate-700'
-                      }`}
-                    >
-                      {day.weatherForecast.temp}
-                    </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Hero Greeting & Today Status */}
-            <div className="bg-gradient-to-br from-slate-800 via-slate-850 to-slate-900 rounded-3xl p-6 border border-slate-700/80 shadow-2xl relative overflow-hidden">
-              <div className="relative z-10 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                      {currentDay.date}
-                    </span>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-0.5">
+            {/* Hero Greeting & Today Status (Compact) */}
+            <div className="bg-gradient-to-br from-slate-800 via-slate-850 to-slate-900 rounded-2xl p-3 sm:p-4 border border-slate-700/80 shadow-lg relative overflow-hidden">
+              <div className="relative z-10 space-y-2">
+                {/* Header row: Date, Vibe, Heading & Weather */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                      <span>{currentDay.date}</span>
+                      <span className="text-slate-500 font-normal">•</span>
+                      <span className="text-emerald-300/90 lowercase first-letter:uppercase font-medium truncate">
+                        {currentDay.vibe}
+                      </span>
+                    </div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-white leading-tight mt-0.5 truncate">
                       Good morning! Here's your plan for today.
-                    </h1>
+                    </h2>
                   </div>
 
                   {/* Live Weather Badge */}
-                  <div className="px-3 py-1.5 rounded-2xl bg-slate-900/80 border border-slate-700 flex items-center gap-2 text-xs font-semibold text-slate-200">
-                    <Sun className="w-4 h-4 text-amber-400" />
-                    <span>{currentDay.weatherForecast.temp} • {currentDay.weatherForecast.condition}</span>
+                  <div className="px-2.5 py-1 rounded-xl bg-slate-900/80 border border-slate-700/80 flex items-center gap-1.5 text-[11px] font-semibold text-slate-200 shrink-0">
+                    <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{currentDay.weatherForecast.temp}</span>
                   </div>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
-                  Today's Vibe: <span className="text-emerald-300 font-medium">{currentDay.vibe}</span>
-                </p>
-
-                {/* Quick Metrics Bar */}
-                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-700/70">
-                  <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-750">
-                    <span className="text-[11px] text-slate-400 uppercase font-bold tracking-wider block">Stops Today</span>
-                    <span className="text-sm sm:text-base font-black text-white">{currentDay.activities.length} Places</span>
+                {/* Quick Metrics Bar (Slim Pill Row) */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-700/60 text-center">
+                  <div className="py-1 px-1.5 rounded-xl bg-slate-900/60 border border-slate-750 flex items-center justify-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-medium">Stops:</span>
+                    <span className="text-[11px] sm:text-xs font-bold text-white">{currentDay.activities.length}</span>
                   </div>
-                  <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-750">
-                    <span className="text-[11px] text-slate-400 uppercase font-bold tracking-wider block">Est. Day Spend</span>
-                    <span className="text-sm sm:text-base font-black text-emerald-400">
+                  <div className="py-1 px-1.5 rounded-xl bg-slate-900/60 border border-slate-750 flex items-center justify-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-medium">Est:</span>
+                    <span className="text-[11px] sm:text-xs font-bold text-emerald-400">
                       INR{currentDay.activities.reduce((acc, a) => acc + (a.estimatedCost || 0), 0)}
                     </span>
                   </div>
-                  <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-750">
-                    <span className="text-[11px] text-slate-400 uppercase font-bold tracking-wider block">Status</span>
-                    <span className="text-sm sm:text-base font-black text-teal-300">
-                      {currentDay.activities.filter(a => a.completed).length}/{currentDay.activities.length} Visited
+                  <div className="py-1 px-1.5 rounded-xl bg-slate-900/60 border border-slate-750 flex items-center justify-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-medium">Done:</span>
+                    <span className="text-[11px] sm:text-xs font-bold text-teal-300">
+                      {currentDay.activities.filter(a => a.completed).length}/{currentDay.activities.length}
                     </span>
                   </div>
                 </div>
@@ -379,14 +453,15 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
                         setSelectedMapActivityId(null);
                         onSelectDay(currentDay.dayNumber + 1);
                       }}
-                      className="w-full sm:w-auto py-3.5 px-8 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+                      className="w-full sm:w-auto py-3.5 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all"
                     >
-                      <span>Go to Day {currentDay.dayNumber + 1} Plan</span>
+                      <span>Proceed to Day {currentDay.dayNumber + 1}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   ) : (
-                    <div className="py-3 px-6 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-extrabold text-sm">
-                      🏆 Entire {trip.durationDays}-Day Trip Completed!
+                    <div className="p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-bold text-xs inline-flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      <span>Entire Trip Complete! Time to celebrate!</span>
                     </div>
                   )}
 
@@ -406,142 +481,102 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
                 </div>
               </div>
             ) : activeCardActivity ? (
-              <div className="bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-slate-900 rounded-3xl p-6 border border-emerald-500/30 shadow-2xl relative overflow-hidden space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-5 border border-slate-750 shadow-2xl relative overflow-hidden space-y-3.5 text-left">
+                {/* Top status bar */}
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {activeCardActivity.completed ? (
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/40 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider border border-emerald-500/40 flex items-center gap-1.5 shadow-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Visited</span>
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                        Next Up
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-sm">
+                        NEXT UP
                       </span>
                     )}
-                    <span className="text-xs text-emerald-300 font-semibold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{activeCardActivity.travelTimeFromPrev || '45m'}</span>
-                    </span>
+                    {activeCardActivity.travelTimeFromPrev && activeCardActivity.travelTimeFromPrev !== 'N/A' && (
+                      <span className="text-xs text-emerald-300 font-bold flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded-md border border-slate-800">
+                        <Clock className="w-3 h-3 text-emerald-400" />
+                        <span>{activeCardActivity.travelTimeFromPrev}</span>
+                      </span>
+                    )}
                   </div>
-                  <span className="text-xs font-bold text-slate-300">{activeCardActivity.time}</span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-400 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-xl shadow-xs">
+                    {activeCardActivity.time}
+                  </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {/* High-Visibility Place Overview Row */}
+                <div className="flex items-start sm:items-center gap-3.5">
                   <img
                     src={activeCardActivity.imageUrl && activeCardActivity.imageUrl.startsWith('http') && !activeCardActivity.imageUrl.includes('example.com')
                       ? activeCardActivity.imageUrl
                       : resolvePlaceImage(activeCardActivity.title, activeCardActivity.category, activeCardActivity.location, trip.destination)}
                     alt={activeCardActivity.title}
                     onError={(e) => handleImageError(e, activeCardActivity.category)}
-                    className="w-full sm:w-24 h-24 rounded-2xl object-cover border border-emerald-500/20 shrink-0"
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-emerald-500/40 shrink-0 shadow-md"
                   />
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <h2 className="text-lg font-black text-white leading-tight">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <h3 className="text-base sm:text-lg font-black text-white leading-tight">
                       {activeCardActivity.title}
-                    </h2>
-                    <p className="text-xs text-slate-300 flex items-center gap-1">
+                    </h3>
+                    <p className="text-xs font-bold text-emerald-300 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <span className="truncate">{activeCardActivity.location}</span>
                     </p>
-                    <p className="text-xs text-slate-400 line-clamp-2">
+                    <p className="text-xs text-slate-200 leading-relaxed line-clamp-2">
                       {activeCardActivity.description}
                     </p>
-                    {activeCardActivity.recommendationReason && (
-                      <p className="text-[11px] text-teal-300 font-medium pt-1">
-                        <span className="font-bold text-emerald-400">Why now:</span> {activeCardActivity.recommendationReason}
-                      </p>
-                    )}
                   </div>
                 </div>
 
                 {/* Multi-Modal Travel & Transit Switch Options */}
                 {transitOptions.length > 0 && (
-                  <div className="bg-slate-950/70 border border-slate-750 rounded-2xl p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                  <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-2.5 sm:p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-extrabold text-white">
                         <Shuffle className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Travel Modes & Transit Transfer Options</span>
+                        <span>Transit & Transfer</span>
                       </div>
-                      <span className="text-[10px] font-semibold text-teal-300">
-                        {prevActivity ? `From ${prevActivity.title.slice(0, 18)}...` : 'From day origin'}
+                      <span className="text-xs font-bold text-emerald-300 truncate max-w-[200px]">
+                        {prevActivity ? `From ${prevActivity.title}` : 'From start'}
                       </span>
                     </div>
 
                     {/* Travel Mode Pills */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {transitOptions.map((opt) => {
                         const isSelected = selectedTravelMode === opt.mode;
                         return (
                           <button
                             key={opt.mode}
                             onClick={() => setSelectedTravelMode(opt.mode)}
-                            className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                            className={`py-1.5 px-2 rounded-xl text-center border transition-all cursor-pointer ${
                               isSelected
-                                ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-md ring-1 ring-emerald-500/40'
-                                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+                                ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-xs ring-1 ring-emerald-400/50'
+                                : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
                             }`}
                           >
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-extrabold">{opt.icon} {opt.label.split(' ')[0]}</span>
-                              <span className={`text-[10px] font-black ${isSelected ? 'text-emerald-400' : 'text-slate-500'}`}>
-                                {opt.duration}
-                              </span>
+                            <div className="flex items-center justify-center gap-1 text-xs font-extrabold">
+                              <span>{opt.icon}</span>
+                              <span className={isSelected ? 'text-emerald-300' : 'text-slate-200'}>{opt.duration}</span>
                             </div>
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{opt.estimatedFare}</p>
                           </button>
                         );
                       })}
                     </div>
-
-                    {/* Detailed Route & Switching / Transfer Guidance */}
-                    {activeTransitOption && (
-                      <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800 text-xs space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-slate-300">
-                            {activeTransitOption.summary}
-                          </span>
-                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30">
-                            Est. Fare: {activeTransitOption.estimatedFare}
-                          </span>
-                        </div>
-
-                        {activeTransitOption.hasSwitch && activeTransitOption.switchDetails && (
-                          <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                            <div className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
-                              <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Transit Transfer / Switch Guide:</span>
-                            </div>
-
-                            <div className="space-y-1 pl-2 border-l-2 border-emerald-500/50 ml-1.5 text-[11px] text-slate-300">
-                              <div className="flex items-start gap-1.5">
-                                <span className="text-emerald-400 font-bold">1.</span>
-                                <span>{activeTransitOption.switchDetails.step1}</span>
-                              </div>
-                              <div className="flex items-start gap-1.5 bg-amber-500/10 p-1.5 rounded-md text-amber-200 border border-amber-500/20 font-medium">
-                                <span className="text-amber-400 font-bold">🔄</span>
-                                <span>{activeTransitOption.switchDetails.switchStation}</span>
-                              </div>
-                              <div className="flex items-start gap-1.5">
-                                <span className="text-teal-400 font-bold">2.</span>
-                                <span>{activeTransitOption.switchDetails.step2}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {/* Stop Actions */}
-                <div className="pt-2 flex flex-wrap items-center gap-2">
+                {/* Stop Actions Toolbar */}
+                <div className="pt-1 flex items-center gap-2">
                   <button
                     onClick={() => handleStartNav(activeCardActivity, selectedTravelMode)}
-                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-98 transition-all cursor-pointer"
+                    className="flex-1 py-2.5 px-4 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-98 transition-all cursor-pointer truncate"
                   >
-                    <Navigation className="w-4 h-4" />
-                    <span>Start Navigation ({activeTransitOption?.label.split(' ')[0] || 'Direct'})</span>
+                    <Navigation className="w-4 h-4 shrink-0" />
+                    <span className="truncate">Navigate ({activeTransitOption?.label.split(' ')[0] || 'Drive'})</span>
                   </button>
 
                   <button
@@ -561,38 +596,51 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
                       }
                       setTimeout(() => setNavAlert(null), 6000);
                     }}
-                    className={`py-3 px-4 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                    className={`py-2.5 px-4 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
                       activeCardActivity.completed
                         ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                        : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border-emerald-500/40'
+                        : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border-emerald-500/50 shadow-sm'
                     }`}
                     title={activeCardActivity.completed ? 'Unmark as visited' : 'Mark this stop as visited / arrived'}
                   >
                     <CheckCircle2 className={`w-4 h-4 ${activeCardActivity.completed ? 'text-slate-400' : 'text-emerald-400'}`} />
-                    <span>{activeCardActivity.completed ? 'Unmark Arrived' : 'Mark Arrived'}</span>
+                    <span>{activeCardActivity.completed ? 'Unmark' : 'Arrived'}</span>
                   </button>
 
                   {onReplaceActivity && (
                     <button
                       onClick={() => onReplaceActivity(activeCardActivity.id)}
-                      className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="w-10 h-10 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-semibold border border-slate-700 transition-colors flex items-center justify-center cursor-pointer shrink-0"
                       title="Replace with alternative stop"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Replace Stop</span>
+                      <RefreshCw className="w-4 h-4" />
                     </button>
                   )}
 
                   <button
                     onClick={onOpenAdapt}
-                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    className="w-10 h-10 rounded-2xl bg-slate-800 hover:bg-slate-700 text-teal-400 font-semibold border border-slate-700 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    title="Adapt Itinerary"
                   >
-                    <Zap className="w-3.5 h-3.5 text-teal-400" />
-                    <span>Adapt Day</span>
+                    <Zap className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             ) : null}
+
+            {/* LIVE DAY ROUTE MAP (Directly below Next Up Card) */}
+            <div className="rounded-2xl overflow-hidden border border-slate-700/80 shadow-xl bg-slate-900/90">
+              <TripRouteMap
+                trip={trip}
+                currentDay={currentDay}
+                selectedActivityId={selectedMapActivityId || activeCardActivity?.id}
+                onSelectActivity={(act) => {
+                  setSelectedMapActivityId(act.id);
+                  onOpenActivityDetails(act);
+                }}
+                onStartNavigation={handleStartNav}
+              />
+            </div>
 
             {/* TODAY'S ROUTE SEQUENCE CHECKLIST */}
             {activities.length > 0 && (
@@ -674,54 +722,8 @@ export const TripModeView: React.FC<TripModeViewProps> = ({
                 </div>
               </div>
             )}
-
-            {/* Fallback Expense Tracker when Map sidebar is hidden or on Mobile */}
-            {showExpenses && onAddExpense && onDeleteExpense && (
-              <div className={`${showMapSidebar ? 'block lg:hidden' : 'block'}`}>
-                <div id="day-expense-tracker-section-main">
-                  <DayExpenseTracker
-                    trip={trip}
-                    day={currentDay}
-                    onAddExpense={onAddExpense}
-                    onDeleteExpense={onDeleteExpense}
-                    className="dark bg-slate-800/90 border-slate-700/80 text-white shadow-2xl"
-                  />
-                </div>
-              </div>
-            )}
           </div>
-
-          {/* Right Column: Live Route Map + Expense Tracker & Budget Comparison */}
-          {showMapSidebar && (
-            <div className="hidden lg:block lg:col-span-5 xl:col-span-5 space-y-6">
-              <div className="sticky top-20 space-y-6">
-                <TripRouteMap
-                  trip={trip}
-                  currentDay={currentDay}
-                  selectedActivityId={selectedMapActivityId || activeCardActivity?.id}
-                  onSelectActivity={(act) => {
-                    setSelectedMapActivityId(act.id);
-                    onOpenActivityDetails(act);
-                  }}
-                  onStartNavigation={handleStartNav}
-                />
-
-                {/* DEDICATED AI BUDGET & EXPENSE TRACKER BELOW ROUTE MAP */}
-                {showExpenses && onAddExpense && onDeleteExpense && (
-                  <div id="day-expense-tracker-section">
-                    <DayExpenseTracker
-                      trip={trip}
-                      day={currentDay}
-                      onAddExpense={onAddExpense}
-                      onDeleteExpense={onDeleteExpense}
-                      className="dark bg-slate-800/90 border-slate-700/80 text-white shadow-2xl"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Persistent Floating Quick Adapt Bar */}

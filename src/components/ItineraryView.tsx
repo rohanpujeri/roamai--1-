@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Sparkles,
   Navigation,
@@ -15,13 +15,15 @@ import {
   Compass,
   Building2,
   BedDouble,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem, HotelStayRecommendation } from '../types';
 import { ActivityCard } from './ActivityCard';
 import { PreparationView } from './PreparationView';
 import { MapView } from './MapView';
 import { HotelsAndStaysView } from './HotelsAndStaysView';
+import { AddNearbyPlaceModal } from './AddNearbyPlaceModal';
 import { getTravelModeTransitCost } from './CreateTripWizard';
 import { generateHotelBookingUrls } from '../services/aiHotelAdvisor';
 
@@ -38,10 +40,14 @@ interface ItineraryViewProps {
   onRemoveActivity: (activityId: string) => void;
   onToggleActivityComplete?: (activityId: string) => void;
   onAddCustomActivity: (dayNumber: number) => void;
+  onAddActivityToDay?: (dayNumber: number, activity: Activity) => void;
   onTogglePackingItem: (itemId: string) => void;
   onAddPackingItem: (name: string, category: PackingItem['category']) => void;
   onOpenMapSearch?: () => void;
   onSaveHotelToTrip?: (hotel: HotelStayRecommendation, dayNumber?: number) => void;
+  onAddExpense?: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
+  onDeleteExpense?: (expenseId: string) => void;
+  onAddDay?: () => void;
 }
 
 export const ItineraryView: React.FC<ItineraryViewProps> = ({
@@ -56,12 +62,18 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onMoveActivityDown,
   onRemoveActivity,
   onAddCustomActivity,
+  onAddActivityToDay,
   onTogglePackingItem,
   onAddPackingItem,
   onOpenMapSearch,
-  onSaveHotelToTrip
+  onSaveHotelToTrip,
+  onAddExpense,
+  onDeleteExpense,
+  onAddDay
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'hotels'>('itinerary');
+  const [showStayForDay, setShowStayForDay] = useState<Record<number, boolean>>({});
+  const [isAddPlaceModalOpen, setIsAddPlaceModalOpen] = useState<boolean>(false);
 
   const days = trip?.days || [];
   const currentDay = days.find(d => d.dayNumber === activeDayNumber) || days[0] || {
@@ -73,6 +85,28 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     activities: []
   };
 
+  const currentDayActivities = currentDay?.activities || [];
+  const lastActivity = currentDayActivities.length > 0
+    ? currentDayActivities[currentDayActivities.length - 1]
+    : null;
+
+  // Strict list of places to exclude: all activities in future days + earlier/current stops to prevent repetition
+  const excludedPlaces = useMemo(() => {
+    const targetDayNum = currentDay?.dayNumber || activeDayNumber;
+    // Future days stops
+    const future = days
+      .filter((d) => d.dayNumber > targetDayNum)
+      .flatMap((d) => (d.activities || []).map((a) => a.title));
+    // Earlier & current days stops
+    const existing = days
+      .filter((d) => d.dayNumber <= targetDayNum)
+      .flatMap((d) => (d.activities || []).map((a) => a.title));
+
+    return Array.from(new Set([...future, ...existing].filter(Boolean)));
+  }, [days, currentDay, activeDayNumber]);
+
+  const isStayVisible = !!showStayForDay[currentDay?.dayNumber || activeDayNumber];
+
   const totalTransitCost = getTravelModeTransitCost(
     trip?.travelMode || 'Flight',
     trip?.budgetTier || 'Moderate',
@@ -82,74 +116,103 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     trip?.destination || ''
   );
 
+  const getFormattedDayDate = (
+    tripStartDate?: string,
+    dayNumber: number = 1,
+    rawDayDate?: string
+  ): string => {
+    if (rawDayDate) {
+      const trimmed = rawDayDate.trim();
+      const hasMonthOrSlash = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)|\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/i.test(trimmed);
+      if (hasMonthOrSlash) {
+        return trimmed;
+      }
+    }
+
+    if (tripStartDate) {
+      const parts = tripStartDate.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const dateObj = new Date(y, m, d + (dayNumber - 1));
+          return dateObj.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
+        }
+      }
+
+      const parsed = new Date(tripStartDate);
+      if (!isNaN(parsed.getTime())) {
+        const dateObj = new Date(parsed);
+        dateObj.setDate(dateObj.getDate() + (dayNumber - 1));
+        return dateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    }
+
+    const now = new Date();
+    now.setDate(now.getDate() + (dayNumber - 1));
+    return now.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
       
       {/* Top Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-slate-200/90 bg-slate-900 text-white">
-        <div className="relative h-64 sm:h-72 w-full">
+      <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border border-slate-200/90 bg-slate-900 text-white">
+        <div className="relative h-36 sm:h-44 w-full">
           <img
             src={trip.heroImage}
             alt={trip.destination}
             className="w-full h-full object-cover"
           />
           {/* Image with subtle overlay */}
-          <div className="absolute inset-0 bg-slate-950/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-slate-950/30 pointer-events-none" />
 
           {/* Hero Content */}
-          <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-xs font-black uppercase tracking-wider shadow-sm shadow-emerald-500/30">
-                  {trip.destination}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 backdrop-blur-md text-xs font-bold text-slate-100 border border-white/15">
-                  {trip.durationDays} Days
-                </span>
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 backdrop-blur-md text-xs font-bold text-slate-100 border border-white/15">
-                  {trip.travellersCount} {trip.companionType}
-                </span>
-                {trip.startCity && (
-                  <span className="px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-xs font-bold text-sky-200 border border-sky-400/40 flex items-center gap-1 shadow-xs">
-                    <span>🛫</span>
-                    <span>From {trip.startCity}</span>
-                  </span>
-                )}
-                {trip.travelMode && (
-                  <span className="px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-xs font-bold text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-xs">
-                    <span>{trip.travelMode === 'Flight' ? '✈️' : trip.travelMode === 'Train' ? '🚆' : trip.travelMode === 'Car / Road Trip' ? '🚗' : trip.travelMode === 'Bus' ? '🚌' : trip.travelMode === 'Bike / Motorcycle' ? '🏍️' : '🚙'}</span>
-                    <span>{trip.travelMode}</span>
-                  </span>
-                )}
-              </div>
-
-              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+          <div className="absolute bottom-3.5 left-4 right-4 sm:bottom-4 sm:left-6 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] truncate">
                 {trip.title}
               </h1>
 
-              <p className="text-xs sm:text-sm text-slate-200 font-medium flex flex-wrap items-center gap-2 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+              <p className="text-[11px] sm:text-xs text-slate-200 font-medium flex flex-wrap items-center gap-2 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
                 <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{trip.startCity ? `${trip.startCity} ➔ ${trip.destination}` : trip.destination}, {trip.destinationStateOrCountry}</span>
+                  <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span className="truncate">{trip.startCity ? `${trip.startCity} ➔ ${trip.destination}` : trip.destination}, {trip.destinationStateOrCountry}</span>
                 </span>
                 <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="flex items-center gap-1 shrink-0">
+                  <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
                   <span>{trip.startDate} to {trip.endDate}</span>
                 </span>
               </p>
             </div>
 
             {/* Quick Actions in Header */}
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {onBackToStep6 && (
                 <button
                   id="back-to-step-6-btn"
                   onClick={onBackToStep6}
-                  className="px-4 py-3 rounded-2xl bg-white/90 hover:bg-white text-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm border border-white/60 dark:border-slate-700 backdrop-blur-md shadow-lg flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                  className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white/90 hover:bg-white text-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 dark:text-slate-100 font-bold text-xs border border-white/60 dark:border-slate-700 backdrop-blur-md shadow-md flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                   title="Back to Step 6 to edit styles and preferences"
                 >
-                  <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Back to Step 6</span>
                 </button>
               )}
@@ -157,7 +220,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               <button
                 id="enter-trip-mode-btn"
                 onClick={onEnterTripMode}
-                className="px-5 py-3 rounded-2xl bg-[#1b4332] hover:bg-[#2d6a4f] text-white font-bold text-xs sm:text-sm border border-emerald-500/50 backdrop-blur-md shadow-[0_0_18px_rgba(45,106,79,0.55)] hover:shadow-[0_0_24px_rgba(45,106,79,0.75)] ring-2 ring-emerald-400/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-[#1b4332] hover:bg-[#2d6a4f] text-white font-bold text-xs border border-emerald-500/50 backdrop-blur-md shadow-[0_0_14px_rgba(45,106,79,0.55)] hover:shadow-[0_0_20px_rgba(45,106,79,0.75)] ring-2 ring-emerald-400/30 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               >
                 <Navigation className="w-4 h-4 text-emerald-300 animate-pulse" />
                 <span>Enter Trip Mode</span>
@@ -169,14 +232,14 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
       {/* Main Tabs Navigation Bar */}
       <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-2xl p-2 shadow-xl border border-white/80 dark:border-white/15">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap items-center gap-1.5 sm:gap-2 pb-0.5 sm:pb-0">
           {(
             [
               { id: 'itinerary', label: 'Day Itinerary', icon: Calendar },
-              { id: 'overview', label: 'Trip Overview', icon: Sparkles },
               { id: 'map', label: 'Route Map', icon: MapPin },
               { id: 'preparation', label: 'Preparation & Packing', icon: CheckCircle2 },
-              { id: 'hotels', label: 'Hotels & Stays', icon: Building2, badge: 'Stays' }
+              { id: 'hotels', label: 'Hotels & Stays', icon: Building2, badge: 'Stays' },
+              { id: 'overview', label: 'Trip Overview', icon: Sparkles }
             ] as { id: 'itinerary' | 'overview' | 'map' | 'preparation' | 'hotels'; label: string; icon: any; badge?: string }[]
           ).map((tab) => {
             const Icon = tab.icon;
@@ -186,7 +249,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 key={tab.id}
                 id={`tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-slate-900 text-white shadow-md ring-1 ring-emerald-400/40'
                     : 'text-slate-700 hover:text-slate-950 bg-white/60 hover:bg-white dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60'
@@ -211,145 +274,206 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
       {/* TAB 1: DAY ITINERARY */}
       {activeTab === 'itinerary' && (
-        <div className="space-y-6">
-          {/* Day Selector Pills Bar */}
-          <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-3xl p-4 sm:p-5 shadow-xl border border-white/80 dark:border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              {days.map((day) => (
-                <button
-                  key={day.dayNumber}
-                  onClick={() => onSelectDay(day.dayNumber)}
-                  className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer ${
-                    day.dayNumber === activeDayNumber
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                      : 'bg-white/70 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-white border border-slate-200/60'
-                  }`}
-                >
-                  <span>Day {day.dayNumber}</span>
-                  <span className="text-[10px] opacity-80">{day.weatherForecast?.temp || '26°C'}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onAddCustomActivity(currentDay?.dayNumber || 1)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Stop</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Current Day Vibe Header */}
-          <div className="bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 backdrop-blur-2xl rounded-2xl p-4 sm:p-5 border border-white/60 dark:border-white/10 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                {currentDay?.date || 'Day 1'}
-              </span>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                {currentDay?.theme || 'Day Highlights'}
-              </h3>
-              <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">
-                <strong>Today's Vibe:</strong> {currentDay?.vibe || 'Explore authentic highlights and culture'}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-emerald-200/60 shrink-0 shadow-xs">
-              <Sun className="w-4 h-4 text-amber-500" />
-              <div className="text-right">
-                <span className="text-xs font-bold text-slate-900 dark:text-white block">{currentDay?.weatherForecast?.temp || '26°C'}</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">{currentDay?.weatherForecast?.condition || 'Sunny'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Day Stay Highlight / Quick Hotel Selector */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-emerald-200/60 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
-                  Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
-                </span>
-                <h5 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
-                </h5>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {currentDay?.suggestedStay
-                    ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`
-                    : `Handpicked stays matching your ${trip.budgetTier || 'Moderate'} budget`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-              {currentDay?.suggestedStay && (() => {
-                const stayUrls = generateHotelBookingUrls(
-                  currentDay.suggestedStay.name,
-                  trip.destination,
-                  trip.startDate,
-                  trip.endDate,
-                  trip.travellersCount
-                );
+        <div className="space-y-4">
+          {/* Horizontal Day Selector Bar (Day 1, Day 2, Day 3... + Add a Day) */}
+          <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-white/80 dark:border-white/15 flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
+              {days.map((day) => {
+                const isActive = day.dayNumber === activeDayNumber;
                 return (
-                  <a
-                    href={stayUrls.primary}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                    title="Check live availability & rates on booking platforms"
+                  <button
+                    key={day.dayNumber}
+                    id={`day-tab-btn-${day.dayNumber}`}
+                    onClick={() => onSelectDay(day.dayNumber)}
+                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-1 ring-emerald-400'
+                        : 'bg-white/70 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-white border border-slate-200/60 dark:border-slate-700/60'
+                    }`}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Book / Check Rates</span>
-                  </a>
+                    <span className="font-extrabold">Day {day.dayNumber}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+                      isActive ? 'bg-emerald-700/60 text-emerald-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
+                    }`}>
+                      {day.weatherForecast?.temp || '26°C'}
+                    </span>
+                  </button>
                 );
-              })()}
-              <button
-                type="button"
-                onClick={() => setActiveTab('hotels')}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-              >
-                <BedDouble className="w-4 h-4" />
-                <span>Explore Stays (Day {currentDay?.dayNumber || 1})</span>
-              </button>
+              })}
             </div>
+
+            {onAddDay && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  id="btn-add-a-day"
+                  type="button"
+                  onClick={onAddDay}
+                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+                  title="Add a new day to itinerary"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add a Day</span>
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Day Date & Stay Recommendation Header Bar */}
+          <div
+            id="current-day-date-card"
+            className="w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-white/80 dark:border-white/15 flex items-center justify-between gap-3"
+          >
+            {/* Left: Date & Stops Info */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shrink-0">
+                <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                  {getFormattedDayDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
+                </span>
+              </div>
+
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold px-1 hidden sm:inline truncate">
+                • {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
+              </span>
+            </div>
+
+            {/* Right: Repositioned Recommend a Stay Button */}
+            <button
+              id="toggle-recommend-stay-btn"
+              type="button"
+              onClick={() =>
+                setShowStayForDay(prev => ({
+                  ...prev,
+                  [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
+                }))
+              }
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 whitespace-nowrap border ${
+                isStayVisible
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700 ring-1 ring-slate-400/30'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 hover:shadow-md ring-1 ring-emerald-400/40'
+              }`}
+              title="Click to view or hide recommended stay for this day"
+            >
+              <Building2 className="w-3.5 h-3.5 text-white shrink-0" />
+              <span>{isStayVisible ? 'Hide Stay' : 'Recommend a Stay'}</span>
+              <span className="text-[10px] ml-0.5 font-black opacity-80">
+                {isStayVisible ? '▲' : '▼'}
+              </span>
+            </button>
+          </div>
+
+          {/* Day Stay Highlight / Quick Hotel Selector (Toggled by user) */}
+          {isStayVisible && (
+            <div
+              id="tonight-recommended-stay-card"
+              className="p-2.5 sm:p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-emerald-200/60 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block leading-tight">
+                    Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
+                  </span>
+                  <h5 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
+                  </h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                    {currentDay?.suggestedStay
+                      ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`
+                      : `Handpicked stays matching your ${trip.budgetTier || 'Moderate'} budget`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                {currentDay?.suggestedStay && (() => {
+                  const stayUrls = generateHotelBookingUrls(
+                    currentDay.suggestedStay.name,
+                    trip.destination,
+                    trip.startDate,
+                    trip.endDate,
+                    trip.travellersCount
+                  );
+                  return (
+                    <a
+                      href={stayUrls.primary}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                      title="Check live availability & rates on booking platforms"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Book / Rates</span>
+                    </a>
+                  );
+                })()}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('hotels')}
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <BedDouble className="w-3.5 h-3.5" />
+                  <span>Explore Stays (Day {currentDay?.dayNumber || 1})</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Scheduled Day Activities Timeline */}
-          <div className="max-w-4xl mx-auto space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h4 
-                className="text-sm font-bold text-white flex items-center gap-2"
-                style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
-              >
-                <Calendar className="w-4 h-4 text-emerald-400" />
-                <span>Day {currentDay?.dayNumber || 1} Timeline & Stops</span>
-              </h4>
-              <span 
-                className="text-xs font-semibold text-white/90"
-                style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
-              >
-                {(currentDay?.activities || []).length} planned stops
-              </span>
-            </div>
-
-            {(currentDay?.activities || []).map((activity, index) => (
+          <div className="space-y-3 pb-24">
+            {currentDayActivities.map((activity, index) => (
               <ActivityCard
                 key={activity.id}
                 activity={activity}
                 currency={trip?.currency || 'INR'}
                 isFirst={index === 0}
-                isLast={index === (currentDay?.activities || []).length - 1}
+                isLast={index === currentDayActivities.length - 1}
                 onOpenDetails={onOpenActivityDetails}
                 onReplace={onReplaceActivity}
                 onMoveUp={onMoveActivityUp}
                 onMoveDown={onMoveActivityDown}
                 onRemove={onRemoveActivity}
+                onAddPlace={() => setIsAddPlaceModalOpen(true)}
               />
             ))}
+
+            {/* "Add a Place" button directly below the last place of day itinerary */}
+            <div className="pt-2">
+              <button
+                id="btn-add-place-below-last-activity"
+                type="button"
+                onClick={() => setIsAddPlaceModalOpen(true)}
+                className="w-full group py-4 px-5 rounded-2xl border-2 border-dashed border-emerald-500 hover:border-emerald-400 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl transition-all duration-200 flex items-center justify-between text-left shadow-xl hover:shadow-2xl cursor-pointer ring-1 ring-emerald-500/30 hover:ring-emerald-500/60"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-600 group-hover:bg-emerald-500 text-white flex items-center justify-center shadow-md transition-colors shrink-0">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                        Add a Place
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                        <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        Nearby Recommendations
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
+                      {lastActivity
+                        ? `Explore curated spots nearby to "${lastActivity.title}" (excludes future day stops)`
+                        : `Explore top curated spots in ${trip.destination}`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                  <span>Explore Nearby</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -460,7 +584,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Day by Day Cards Grid */}
@@ -533,6 +656,29 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           onSaveHotelToTrip={onSaveHotelToTrip}
         />
       )}
+
+
+
+      {/* Add Nearby Place Modal */}
+      <AddNearbyPlaceModal
+        isOpen={isAddPlaceModalOpen}
+        onClose={() => setIsAddPlaceModalOpen(false)}
+        dayNumber={currentDay?.dayNumber || activeDayNumber}
+        destination={trip.destination}
+        destinationStateOrCountry={trip.destinationStateOrCountry}
+        currency={trip.currency || 'INR'}
+        lastActivity={lastActivity}
+        excludedPlaces={excludedPlaces}
+        travelStyles={trip.preferences?.styles}
+        budgetTier={trip.budgetTier}
+        onAddActivity={(newAct) => {
+          if (onAddActivityToDay) {
+            onAddActivityToDay(currentDay?.dayNumber || activeDayNumber, newAct);
+          } else {
+            onAddCustomActivity(currentDay?.dayNumber || activeDayNumber);
+          }
+        }}
+      />
 
     </div>
   );

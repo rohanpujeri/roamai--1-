@@ -93,65 +93,11 @@ export interface AutocompleteSuggestion {
   lng?: number;
 }
 
-// Curated fast-lookup directory of popular global & domestic destinations
-export const POPULAR_TRAVEL_DESTINATIONS: Array<{
-  name: string;
-  region: string;
-  lat: number;
-  lng: number;
-  types: string[];
-}> = [
-  { name: 'Goa', region: 'India', lat: 15.2993, lng: 74.1240, types: ['beach', 'leisure', 'nightlife'] },
-  { name: 'Manali', region: 'Himachal Pradesh, India', lat: 32.2396, lng: 77.1887, types: ['mountains', 'adventure', 'snow'] },
-  { name: 'Ladakh (Leh)', region: 'Ladakh, India', lat: 34.1526, lng: 77.5771, types: ['adventure', 'mountains', 'scenic'] },
-  { name: 'Jaipur', region: 'Rajasthan, India', lat: 26.9124, lng: 75.7873, types: ['heritage', 'culture', 'palaces'] },
-  { name: 'Udaipur', region: 'Rajasthan, India', lat: 24.5854, lng: 73.7125, types: ['romantic', 'lakes', 'heritage'] },
-  { name: 'Varanasi', region: 'Uttar Pradesh, India', lat: 25.3176, lng: 82.9739, types: ['spiritual', 'culture', 'heritage'] },
-  { name: 'Kerala (Munnar & Alleppey)', region: 'Kerala, India', lat: 9.4981, lng: 76.3388, types: ['backwaters', 'nature', 'tea gardens'] },
-  { name: 'Rishikesh', region: 'Uttarakhand, India', lat: 30.0869, lng: 78.2676, types: ['yoga', 'adventure', 'rafting'] },
-  { name: 'Shimla', region: 'Himachal Pradesh, India', lat: 31.1048, lng: 77.1734, types: ['hills', 'colonial', 'scenic'] },
-  { name: 'Darjeeling', region: 'West Bengal, India', lat: 27.0410, lng: 88.2663, types: ['tea', 'mountains', 'toy train'] },
-  { name: 'Ooty & Coonoor', region: 'Tamil Nadu, India', lat: 11.4102, lng: 76.6950, types: ['hills', 'botanical', 'nature'] },
-  { name: 'Kashmir (Srinagar & Gulmarg)', region: 'Jammu & Kashmir, India', lat: 34.0837, lng: 74.7973, types: ['snow', 'lakes', 'scenic'] },
-  { name: 'Paris', region: 'France', lat: 48.8566, lng: 2.3522, types: ['culture', 'romance', 'museums'] },
-  { name: 'Tokyo', region: 'Japan', lat: 35.6762, lng: 139.6503, types: ['tech', 'cuisine', 'culture'] },
-  { name: 'Kyoto', region: 'Japan', lat: 35.0116, lng: 135.7681, types: ['temples', 'tradition', 'gardens'] },
-  { name: 'Bali', region: 'Indonesia', lat: -8.4095, lng: 115.1889, types: ['beaches', 'surfing', 'temples'] },
-  { name: 'Dubai', region: 'United Arab Emirates', lat: 25.2048, lng: 55.2708, types: ['luxury', 'shopping', 'skyline'] },
-  { name: 'Rome', region: 'Italy', lat: 41.9028, lng: 12.4964, types: ['history', 'colosseum', 'cuisine'] },
-  { name: 'London', region: 'United Kingdom', lat: 51.5074, lng: -0.1278, types: ['museums', 'culture', 'sightseeing'] },
-  { name: 'New York City', region: 'United States', lat: 40.7128, lng: -74.0060, types: ['skyline', 'broadway', 'metropolis'] },
-  { name: 'Bangkok', region: 'Thailand', lat: 13.7563, lng: 100.5018, types: ['street food', 'nightlife', 'temples'] },
-  { name: 'Phuket & Krabi', region: 'Thailand', lat: 7.8804, lng: 98.3923, types: ['islands', 'beaches', 'diving'] },
-  { name: 'Singapore', region: 'Singapore', lat: 1.3521, lng: 103.8198, types: ['gardens', 'modern', 'food'] },
-  { name: 'Swiss Alps (Interlaken & Zermatt)', region: 'Switzerland', lat: 46.6863, lng: 7.8632, types: ['alps', 'snow', 'scenic'] },
-  { name: 'Barcelona', region: 'Spain', lat: 41.3879, lng: 2.1699, types: ['architecture', 'beaches', 'tapas'] },
-  { name: 'Santorini', region: 'Greece', lat: 36.3932, lng: 25.4615, types: ['sunsets', 'volcanic', 'islands'] },
-  { name: 'Amalfi Coast', region: 'Italy', lat: 40.6333, lng: 14.6029, types: ['coastal', 'scenic', 'luxury'] },
-  { name: 'Maldives (Male & Atolls)', region: 'Maldives', lat: 4.1755, lng: 73.5093, types: ['overwater villas', 'snorkeling', 'luxury'] },
-  { name: 'Reykjavik & Golden Circle', region: 'Iceland', lat: 64.1466, lng: -21.9426, types: ['northern lights', 'glaciers', 'geysers'] },
-  { name: 'Sydney', region: 'Australia', lat: -33.8688, lng: 151.2093, types: ['harbour', 'beaches', 'opera house'] }
-];
-
 /**
- * Dynamic OpenStreetMap Nominatim Geocoding search (no hardcoded/predefined database)
+ * Dynamic OpenStreetMap Nominatim Geocoding search (100% dynamic, no hardcoded places)
  */
 async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; lng: number } | null): Promise<PlaceSearchResult[]> {
   if (!query || !query.trim()) return [];
-  const clean = query.trim().toLowerCase();
-
-  // First check fast curated local match
-  const matchedCurated = POPULAR_TRAVEL_DESTINATIONS.filter(
-    (d) => d.name.toLowerCase().includes(clean) || d.region.toLowerCase().includes(clean)
-  ).map((d) => ({
-    placeId: `dest-${d.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-    name: d.name,
-    address: `${d.name}, ${d.region}`,
-    latitude: d.lat,
-    longitude: d.lng,
-    types: d.types,
-    rating: 4.8
-  }));
 
   try {
     const controller = new AbortController();
@@ -164,7 +110,7 @@ async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; l
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        const osmResults = data.map((item: any) => {
+        return data.map((item: any) => {
           const lat = parseFloat(item.lat);
           const lng = parseFloat(item.lon);
           return {
@@ -179,26 +125,13 @@ async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; l
             distanceKm: userCoords ? calculateDistanceKm(userCoords.lat, userCoords.lng, lat, lng) : undefined
           };
         });
-
-        // Combine curated and OSM
-        const combined = [...matchedCurated];
-        for (const osm of osmResults) {
-          if (!combined.some((c) => c.name.toLowerCase() === osm.name.toLowerCase())) {
-            combined.push(osm);
-          }
-        }
-        return combined;
       }
     }
   } catch (err) {
     console.warn('Live Nominatim geocoding search failed or timed out:', err);
   }
 
-  if (matchedCurated.length > 0) {
-    return matchedCurated;
-  }
-
-  // If search returned no results and user coordinates are available, return location at user's coordinates
+  // If search returned no results and user coordinates are available, return location at user coordinates
   if (userCoords && userCoords.lat && userCoords.lng) {
     return [
       {

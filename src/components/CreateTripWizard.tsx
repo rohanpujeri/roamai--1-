@@ -41,7 +41,7 @@ import {
   RealTripBudgetResult
 } from '../types';
 import { Step1DestinationSearch, SelectedDestinationPlace } from './Step1DestinationSearch';
-import { fetchAiRealTripBudget, calculateFallbackRealTripBudget } from '../services/aiBudgetEstimator';
+import { fetchAiRealTripBudget, calculateFallbackRealTripBudget, calculateTransitBenchmark } from '../services/aiBudgetEstimator';
 import { evaluateTripFeasibility, DestinationFeasibility } from '../utils/travelFeasibility';
 import { fetchAiDestinationTravelIntelligence, getGenericDynamicIntelligence, DestinationTravelIntelligence } from '../services/aiDestinationAdvisor';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -142,69 +142,12 @@ export const getTravelModeTransitCost = (
   duration: number,
   travellers: number,
   distanceKm: number = 600,
-  _destinationName: string = ''
+  destinationName: string = ''
 ) => {
-  const isLongHaul = distanceKm > 4000;
-  const isMediumHaul = distanceKm > 1800;
-
-  switch (mode) {
-    case 'Flight': {
-      let baseFlightPerPerson = 6000;
-      if (isLongHaul) {
-        baseFlightPerPerson = tier === 'Budget' ? 45000 : tier === 'Moderate' ? 65000 : tier === 'Premium' ? 105000 : 210000;
-      } else if (isMediumHaul) {
-        baseFlightPerPerson = tier === 'Budget' ? 22000 : tier === 'Moderate' ? 32000 : tier === 'Premium' ? 48000 : 85000;
-      } else {
-        // Domestic / Regional flights scaled by distance
-        const distFactor = Math.max(0.7, Math.min(2.2, distanceKm / 750));
-        const tierRate = tier === 'Budget' ? 4200 : tier === 'Moderate' ? 6800 : tier === 'Premium' ? 11500 : 22000;
-        baseFlightPerPerson = Math.round(tierRate * distFactor);
-      }
-      const cabsCount = Math.max(1, Math.ceil(travellers / 4));
-      const airportCabRate = isLongHaul ? 2800 : isMediumHaul ? 2000 : (tier === 'Budget' ? 800 : 1400);
-      return Math.round(baseFlightPerPerson * travellers + cabsCount * airportCabRate * 2);
-    }
-    case 'Train': {
-      const distFactor = Math.max(0.6, distanceKm / 600);
-      const baseTrain = tier === 'Budget' ? 650 : tier === 'Moderate' ? 1600 : tier === 'Premium' ? 2800 : 4600;
-      const trainPerPerson = Math.round(baseTrain * distFactor);
-      const cabsCount = Math.max(1, Math.ceil(travellers / 4));
-      const stationCab = tier === 'Budget' ? 400 : 800;
-      return Math.round(trainPerPerson * travellers + cabsCount * stationCab * 2);
-    }
-    case 'Car / Road Trip': {
-      const carsCount = Math.max(1, Math.ceil(travellers / 4));
-      const roundTripDist = distanceKm * 2;
-      const fuelPerCar = Math.round((roundTripDist / 13) * 105);
-      const tollsPerCar = Math.round(roundTripDist * 1.35);
-      const tierBonus = tier === 'Budget' ? 0 : tier === 'Moderate' ? 1200 * duration : tier === 'Premium' ? 2600 * duration : 5000 * duration;
-      return Math.round(carsCount * (fuelPerCar + tollsPerCar + tierBonus));
-    }
-    case 'Bus': {
-      const distFactor = Math.max(0.6, Math.min(3.0, distanceKm / 500));
-      const baseBus = tier === 'Budget' ? 750 : tier === 'Moderate' ? 1400 : tier === 'Premium' ? 2200 : 3200;
-      const busPerPerson = Math.round(baseBus * distFactor);
-      return Math.round(busPerPerson * travellers);
-    }
-    case 'Bike / Motorcycle': {
-      const bikesCount = Math.max(1, Math.ceil(travellers / 2));
-      const bikePerDay = tier === 'Budget' ? 900 : tier === 'Moderate' ? 1500 : tier === 'Premium' ? 2400 : 4000;
-      const roundTripDist = distanceKm * 2;
-      const totalFuel = Math.round((roundTripDist / 32) * 105);
-      return Math.round(bikesCount * (bikePerDay * duration + totalFuel));
-    }
-    case 'Self-Drive Rental': {
-      const carsCount = Math.max(1, Math.ceil(travellers / 4));
-      const rentalPerDay = tier === 'Budget' ? 1800 : tier === 'Moderate' ? 2800 : tier === 'Premium' ? 4500 : 7500;
-      const localFuelPerDay = 650;
-      return Math.round(carsCount * (rentalPerDay + localFuelPerDay) * duration);
-    }
-    default:
-      return Math.round(3000 * travellers);
-  }
+  return calculateTransitBenchmark(mode, tier, travellers, duration, distanceKm, destinationName);
 };
 
-// Calculate realistic tiered budget based on destination avg cost, duration, travellers, mode of travel, AND route distance
+// Calculate realistic tiered budget based on destination cost profile, duration, travellers, mode of travel, and route distance
 export const calculateTierBudget = (
   tier: BudgetTier,
   destination: DestinationPreset,
@@ -213,27 +156,16 @@ export const calculateTierBudget = (
   travelMode: TravelMode = 'Flight',
   distanceKm: number = 600
 ) => {
-  const baseCost = destination?.avgCostPerDay || 7000;
-  // Multiplier considering room sharing for 2+ people
-  const groupFactor = travellers <= 1 ? 1 : 1 + (travellers - 1) * 0.70;
-
-  let groundDailyPerPerson = 0;
-  if (tier === 'Budget') {
-    groundDailyPerPerson = Math.max(1200, Math.round(baseCost * 0.32));
-  } else if (tier === 'Moderate') {
-    groundDailyPerPerson = Math.round(baseCost * 0.70);
-  } else if (tier === 'Premium') {
-    groundDailyPerPerson = Math.round(baseCost * 1.35);
-  } else {
-    // Luxury
-    groundDailyPerPerson = Math.round(baseCost * 2.30);
-  }
-
-  const groundTotal = groundDailyPerPerson * duration * groupFactor;
-  const transitTotal = getTravelModeTransitCost(travelMode, tier, duration, travellers, distanceKm, destination?.name);
-  const totalMin = groundTotal + transitTotal;
-
-  return Math.max(2500, Math.round(totalMin / 500) * 500);
+  const destName = destination?.name || '';
+  const result = calculateFallbackRealTripBudget({
+    destination: destName,
+    startCity: '',
+    durationDays: duration,
+    travellersCount: travellers,
+    travelMode,
+    distanceKm
+  });
+  return result.tiers[tier]?.totalCost || 5000;
 };
 
 export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
@@ -282,6 +214,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     country?: string;
     lat?: number;
     lng?: number;
+    source?: string;
   } | null>(null);
 
   // Step 3: Dates, Duration & Mode of Travel
@@ -387,9 +320,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     isTravelModeManuallyPickedRef.current = false;
 
     // Provide instant responsive baseline (0ms) so user never perceives lag
-    const instantGeneric = getGenericDynamicIntelligence(destName, effectiveStartCity, travelMode);
+    const instantGeneric = getGenericDynamicIntelligence(destName, effectiveStartCity);
     setAiDestinationInfo((prev) => (prev && prev.destination.toLowerCase() === destName.toLowerCase() ? prev : instantGeneric));
     
+    // If user hasn't explicitly chosen a mode yet, default to first available mode
+    if (!isTravelModeManuallyPickedRef.current && !travelMode && instantGeneric.recommendedTravelMode) {
+      setTravelMode(instantGeneric.recommendedTravelMode);
+    }
+
     if (instantGeneric.minimumRequiredDays && instantGeneric.minimumRequiredDays > 0) {
       setDurationDays((curr) => {
         if (curr < instantGeneric.minimumRequiredDays) {
@@ -403,7 +341,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     let isMounted = true;
     setIsLoadingAiInfo(true);
 
-    fetchAiDestinationTravelIntelligence(destName, effectiveStartCity, travelMode)
+    fetchAiDestinationTravelIntelligence(destName, effectiveStartCity)
       .then((info) => {
         if (!isMounted) return;
         setAiDestinationInfo(info);
@@ -416,8 +354,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
             return curr;
           });
         }
-        if (!isTravelModeManuallyPickedRef.current && info.recommendedTravelMode) {
-          setTravelMode(info.recommendedTravelMode);
+        // Only if current mode is physically impossible for this route (e.g. driving to an overseas island), fallback to a valid mode
+        if (info.modesBreakdown && info.modesBreakdown.length > 0) {
+          const validModes = info.modesBreakdown.map((m) => m.mode);
+          setTravelMode((currentMode) => {
+            if (currentMode && validModes.includes(currentMode)) {
+              return currentMode;
+            }
+            return validModes[0];
+          });
         }
       })
       .catch((err) => {
@@ -430,7 +375,44 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity]);
+  }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity, startDate]);
+
+  // Explicit user action to let AI fetch all possible travel modes for the route
+  const handleFetchPossibleTravelModes = useCallback(async () => {
+    const destName =
+      selectedDestinationPlace?.name ||
+      (selectedDestId && selectedDestId !== 'custom-destination' ? selectedDestId : '') ||
+      (selectedDestination.name !== 'Selected Destination' ? selectedDestination.name : '');
+
+    if (!destName) return;
+
+    setIsLoadingAiInfo(true);
+
+    try {
+      const info = await fetchAiDestinationTravelIntelligence(destName, effectiveStartCity);
+      setAiDestinationInfo(info);
+      // Keep user's chosen travel mode if it is among the possible modes
+      if (info.modesBreakdown && info.modesBreakdown.length > 0) {
+        const validModes = info.modesBreakdown.map((m) => m.mode);
+        setTravelMode((currentMode) => {
+          if (currentMode && validModes.includes(currentMode)) {
+            return currentMode;
+          }
+          return validModes[0];
+        });
+      }
+      const matchingMode = info.modesBreakdown?.find((m) => m.mode === travelMode);
+      const reqDays = matchingMode?.minRequiredDaysForMode || info.minimumRequiredDays || 2;
+      if (durationDays < reqDays) {
+        setDurationDays(reqDays);
+        setEndDate(getCalculatedEndDate(startDate, reqDays));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch possible travel modes:', err);
+    } finally {
+      setIsLoadingAiInfo(false);
+    }
+  }, [selectedDestinationPlace?.name, selectedDestId, selectedDestination.name, effectiveStartCity, travelMode, durationDays, startDate]);
 
   // Dynamically computed effective minimum trip days based on destination distance AND selected travel mode
   const effectiveMinDays = useMemo(() => {
@@ -449,21 +431,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     }
   }, [effectiveMinDays, startDate]);
 
-  // Keep travelMode aligned with physically possible travel modes for this destination & route
-  useEffect(() => {
-    if (!isTravelModeManuallyPickedRef.current && aiDestinationInfo?.recommendedTravelMode) {
-      setTravelMode(aiDestinationInfo.recommendedTravelMode);
-    } else {
-      const isCurrentModeAvailable = destinationFeasibility.availableTravelModes.some(
-        (m) => m.id === travelMode
-      );
-      if (!isCurrentModeAvailable && destinationFeasibility.availableTravelModes.length > 0) {
-        setTravelMode(destinationFeasibility.defaultRecommendedMode);
-      }
-    }
-  }, [aiDestinationInfo?.recommendedTravelMode, destinationFeasibility.availableTravelModes, destinationFeasibility.defaultRecommendedMode]);
-
-  // Dynamic travel modes list fetched by AI for the specific origin -> destination route
+  // Dynamic travel modes list fetched by AI representing all viable options for the specific origin -> destination route
   const travelModesToDisplay = useMemo(() => {
     if (aiDestinationInfo?.modesBreakdown && aiDestinationInfo.modesBreakdown.length > 0) {
       return aiDestinationInfo.modesBreakdown
@@ -473,8 +441,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
           label: item.label,
           icon: item.icon,
           desc: item.desc || `${item.mode} transit from ${effectiveStartCity} to ${selectedDestination.name}`,
-          tag: item.tag || (item.isRecommended ? 'AI Pick' : 'Available'),
-          isRecommended: item.isRecommended,
+          tag: item.tag || 'Possible Route',
+          isRecommended: false,
           suitabilityScore: item.suitabilityScore,
           durationEstimate: item.durationEstimate,
           transitDaysRoundTrip: item.transitDaysRoundTrip,
@@ -486,24 +454,74 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
           cons: item.cons
         }));
     }
-    return destinationFeasibility.availableTravelModes.map((m) => ({
-      id: m.id,
-      label: m.label,
-      icon: m.icon,
-      desc: m.desc,
-      tag: m.tag,
-      isRecommended: m.id === travelMode,
-      suitabilityScore: 85,
-      durationEstimate: 'Direct transit',
-      transitDaysRoundTrip: 1,
-      minRequiredDaysForMode: destinationFeasibility.minDurationDays || 3,
-      estimatedCostRange: '',
-      hasSwitchOrTransfer: false,
-      transferGuide: undefined,
-      pros: '',
-      cons: ''
-    }));
-  }, [aiDestinationInfo?.modesBreakdown, destinationFeasibility.availableTravelModes, destinationFeasibility.minDurationDays, effectiveStartCity, selectedDestination.name, travelMode]);
+
+    return [
+      {
+        id: 'Flight' as TravelMode,
+        label: 'Flight',
+        icon: '✈️',
+        desc: `Air transit from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: 'Air Route',
+        isRecommended: false,
+        suitabilityScore: 90,
+        durationEstimate: 'Evaluating...',
+        transitDaysRoundTrip: 2,
+        minRequiredDaysForMode: 2,
+        estimatedCostRange: 'Airfare',
+        hasSwitchOrTransfer: false,
+        pros: 'Direct or connecting flight',
+        cons: ''
+      },
+      {
+        id: 'Train' as TravelMode,
+        label: 'Train / Railway',
+        icon: '🚆',
+        desc: `Rail route from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: 'Rail Route',
+        isRecommended: false,
+        suitabilityScore: 85,
+        durationEstimate: 'Evaluating...',
+        transitDaysRoundTrip: 2,
+        minRequiredDaysForMode: 2,
+        estimatedCostRange: 'Train ticket',
+        hasSwitchOrTransfer: false,
+        pros: 'Scenic rail route',
+        cons: ''
+      },
+      {
+        id: 'Car / Road Trip' as TravelMode,
+        label: 'Car / Road Trip',
+        icon: '🚗',
+        desc: `Highway drive from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: 'Road Highway',
+        isRecommended: false,
+        suitabilityScore: 80,
+        durationEstimate: 'Evaluating...',
+        transitDaysRoundTrip: 2,
+        minRequiredDaysForMode: 2,
+        estimatedCostRange: 'Fuel & tolls',
+        hasSwitchOrTransfer: false,
+        pros: 'Flexible road trip',
+        cons: ''
+      },
+      {
+        id: 'Bus' as TravelMode,
+        label: 'Bus / Coach',
+        icon: '🚌',
+        desc: `Intercity bus from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: 'Bus Transit',
+        isRecommended: false,
+        suitabilityScore: 75,
+        durationEstimate: 'Evaluating...',
+        transitDaysRoundTrip: 2,
+        minRequiredDaysForMode: 2,
+        estimatedCostRange: 'Bus fare',
+        hasSwitchOrTransfer: false,
+        pros: 'Budget coach option',
+        cons: ''
+      }
+    ];
+  }, [aiDestinationInfo?.modesBreakdown, effectiveStartCity, selectedDestination.name]);
 
   // Route Details Calculation
   const currentRouteDetails = useMemo(() => ({
@@ -612,81 +630,172 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     currentRouteDetails.distanceKm
   ]);
 
-  // Browser Geolocation Detector
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      setLocatingStatus('error');
-      setLocationErrorMsg('Geolocation is not supported by your browser. Please choose your departure city manually below.');
-      setOriginSelectionMode('manual');
-      return;
-    }
-
+  // Browser Geolocation & Network Location Detector with Multi-Tier Fallback
+  const handleDetectLocation = async () => {
     setLocatingStatus('locating');
     setLocationErrorMsg('');
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
+    // Helper 1: Resolve city name from coordinates using server & client fallbacks
+    const resolveCityFromCoords = async (lat: number, lng: number): Promise<boolean> => {
+      // Step A: Server-side reverse geocode endpoint (Google Maps API + compliant Nominatim with custom User-Agent)
+      try {
+        const srvRes = await fetch(`/api/detect-location/reverse?lat=${lat}&lng=${lng}`);
+        if (srvRes.ok) {
+          const srvData = await srvRes.json();
+          if (srvData.cityName) {
+            setStartCity(srvData.cityName);
+            setIsCustomCityInput(false);
+            setCustomStartCity('');
+            setDetectedLocationData({
+              cityName: srvData.cityName,
+              state: srvData.state,
+              country: srvData.country,
+              lat,
+              lng,
+              source: srvData.source || 'gps'
+            });
+            setLocatingStatus('success');
+            setOriginSelectionMode('detected');
+            return true;
+          }
+        }
+      } catch (err) {
+        console.warn('Server reverse geocode failed, trying client fallback:', err);
+      }
 
-        try {
-          // Reverse geocoding via OpenStreetMap Nominatim with a 4-second timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
+      // Step B: Free client-side BigDataCloud reverse geocode client API
+      try {
+        const bdcRes = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+        );
+        if (bdcRes.ok) {
+          const bdcData = await bdcRes.json();
+          const cityName = bdcData.city || bdcData.locality || bdcData.principalSubdivision;
+          if (cityName) {
+            setStartCity(cityName);
+            setIsCustomCityInput(false);
+            setCustomStartCity('');
+            setDetectedLocationData({
+              cityName,
+              state: bdcData.principalSubdivision,
+              country: bdcData.countryName,
+              lat,
+              lng,
+              source: 'gps_client'
+            });
+            setLocatingStatus('success');
+            setOriginSelectionMode('detected');
+            return true;
+          }
+        }
+      } catch (err) {
+        console.warn('Client BigDataCloud geocoding failed:', err);
+      }
 
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`,
-            { signal: controller.signal }
-          );
-          clearTimeout(timeoutId);
+      return false;
+    };
 
-          if (response.ok) {
-            const data = await response.json();
-            const cityName =
-              data.address?.city ||
-              data.address?.town ||
-              data.address?.municipality ||
-              data.address?.state_district ||
-              data.address?.county ||
-              data.address?.state;
-            const stateName = data.address?.state;
-            const countryName = data.address?.country;
+    // Helper 2: Fallback to IP geolocation if GPS is unavailable or blocked
+    const fallbackToIp = async (): Promise<boolean> => {
+      // Step A: Server-side IP detection endpoint
+      try {
+        const ipRes = await fetch('/api/detect-location/ip');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          if (ipData.cityName) {
+            setStartCity(ipData.cityName);
+            setIsCustomCityInput(false);
+            setCustomStartCity('');
+            setDetectedLocationData({
+              cityName: ipData.cityName,
+              state: ipData.state,
+              country: ipData.country,
+              lat: ipData.lat,
+              lng: ipData.lng,
+              source: 'ip'
+            });
+            setLocatingStatus('success');
+            setOriginSelectionMode('detected');
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Server IP detection failed, trying client IP fallback:', e);
+      }
 
-            if (cityName) {
-              setStartCity(cityName);
-              setIsCustomCityInput(false);
-              setCustomStartCity('');
-              setDetectedLocationData({
-                cityName,
-                state: stateName,
-                country: countryName,
-                lat,
-                lng
-              });
-              setLocatingStatus('success');
-              setOriginSelectionMode('detected');
-              return;
+      // Step B: Direct client-side ipwho.is lookup
+      try {
+        const ipwhoRes = await fetch('https://ipwho.is/');
+        if (ipwhoRes.ok) {
+          const data = await ipwhoRes.json();
+          if (data.success !== false && data.city) {
+            setStartCity(data.city);
+            setIsCustomCityInput(false);
+            setCustomStartCity('');
+            setDetectedLocationData({
+              cityName: data.city,
+              state: data.region,
+              country: data.country,
+              lat: data.latitude,
+              lng: data.longitude,
+              source: 'ip'
+            });
+            setLocatingStatus('success');
+            setOriginSelectionMode('detected');
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Client IP fallback failed:', e);
+      }
+
+      return false;
+    };
+
+    // Attempt browser Geolocation if supported
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const success = await resolveCityFromCoords(lat, lng);
+          if (!success) {
+            // Reverse geocode failed on coordinates; fallback to IP
+            const ipSuccess = await fallbackToIp();
+            if (!ipSuccess) {
+              setLocatingStatus('error');
+              setLocationErrorMsg('Could not resolve city name from coordinates. Please enter your departure city manually below.');
+              setOriginSelectionMode('manual');
             }
           }
-        } catch {
-          setLocatingStatus('error');
-          setLocationErrorMsg('Unable to fetch city from coordinates. Please enter manually.');
-          setOriginSelectionMode('manual');
-        }
-      },
-      (err) => {
+        },
+        async (err) => {
+          console.warn('Browser GPS unavailable, trying IP-based network location fallback:', err.message);
+          // Don't fail immediately; smoothly fallback to IP-based location
+          const ipSuccess = await fallbackToIp();
+          if (!ipSuccess) {
+            setLocatingStatus('error');
+            setOriginSelectionMode('manual');
+            if (err.code === 1) {
+              setLocationErrorMsg('Location permission was denied. Please select your departure city manually below.');
+            } else if (err.code === 2) {
+              setLocationErrorMsg('GPS location was unavailable. Please select your departure city manually below.');
+            } else {
+              setLocationErrorMsg('Location request timed out. Please select your departure city manually below.');
+            }
+          }
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 }
+      );
+    } else {
+      // Browser does not support geolocation; try IP detection directly
+      const ipSuccess = await fallbackToIp();
+      if (!ipSuccess) {
         setLocatingStatus('error');
+        setLocationErrorMsg('Geolocation is not supported by your browser. Please enter your departure city manually below.');
         setOriginSelectionMode('manual');
-        if (err.code === 1) {
-          setLocationErrorMsg('Location permission was denied. No worries! Please choose or search your starting city manually below.');
-        } else if (err.code === 2) {
-          setLocationErrorMsg('Unable to determine your GPS location. Please pick your starting city manually below.');
-        } else {
-          setLocationErrorMsg('Location request timed out. Please choose your departure city manually below.');
-        }
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    );
+      }
+    }
   };
 
   // Automatically request GPS location on initial wizard mount if not already set
@@ -836,56 +945,41 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
             {currentStep === 2 && (
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                   Where are you starting your trip from?
                 </h2>
-                <p className="text-slate-500 text-sm mt-1">
-                  Share your current location or pick your departure hub to calculate exact routes, travel times, and transit costs.
-                </p>
               </div>
             )}
 
             {currentStep === 3 && (
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                   When, how long, & how do you want to travel?
                 </h2>
-                <p className="text-slate-500 text-sm mt-1">
-                  Select your trip dates, total duration, and preferred mode of transportation to {selectedDestination.name}.
-                </p>
               </div>
             )}
 
             {currentStep === 4 && (
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                   Who are you travelling with?
                 </h2>
-                <p className="text-slate-500 text-sm mt-1">
-                  We balance individual group preferences so everyone enjoys the trip.
-                </p>
               </div>
             )}
 
             {currentStep === 5 && (
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                   What is your budget?
                 </h2>
-                <p className="text-slate-500 text-sm mt-1">
-                  We'll calibrate stays, experiences, food, and {travelMode} transit to match your comfort.
-                </p>
               </div>
             )}
 
             {currentStep === 6 && (
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                   What kind of traveller are you?
                 </h2>
-                <p className="text-slate-500 text-sm mt-1">
-                  Select your vibe, dining habits, and things to avoid for full itinerary personalization.
-                </p>
               </div>
             )}
           </div>
@@ -996,11 +1090,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
                                 Location Detected
                               </span>
-                              {detectedLocationData?.lat && detectedLocationData?.lng && (
+                              {detectedLocationData?.source === 'ip' ? (
+                                <span className="text-[11px] text-emerald-800 font-medium">
+                                  Network Location
+                                </span>
+                              ) : detectedLocationData?.lat && detectedLocationData?.lng ? (
                                 <span className="text-[11px] text-slate-500 font-medium">
                                   GPS: {detectedLocationData.lat.toFixed(2)}°, {detectedLocationData.lng.toFixed(2)}°
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                             <h4 className="text-lg font-black text-emerald-950 mt-0.5">
                               {effectiveStartCity} {detectedLocationData?.state ? `(${detectedLocationData.state})` : ''}
@@ -1062,7 +1160,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     {/* Search / Filter departure city */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5" style={{ color: '#ffffff' }}>
                           <Navigation className="w-3.5 h-3.5 text-emerald-600" />
                           Select or Search Departure Hub
                         </label>
@@ -1085,7 +1183,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
                       {/* Simple Origin City Input */}
                       <div className="mt-2">
-                        <label className="text-xs font-bold text-slate-700 block mb-2">
+                        <label className="text-xs font-bold text-white block mb-2" style={{ color: '#ffffff' }}>
                           Enter Departure City
                         </label>
                         <input
@@ -1122,32 +1220,32 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  <div className="grid grid-cols-4 gap-2 pt-1">
                     {(() => {
                       const minDays = effectiveMinDays;
                       const durationOptions = [
                         {
                           days: minDays,
                           label: `${minDays} ${minDays === 1 ? 'Day' : 'Days'}`,
-                          sub: `Go & Return (${travelMode})`,
+                          sub: `Min (${travelMode})`,
                           isPlus: false
                         },
                         {
                           days: minDays + 1,
                           label: `${minDays + 1} Days`,
-                          sub: `+1 Day Stay`,
+                          sub: `+1 Day`,
                           isPlus: false
                         },
                         {
                           days: minDays + 2,
                           label: `${minDays + 2} Days`,
-                          sub: `+2 Days Stay (Recommended)`,
+                          sub: `+2 Days`,
                           isPlus: false
                         },
                         {
                           days: minDays + 3,
                           label: `${minDays + 3}+ Days`,
-                          sub: `+3+ Days Stay`,
+                          sub: `+3+ Days`,
                           isPlus: true
                         }
                       ];
@@ -1164,14 +1262,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               setDurationDays(opt.days);
                               setEndDate(getCalculatedEndDate(startDate, opt.days));
                             }}
-                            className={`wizard-option-btn py-3.5 px-4 rounded-2xl border-2 text-center transition-all cursor-pointer ${
+                            className={`wizard-option-btn py-2 px-1.5 sm:px-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                               isSelected
-                                ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs ring-2 ring-emerald-500/20'
-                                : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium bg-white'
+                                ? 'is-selected border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500/20'
+                                : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600 font-medium bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <span className="text-lg block font-extrabold">{opt.label}</span>
-                            <span className="text-[11px] text-slate-500">{opt.sub}</span>
+                            <span className="text-xs sm:text-sm block font-bold leading-tight truncate">{opt.label}</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate leading-tight mt-0.5">{opt.sub}</span>
                           </button>
                         );
                       });
@@ -1180,10 +1278,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 </div>
 
                 {/* 2. DATE INPUTS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                         Start Date
                       </label>
                       <button
@@ -1195,7 +1293,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           setEndDate(getCalculatedEndDate(today, Math.max(durationDays, minReq)));
                         }}
                         style={{ color: '#90a1b9' }}
-                        className="text-[11px] font-semibold text-[#90a1b9] hover:text-emerald-800 hover:underline cursor-pointer"
+                        className="text-[11px] font-semibold text-[#90a1b9] hover:text-emerald-800 hover:underline cursor-pointer ml-1"
                       >
                         Today
                       </button>
@@ -1217,16 +1315,16 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           }
                         }
                       }}
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                         End Date
                       </label>
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap ml-1">
                         {durationDays} {durationDays === 1 ? 'Day' : 'Days'}
                       </span>
                     </div>
@@ -1247,7 +1345,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           }
                         }
                       }}
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
                     />
                   </div>
                 </div>
@@ -1256,22 +1354,49 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 <div className="pt-2">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                        Modes of Travel
-                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                          Modes of Travel
+                        </label>
+                      </div>
                       <span className="text-[11px] text-slate-500 block mt-0.5">
-                        Distance: ~{aiDestinationInfo?.distanceKm || destinationFeasibility.distanceKm} km
+                        Route: {effectiveStartCity} → {selectedDestination.name} (~{aiDestinationInfo?.distanceKm || destinationFeasibility.distanceKm} km)
                       </span>
                     </div>
-                    <span className="self-start sm:self-auto text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Selected: {travelMode} ({effectiveMinDays} {effectiveMinDays === 1 ? 'Day' : 'Days'} Roundtrip)
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        id="btn-let-ai-fetch-mode"
+                        onClick={handleFetchPossibleTravelModes}
+                        disabled={isLoadingAiInfo}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                        title="Fetch all possible modes of travel for this destination"
+                      >
+                        {isLoadingAiInfo ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        <span>{isLoadingAiInfo ? 'Fetching Modes...' : 'Fetch Possible Modes'}</span>
+                      </button>
+
+                      <span className="self-start sm:self-auto text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 hidden sm:inline-flex">
+                        Selected: {travelMode} ({effectiveMinDays} {effectiveMinDays === 1 ? 'Day' : 'Days'} Roundtrip)
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {isLoadingAiInfo && (
+                    <div className="mb-3 px-3.5 py-2 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center gap-2 text-xs font-semibold text-emerald-900 animate-pulse">
+                      <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                      <span>AI is discovering all possible travel modes for {effectiveStartCity} → {selectedDestination.name}...</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
                     {travelModesToDisplay.map((mode) => {
                       const isSelected = travelMode === mode.id;
-                      const isAiPick = mode.isRecommended || aiDestinationInfo?.recommendedTravelMode === mode.id;
 
                       return (
                         <button
@@ -1287,65 +1412,45 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               setEndDate(getCalculatedEndDate(startDate, requiredDays));
                             }
                           }}
-                          className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                          className={`wizard-option-btn p-3 sm:p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between gap-1.5 cursor-pointer bg-white text-black ${
                             isSelected
-                              ? 'is-selected border-emerald-600 bg-emerald-50/90 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20'
-                              : isAiPick
-                              ? 'border-emerald-300 bg-emerald-50/30 text-slate-800 hover:border-emerald-400 font-medium'
-                              : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
+                              ? 'is-selected border-emerald-600 font-bold shadow-xs ring-2 ring-emerald-500/20'
+                              : 'border-slate-200 text-black hover:border-slate-300 hover:bg-slate-50 font-medium'
                           }`}
+                          style={{
+                            backgroundColor: '#ffffff',
+                            color: '#000000'
+                          }}
                         >
-                          <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-2xl">{mode.icon}</span>
-                              <div className="flex items-center gap-1">
-                                {isAiPick && (
-                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-500 text-slate-950 shadow-xs">
-                                    ⭐ AI Pick
-                                  </span>
-                                )}
+                          <div className="flex items-center gap-2.5 w-full">
+                            <span className="text-2xl sm:text-3xl shrink-0">{mode.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
                                 <span
-                                  className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
-                                    isSelected ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
-                                  }`}
+                                  className="text-xs sm:text-sm font-bold text-black truncate block"
+                                  style={{ color: '#000000' }}
                                 >
-                                  {mode.tag}
+                                  {mode.label}
                                 </span>
+                                {isSelected && (
+                                  <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                    <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                            <h4 className="text-xs font-bold text-slate-900">{mode.label}</h4>
-                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{mode.desc}</p>
-
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-600">
                               {mode.durationEstimate && (
-                                <span>⏱️ {mode.durationEstimate}</span>
-                              )}
-                              {mode.minRequiredDaysForMode && (
-                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                  {mode.minRequiredDaysForMode} {mode.minRequiredDaysForMode === 1 ? 'Day' : 'Days'} Roundtrip
+                                <span className="text-[11px] text-slate-500 block truncate">
+                                  {mode.durationEstimate}
                                 </span>
                               )}
-                              {mode.estimatedCostRange && (
-                                <span className="text-slate-500">• {mode.estimatedCostRange}</span>
-                              )}
                             </div>
-                            
-                            {mode.hasSwitchOrTransfer && (
-                              <div className="mt-1.5 text-[9px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
-                                🔄 Transfer / Border switch required
-                              </div>
-                            )}
-
-                            {mode.pros && (
-                              <div className="mt-1.5 text-[9px] text-emerald-700 leading-snug font-medium">
-                                ✓ {mode.pros}
-                              </div>
-                            )}
                           </div>
-                          {isSelected && (
-                            <div className="mt-2.5 pt-1.5 border-t border-emerald-200 flex items-center gap-1 text-[10px] font-bold text-emerald-800">
-                              <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Chosen Transport</span>
+
+                          {mode.tag && (
+                            <div className="pt-0.5 flex items-center">
+                              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                {mode.tag}
+                              </span>
                             </div>
                           )}
                         </button>
@@ -1353,24 +1458,6 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     })}
                   </div>
                 </div>
-
-                {/* AI TRAVEL LOGISTICS & DURATION INSIGHT */}
-                {(aiDestinationInfo?.durationReason || aiDestinationInfo?.travelTransitReason) && (
-                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-                      <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>AI Travel Transit Duration</span>
-                    </div>
-                    <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                      {aiDestinationInfo.durationReason}
-                    </p>
-                    {aiDestinationInfo.travelTransitReason && (
-                      <p className="text-[11px] text-emerald-800/90 font-medium">
-                        💡 {aiDestinationInfo.travelTransitReason}
-                      </p>
-                    )}
-                  </div>
-                )}
 
                 <div className="wizard-option-card p-4 rounded-2xl border border-slate-100 flex items-center gap-3 text-xs text-slate-600">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1561,7 +1648,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                       {(
                         [
                           {
@@ -1597,7 +1684,6 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         const tierInfo = isAiMatchingCurrentMode ? aiBudgetResult?.tiers[b.tier] : undefined;
                         const tierAmount = tierInfo?.totalCost || calculateTierBudget(b.tier, selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
                         const perPerson = tierInfo?.perPersonCost || Math.round(tierAmount / travellersCount);
-                        const perDay = tierInfo?.perDayPerPerson || Math.round(perPerson / durationDays);
                         const isSelected = budgetTier === b.tier;
 
                         return (
@@ -1609,60 +1695,36 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               isCustomBudgetManuallyEditedRef.current = false;
                               setCustomBudget(tierAmount);
                             }}
-                            className={`wizard-option-btn p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between relative overflow-hidden text-[#314158] ${
+                            className={`wizard-option-btn p-2.5 sm:p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between relative overflow-hidden text-[#314158] cursor-pointer ${
                               isSelected
-                                ? 'is-selected border-emerald-600 bg-emerald-50/90 text-[#314158] font-bold shadow-md ring-2 ring-emerald-500/20'
+                                ? 'is-selected border-emerald-600 bg-emerald-50/90 text-[#314158] font-bold shadow-xs ring-2 ring-emerald-500/20'
                                 : 'border-slate-200 bg-white hover:border-slate-300 text-[#314158] font-medium hover:bg-slate-50/60 shadow-2xs'
                             }`}
                           >
                             {isSelected && (
-                              <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
-                                <Check className="w-2.5 h-2.5" /> Selected
+                              <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-bl flex items-center gap-0.5">
+                                <Check className="w-2 h-2" />
                               </div>
                             )}
 
                             <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-2xl">{b.icon}</span>
-                                <span
-                                  className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
-                                    b.tier === 'Budget'
-                                      ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                      : b.tier === 'Moderate'
-                                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                                      : b.tier === 'Premium'
-                                      ? 'bg-blue-50 text-blue-900 border-blue-300'
-                                      : 'bg-purple-50 text-purple-900 border-purple-300'
-                                  }`}
-                                >
-                                  {b.badge}
-                                </span>
+                              <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                                <span className="text-base sm:text-lg shrink-0">{b.icon}</span>
+                                <h4 className="text-xs sm:text-sm font-extrabold text-[#314158] truncate">{b.tier}</h4>
                               </div>
 
-                              <h4 className="text-base font-extrabold text-[#314158]">{b.tier}</h4>
-                              <p className="text-[11px] text-[#314158] mt-0.5 leading-snug line-clamp-2">
-                                {tierInfo?.stayDescription ? tierInfo.stayDescription.split('(')[0] : b.subtitle}
+                              <p className="text-[10px] text-slate-500 truncate leading-tight">
+                                {tierInfo?.stayDescription ? tierInfo.stayDescription.split('(')[0].trim() : b.subtitle}
                               </p>
-
-                              {/* Persona Tag */}
-                              <div className="mt-2">
-                                <span className="inline-block text-[9px] font-semibold text-[#314158] bg-slate-100 px-2 py-0.5 rounded-md">
-                                  👤 {tierInfo?.spendingPersona || 'Real travelers'}
-                                </span>
-                              </div>
                             </div>
 
-                            <div className="mt-3.5 pt-2.5 border-t border-slate-200/70">
-                              <div className="flex items-baseline justify-between">
-                                <span className="text-xs text-[#314158] font-semibold">Total Trip</span>
-                                <span className="text-sm font-black text-[#314158]">
-                                  ₹{tierAmount.toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-[10px] text-[#314158] mt-0.5">
-                                <span className="text-[#314158]">Per person</span>
-                                <span className="font-semibold text-[#314158]">₹{perPerson.toLocaleString()} (₹{perDay.toLocaleString()}/d)</span>
-                              </div>
+                            <div className="mt-2 pt-1.5 border-t border-slate-200/70 flex items-baseline justify-between gap-1">
+                              <span className="text-xs sm:text-sm font-black text-[#314158]">
+                                ₹{tierAmount.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium truncate">
+                                ₹{perPerson.toLocaleString()}/person
+                              </span>
                             </div>
                           </button>
                         );
@@ -1682,9 +1744,6 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             {budgetTier} Tier Active
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Slide to calibrate custom spending or use AI benchmark for {selectedDestination.name}.
-                        </p>
                       </div>
                       <div className="text-left sm:text-right">
                         <span className="font-black text-emerald-800 text-2xl block">
@@ -1793,49 +1852,6 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Real Traveler Log Quote & Insider Savings Hack & Seasonality Note */}
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                      {activeAiTier?.realTravellerLog && (
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2">
-                          <span className="text-base">💬</span>
-                          <div>
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 block">
-                              Real Traveler Expense Log
-                            </span>
-                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                              "{activeAiTier.realTravellerLog}"
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-2">
-                        <Lightbulb className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
-                            Real Traveler Cost-Saving Tip
-                          </span>
-                          <p className="text-[11px] text-amber-900/90 mt-0.5 leading-relaxed">
-                            {aiBudgetResult?.moneySavingTip || 'Book local scooter/car rentals or local buses at arrival instead of hiring standard tourist taxis.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {aiBudgetResult?.peakSeasonNote && (
-                        <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200/70 flex items-start gap-2 md:col-span-2">
-                          <span className="text-base">🗓️</span>
-                          <div>
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-900 block">
-                              Seasonality & Price Surge Note
-                            </span>
-                            <p className="text-[11px] text-blue-900/90 mt-0.5 leading-relaxed">
-                              {aiBudgetResult.peakSeasonNote}
-                            </p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </motion.div>

@@ -35,16 +35,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-sky-600',
     swatches: ['#0284c7', '#0d9488', '#64748b', '#f8fafc'],
     isDark: false,
-    heroPhotoUrl: '/Images/bg_basic_minimal.jpg',
+    heroPhotoUrl: '/images/bg_basic_minimal.jpg',
     heroPhotoPosition: 'center 40%',
     heroPhotoTag: '✨ Clean Minimal Horizon & Open Sky • Ultra HD',
     heroFloatingPhotos: [
-      { url: '/Images/bg_basic_minimal.jpg', title: 'Minimal Horizon', location: 'Serene Landscape • 24°C' },
-      { url: '/Images/bg_basic_minimal.jpg', title: 'Open Viewpoint', location: 'Calm Vista • 24°C' }
+      { url: '/images/bg_basic_minimal.jpg', title: 'Minimal Horizon', location: 'Serene Landscape • 24°C' },
+      { url: '/images/bg_basic_minimal.jpg', title: 'Open Viewpoint', location: 'Calm Vista • 24°C' }
     ],
     previewTrip: {
       title: 'Minimal & Serene Escape',
-      image: '/Images/bg_basic_minimal.jpg',
+      image: '/images/bg_basic_minimal.jpg',
       subtitle: '4 Days • 2 Travellers • Pure Travel',
       budget: '₹25,000 Budget',
       temp: '24°C ☀️',

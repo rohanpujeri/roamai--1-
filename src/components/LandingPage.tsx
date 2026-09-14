@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Sparkles,
@@ -7,11 +7,13 @@ import {
   CheckCircle2,
   Calendar,
   Users,
-  Compass
+  Compass,
+  Loader2
 } from 'lucide-react';
 
 import { ThemeConfig, Trip } from '../types';
 import { ThemeHeroBackdrop } from './ThemeHeroBackdrop';
+import { fetchAiDynamicPreviewTrip, DynamicPreviewTrip } from '../services/aiInspiration';
 import heroCardImage from '../assets/images/regenerated_image_1787112827232.png';
 
 interface LandingPageProps {
@@ -45,20 +47,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroBadgeBorder = currentTheme?.heroBadgeBorder || 'var(--hero-badge-border)';
   const heroBadgeText = currentTheme?.heroBadgeText || 'var(--hero-badge-text)';
 
-  const preview = currentTheme?.previewTrip || {
+  const [aiPreviewTrip, setAiPreviewTrip] = useState<DynamicPreviewTrip | null>(null);
+  const [isLoadingAiPreview, setIsLoadingAiPreview] = useState(false);
+
+  const hasUserRecentTrip = Boolean(recentTrip);
+  const displayTrip = recentTrip;
+  const isUserTrip = hasUserRecentTrip;
+
+  useEffect(() => {
+    if (hasUserRecentTrip) return;
+    let isMounted = true;
+    setIsLoadingAiPreview(true);
+    fetchAiDynamicPreviewTrip(currentTheme?.id || 'basic', currentTheme?.name, currentTheme?.vibe)
+      .then((data) => {
+        if (isMounted && data) {
+          setAiPreviewTrip(data);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingAiPreview(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTheme?.id, currentTheme?.name, currentTheme?.vibe, hasUserRecentTrip]);
+
+  const preview = aiPreviewTrip || currentTheme?.previewTrip || {
     title: 'Personalized AI Journey',
+    destination: 'Scenic Destination',
     image: heroCardImage,
     subtitle: 'Tailored Itinerary • Real Coordinates • Live Weather',
-    budget: 'Smart Calibrated Budget',
+    budget: '₹28,000 Budget',
     temp: '26°C ☀️',
     day1Title: 'Day 1 • Arrival & Highlights',
     activity1: { time: '10:00 AM', title: 'Local Heritage Immersion', category: 'Culture', cost: '₹500' },
     activity2: { time: '05:30 PM', title: 'Golden Hour Sunset Vista', category: 'Relaxation', cost: '₹300' }
   };
-
-  const displayTrip = recentTrip;
-  const hasUserRecentTrip = Boolean(recentTrip);
-  const isUserTrip = hasUserRecentTrip;
 
   return (
     <div className="transition-colors duration-300 relative bg-transparent">
@@ -129,45 +153,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </div>
 
-              {/* Real-time Adaptation Highlight Micro-badge */}
+              {/* Real-time Adaptation Highlight Micro-badges (Fit in 1 row with no scrolling) */}
               <div 
-                className="flex flex-wrap items-center gap-3 pt-4 border-t text-xs"
+                className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-3.5 border-t text-[10px] sm:text-[11px] w-full"
                 style={{ borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.4)' }}
               >
                 <div 
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl backdrop-blur-xl border shadow-xs"
+                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 rounded-lg backdrop-blur-xl border shadow-xs min-w-0"
                   style={{
                     backgroundColor: isDark ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.45)',
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.5)',
                     color: isDark ? '#f8fafc' : '#0f172a'
                   }}
                 >
-                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
-                  <span className="font-bold">Dynamic Real-Time Re-routing</span>
+                  <CheckCircle2 className="w-3 h-3 shrink-0" style={{ color: primaryColor }} />
+                  <span className="font-bold truncate">Live Re-routing</span>
                 </div>
 
                 <div 
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl backdrop-blur-xl border shadow-xs"
+                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 rounded-lg backdrop-blur-xl border shadow-xs min-w-0"
                   style={{
                     backgroundColor: isDark ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.45)',
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.5)',
                     color: isDark ? '#f8fafc' : '#0f172a'
                   }}
                 >
-                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
-                  <span className="font-bold">Budget & Route Optimizer</span>
+                  <CheckCircle2 className="w-3 h-3 shrink-0" style={{ color: primaryColor }} />
+                  <span className="font-bold truncate">Budget & Route</span>
                 </div>
 
                 <div 
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl backdrop-blur-xl border shadow-xs"
+                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 rounded-lg backdrop-blur-xl border shadow-xs min-w-0"
                   style={{
                     backgroundColor: isDark ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.45)',
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.5)',
                     color: isDark ? '#f8fafc' : '#0f172a'
                   }}
                 >
-                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
-                  <span className="font-bold">Weather-Adaptive</span>
+                  <CheckCircle2 className="w-3 h-3 shrink-0" style={{ color: primaryColor }} />
+                  <span className="font-bold truncate">Weather-Adaptive</span>
                 </div>
               </div>
             </div>
@@ -184,7 +208,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Destination Hero Header */}
                 <div className="relative rounded-2xl overflow-hidden mb-4 h-52 group">
                   <img
-                    src={displayTrip?.heroImage || heroCardImage || preview.image}
+                    src={displayTrip?.heroImage || preview.image || heroCardImage}
                     alt={displayTrip?.destination || preview.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter contrast-[1.08] saturate-[1.16]"
@@ -209,7 +233,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       ) : (
                         <>
                           <Compass className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-                          <span>Curated Demo Itinerary</span>
+                          <span>AI Curated Journey</span>
                         </>
                       )}
                     </span>
@@ -222,7 +246,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           {displayTrip?.title || preview.title}
                         </p>
                         <h3 className="text-2xl sm:text-3xl font-black tracking-tight truncate">
-                          {displayTrip?.destination || 'Goa, India'}
+                          {displayTrip?.destination || (preview as any).destination || 'Scenic Getaway'}
                         </h3>
                       </div>
                       <span className="shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-white/20 backdrop-blur-md border border-white/10 text-white">
@@ -254,7 +278,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <span>Travelers</span>
                     </div>
                     <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate max-w-full">
-                      {displayTrip?.companionType || 'Friends'} ({displayTrip?.travellersCount || 3})
+                      {displayTrip?.companionType || 'Friends'} ({displayTrip?.travellersCount || 2})
                     </p>
                   </div>
 
@@ -266,7 +290,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <span>Budget</span>
                     </div>
                     <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                      {displayTrip?.currency || '₹'}{displayTrip?.targetBudget?.toLocaleString() || '30,000'}
+                      {displayTrip ? `${displayTrip.currency || '₹'}${displayTrip.targetBudget?.toLocaleString() || '30,000'}` : preview.budget}
                     </p>
                   </div>
                 </div>
