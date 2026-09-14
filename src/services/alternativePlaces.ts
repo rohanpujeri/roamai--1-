@@ -32,7 +32,8 @@ export async function fetchAIAlternativePlaces(
       body: JSON.stringify({ destination, currentActivity, userStyles })
     });
     
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('application/json')) {
       return await response.json();
     }
   } catch (err) {

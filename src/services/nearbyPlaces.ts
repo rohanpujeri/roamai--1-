@@ -50,7 +50,8 @@ export async function fetchNearbyRecommendations(
       body: JSON.stringify(params)
     });
 
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('application/json')) {
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         // Double-check client side filtering against excluded places

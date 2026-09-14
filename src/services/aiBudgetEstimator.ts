@@ -342,7 +342,8 @@ export async function fetchAiRealTripBudget(
       body: JSON.stringify({ ...params, forceRefresh })
     });
 
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('application/json')) {
       const result = await response.json();
       budgetCache.set(cacheKey, result);
       return result;

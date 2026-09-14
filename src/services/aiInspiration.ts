@@ -36,7 +36,8 @@ export async function fetchAiDynamicPreviewTrip(themeId: string, themeName?: str
       body: JSON.stringify({ themeId, themeName, themeVibe })
     });
 
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data: DynamicPreviewTrip = await res.json();
       if (data && data.title) {
         clientPreviewCache.set(cacheKey, data);

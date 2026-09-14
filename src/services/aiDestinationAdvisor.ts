@@ -164,7 +164,8 @@ export async function fetchAiDestinationTravelIntelligence(
       body: JSON.stringify({ destination, startCity, travelMode }),
     });
 
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('application/json')) {
       const mergedResult = await response.json();
       intelligenceCache.set(cacheKey, mergedResult);
       return mergedResult;
