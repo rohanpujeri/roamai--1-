@@ -231,7 +231,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       </div>
 
       {/* Main Tabs Navigation Bar */}
-      <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-2xl p-2 shadow-xl border border-white/80 dark:border-white/15">
+      <div className="bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2 shadow-xl border border-zinc-800">
         <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap items-center gap-1.5 sm:gap-2 pb-0.5 sm:pb-0">
           {(
             [
@@ -251,15 +251,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-md ring-1 ring-emerald-400/40'
-                    : 'text-slate-700 hover:text-slate-950 bg-white/60 hover:bg-white dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60'
+                    ? 'bg-zinc-900 text-white shadow-md ring-1 ring-emerald-400/40 border border-emerald-500/40'
+                    : 'text-zinc-300 hover:text-white bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-800'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`} />
                 <span>{tab.label}</span>
                 {tab.badge && (
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-extrabold ${
-                    isActive ? 'bg-emerald-500/30 text-emerald-300' : 'bg-slate-200/80 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    isActive ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-300'
                   }`}>
                     {tab.badge}
                   </span>
@@ -276,7 +276,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       {activeTab === 'itinerary' && (
         <div className="space-y-4">
           {/* Horizontal Day Selector Bar (Day 1, Day 2, Day 3... + Add a Day) */}
-          <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-white/80 dark:border-white/15 flex items-center justify-between gap-2.5">
+          <div className="bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-zinc-800 flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
               {days.map((day) => {
                 const isActive = day.dayNumber === activeDayNumber;
@@ -288,12 +288,12 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
                       isActive
                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-1 ring-emerald-400'
-                        : 'bg-white/70 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-white border border-slate-200/60 dark:border-slate-700/60'
+                        : 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                     }`}
                   >
                     <span className="font-extrabold">Day {day.dayNumber}</span>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
-                      isActive ? 'bg-emerald-700/60 text-emerald-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
+                      isActive ? 'bg-emerald-700/60 text-emerald-100' : 'bg-zinc-800 text-zinc-300'
                     }`}>
                       {day.weatherForecast?.temp || '26°C'}
                     </span>
@@ -321,18 +321,18 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           {/* Day Date & Stay Recommendation Header Bar */}
           <div
             id="current-day-date-card"
-            className="w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-white/80 dark:border-white/15 flex items-center justify-between gap-3"
+            className="w-full bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-zinc-800 flex items-center justify-between gap-3"
           >
             {/* Left: Date & Stops Info */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shrink-0">
-                <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white whitespace-nowrap">
+              <div className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 shrink-0">
+                <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-white whitespace-nowrap">
                   {getFormattedDayDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
                 </span>
               </div>
 
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold px-1 hidden sm:inline truncate">
+              <span className="text-xs text-zinc-400 font-semibold px-1 hidden sm:inline truncate">
                 • {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
               </span>
             </div>
@@ -349,7 +349,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               }
               className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 whitespace-nowrap border ${
                 isStayVisible
-                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700 ring-1 ring-slate-400/30'
+                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 ring-1 ring-zinc-400/30'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 hover:shadow-md ring-1 ring-emerald-400/40'
               }`}
               title="Click to view or hide recommended stay for this day"
@@ -366,20 +366,20 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           {isStayVisible && (
             <div
               id="tonight-recommended-stay-card"
-              className="p-2.5 sm:p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-emerald-200/60 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm transition-all"
+              className="p-2.5 sm:p-3 rounded-xl bg-black/95 dark:bg-black/95 backdrop-blur-md border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm transition-all"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                   <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block leading-tight">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-400 block leading-tight">
                     Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
                   </span>
-                  <h5 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  <h5 className="text-xs sm:text-sm font-bold text-white leading-tight">
                     {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
                   </h5>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                  <p className="text-[11px] text-zinc-400 leading-tight">
                     {currentDay?.suggestedStay
                       ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`
                       : `Handpicked stays matching your ${trip.budgetTier || 'Moderate'} budget`}
@@ -400,7 +400,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                       href={stayUrls.primary}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                      className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer border border-zinc-800"
                       title="Check live availability & rates on booking platforms"
                     >
                       <ExternalLink className="w-3 h-3" />
@@ -444,7 +444,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 id="btn-add-place-below-last-activity"
                 type="button"
                 onClick={() => setIsAddPlaceModalOpen(true)}
-                className="w-full group py-4 px-5 rounded-2xl border-2 border-dashed border-emerald-500 hover:border-emerald-400 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl transition-all duration-200 flex items-center justify-between text-left shadow-xl hover:shadow-2xl cursor-pointer ring-1 ring-emerald-500/30 hover:ring-emerald-500/60"
+                className="w-full group py-4 px-5 rounded-2xl border-2 border-dashed border-emerald-500 hover:border-emerald-400 bg-black/95 dark:bg-black/95 backdrop-blur-2xl transition-all duration-200 flex items-center justify-between text-left shadow-2xl cursor-pointer ring-1 ring-emerald-500/30 hover:ring-emerald-500/60"
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-11 h-11 rounded-xl bg-emerald-600 group-hover:bg-emerald-500 text-white flex items-center justify-center shadow-md transition-colors shrink-0">
@@ -452,15 +452,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                      <span className="text-base font-black text-white group-hover:text-emerald-400 transition-colors">
                         Add a Place
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                        <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 border border-emerald-800">
+                        <Sparkles className="w-3 h-3 text-emerald-400" />
                         Nearby Recommendations
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
+                    <p className="text-xs text-zinc-300 mt-0.5 font-medium">
                       {lastActivity
                         ? `Explore curated spots nearby to "${lastActivity.title}" (excludes future day stops)`
                         : `Explore top curated spots in ${trip.destination}`}
@@ -468,7 +468,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   </div>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-800">
                   <span>Explore Nearby</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
@@ -485,43 +485,43 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             
             {/* Left Trip Highlights & Logistics Card */}
-            <div className="md:col-span-7 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
+            <div className="md:col-span-7 bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-zinc-800 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Trip Summary & Overview</h3>
-                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                <h3 className="text-base font-bold text-white">Trip Summary & Overview</h3>
+                <span className="text-xs font-semibold text-emerald-300 bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-800">
                   {trip.durationDays} Days • {trip.travellersCount} Travelers
                 </span>
               </div>
 
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
                 {trip.clothingAdvice || `Curated ${trip.durationDays}-day personalized travel experience exploring authentic cultural landmarks, scenic landscapes, and culinary gems across ${trip.destination}.`}
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Destination</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 block">{trip.destination}</span>
+                <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">Destination</span>
+                  <span className="text-sm font-bold text-white mt-0.5 block">{trip.destination}</span>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70">
+                <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Transit Mode</span>
-                    <span className="text-[9px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] uppercase font-bold text-zinc-400">Transit Mode</span>
+                    <span className="text-[9px] font-bold text-blue-300 bg-blue-950 px-1.5 py-0.5 rounded border border-blue-800">
                       Total Travel Cost
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between mt-1">
-                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{trip.travelMode || 'Flight'}</span>
-                    <span className="text-sm font-black text-slate-900 dark:text-white">
+                    <span className="text-sm font-bold text-emerald-400">{trip.travelMode || 'Flight'}</span>
+                    <span className="text-sm font-black text-white">
                       ₹{totalTransitCost.toLocaleString()}
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+                  <span className="text-[10px] text-zinc-400 mt-0.5 block">
                     Roundtrip for {trip.travellersCount} {trip.travellersCount === 1 ? 'traveler' : 'travelers'}
                   </span>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Total Planned Stops</span>
-                  <span className="text-sm font-bold text-teal-600 dark:text-teal-400 mt-0.5 block">
+                <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">Total Planned Stops</span>
+                  <span className="text-sm font-bold text-teal-400 mt-0.5 block">
                     {days.reduce((acc, d) => acc + (d.activities || []).length, 0)} Experiences
                   </span>
                 </div>
@@ -529,14 +529,14 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </div>
 
             {/* Right Preferences Blueprint */}
-            <div className="md:col-span-5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Personalization Blueprint</h3>
+            <div className="md:col-span-5 bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-zinc-800 space-y-4">
+              <h3 className="text-base font-bold text-white">Personalization Blueprint</h3>
 
               <div className="space-y-3 text-xs">
                 {trip.startCity && (
-                  <div className="p-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">Departure Hub</span>
-                    <span className="font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                  <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+                    <span className="text-zinc-300 font-medium">Departure Hub</span>
+                    <span className="font-extrabold text-emerald-300 flex items-center gap-1">
                       <span>🛫</span>
                       <span>{trip.startCity}</span>
                     </span>
@@ -544,39 +544,39 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 )}
 
                 {trip.routeSummary && (
-                  <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 space-y-1.5">
+                  <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">Route Distance</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{trip.routeSummary.distanceKm} km</span>
+                      <span className="text-zinc-400">Route Distance</span>
+                      <span className="font-bold text-white">{trip.routeSummary.distanceKm} km</span>
                     </div>
                     {trip.routeSummary.keyHighwayOrTrain && (
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                      <p className="text-[11px] text-zinc-400 font-medium">
                         {trip.routeSummary.keyHighwayOrTrain}
                       </p>
                     )}
                   </div>
                 )}
 
-                <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Travel Pace</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{trip.preferences.pace}</span>
+                <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+                  <span className="text-zinc-400">Travel Pace</span>
+                  <span className="font-bold text-white">{trip.preferences.pace}</span>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Food Diet</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{trip.preferences.food}</span>
+                <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+                  <span className="text-zinc-400">Food Diet</span>
+                  <span className="font-bold text-white">{trip.preferences.food}</span>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Alcohol Preference</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{trip.preferences.alcohol}</span>
+                <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+                  <span className="text-zinc-400">Alcohol Preference</span>
+                  <span className="font-bold text-white">{trip.preferences.alcohol}</span>
                 </div>
 
                 <div>
-                  <span className="text-slate-600 dark:text-slate-400 block mb-1.5 font-medium">Selected Styles</span>
+                  <span className="text-zinc-400 block mb-1.5 font-medium">Selected Styles</span>
                   <div className="flex flex-wrap gap-1.5">
                     {trip.preferences.styles.map((s) => (
-                      <span key={s} className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800 font-semibold text-[10px]">
+                      <span key={s} className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold text-[10px]">
                         {s}
                       </span>
                     ))}
@@ -602,21 +602,21 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     onSelectDay(day.dayNumber);
                     setActiveTab('itinerary');
                   }}
-                  className="p-5 rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/80 dark:border-white/15 hover:border-emerald-500 shadow-xl hover:shadow-2xl transition-all cursor-pointer space-y-3 group"
+                  className="p-5 rounded-3xl bg-black/95 dark:bg-black/95 backdrop-blur-2xl border border-zinc-800 hover:border-emerald-500 shadow-2xl transition-all cursor-pointer space-y-3 group"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold">
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-bold">
                       Day {day.dayNumber}
                     </span>
-                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{day.weatherForecast?.temp || '26°C'} ☀️</span>
+                    <span className="text-xs text-zinc-300 font-semibold">{day.weatherForecast?.temp || '26°C'} ☀️</span>
                   </div>
 
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  <h4 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">
                     {day.theme}
                   </h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{day.vibe}</p>
+                  <p className="text-xs text-zinc-400 line-clamp-2">{day.vibe}</p>
 
-                  <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-emerald-400 font-semibold">
                     <span>{(day.activities || []).length} planned stops</span>
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                   </div>

@@ -67,10 +67,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   };
 
   return (
-    <div className={`bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-2xl border transition-all duration-200 text-left overflow-hidden shadow-xl hover:shadow-2xl ${
+    <div className={`bg-black dark:bg-black backdrop-blur-2xl rounded-2xl border transition-all duration-200 text-left overflow-hidden shadow-2xl hover:shadow-emerald-950/20 ${
       activity.isUpdated
         ? 'border-teal-400 ring-2 ring-teal-400/30'
-        : 'border-white/80 dark:border-white/15 hover:border-white'
+        : 'border-zinc-800 hover:border-zinc-700'
     }`}>
       {/* Updated AI adaptation notification banner */}
       {activity.isUpdated && (
@@ -120,9 +120,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             <div className="flex items-start justify-between gap-1.5">
               <div className="min-w-0 flex-1">
                 {/* Time & Duration badge */}
-                <div className="flex flex-wrap items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
-                  <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center gap-0.5 text-[9px]">
-                    <Clock className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex flex-wrap items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-zinc-400 mb-0.5">
+                  <span className="px-1.5 py-0.2 rounded bg-zinc-900 text-zinc-200 border border-zinc-800 font-bold flex items-center gap-0.5 text-[9px]">
+                    <Clock className="w-2.5 h-2.5 text-emerald-400" />
                     {activity.time}
                   </span>
                   <span>•</span>
@@ -130,7 +130,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                   {activity.travelTimeFromPrev && (
                     <>
                       <span>•</span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                      <span className="text-emerald-400 font-medium">
                         {activity.travelTimeFromPrev}
                       </span>
                     </>
@@ -140,7 +140,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 {/* Title */}
                 <h4
                   onClick={() => onOpenDetails(activity)}
-                  className="text-xs sm:text-[13px] font-bold text-slate-900 dark:text-white hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer leading-tight truncate"
+                  className="text-xs sm:text-[13px] font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer leading-tight truncate"
                   title={activity.title}
                 >
                   {activity.title}
@@ -149,29 +149,29 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
               {/* Cost Pill */}
               <div className="text-right shrink-0">
-                <span className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-white block leading-none">
+                <span className="text-[11px] sm:text-xs font-black text-white block leading-none">
                   {activity.estimatedCost === 0 ? 'Free' : `${currency}${activity.estimatedCost.toLocaleString()}`}
                 </span>
-                <span className="text-[8px] text-slate-500 dark:text-slate-400 font-medium">est. cost</span>
+                <span className="text-[8px] text-zinc-400 font-medium">est. cost</span>
               </div>
             </div>
 
             {/* Location */}
-            <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-              <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1 text-[10px] text-zinc-400 font-medium">
+              <MapPin className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
               <span className="truncate">{activity.location}</span>
             </div>
 
             {/* Description */}
-            <p className="text-[10px] text-slate-600 dark:text-slate-300 line-clamp-1 leading-normal">
+            <p className="text-[10px] text-zinc-300 line-clamp-1 leading-normal">
               {activity.description}
             </p>
 
             {/* "Why this was recommended" AI callout */}
-            <div className="p-1 rounded bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800 flex items-center gap-1">
-              <Sparkles className="w-2.5 h-2.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
-              <p className="text-[9px] text-emerald-950 dark:text-emerald-200 font-medium truncate leading-tight">
-                <strong className="text-emerald-900 dark:text-emerald-300">Why: </strong>
+            <div className="p-1 rounded bg-emerald-950/60 border border-emerald-800/80 flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+              <p className="text-[9px] text-emerald-200 font-medium truncate leading-tight">
+                <strong className="text-emerald-300">Why: </strong>
                 {activity.recommendationReason}
               </p>
             </div>
@@ -179,7 +179,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         </div>
 
         {/* Bottom Interactive Toolbar */}
-        <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-1">
+        <div className="mt-1.5 pt-1.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1">
           
           {/* Checkbox completion */}
           {onToggleComplete ? (
@@ -187,21 +187,21 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               onClick={() => onToggleComplete(activity.id)}
               className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
                 activity.completed
-                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                  : 'text-zinc-300 hover:bg-zinc-900'
               }`}
             >
               {activity.completed ? (
-                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
               ) : (
-                <Circle className="w-3 h-3 text-slate-400" />
+                <Circle className="w-3 h-3 text-zinc-500" />
               )}
               <span>{activity.completed ? 'Visited' : 'Check-in'}</span>
             </button>
           ) : (
             <button
               onClick={() => onOpenDetails(activity)}
-              className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors flex items-center gap-1 cursor-pointer"
+              className="px-1.5 py-0.5 text-[10px] font-semibold text-zinc-200 hover:text-emerald-400 hover:bg-zinc-900 rounded transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Info className="w-2.5 h-2.5" />
               <span>Details & Tips</span>
