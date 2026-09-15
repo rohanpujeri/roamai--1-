@@ -265,24 +265,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Backdrop Overlay */}
         <div 
           onClick={() => setIsDrawerOpen(false)}
-          className={`fixed inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity duration-300 ease-in-out ${
+          className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-in-out ${
             isDrawerOpen ? 'opacity-100' : 'opacity-0'
           }`}
           aria-hidden="true"
         />
 
-        {/* Slide-Out Drawer Panel */}
+        {/* Slide-Out Drawer Panel with Complete Black Background */}
         <div 
-          className={`fixed top-0 right-0 bottom-0 w-full max-w-sm sm:max-w-md bg-slate-900/95 text-white backdrop-blur-3xl border-l border-white/10 shadow-2xl z-50 flex flex-col justify-between transition-transform duration-300 ease-out transform ${
+          className={`fixed top-0 right-0 bottom-0 w-full max-w-sm sm:max-w-md bg-black text-white border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between transition-transform duration-300 ease-out transform ${
             isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
+          style={{ backgroundColor: '#000000' }}
         >
           {/* Main Scrollable Drawer Content */}
-          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 flex flex-col">
+          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 flex flex-col bg-black">
             {/* Drawer Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shrink-0 ring-2 ring-white/20">
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shrink-0 ring-2 ring-neutral-700">
                   <img
                     src="/logo.png"
                     alt="TripWise Logo"
@@ -293,14 +294,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
                     Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
                   </h2>
-                  <p className="text-xs text-slate-400 font-medium">Smart AI Travel Companion</p>
+                  <p className="text-xs text-neutral-400 font-medium">Smart AI Travel Companion</p>
                 </div>
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -309,17 +310,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* 1. Discover, 2. My Trips, 3. About Tripwise */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
                 Navigation
               </p>
 
               {/* Discover */}
               <button
                 onClick={() => handleDrawerNavigate('landing')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
+                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'landing'
-                    ? 'bg-white/15 text-white font-bold ring-1 ring-white/20 shadow-lg'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white font-medium'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-3.5">
@@ -327,7 +328,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                       currentView === 'landing'
                         ? 'text-white shadow-md'
-                        : 'bg-white/10 text-slate-300 group-hover:text-white group-hover:bg-white/15'
+                        : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'landing' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
@@ -335,10 +336,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div>
                     <span className="text-base font-bold block">Discover</span>
-                    <span className="text-xs text-slate-400 font-normal">Explore trending destinations & itineraries</span>
+                    <span className="text-xs text-neutral-400 font-normal">Explore trending destinations & itineraries</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
                   currentView === 'landing' ? 'text-white' : ''
                 }`} />
               </button>
@@ -346,10 +347,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* My Trips */}
               <button
                 onClick={() => handleDrawerNavigate('my_trips')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
+                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'my_trips'
-                    ? 'bg-white/15 text-white font-bold ring-1 ring-white/20 shadow-lg'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white font-medium'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-3.5">
@@ -357,7 +358,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                       currentView === 'my_trips'
                         ? 'text-white shadow-md'
-                        : 'bg-white/10 text-slate-300 group-hover:text-white group-hover:bg-white/15'
+                        : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'my_trips' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
@@ -375,10 +376,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-slate-400 font-normal">View & manage your planned itineraries</span>
+                    <span className="text-xs text-neutral-400 font-normal">View & manage your planned itineraries</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
                   currentView === 'my_trips' ? 'text-white' : ''
                 }`} />
               </button>
@@ -386,10 +387,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* About Tripwise */}
               <button
                 onClick={() => handleDrawerNavigate('why_tripwise')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
+                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'why_tripwise' || currentView === 'why_roamai'
-                    ? 'bg-white/15 text-white font-bold ring-1 ring-white/20 shadow-lg'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white font-medium'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-3.5">
@@ -397,7 +398,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                       currentView === 'why_tripwise' || currentView === 'why_roamai'
                         ? 'text-white shadow-md'
-                        : 'bg-white/10 text-slate-300 group-hover:text-white group-hover:bg-white/15'
+                        : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'why_tripwise' || currentView === 'why_roamai' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
@@ -405,18 +406,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div>
                     <span className="text-base font-bold block">About Tripwise</span>
-                    <span className="text-xs text-slate-400 font-normal">Why TripWise AI & features breakdown</span>
+                    <span className="text-xs text-neutral-400 font-normal">Why TripWise AI & features breakdown</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
                   currentView === 'why_tripwise' || currentView === 'why_roamai' ? 'text-white' : ''
                 }`} />
               </button>
             </div>
 
             {/* Quick Actions & Preferences */}
-            <div className="space-y-2 pt-2 border-t border-white/10">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
+            <div className="space-y-2 pt-2 border-t border-neutral-800">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
                 Actions & Preferences
               </p>
 
@@ -447,10 +448,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsDrawerOpen(false);
                   onOpenThemeModal();
                 }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white transition-all text-left group cursor-pointer"
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/90 text-neutral-200 hover:text-white transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-slate-300 group-hover:text-white">
+                  <div className="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-neutral-300 group-hover:text-white border border-neutral-700">
                     <Palette className="w-5 h-5" />
                   </div>
                   <div>
@@ -461,10 +462,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         style={{ backgroundColor: currentTheme.primaryColor }} 
                       />
                     </div>
-                    <span className="text-xs text-slate-400">Customize visual appearance & atmosphere</span>
+                    <span className="text-xs text-neutral-400">Customize visual appearance & atmosphere</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white" />
+                <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white" />
               </button>
             </div>
 
@@ -472,13 +473,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex-1 min-h-2" />
 
             {/* Login Profile Section (Positioned at Bottom of Drawer) */}
-            <div className="pt-4 border-t border-white/10 mt-auto">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
+            <div className="pt-4 border-t border-neutral-800 mt-auto">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
                 Login Profile
               </p>
 
               {session ? (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 shadow-inner">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-md">
                   <div className="flex items-center gap-3">
                     <div 
                       className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-md ring-2 ring-white/20 shrink-0"
@@ -495,15 +496,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                           Active
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">
+                      <p className="text-xs text-neutral-400 truncate mt-0.5">
                         {session.user.email}
                       </p>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                  <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
                     <span>Saved Trips in Cloud:</span>
-                    <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">
+                    <span className="font-bold text-white bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-md">
                       {savedTripsCount}
                     </span>
                   </div>
@@ -517,14 +518,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 shadow-inner">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-md">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-slate-300 shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300 shrink-0">
                       <User className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-white">Login / User Profile</h4>
-                      <p className="text-xs text-slate-400">Access synced trips & cloud itinerary saves</p>
+                      <p className="text-xs text-neutral-400">Access synced trips & cloud itinerary saves</p>
                     </div>
                   </div>
 
@@ -545,8 +546,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 sm:p-5 border-t border-white/10 bg-black/20 text-center shrink-0">
-            <p className="text-xs text-slate-500 font-medium">
+          <div className="p-4 sm:p-5 border-t border-neutral-800 bg-black text-center shrink-0">
+            <p className="text-xs text-neutral-500 font-medium">
               TripWise • Intelligent Autonomous Travel Engine
             </p>
           </div>
