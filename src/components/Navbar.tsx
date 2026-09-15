@@ -106,18 +106,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`} 
         />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex items-center justify-between h-16 sm:h-18">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 relative z-10">
+          <div className="flex items-center justify-between h-14 sm:h-18">
             {/* Left: Logo */}
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-4 sm:gap-8 min-w-0">
               <button
                 onClick={() => {
                   onNavigate('landing');
                   setIsDrawerOpen(false);
                 }}
-                className="flex items-center gap-2.5 text-left group cursor-pointer"
+                className="flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer shrink-0"
               >
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-2 ring-white/30">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-2 ring-white/30">
                   <img
                     src="/logo.png"
                     alt="TripWise Logo"
@@ -125,9 +125,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span 
-                      className={`text-xl font-bold tracking-tight font-sans transition-colors duration-300 ${
+                      className={`text-lg sm:text-xl font-bold tracking-tight font-sans transition-colors duration-300 ${
                         isDarkText ? 'text-slate-900 font-extrabold' : 'text-white'
                       }`}
                       style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.6)' } : undefined}
@@ -207,12 +207,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </nav>
             </div>
 
-            {/* Right Action buttons (No login profile here) */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Right Action buttons (Optimized for Mobile) */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               {/* Color Theme Selector Pill */}
               <button
                 onClick={onOpenThemeModal}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+                className={`flex items-center gap-1 sm:gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
                   isDarkText
                     ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
                     : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
@@ -221,27 +221,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Change color theme palette"
               >
                 <div 
-                  className="w-3 h-3 rounded-full shadow-2xs border border-white/40 shrink-0"
+                  className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full shadow-2xs border border-white/40 shrink-0"
                   style={{ backgroundColor: currentTheme.primaryColor }}
                 />
-                <span className="font-bold hidden xs:inline">{currentTheme.name}</span>
-                <Palette className={`w-3.5 h-3.5 ml-0.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
+                <span className="font-bold hidden md:inline">{currentTheme.name}</span>
+                <Palette className={`w-3.5 h-3.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
               </button>
 
-              {/* Primary CTA: Plan My Trip */}
+              {/* Primary CTA: Plan My Trip (Optimized for mobile single-line) */}
               <button
                 onClick={onPlanTrip}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                className="flex items-center gap-1 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
                 style={{ backgroundColor: currentTheme.primaryColor }}
               >
-                <Plus className="w-4 h-4" />
-                <span>Plan My Trip</span>
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="sm:hidden">Plan</span>
+                <span className="hidden sm:inline">Plan My Trip</span>
               </button>
 
               {/* Three Lines Hamburger Menu Button (Top Right Corner) */}
               <button
                 onClick={() => setIsDrawerOpen(true)}
-                className={`flex items-center justify-center p-2 sm:p-2.5 rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
+                className={`flex items-center justify-center p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
                   isDarkText
                     ? 'text-slate-900 bg-white/90 hover:bg-white border-slate-300 shadow-sm'
                     : 'text-white bg-black/30 hover:bg-black/45 border-white/30'
@@ -249,14 +250,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label="Open Navigation Drawer"
                 title="Menu"
               >
-                <Menu className="w-5 h-5 stroke-[2.2]" />
+                <Menu className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Slide-In Navigation Drawer from Right (Slide Left Page) */}
+      {/* Slide-In Navigation Drawer from Right (Slide Left Page - Only Fills Half of Screen) */}
       <div 
         className={`fixed inset-0 z-50 transition-visibility duration-300 ${
           isDrawerOpen ? 'pointer-events-auto' : 'pointer-events-none'
@@ -271,75 +272,75 @@ export const Navbar: React.FC<NavbarProps> = ({
           aria-hidden="true"
         />
 
-        {/* Slide-Out Drawer Panel with Complete Black Background */}
+        {/* Slide-Out Drawer Panel - Exactly Half Screen Width */}
         <div 
-          className={`fixed top-0 right-0 bottom-0 w-full max-w-sm sm:max-w-md bg-black text-white border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between transition-transform duration-300 ease-out transform ${
+          className={`fixed top-0 right-0 bottom-0 w-1/2 max-w-[50vw] bg-black text-white border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between transition-transform duration-300 ease-out transform ${
             isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
-          style={{ backgroundColor: '#000000' }}
+          style={{ backgroundColor: '#000000', width: '50vw' }}
         >
           {/* Main Scrollable Drawer Content */}
-          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 flex flex-col bg-black">
+          <div className="p-3 sm:p-5 overflow-y-auto space-y-4 sm:space-y-6 flex-1 flex flex-col bg-black">
             {/* Drawer Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shrink-0 ring-2 ring-neutral-700">
+            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-800">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg shrink-0 ring-1 sm:ring-2 ring-neutral-700">
                   <img
                     src="/logo.png"
                     alt="TripWise Logo"
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-bold tracking-tight text-white truncate flex items-center gap-1">
                     Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
                   </h2>
-                  <p className="text-xs text-neutral-400 font-medium">Smart AI Travel Companion</p>
+                  <p className="text-[10px] sm:text-xs text-neutral-400 font-medium truncate hidden xs:block">Smart AI Travel</p>
                 </div>
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="w-9 h-9 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0"
                 aria-label="Close menu"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* 1. Discover, 2. My Trips, 3. About Tripwise */}
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-1 mb-1">
                 Navigation
               </p>
 
               {/* Discover */}
               <button
                 onClick={() => handleDrawerNavigate('landing')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
+                className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'landing'
-                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-md'
                     : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   <div 
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shrink-0 ${
                       currentView === 'landing'
                         ? 'text-white shadow-md'
                         : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'landing' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
-                    <Compass className="w-5 h-5" />
+                    <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <div>
-                    <span className="text-base font-bold block">Discover</span>
-                    <span className="text-xs text-neutral-400 font-normal">Explore trending destinations & itineraries</span>
+                  <div className="min-w-0">
+                    <span className="text-xs sm:text-sm font-bold block truncate">Discover</span>
+                    <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">Explore trending destinations</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${
                   currentView === 'landing' ? 'text-white' : ''
                 }`} />
               </button>
@@ -347,39 +348,39 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* My Trips */}
               <button
                 onClick={() => handleDrawerNavigate('my_trips')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
+                className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'my_trips'
-                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-md'
                     : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   <div 
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shrink-0 ${
                       currentView === 'my_trips'
                         ? 'text-white shadow-md'
                         : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'my_trips' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
-                    <Bookmark className="w-5 h-5" />
+                    <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-bold">My Trips</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs sm:text-sm font-bold truncate">My Trips</span>
                       {savedTripsCount > 0 && (
                         <span 
-                          className="px-2 py-0.5 text-[11px] font-black rounded-full text-slate-950"
+                          className="px-1.5 py-0.2 text-[10px] font-black rounded-full text-slate-950"
                           style={{ backgroundColor: currentTheme.accentColor || '#34d399' }}
                         >
                           {savedTripsCount}
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-neutral-400 font-normal">View & manage your planned itineraries</span>
+                    <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">Your saved itineraries</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${
                   currentView === 'my_trips' ? 'text-white' : ''
                 }`} />
               </button>
@@ -387,38 +388,38 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* About Tripwise */}
               <button
                 onClick={() => handleDrawerNavigate('why_tripwise')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer border ${
+                className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all text-left group cursor-pointer border ${
                   currentView === 'why_tripwise' || currentView === 'why_roamai'
-                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-lg'
+                    ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-md'
                     : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   <div 
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shrink-0 ${
                       currentView === 'why_tripwise' || currentView === 'why_roamai'
                         ? 'text-white shadow-md'
                         : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
                     }`}
                     style={currentView === 'why_tripwise' || currentView === 'why_roamai' ? { backgroundColor: currentTheme.primaryColor } : undefined}
                   >
-                    <Info className="w-5 h-5" />
+                    <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <div>
-                    <span className="text-base font-bold block">About Tripwise</span>
-                    <span className="text-xs text-neutral-400 font-normal">Why TripWise AI & features breakdown</span>
+                  <div className="min-w-0">
+                    <span className="text-xs sm:text-sm font-bold block truncate">About</span>
+                    <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">TripWise AI features</span>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all ${
+                <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${
                   currentView === 'why_tripwise' || currentView === 'why_roamai' ? 'text-white' : ''
                 }`} />
               </button>
             </div>
 
             {/* Quick Actions & Preferences */}
-            <div className="space-y-2 pt-2 border-t border-neutral-800">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
-                Actions & Preferences
+            <div className="space-y-1.5 sm:space-y-2 pt-2 border-t border-neutral-800">
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-1 mb-1">
+                Actions
               </p>
 
               {/* Plan Trip Quick Action */}
@@ -427,19 +428,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsDrawerOpen(false);
                   onPlanTrip();
                 }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl text-white font-bold transition-all shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-white font-bold transition-all shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                 style={{ backgroundColor: currentTheme.primaryColor }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                    <Plus className="w-5 h-5 text-white" />
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
-                  <div className="text-left">
-                    <span className="text-sm font-bold block">Plan a New Trip</span>
-                    <span className="text-xs text-white/80 font-normal">Launch the AI trip creation wizard</span>
-                  </div>
+                  <span className="text-xs sm:text-sm font-bold truncate">Plan Trip</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-white/80" />
+                <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 hidden xs:block" />
               </button>
 
               {/* Theme Selector */}
@@ -448,24 +446,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsDrawerOpen(false);
                   onOpenThemeModal();
                 }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/90 text-neutral-200 hover:text-white transition-all text-left group cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/90 text-neutral-200 hover:text-white transition-all text-left group cursor-pointer"
               >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-neutral-300 group-hover:text-white border border-neutral-700">
-                    <Palette className="w-5 h-5" />
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-neutral-800 flex items-center justify-center text-neutral-300 group-hover:text-white border border-neutral-700 shrink-0">
+                    <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">Theme: {currentTheme.name}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs sm:text-sm font-bold truncate">Theme</span>
                       <div 
-                        className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-xs" 
+                        className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border border-white/40 shadow-xs shrink-0" 
                         style={{ backgroundColor: currentTheme.primaryColor }} 
                       />
                     </div>
-                    <span className="text-xs text-neutral-400">Customize visual appearance & atmosphere</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white" />
+                <ChevronRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block" />
               </button>
             </div>
 
@@ -473,59 +470,46 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex-1 min-h-2" />
 
             {/* Login Profile Section (Positioned at Bottom of Drawer) */}
-            <div className="pt-4 border-t border-neutral-800 mt-auto">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-2 mb-2">
+            <div className="pt-3 border-t border-neutral-800 mt-auto">
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-1 mb-1.5">
                 Login Profile
               </p>
 
               {session ? (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-md">
-                  <div className="flex items-center gap-3">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 shadow-md">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div 
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-md ring-2 ring-white/20 shrink-0"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md ring-1 ring-white/20 shrink-0"
                       style={{ backgroundColor: currentTheme.primaryColor }}
                     >
                       {session.user.email?.charAt(0).toUpperCase() || 'U'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-bold text-white truncate block">
-                          {session.user.email?.split('@')[0] || 'User Profile'}
-                        </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          Active
-                        </span>
-                      </div>
-                      <p className="text-xs text-neutral-400 truncate mt-0.5">
+                      <span className="text-xs sm:text-sm font-bold text-white truncate block">
+                        {session.user.email?.split('@')[0] || 'User'}
+                      </span>
+                      <p className="text-[10px] text-neutral-400 truncate mt-0.5">
                         {session.user.email}
                       </p>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
-                    <span>Saved Trips in Cloud:</span>
-                    <span className="font-bold text-white bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-md">
-                      {savedTripsCount}
-                    </span>
-                  </div>
-
                   <button
                     onClick={handleSignOut}
-                    className="w-full mt-1 py-2.5 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="w-full py-1.5 sm:py-2 px-2 rounded-lg sm:rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out from Profile</span>
+                    <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               ) : (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-md">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300 shrink-0">
-                      <User className="w-5 h-5" />
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 shadow-md">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300 shrink-0">
+                      <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">Login / User Profile</h4>
-                      <p className="text-xs text-neutral-400">Access synced trips & cloud itinerary saves</p>
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-bold text-white truncate">Profile Login</h4>
                     </div>
                   </div>
 
@@ -534,11 +518,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setIsDrawerOpen(false);
                       onRequireAuth();
                     }}
-                    className="w-full py-2.5 px-4 rounded-xl text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    className="w-full py-1.5 sm:py-2 px-2.5 rounded-lg sm:rounded-xl text-white text-[10px] sm:text-xs font-bold shadow-md flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                     style={{ backgroundColor: currentTheme.primaryColor }}
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>Sign In / Login Profile</span>
+                    <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span>Sign In</span>
                   </button>
                 </div>
               )}
@@ -546,9 +530,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 sm:p-5 border-t border-neutral-800 bg-black text-center shrink-0">
-            <p className="text-xs text-neutral-500 font-medium">
-              TripWise • Intelligent Autonomous Travel Engine
+          <div className="p-2.5 sm:p-4 border-t border-neutral-800 bg-black text-center shrink-0">
+            <p className="text-[9px] sm:text-[11px] text-neutral-500 font-medium">
+              TripWise • AI Travel
             </p>
           </div>
         </div>
