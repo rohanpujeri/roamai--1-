@@ -210,3 +210,5 @@ export function createExpressApp() {
 }
 
 export const app = createExpressApp();
+export default app;
+
