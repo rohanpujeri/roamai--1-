@@ -46,7 +46,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -89,7 +88,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       await supabase.auth.signOut();
     }
     setIsDrawerOpen(false);
-    setIsUserMenuOpen(false);
   };
 
   return (
@@ -209,12 +207,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </nav>
             </div>
 
-            {/* Right Action buttons */}
+            {/* Right Action buttons (No login profile here) */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              {/* Color Theme Selector Pill (Hidden on tiny screens) */}
+              {/* Color Theme Selector Pill */}
               <button
                 onClick={onOpenThemeModal}
-                className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
                   isDarkText
                     ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
                     : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
@@ -226,70 +224,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="w-3 h-3 rounded-full shadow-2xs border border-white/40 shrink-0"
                   style={{ backgroundColor: currentTheme.primaryColor }}
                 />
-                <span className="font-bold">{currentTheme.name}</span>
+                <span className="font-bold hidden xs:inline">{currentTheme.name}</span>
                 <Palette className={`w-3.5 h-3.5 ml-0.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
               </button>
 
               {/* Primary CTA: Plan My Trip */}
               <button
                 onClick={onPlanTrip}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 style={{ backgroundColor: currentTheme.primaryColor }}
               >
                 <Plus className="w-4 h-4" />
                 <span>Plan My Trip</span>
               </button>
 
-              {/* User Avatar / Sign In (Desktop) */}
-              {session ? (
-                <div className="relative hidden sm:block">
-                  <button
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className={`flex items-center justify-center w-9 h-9 rounded-full border transition-all shadow-xs cursor-pointer ${
-                      isDarkText
-                        ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900'
-                        : 'border-white/30 bg-black/25 hover:bg-black/40 text-white'
-                    }`}
-                    title={session.user.email}
-                  >
-                    <User className="w-4 h-4" />
-                  </button>
-                  {isUserMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl py-2 border border-slate-100 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="px-4 py-2.5 border-b border-slate-100">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Signed in as</p>
-                        <p className="text-sm font-bold text-slate-900 truncate mt-0.5">
-                          {session.user.email}
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-semibold flex items-center gap-2 cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={onRequireAuth}
-                  className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
-                    isDarkText
-                      ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 shadow-xs'
-                      : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  <span>Sign In</span>
-                </button>
-              )}
-
-              {/* Three Lines Hamburger Menu Button (Top Right Corner - Desktop & Mobile) */}
+              {/* Three Lines Hamburger Menu Button (Top Right Corner) */}
               <button
                 onClick={() => setIsDrawerOpen(true)}
-                className={`flex items-center justify-center p-2.5 rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
+                className={`flex items-center justify-center p-2 sm:p-2.5 rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
                   isDarkText
                     ? 'text-slate-900 bg-white/90 hover:bg-white border-slate-300 shadow-sm'
                     : 'text-white bg-black/30 hover:bg-black/45 border-white/30'
@@ -325,8 +277,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          {/* Top Section / Header */}
-          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+          {/* Main Scrollable Drawer Content */}
+          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 flex flex-col">
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
@@ -355,13 +307,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
 
-            {/* Navigation Links Section */}
+            {/* 1. Discover, 2. My Trips, 3. About Tripwise */}
             <div className="space-y-2">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
                 Navigation
               </p>
 
-              {/* 1. Discover */}
+              {/* Discover */}
               <button
                 onClick={() => handleDrawerNavigate('landing')}
                 className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
@@ -391,7 +343,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`} />
               </button>
 
-              {/* 2. My Trips */}
+              {/* My Trips */}
               <button
                 onClick={() => handleDrawerNavigate('my_trips')}
                 className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
@@ -431,7 +383,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`} />
               </button>
 
-              {/* 3. About Tripwise */}
+              {/* About Tripwise */}
               <button
                 onClick={() => handleDrawerNavigate('why_tripwise')}
                 className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all text-left group cursor-pointer ${
@@ -460,78 +412,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   currentView === 'why_tripwise' || currentView === 'why_roamai' ? 'text-white' : ''
                 }`} />
               </button>
-            </div>
-
-            {/* 4. Login Profile Section */}
-            <div className="pt-2 border-t border-white/10">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
-                Login Profile
-              </p>
-
-              {session ? (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-md ring-2 ring-white/20 shrink-0"
-                      style={{ backgroundColor: currentTheme.primaryColor }}
-                    >
-                      {session.user.email?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-bold text-white truncate block">
-                          {session.user.email?.split('@')[0] || 'User Profile'}
-                        </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          Active
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {session.user.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
-                    <span>Saved Trips in Cloud:</span>
-                    <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">
-                      {savedTripsCount}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full mt-1 py-2.5 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out from Profile</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-slate-300 shrink-0">
-                      <User className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">Login / User Profile</h4>
-                      <p className="text-xs text-slate-400">Access synced trips & cloud itinerary saves</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setIsDrawerOpen(false);
-                      onRequireAuth();
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                    style={{ backgroundColor: currentTheme.primaryColor }}
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Sign In / Login Profile</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Quick Actions & Preferences */}
@@ -587,10 +467,85 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white" />
               </button>
             </div>
+
+            {/* Spacer to push Login Profile to bottom if viewport is tall */}
+            <div className="flex-1 min-h-2" />
+
+            {/* Login Profile Section (Positioned at Bottom of Drawer) */}
+            <div className="pt-4 border-t border-white/10 mt-auto">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
+                Login Profile
+              </p>
+
+              {session ? (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-md ring-2 ring-white/20 shrink-0"
+                      style={{ backgroundColor: currentTheme.primaryColor }}
+                    >
+                      {session.user.email?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-white truncate block">
+                          {session.user.email?.split('@')[0] || 'User Profile'}
+                        </span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">
+                        {session.user.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                    <span>Saved Trips in Cloud:</span>
+                    <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">
+                      {savedTripsCount}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full mt-1 py-2.5 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out from Profile</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-slate-300 shrink-0">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Login / User Profile</h4>
+                      <p className="text-xs text-slate-400">Access synced trips & cloud itinerary saves</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      onRequireAuth();
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    style={{ backgroundColor: currentTheme.primaryColor }}
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Sign In / Login Profile</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 sm:p-5 border-t border-white/10 bg-black/20 text-center">
+          <div className="p-4 sm:p-5 border-t border-white/10 bg-black/20 text-center shrink-0">
             <p className="text-xs text-slate-500 font-medium">
               TripWise • Intelligent Autonomous Travel Engine
             </p>
