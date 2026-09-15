@@ -179,7 +179,6 @@ export async function fetchAiDestinationTravelIntelligence(
   const geminiKey = getGeminiApiKey();
 
   if (!geminiKey) {
-    intelligenceCache.set(cacheKey, genericFallback);
     return genericFallback;
   }
 

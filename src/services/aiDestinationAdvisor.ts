@@ -167,13 +167,15 @@ export async function fetchAiDestinationTravelIntelligence(
     const contentType = response.headers.get('content-type') || '';
     if (response.ok && contentType.includes('application/json')) {
       const mergedResult = await response.json();
-      intelligenceCache.set(cacheKey, mergedResult);
-      return mergedResult;
+      if (mergedResult && mergedResult.modesBreakdown && mergedResult.modesBreakdown.length > 0) {
+        intelligenceCache.set(cacheKey, mergedResult);
+        return mergedResult;
+      }
     }
   } catch (error) {
     console.warn('Destination Intelligence API error:', error);
   }
 
-  intelligenceCache.set(cacheKey, genericFallback);
   return genericFallback;
 }
+

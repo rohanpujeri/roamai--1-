@@ -212,11 +212,13 @@ async function fetchRealPlacePhoto(placeTitle, destination = "", category = "") 
 
 // server/utils/geminiModels.ts
 var PREFERRED_GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-pro",
-  "gemini-2.5-pro"
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-flash-latest",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gemini-3.8-flash"
 ];
 function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || "";
@@ -1768,7 +1770,6 @@ async function fetchAiDestinationTravelIntelligence(destination, startCity = "Or
   const genericFallback = getGenericDynamicIntelligence(destination, startCity, travelMode);
   const geminiKey = getGeminiApiKey();
   if (!geminiKey) {
-    intelligenceCache.set(cacheKey, genericFallback);
     return genericFallback;
   }
   try {
