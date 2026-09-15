@@ -1,7 +1,7 @@
 import { Activity, TravelStyle, BudgetTier } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
-import { PREFERRED_GEMINI_MODELS } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface NearbyPlaceRecommendation {
   id: string;
@@ -86,7 +86,7 @@ export async function fetchNearbyPlaces(params: NearbyPlacesParams): Promise<Nea
     normalizedExcluded.add(refTitle.toLowerCase().trim());
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (apiKey) {
     try {
       const ai = new GoogleGenAI({

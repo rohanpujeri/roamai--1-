@@ -2,7 +2,7 @@ import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTie
 import { GoogleGenAI } from '@google/genai';
 import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 import { fetchAiHotelSuggestions } from './serverHotelAdvisor';
 
 export interface AdaptOption {
@@ -144,9 +144,9 @@ export async function generateTripFromInputs(params: {
   targetBudget?: number;
   preferences: UserPreferences;
 }): Promise<Trip> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    throw new Error('Gemini API key is not configured. Please add GEMINI_API_KEY in your .env file.');
+    throw new Error('Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Environment Variables or .env file.');
   }
 
   const travelMode = params.travelMode || params.preferences.travelMode || 'Flight';
@@ -796,7 +796,7 @@ export async function generateRealPlaceForDay(params: {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (apiKey) {
     try {
       const ai = new GoogleGenAI({

@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { BudgetTier, TravelCompanion, TravelMode, RealTripBudgetResult, RealTripTierData } from '../../src/types';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface BudgetEstimationParams {
   destination: string;
@@ -373,7 +373,7 @@ export async function fetchAiRealTripBudget(params: BudgetEstimationParams & { f
 
   const fallback = calculateFallbackRealTripBudget(params);
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
     budgetCache.set(cacheKey, fallback);
     return fallback;

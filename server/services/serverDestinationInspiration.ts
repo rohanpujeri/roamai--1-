@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 
 export interface DynamicPreviewTrip {
@@ -51,7 +51,7 @@ export async function fetchAiThemePreviewTrip(themeId: string, themeName?: strin
     return inspirationCache.get(cacheKey)!;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
     return {
       themeId: themeId || 'basic',

@@ -17,18 +17,37 @@ dotenv.config();
 export function createExpressApp() {
   const app = express();
 
+  // Enable CORS headers for cross-origin or serverless API requests
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '10mb' }));
 
   // Static alias for case-insensitive image access
   app.use('/Images', express.static(path.join(process.cwd(), 'public/images')));
   app.use('/images', express.static(path.join(process.cwd(), 'public/images')));
 
-  // API routes
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  // Create modular API Router
+  const apiRouter = express.Router();
+
+  // Health check endpoint
+  apiRouter.get('/health', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)
+    });
   });
 
-  app.post('/api/ai/generate-trip', async (req, res) => {
+  // Generate complete trip itinerary
+  apiRouter.post('/ai/generate-trip', async (req, res) => {
     try {
       const trip = await generateTripFromInputs(req.body);
       res.json(trip);
@@ -38,7 +57,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/adapt-trip', async (req, res) => {
+  // Adapt existing trip
+  apiRouter.post('/ai/adapt-trip', async (req, res) => {
     try {
       const { trip, triggerId, targetDayNumber } = req.body;
       const result = await adaptTripPlanWithAI(trip, triggerId, targetDayNumber);
@@ -49,7 +69,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/estimate-budget', async (req, res) => {
+  // Estimate realistic travel budget
+  apiRouter.post('/ai/estimate-budget', async (req, res) => {
     try {
       const budget = await fetchAiRealTripBudget(req.body);
       res.json(budget);
@@ -59,7 +80,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/destination-advice', async (req, res) => {
+  // Destination travel logistics & advice
+  apiRouter.post('/ai/destination-advice', async (req, res) => {
     try {
       const { destination, startCity, travelMode } = req.body;
       const intelligence = await fetchAiDestinationTravelIntelligence(destination, startCity, travelMode);
@@ -70,7 +92,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/alternative-places', async (req, res) => {
+  // Alternative place options
+  apiRouter.post('/ai/alternative-places', async (req, res) => {
     try {
       const { destination, currentActivity, userStyles } = req.body;
       const alternatives = await fetchAIAlternativePlaces(destination, currentActivity, userStyles);
@@ -81,7 +104,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/nearby-places', async (req, res) => {
+  // Nearby place recommendations
+  apiRouter.post('/ai/nearby-places', async (req, res) => {
     try {
       const recommendations = await fetchNearbyPlaces(req.body);
       res.json(recommendations);
@@ -91,7 +115,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/add-real-place', async (req, res) => {
+  // Add real verified place to day
+  apiRouter.post('/ai/add-real-place', async (req, res) => {
     try {
       const newActivity = await generateRealPlaceForDay(req.body);
       res.json(newActivity);
@@ -101,7 +126,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/suggest-hotels', async (req, res) => {
+  // Hotel & accommodation recommendations
+  apiRouter.post('/ai/suggest-hotels', async (req, res) => {
     try {
       const hotels = await fetchAiHotelSuggestions(req.body);
       res.json(hotels);
@@ -111,7 +137,8 @@ export function createExpressApp() {
     }
   });
 
-  app.post('/api/ai/theme-preview', async (req, res) => {
+  // Theme preview trip
+  apiRouter.post('/ai/theme-preview', async (req, res) => {
     try {
       const { themeId, themeName, themeVibe } = req.body;
       const preview = await fetchAiThemePreviewTrip(themeId, themeName, themeVibe);
@@ -122,7 +149,8 @@ export function createExpressApp() {
     }
   });
 
-  app.get('/api/places/real-photo', async (req, res) => {
+  // Real place photos
+  apiRouter.get('/places/real-photo', async (req, res) => {
     try {
       const title = (req.query.title as string) || '';
       const destination = (req.query.destination as string) || '';
@@ -134,7 +162,8 @@ export function createExpressApp() {
     }
   });
 
-  app.get('/api/detect-location/reverse', async (req, res) => {
+  // Reverse geocode location
+  apiRouter.get('/detect-location/reverse', async (req, res) => {
     try {
       const lat = parseFloat(req.query.lat as string);
       const lng = parseFloat(req.query.lng as string);
@@ -156,7 +185,8 @@ export function createExpressApp() {
     }
   });
 
-  app.get('/api/detect-location/ip', async (req, res) => {
+  // Detect location from IP
+  apiRouter.get('/detect-location/ip', async (req, res) => {
     try {
       const rawIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
       const clientIp = rawIp.split(',')[0].trim();
@@ -171,6 +201,10 @@ export function createExpressApp() {
       res.status(500).json({ error: err.message || 'IP location detection failed' });
     }
   });
+
+  // Mount router at both /api and / to ensure compatibility with Vercel rewrites and standalone Node server
+  app.use('/api', apiRouter);
+  app.use('/', apiRouter);
 
   return app;
 }

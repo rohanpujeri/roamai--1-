@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { BudgetTier, TravelCompanion, HotelStayRecommendation } from '../../src/types';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface HotelRecommendationParams {
   destination: string;
@@ -92,7 +92,7 @@ export async function fetchAiHotelSuggestions(params: HotelRecommendationParams)
     return hotelCache.get(cacheKey)!;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
     console.warn('[serverHotelAdvisor] No GEMINI_API_KEY available in environment');
     return [];

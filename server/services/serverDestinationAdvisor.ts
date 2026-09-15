@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { TravelMode } from '../../src/types';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface TravelModeViability {
   mode: TravelMode;
@@ -176,7 +176,7 @@ export async function fetchAiDestinationTravelIntelligence(
   }
 
   const genericFallback = getGenericDynamicIntelligence(destination, startCity, travelMode);
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = getGeminiApiKey();
 
   if (!geminiKey) {
     intelligenceCache.set(cacheKey, genericFallback);

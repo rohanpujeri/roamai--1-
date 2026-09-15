@@ -14,6 +14,16 @@ export const PREFERRED_GEMINI_MODELS = [
   'gemini-3.5-flash'
 ];
 
+export function getGeminiApiKey(): string {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    ''
+  );
+}
+
 export function formatGenAiError(err: any): string {
   if (!err) return 'Unknown error';
   if (typeof err === 'string') return err;
@@ -30,3 +40,4 @@ export function formatGenAiError(err: any): string {
   }
   return String(err);
 }
+
