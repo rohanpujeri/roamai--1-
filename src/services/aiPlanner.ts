@@ -172,7 +172,7 @@ export async function generateTripClientSide(params: {
 }): Promise<Trip> {
   const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? (process as any).env?.GEMINI_API_KEY : '');
   if (!apiKey) {
-    return generateEmergencyFallbackTrip(params);
+    throw new Error('Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Project Settings > Environment Variables.');
   }
 
   const travelMode = params.travelMode || params.preferences.travelMode || 'Flight';
@@ -259,34 +259,34 @@ Return ONLY a valid JSON object matching this schema:
           "recommendationReason": "Famous culinary establishment beloved by locals.",
           "isIndoor": true,
           "isRainSafe": true,
-          "rating": 4.7
+          "rating": 4.8
         },
         {
           "id": "act-1-3",
           "time": "03:30 PM",
           "endTime": "05:30 PM",
-          "title": "Scenic Cultural Walk & Heritage Bazaar",
+          "title": "Historic Cultural District & Local Market",
           "category": "Culture",
           "location": "${destName} Heritage Quarter",
           "estimatedCost": 200,
-          "travelTimeFromPrev": "15 min drive",
+          "travelTimeFromPrev": "15 min cab",
           "duration": "2 hrs",
-          "description": "Stroll through vibrant artisan lanes, craft shops and viewpoints.",
-          "imageUrl": "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=600&auto=format&fit=crop",
-          "recommendationReason": "Immersive local vibe and great souvenir opportunities.",
+          "description": "Discover heritage architecture and vibrant local market stalls.",
+          "imageUrl": "https://images.unsplash.com/photo-1513584684374-8bab748fbf90?q=80&w=600&auto=format&fit=crop",
+          "recommendationReason": "Rich atmosphere and historic charm.",
           "isIndoor": false,
           "isRainSafe": false,
-          "rating": 4.6
+          "rating": 4.7
         },
         {
           "id": "act-1-4",
-          "time": "07:30 PM",
-          "endTime": "09:30 PM",
-          "title": "Panoramic Sunset & Evening Atmosphere",
+          "time": "07:00 PM",
+          "endTime": "09:00 PM",
+          "title": "Scenic Twilight Viewpoint & Dining",
           "category": "Sightseeing",
-          "location": "${destName} Promenade",
-          "estimatedCost": 350,
-          "travelTimeFromPrev": "15 min cab",
+          "location": "${destName} Waterfront / Heights",
+          "estimatedCost": 600,
+          "travelTimeFromPrev": "20 min cab",
           "duration": "2 hrs",
           "description": "Relaxing twilight ambiance overlooking picturesque views.",
           "imageUrl": "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
@@ -308,9 +308,11 @@ Return ONLY a valid JSON object matching this schema:
   "bookings": []
 }`;
 
+  let genData: any = null;
+  let lastClientError: any = null;
+
   try {
     const ai = new GoogleGenAI({ apiKey });
-    let genData: any = null;
 
     for (const modelName of CLIENT_GEMINI_MODELS) {
       try {
@@ -329,10 +331,11 @@ Return ONLY a valid JSON object matching this schema:
         }
       } catch (err) {
         console.warn(`[aiPlanner] Client model ${modelName} error:`, err);
+        lastClientError = err;
       }
     }
 
-    if (genData && genData.days && Array.isArray(genData.days)) {
+    if (genData && genData.days && Array.isArray(genData.days) && genData.days.length > 0) {
       const days: DayItinerary[] = genData.days.map((day: any, dIdx: number) => {
         const dayNum = day.dayNumber || dIdx + 1;
         const activities = (day.activities || []).map((act: any, aIdx: number) => {
@@ -429,181 +432,29 @@ Return ONLY a valid JSON object matching this schema:
           { id: 'p-4', name: 'Reusable water bottle & sunscreen', category: 'Toiletries', checked: false, reason: 'Daily travel' }
         ],
         requirements: genData.requirements || [],
-        bookings: genData.bookings || [],
+        bookings: [],
         hotelRecommendations: [],
         clothingAdvice: genData.clothingAdvice || 'Comfortable breathable travel attire.',
         createdAt: new Date().toISOString().split('T')[0],
         adaptationHistory: []
       };
     }
-  } catch (clientErr) {
-    console.warn('[aiPlanner] Direct client Gemini generation failed, using emergency fallback:', clientErr);
+  } catch (clientErr: any) {
+    console.error('[aiPlanner] Direct client Gemini generation failed:', clientErr);
+    lastClientError = clientErr;
   }
 
-  return generateEmergencyFallbackTrip(params);
-}
-
-/**
- * Emergency Fallback Trip Generator
- * Generates an authentic, structured, multi-day itinerary when all AI endpoints are unreachable.
- */
-export function generateEmergencyFallbackTrip(params: {
-  destinationId: string;
-  destinationPlace?: { placeId: string; name: string; address: string; latitude: number; longitude: number; photoUrl?: string; };
-  startCity?: string;
-  startDate: string;
-  endDate: string;
-  durationDays: number;
-  companionType: TravelCompanion;
-  travellersCount: number;
-  travelMode?: TravelMode;
-  budgetTier: BudgetTier;
-  targetBudget?: number;
-  preferences: UserPreferences;
-}): Trip {
-  const destName = params.destinationPlace?.name || params.destinationId || 'Destination';
-  const destAddress = params.destinationPlace?.address || destName;
-  const startCity = params.startCity || params.preferences.startCity || 'Origin City';
-  const travelMode = params.travelMode || params.preferences.travelMode || 'Flight';
-  const duration = Math.max(1, params.durationDays || 3);
-  const heroImg = params.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
-
-  const dayTemplates = [
-    {
-      title: `${destName} Heritage & Arrival Warmup`,
-      theme: 'Historic Old Quarter & Iconic Street Bites',
-      vibe: 'Atmospheric cobblestone alleys, authentic heritage kitchens, and golden hour sights',
-      acts: [
-        { time: '09:30 AM', endTime: '11:30 AM', title: `${destName} Central Heritage Monument & Historic Quarter`, cat: 'Culture' as const, cost: 250, desc: `Explore the celebrated architectural landmark and iconic old lanes of ${destName}.`, reason: 'Iconic arrival point for soaking in local history.' },
-        { time: '01:00 PM', endTime: '02:30 PM', title: `Legendary Regional Kitchen & Tasting in ${destName}`, cat: 'Food' as const, cost: 450, desc: `Savor time-honored authentic regional recipes and local specialties.`, reason: 'Beloved 4.8★ foodie institution known for authentic local taste.' },
-        { time: '03:30 PM', endTime: '05:30 PM', title: `${destName} Artisan Handicraft Bazaar & Cultural Walk`, cat: 'Shopping' as const, cost: 300, desc: `Vibrant street market filled with handmade crafts, spices, and souvenirs.`, reason: 'Experience authentic street culture and meet local artisans.' },
-        { time: '07:00 PM', endTime: '09:00 PM', title: `Sunset Vista Point & Ambient Twilight Dining`, cat: 'Sightseeing' as const, cost: 550, desc: `Scenic viewpoint offering panoramic twilight horizon views over ${destName}.`, reason: 'Unmatched sunset photography spot.' }
-      ]
-    },
-    {
-      title: `Nature, Waterfalls & Scenic Panoramas`,
-      theme: 'Pristine Nature Trails & Lakeside Relaxation',
-      vibe: 'Cool mountain air, lush botanical foliage, and serene waterside spots',
-      acts: [
-        { time: '09:00 AM', endTime: '11:30 AM', title: `${destName} Scenic Nature Sanctuary & Valley Lookout`, cat: 'Nature' as const, cost: 200, desc: `Immerse yourself in lush greenery, scenic flora, and panoramic valley viewpoints.`, reason: 'Refreshing natural oasis perfect for peaceful morning strolls.' },
-        { time: '12:30 PM', endTime: '02:00 PM', title: `Lakeside Cafe & Organic Artisan Brunch`, cat: 'Food' as const, cost: 500, desc: `Relaxed dining with fresh brews, farm-to-table lunch, and scenic water views.`, reason: 'Serene lakeside atmosphere with exceptional fresh dishes.' },
-        { time: '03:00 PM', endTime: '05:00 PM', title: `${destName} Cascading Waterfalls & Pine Trail`, cat: 'Adventure' as const, cost: 150, desc: `Gentle scenic hike along nature trails leading to crystal clear natural cascades.`, reason: 'Top-rated nature excursion with refreshing mountain breeze.' },
-        { time: '06:30 PM', endTime: '08:30 PM', title: `Evening Promenade Stroll & Night Market`, cat: 'Nightlife' as const, cost: 350, desc: `Lively twilight walk with street performers, dessert stalls, and illuminated paths.`, reason: 'Vibrant local evening energy.' }
-      ]
-    },
-    {
-      title: `Adventure, Hidden Gems & Local Traditions`,
-      theme: 'Secret Viewpoints & Signature Farewell Feast',
-      vibe: 'Offbeat discovery, thrill trails, and memorable regional dining',
-      acts: [
-        { time: '09:30 AM', endTime: '11:30 AM', title: `Offbeat Secret Lookout & High Ridge Trail in ${destName}`, cat: 'Adventure' as const, cost: 300, desc: `Uncrowded viewpoint offering majestic 360-degree vistas of the surrounding terrain.`, reason: 'Hidden gem with zero tourist crowds.' },
-        { time: '01:00 PM', endTime: '02:30 PM', title: `Traditional Grand Thali & Culinary Feast`, cat: 'Food' as const, cost: 600, desc: `Extensive regional multi-course banquet showcasing authentic flavors.`, reason: 'Culinary centerpiece experience of the journey.' },
-        { time: '03:30 PM', endTime: '05:30 PM', title: `Contemporary Art Gallery & Folk Craft Center`, cat: 'Culture' as const, cost: 250, desc: `Curated museum showcasing local artistic heritage, textiles, and sculpture.`, reason: 'Enriching cultural appreciation and peaceful indoor halls.' },
-        { time: '07:30 PM', endTime: '09:30 PM', title: `Rooftop Farewell Dining & Live Music`, cat: 'Nightlife' as const, cost: 800, desc: `Celebrate the final evening with acoustic melodies and delicious cuisine under the stars.`, reason: 'Unforgettable farewell ambiance.' }
-      ]
-    }
-  ];
-
-  const days: DayItinerary[] = Array.from({ length: duration }).map((_, idx) => {
-    const template = dayTemplates[idx % dayTemplates.length];
-    const dayNum = idx + 1;
-    const baseLat = params.destinationPlace?.latitude || 20.0;
-    const baseLng = params.destinationPlace?.longitude || 78.0;
-
-    const activities: Activity[] = template.acts.map((act, aIdx) => {
-      const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
-      const offsetLng = (aIdx * 0.01) * Math.cos(aIdx * 1.5);
-
-      return {
-        id: `act-${dayNum}-${aIdx + 1}-${crypto.randomUUID()}`,
-        time: act.time,
-        endTime: act.endTime,
-        title: act.title,
-        category: act.cat,
-        location: `${destName} Area`,
-        coordinates: {
-          lat: Number((baseLat + offsetLat).toFixed(6)),
-          lng: Number((baseLng + offsetLng).toFixed(6))
-        },
-        estimatedCost: act.cost,
-        travelTimeFromPrev: '15 min cab',
-        duration: '2 hrs',
-        description: act.desc,
-        imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
-        recommendationReason: act.reason,
-        isIndoor: act.cat === 'Food' || act.cat === 'Culture',
-        isRainSafe: act.cat === 'Food' || act.cat === 'Culture',
-        rating: 4.8
-      };
-    });
-
-    return {
-      dayNumber: dayNum,
-      date: `Day ${dayNum}`,
-      title: template.title,
-      theme: template.theme,
-      vibe: template.vibe,
-      weatherForecast: {
-        temp: '25°C',
-        condition: 'Partly Cloudy',
-        icon: 'Sun',
-        rainChance: 10
-      },
-      activities
-    };
-  });
-
-  return {
-    id: crypto.randomUUID(),
-    title: `${destName} ${params.companionType} Getaway`,
-    destination: destName,
-    destinationStateOrCountry: destAddress,
-    startCity,
-    routeSummary: {
-      distanceKm: 380,
-      flightDuration: '1h 30m',
-      trainDuration: '5h 30m',
-      driveDuration: '6h',
-      departureHub: `${startCity} Terminal`,
-      arrivalHub: `${destName} Junction`,
-      keyHighwayOrTrain: 'Direct Highway',
-      notes: 'Direct transit connectivity'
-    },
-    heroImage: heroImg,
-    startDate: params.startDate,
-    endDate: params.endDate,
-    durationDays: duration,
-    companionType: params.companionType,
-    travellersCount: params.travellersCount,
-    travelMode,
-    budgetTier: params.budgetTier,
-    targetBudget: params.targetBudget || 25000,
-    currency: 'INR',
-    preferences: {
-      ...params.preferences,
-      startCity
-    },
-    days,
-    packingList: [
-      { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
-      { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
-      { id: 'p-3', name: 'Government ID / booking receipts', category: 'Documents', checked: false, reason: 'Verification' },
-      { id: 'p-4', name: 'Reusable water bottle & sunscreen', category: 'Toiletries', checked: false, reason: 'Daily travel' }
-    ],
-    requirements: [],
-    bookings: [],
-    hotelRecommendations: [],
-    clothingAdvice: 'Comfortable breathable travel attire with comfortable walking footwear.',
-    createdAt: new Date().toISOString().split('T')[0],
-    adaptationHistory: []
-  };
+  throw new Error(
+    lastClientError?.message ||
+    'AI itinerary generation failed. Please verify your GEMINI_API_KEY environment variable in Vercel.'
+  );
 }
 
 /**
  * Main itinerary generator:
- * 1. Tries backend endpoint /api/ai/generate-trip
- * 2. Safely falls back to Client-side Gemini AI if backend is unavailable or on static deployment
- * 3. Never throws fatal HTML/parse syntax errors to the user.
+ * 1. Calls backend endpoint /api/ai/generate-trip (which invokes Gemini on the server)
+ * 2. Falls back to Client-side Gemini AI if client environment variable is configured
+ * 3. Never produces fake predefined mock places
  */
 export async function generateTripFromInputs(params: {
   destinationId: string;
@@ -619,6 +470,8 @@ export async function generateTripFromInputs(params: {
   targetBudget?: number;
   preferences: UserPreferences;
 }): Promise<Trip> {
+  let serverErrorMsg = '';
+
   try {
     const response = await fetch('/api/ai/generate-trip', {
       method: 'POST',
@@ -632,14 +485,29 @@ export async function generateTripFromInputs(params: {
       if (data && data.days && Array.isArray(data.days) && data.days.length > 0) {
         return data;
       }
+    } else {
+      const errJson = await response.json().catch(() => null);
+      if (errJson && errJson.error) {
+        serverErrorMsg = errJson.error;
+      } else {
+        serverErrorMsg = `Server returned status ${response.status}: ${response.statusText}`;
+      }
     }
-    console.warn('[aiPlanner] Server API returned non-OK or non-JSON response, using client-side AI fallback.');
-  } catch (fetchErr) {
-    console.warn('[aiPlanner] Network error reaching /api/ai/generate-trip, invoking client AI fallback:', fetchErr);
+  } catch (fetchErr: any) {
+    serverErrorMsg = fetchErr?.message || 'Network error reaching server AI endpoint';
   }
 
-  // Graceful client-side fallback
-  return generateTripClientSide(params);
+  // Attempt client-side AI if available
+  try {
+    return await generateTripClientSide(params);
+  } catch (clientErr: any) {
+    console.error('[aiPlanner] Generation failed on both server and client:', clientErr);
+    throw new Error(
+      serverErrorMsg ||
+      clientErr?.message ||
+      'AI generation failed. Please check that GEMINI_API_KEY is configured in your Vercel Project Settings > Environment Variables.'
+    );
+  }
 }
 
 /**
