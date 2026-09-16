@@ -417,13 +417,63 @@ The user selected Travel Mode: "${travelMode}".
           const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
           const offsetLng = (aIdx * 0.01) * Math.cos(aIdx * 1.5);
 
+          let finalTitle = act.title || `Highlight Stop ${aIdx + 1}`;
+          let finalLocation = act.location || destName;
+          let finalDesc = act.description || `Experience ${finalTitle}.`;
+          let finalWhy = act.recommendationReason || 'Tailored to your preferences and travel style.';
+          let finalCategory = (act.category as Activity['category']) || 'Sightseeing';
+
+          if (travelMode === 'Bike / Motorcycle') {
+            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
+            if (isFlightMention) {
+              finalCategory = 'Travel';
+              if (dayNum === 1 && aIdx === 0) {
+                finalTitle = 'Motorcycle Inspection & Morning Highway Departure';
+                finalLocation = `${startCity} Highway Corridor`;
+                finalDesc = `Pre-ride bike safety inspection, tire pressure check, full tank refuel, and hitting the national highway out of ${startCity}.`;
+                finalWhy = 'Essential departure for a long-distance overland motorcycle expedition.';
+              } else if (dayNum === 1 && aIdx === 1) {
+                finalTitle = 'Highway Fuel & Dhaba Stop';
+                finalLocation = 'National Highway Waypoint';
+                finalDesc = `Scenic rest stop at an authentic highway dhaba for tea, regional breakfast/lunch, and bike check.`;
+                finalWhy = 'Hydration and fuel rest halt on the highway.';
+              } else if (dayNum === 1) {
+                finalTitle = 'Arrival & Night Halt at Transit Lodge';
+                finalLocation = 'Intermediate Transit City';
+                finalDesc = `Checking into a biker-friendly transit stay, securing the motorcycle, hot shower, and hearty dinner.`;
+                finalWhy = 'Rest and recovery after Day 1 riding stretch.';
+              } else {
+                finalTitle = `Overland Ride Stage ${dayNum}`;
+                finalLocation = `En-route to ${destName}`;
+                finalDesc = `Scenic highway cruising and mountain approach riding towards ${destName}.`;
+                finalWhy = 'Continuous overland stage towards the destination.';
+              }
+            }
+          } else if (travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental') {
+            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
+            if (isFlightMention) {
+              finalCategory = 'Travel';
+              if (dayNum === 1 && aIdx === 0) {
+                finalTitle = 'Early Morning Highway Road Trip Departure';
+                finalLocation = `${startCity} Expressway`;
+                finalDesc = `Loading luggage, vehicle check, and starting the scenic highway drive out of ${startCity}.`;
+                finalWhy = 'Kickstarting the overland road trip expedition.';
+              } else if (dayNum === 1) {
+                finalTitle = 'Highway Dhaba Stop & Fuel Break';
+                finalLocation = 'National Expressway Rest Area';
+                finalDesc = `Comfortable highway pitstop for fuel, coffee, and regional lunch.`;
+                finalWhy = 'Rest break on long-distance road drive.';
+              }
+            }
+          }
+
           return {
             id: act.id || `act-${dayNum}-${aIdx + 1}-${crypto.randomUUID()}`,
             time: act.time || '10:00 AM',
             endTime: act.endTime || '12:00 PM',
-            title: act.title || `Highlight Stop ${aIdx + 1}`,
-            category: (act.category as Activity['category']) || 'Sightseeing',
-            location: act.location || destName,
+            title: finalTitle,
+            category: finalCategory,
+            location: finalLocation,
             coordinates: (act.coordinates && typeof act.coordinates.lat === 'number' && typeof act.coordinates.lng === 'number')
               ? act.coordinates
               : {
@@ -433,9 +483,9 @@ The user selected Travel Mode: "${travelMode}".
             estimatedCost: typeof act.estimatedCost === 'number' ? act.estimatedCost : 400,
             travelTimeFromPrev: act.travelTimeFromPrev || '15 min drive',
             duration: act.duration || '1.5 hrs',
-            description: act.description || `Experience ${act.title || destName}.`,
+            description: finalDesc,
             imageUrl: act.imageUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
-            recommendationReason: act.recommendationReason || 'Tailored to your preferences and travel style.',
+            recommendationReason: finalWhy,
             isIndoor: Boolean(act.isIndoor),
             isRainSafe: Boolean(act.isRainSafe),
             rating: typeof act.rating === 'number' ? act.rating : 4.8
