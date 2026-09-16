@@ -358,6 +358,9 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         if (info.modesBreakdown && info.modesBreakdown.length > 0) {
           const validModes = info.modesBreakdown.map((m) => m.mode);
           setTravelMode((currentMode) => {
+            if (isTravelModeManuallyPickedRef.current && currentMode) {
+              return currentMode; // Always keep the user's manual selection
+            }
             if (currentMode && validModes.includes(currentMode)) {
               return currentMode;
             }
@@ -377,55 +380,39 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     };
   }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity, startDate]);
 
-  // Explicit user action to let AI fetch all possible travel modes for the route
+  // Handle manual refetch button
   const handleFetchPossibleTravelModes = useCallback(async () => {
-    const destName =
-      selectedDestinationPlace?.name ||
-      (selectedDestId && selectedDestId !== 'custom-destination' ? selectedDestId : '') ||
-      (selectedDestination.name !== 'Selected Destination' ? selectedDestination.name : '');
-
+    const destName = selectedDestinationPlace?.name || selectedDestination.name;
     if (!destName) return;
 
     setIsLoadingAiInfo(true);
-
     try {
       const info = await fetchAiDestinationTravelIntelligence(destName, effectiveStartCity);
       setAiDestinationInfo(info);
-      // Keep user's chosen travel mode if it is among the possible modes
-      if (info.modesBreakdown && info.modesBreakdown.length > 0) {
-        const validModes = info.modesBreakdown.map((m) => m.mode);
-        setTravelMode((currentMode) => {
-          if (currentMode && validModes.includes(currentMode)) {
-            return currentMode;
-          }
-          return validModes[0];
-        });
-      }
       const matchingMode = info.modesBreakdown?.find((m) => m.mode === travelMode);
-      const reqDays = matchingMode?.minRequiredDaysForMode || info.minimumRequiredDays || 2;
-      if (durationDays < reqDays) {
-        setDurationDays(reqDays);
-        setEndDate(getCalculatedEndDate(startDate, reqDays));
+      if (matchingMode?.minRequiredDaysForMode && durationDays < matchingMode.minRequiredDaysForMode) {
+        setDurationDays(matchingMode.minRequiredDaysForMode);
+        setEndDate(getCalculatedEndDate(startDate, matchingMode.minRequiredDaysForMode));
       }
-    } catch (err) {
-      console.warn('Failed to fetch possible travel modes:', err);
+    } catch (e) {
+      console.warn('Manual fetch error:', e);
     } finally {
       setIsLoadingAiInfo(false);
     }
   }, [selectedDestinationPlace?.name, selectedDestId, selectedDestination.name, effectiveStartCity, travelMode, durationDays, startDate]);
 
-  // Dynamically computed effective minimum trip days based on destination distance AND selected travel mode
+  // Dynamic travel-based minimum days for currently selected travel mode
   const effectiveMinDays = useMemo(() => {
     const activeModeItem = aiDestinationInfo?.modesBreakdown?.find((m) => m.mode === travelMode);
     if (activeModeItem?.minRequiredDaysForMode && activeModeItem.minRequiredDaysForMode > 0) {
-      return Math.max(1, Math.ceil(activeModeItem.minRequiredDaysForMode));
+      return activeModeItem.minRequiredDaysForMode;
     }
-    return Math.max(1, Math.ceil(aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays || 3));
+    return destinationFeasibility.minDurationDays;
   }, [aiDestinationInfo, travelMode, destinationFeasibility.minDurationDays]);
 
-  // Keep durationDays aligned with the minimum required trip duration for the chosen destination & travel mode
+  // Ensure duration is always at least effectiveMinDays
   useEffect(() => {
-    if (durationDays < effectiveMinDays) {
+    if (effectiveMinDays > 0 && durationDays < effectiveMinDays) {
       setDurationDays(effectiveMinDays);
       setEndDate(getCalculatedEndDate(startDate, effectiveMinDays));
     }
@@ -502,6 +489,22 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         estimatedCostRange: 'Fuel & tolls',
         hasSwitchOrTransfer: false,
         pros: 'Flexible road trip',
+        cons: ''
+      },
+      {
+        id: 'Bike / Motorcycle' as TravelMode,
+        label: 'Bike / Motorcycle',
+        icon: '🏍️',
+        desc: `Touring motorcycle ride from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: 'Motorcycle Tour',
+        isRecommended: false,
+        suitabilityScore: 78,
+        durationEstimate: 'Evaluating...',
+        transitDaysRoundTrip: 2,
+        minRequiredDaysForMode: 2,
+        estimatedCostRange: 'Fuel & gear',
+        hasSwitchOrTransfer: false,
+        pros: 'Scenic open road and mountain pass touring',
         cons: ''
       },
       {

@@ -926,6 +926,13 @@ ${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode}
         model: modelName,
         contents: prompt,
         config: {
+          systemInstruction: `You are TripWise AI, an expert travel planner.
+MANDATORY CONSTRAINT:
+The user selected Travel Mode: "${travelMode}".
+- If Travel Mode is "Bike / Motorcycle": The entire round-trip journey is a motorcycle expedition. Under NO circumstances should you include any flights, airplanes, boarding passes, or airports. Every transit activity MUST be motorcycle riding on highways and mountain passes.
+- If Travel Mode is "Car / Road Trip" or "Self-Drive Rental": The entire trip is by car/road. Zero flights.
+- If Travel Mode is "Train": All transit is by train/railway. Zero flights.
+- Only suggest flights if Travel Mode is explicitly "Flight".`,
           responseMimeType: "application/json",
           responseSchema: schema
         }
@@ -2204,9 +2211,10 @@ STRICT ROUTE LOGISTICS RULES:
    - "Flight" (\u2708\uFE0F)
    - "Train" (\u{1F686} - Train / Railway)
    - "Car / Road Trip" (\u{1F697})
+   - "Bike / Motorcycle" (\u{1F3CD}\uFE0F - Motorcycle Touring)
    - "Bus" (\u{1F68C} - Bus / Coach, if road-connected)
    Even if the destination is a hill station or rural town without its own tracks (e.g., Munnar, Wayanad, Coorg, Ooty, Manali, Shimla), train transit via the nearest major railhead (e.g. Aluva/Ernakulam for Munnar, Kozhikode for Wayanad, Mysore for Coorg, Kalka/Chandigarh for Shimla/Manali) is a standard, essential travel option. Mention the nearest railhead in the description.
-4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bus", "Bike / Motorcycle").
+4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bike / Motorcycle", "Bus").
 5. Return ONLY valid raw JSON with no Markdown or text outside JSON.`;
     for (const modelName of PREFERRED_GEMINI_MODELS) {
       try {

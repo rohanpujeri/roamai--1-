@@ -290,9 +290,10 @@ STRICT ROUTE LOGISTICS RULES:
    - "Flight" (✈️)
    - "Train" (🚆 - Train / Railway)
    - "Car / Road Trip" (🚗)
+   - "Bike / Motorcycle" (🏍️ - Motorcycle Touring)
    - "Bus" (🚌 - Bus / Coach, if road-connected)
    Even if the destination is a hill station or rural town without its own tracks (e.g., Munnar, Wayanad, Coorg, Ooty, Manali, Shimla), train transit via the nearest major railhead (e.g. Aluva/Ernakulam for Munnar, Kozhikode for Wayanad, Mysore for Coorg, Kalka/Chandigarh for Shimla/Manali) is a standard, essential travel option. Mention the nearest railhead in the description.
-4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bus", "Bike / Motorcycle").
+4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bike / Motorcycle", "Bus").
 5. Return ONLY valid raw JSON with no Markdown or text outside JSON.`;
 
     for (const modelName of PREFERRED_GEMINI_MODELS) {
