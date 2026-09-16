@@ -192,10 +192,26 @@ Destination: "${destName}" (${destAddress}).
 ${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}, Longitude ${destLng}.` : ''}
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
-Travel Mode: ${travelMode}.
+Selected Travel Mode: "${travelMode}".
 Estimated Route Distance: ~${estDistanceKm} km.
 One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
 Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
+
+========================================================================================
+CRITICAL TRAVEL MODE ENFORCEMENT (MODE: "${travelMode}"):
+${travelMode === 'Bike / Motorcycle' ? `• THE ENTIRE JOURNEY IS A MOTORCYCLE / BIKE EXPEDITION!
+• EVERY TRANSIT ACTIVITY MUST BE MOTORCYCLE TOURING & HIGHWAY RIDING.
+• ABSOLUTELY ZERO FLIGHTS! DO NOT MENTION AIRPORTS (No Kempegowda Airport, No Indira Gandhi Airport, No Leh Airport), NO BOARDING GATES, NO AIR TICKETS!
+• Day 1 MUST start with motorcycle gear inspection, morning highway departure from "${startCity}" on NH44/NH48, highway petrol pump refuel, highway dhaba lunch, and reaching intermediate transit city (e.g. Kolhapur/Pune/Hyderabad).
+• Days 2 to ${outboundEndDay}: Sequential overland riding stages across real connecting cities & mountain passes (e.g. Pune -> Udaipur -> Chandigarh -> Manali -> Jispa/Keylong -> Rohtang/Atal Tunnel -> Baralacha La -> Leh).
+• Day ${outboundEndDay}: Ride motorcycle into "${destName}", hotel check-in, rest and acclimatization.
+• Return Days ${returnStartDay} to ${totalDays}: Ride motorcycle back across return highway circuit safely arriving in "${startCity}".` :
+travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental' ? `• THE ENTIRE TRIP IS A ROAD TRIP BY CAR!
+• ALL TRANSIT MUST BE HIGHWAY DRIVING. ZERO FLIGHTS, ZERO AIRPORTS!` :
+travelMode === 'Train' ? `• THE ENTIRE JOURNEY MUST BE BY TRAIN / RAILWAY!
+• Board trains at railway stations. ZERO FLIGHTS!` :
+`• Air travel via commercial flights from "${startCity}" airport to destination airport (or nearest commercial airport + scenic road transfer).`}
+========================================================================================
 
 USER PREFERENCES TO STRICTLY ADHERE TO:
 1. TRAVEL STYLES (${stylesList}):
@@ -232,7 +248,7 @@ STRICT ACCURACY & TIMELINE RULES:
 ${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode} over ~${estDistanceKm} km):
      • OUTBOUND OVERLAND STAGES (Days 1 to ${outboundEndDay}):
        * Since travelling ~${estDistanceKm} km via ${travelMode} takes ${transitDaysOneWay} days one-way, Days 1 through ${outboundEndDay} MUST realistically cover the sequential outbound overland stages.
-       * Day 1 MUST start at "${startCity}": Morning start/fuel-up, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
+       * Day 1 MUST start at "${startCity}": Morning departure on ${travelMode}, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
        ${outboundEndDay > 2 ? `* Days 2 to ${outboundEndDay - 1}: Sequential intermediate transit legs through real connecting cities, scenic high passes, and overnight stops (e.g., Udaipur -> Chandigarh -> Manali -> Jispa/Keylong).` : ''}
        * Day ${outboundEndDay}: Final high pass / highway approach, arrival in "${destName}", hotel check-in, rest/acclimatization, and relaxing local dinner.
 
@@ -241,20 +257,20 @@ ${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode}
 
      • INBOUND RETURN OVERLAND STAGES (Days ${returnStartDay} to ${totalDays}):
        * Days ${returnStartDay} to ${totalDays} MUST realistically cover the return overland journey back to "${startCity}" over sequential stages (either reverse route or alternate scenic circuit), concluding with safe arrival back in "${startCity}" on Day ${totalDays}!` : `   - OUTBOUND PHASE (Day 1):
-     • Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
-     • CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
-       - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
-         * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
-         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
-         * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
-         * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
-       - If direct flight or same-day transit exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
+     • Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}".
+     • If travelMode is Flight:
+       - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg), or no direct flight exists:
+         * Leg 1 (Flight): Fly from "${startCity}" airport to Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg).
+         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway to "${destName}".
+         * Leg 3 (Arrival & Stay): Reaching "${destName}", hotel check-in, and relaxing evening walk/dinner.
+       - If direct flight exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
+     • If travelMode is Road / Train: Depart "${startCity}" via ${travelMode}, scenic transit, arriving in "${destName}", hotel check-in, and evening exploration.
 
    - CORE DESTINATION IMMERSION (Days 2 to ${totalDays - 1}):
      • Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
 
    - INBOUND RETURN PHASE (Final Day / Day ${totalDays}):
-     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!`}
+     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return transit via ${travelMode}, and safe arrival back home in "${startCity}"!`}
 
 2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
 3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / intermediate route stops for overland travel days & return).
@@ -453,9 +469,22 @@ ${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode}
         })
       );
 
+      let calculatedDate = day.date || `Day ${dayNum}`;
+      if (params.startDate) {
+        try {
+          const d = new Date(params.startDate);
+          if (!isNaN(d.getTime())) {
+            d.setDate(d.getDate() + (dayNum - 1));
+            calculatedDate = d.toISOString().split('T')[0];
+          }
+        } catch {
+          calculatedDate = day.date || `Day ${dayNum}`;
+        }
+      }
+
       return {
         dayNumber: dayNum,
-        date: day.date || `Day ${dayNum}`,
+        date: calculatedDate,
         title: day.title || `Day ${dayNum} Exploration`,
         theme: day.theme || `${destName} Highlights & Exploration`,
         vibe: day.vibe || 'Scenic views, cultural landmarks and delicious local tastes',
