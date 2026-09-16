@@ -61,6 +61,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         return 'bg-rose-100 text-rose-900 border-rose-200';
       case 'Shopping':
         return 'bg-cyan-100 text-cyan-900 border-cyan-200';
+      case 'Transit':
+      case 'Logistics':
+        return 'bg-indigo-100 text-indigo-900 border-indigo-200';
       default:
         return 'bg-slate-100 text-slate-800 border-slate-200';
     }

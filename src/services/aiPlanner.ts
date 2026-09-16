@@ -203,9 +203,18 @@ Alcohol Preference: ${alcoholPref}.
 ${customNotesText ? `Special Notes: "${customNotesText}".` : ''}
 
 RULES:
-1. Each day MUST contain 3 to 4 sequential activities with realistic times (Morning, Lunch/Midday, Afternoon, Evening).
-2. Every place and eatery MUST be a real, verified place in "${destName}".
-3. Provide realistic estimated costs in INR for each activity.
+1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
+   - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
+   - OUTBOUND PHASE (Day 1 / Early Days):
+     • Day 1 MUST start at "${startCity}": Activity 1 should be departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start), followed by transit via ${travelMode} to "${destName}", hotel check-in / unpacking upon arrival in "${destName}", and a relaxed evening welcome stroll or local dinner in "${destName}".
+     • MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound transit (scenic rail/road route, sleeper/en-route meals), arriving in "${destName}" on Day 2.
+   - CORE DESTINATION IMMERSION (Middle Days):
+     • Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day.
+   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
+     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, heading to airport/station/highway, return transit journey via ${travelMode}, and safe arrival back home in "${startCity}"!
+2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential activities with realistic times (Morning, Lunch, Afternoon, Evening).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs in "${startCity}" for Day 1 departure & final day return).
+4. Provide realistic estimated costs in INR for each activity.
 
 Return ONLY a valid JSON object matching this schema:
 {

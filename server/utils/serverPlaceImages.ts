@@ -62,6 +62,14 @@ const SIGHTSEEING_CITY_IMAGES = [
   'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80'  // Classic travel exploration
 ];
 
+const TRANSIT_LOGISTICS_IMAGES = [
+  'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=800&q=80', // Airport departure flight
+  'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80', // Train journey
+  'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80', // Highway road trip
+  'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80', // Hotel arrival & check in
+  'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80'  // Stay arrival
+];
+
 function pickFromList(list: string[], seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -201,6 +209,26 @@ export function resolvePlaceImage(
     text.includes('dj')
   ) {
     return pickFromList(NIGHTLIFE_SOCIAL_IMAGES, seed);
+  }
+
+  // 9. Transit, Flights, Trains, Road Trips, Check-In, Departures
+  if (
+    category.toLowerCase().includes('transit') ||
+    category.toLowerCase().includes('logistics') ||
+    text.includes('airport') ||
+    text.includes('flight') ||
+    text.includes('train') ||
+    text.includes('railway') ||
+    text.includes('station') ||
+    text.includes('terminal') ||
+    text.includes('highway') ||
+    text.includes('drive') ||
+    text.includes('departure') ||
+    text.includes('arrival') ||
+    text.includes('check-in') ||
+    text.includes('boarding')
+  ) {
+    return pickFromList(TRANSIT_LOGISTICS_IMAGES, seed);
   }
 
   // Fallback to Sightseeing / City landmarks

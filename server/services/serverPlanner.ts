@@ -208,13 +208,22 @@ USER PREFERENCES TO STRICTLY ADHERE TO:
    ${customNotesText ? `• CRITICAL USER REQUEST: "${customNotesText}". MUST explicitly integrate this request into the relevant daily activities, dining options, or schedule notes!` : '• None specified.'}
 
 STRICT ACCURACY & TIMELINE RULES:
-1. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning exploration 09:00 AM - 11:30 AM, Lunch & local market 01:00 PM - 02:30 PM, Afternoon attraction/scenic spot 03:30 PM - 05:30 PM, Evening dining/sunset/night stroll 07:30 PM - 09:30 PM). NEVER generate only 1 or 2 activities for any day.
-2. ZERO HALLUCINATIONS: Every single activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place strictly located in and around "${destName}".
-3. NEVER mix up destinations: Do NOT include places from other states or other districts (e.g., if destination is Ooty, all stops MUST be real Ooty spots like Doddabetta Peak, Ooty Botanical Gardens, Ooty Lake, Pykara Lake/Falls, Nilgiri Mountain Railway, Rose Garden, Tea Museum, etc. Do NOT include Wayanad, Goa, or Manali places).
-4. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates in "${destName}".
-5. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries, regional cuisine, and authentic experiences specific to "${destName}" aligned with the ${params.budgetTier} budget tier.
-6. REALISTIC COSTS: Every activity cost in INR must be realistic for real people (e.g., local street food ₹100-₹300, entry tickets ₹50-₹500, fine dining ₹1,500-₹3,500).
-7. TRANSIT LOGISTICS: Calculate realistic distance and transit options from "${startCity}" to "${destName}".`;
+1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
+   - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
+   - OUTBOUND PHASE (Day 1 / Early Days):
+     • Day 1 MUST start at "${startCity}": Activity 1 should be departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start), followed by transit via ${travelMode} to "${destName}", hotel check-in / unpacking upon arrival in "${destName}", and a relaxed evening welcome stroll or local dinner in "${destName}".
+     • MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Car/Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound journey, scenic rail/road route, sleeper/en-route food stops, arriving and checking in to "${destName}" on Day 2.
+   - CORE DESTINATION IMMERSION (Middle Days):
+     • Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
+   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
+     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, heading to airport/station/highway, return transit journey via ${travelMode}, and safe arrival back home in "${startCity}"!
+2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs in "${startCity}" for Day 1 departure & final day return).
+4. NEVER mix up destinations: Do NOT include unrelated tourist destinations.
+5. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates.
+6. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries and regional cuisine aligned with the ${params.budgetTier} budget tier.
+7. REALISTIC COSTS: Every activity cost in INR must be realistic for real travelers.
+8. TRANSIT LOGISTICS: Calculate realistic distance and transit options from "${startCity}" to "${destName}".`;
 
   const schema = {
     type: 'OBJECT',
