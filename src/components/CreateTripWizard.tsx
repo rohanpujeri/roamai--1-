@@ -550,7 +550,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         travellersCount,
         travelMode,
         companionType,
-        distanceKm: currentRouteDetails.distanceKm
+        distanceKm: currentRouteDetails.distanceKm,
+        startDate
       };
 
       // 1. Instantly set benchmark budget so UI responds with 0ms lag
@@ -586,6 +587,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       travelMode,
       companionType,
       currentRouteDetails.distanceKm,
+      startDate,
       budgetTier
     ]
   );
@@ -610,7 +612,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       travellersCount,
       travelMode,
       companionType,
-      distanceKm: currentRouteDetails.distanceKm
+      distanceKm: currentRouteDetails.distanceKm,
+      startDate
     });
     setAiBudgetResult(instantBudget);
 
@@ -627,7 +630,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     travellersCount,
     travelMode,
     companionType,
-    currentRouteDetails.distanceKm
+    currentRouteDetails.distanceKm,
+    startDate
   ]);
 
   // Browser Geolocation & Network Location Detector with Multi-Tier Fallback
@@ -1633,6 +1637,24 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       <span>{isFetchingAiBudget ? 'Calibrating...' : 'Re-estimate with AI'}</span>
                     </button>
                   </div>
+
+                  {/* Date-Based Urgency / Seasonality Banner */}
+                  {aiBudgetResult?.urgencyNote && (
+                    <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                      aiBudgetResult.urgencyNote.includes('⚡')
+                        ? 'bg-amber-950/40 border-amber-800/60 text-amber-200'
+                        : aiBudgetResult.urgencyNote.includes('🏷️')
+                        ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span>{aiBudgetResult.urgencyNote}</span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 font-medium shrink-0">
+                        {startDate ? `Departs: ${startDate}` : ''}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Budget Tier Selection (Budget, Moderate, Premium, Luxury) */}
                   <div>

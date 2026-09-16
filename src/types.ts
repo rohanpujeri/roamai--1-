@@ -354,6 +354,8 @@ export interface RealTripBudgetResult {
   moneySavingTip: string;
   crowdsourcedSampleCount: number;
   peakSeasonNote: string;
+  urgencyNote?: string;
+  startDate?: string;
   aiConfidence: string;
   isAiGenerated: boolean;
 }
