@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { TravelMode } from '../../src/types';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay } from '../utils/routeEstimator';
 
 export interface TravelModeViability {
   mode: TravelMode;
@@ -67,6 +68,12 @@ export function getGenericDynamicIntelligence(
   startCity: string = 'Origin City',
   travelMode?: TravelMode
 ): DestinationTravelIntelligence {
+  const dist = estimateRouteDistanceKm(startCity, destination);
+  const bikeOneWay = calculateTransitDaysOneWay(dist, 'Bike / Motorcycle');
+  const carOneWay = calculateTransitDaysOneWay(dist, 'Car / Road Trip');
+  const trainOneWay = calculateTransitDaysOneWay(dist, 'Train');
+  const busOneWay = calculateTransitDaysOneWay(dist, 'Bus');
+
   const modes: TravelModeViability[] = [
     {
       mode: 'Flight',
@@ -90,7 +97,7 @@ export function getGenericDynamicIntelligence(
       label: 'Train / Railway',
       icon: '🚆',
       isRecommended: false,
-      durationEstimate: 'Rail transit',
+      durationEstimate: trainOneWay > 1 ? `${trainOneWay} days rail journey (~${dist} km)` : 'Overnight/Day rail transit',
       estimatedCostRange: 'Train ticket',
       suitabilityScore: 85,
       pros: 'Comfortable, scenic rail journey.',
@@ -98,16 +105,16 @@ export function getGenericDynamicIntelligence(
       hasSwitchOrTransfer: false,
       desc: `Train route from ${startCity} to ${destination} or nearest railhead`,
       tag: 'Rail Route',
-      transitHoursOneWay: 10,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.min(48, Math.round(dist / 60)),
+      transitDaysRoundTrip: trainOneWay * 2,
+      minRequiredDaysForMode: trainOneWay * 2
     },
     {
       mode: 'Car / Road Trip',
       label: 'Car / Road Trip',
       icon: '🚗',
       isRecommended: false,
-      durationEstimate: 'Highway drive',
+      durationEstimate: carOneWay > 1 ? `${carOneWay} days road journey (~${dist} km)` : `${Math.round(dist / 65)}h highway drive`,
       estimatedCostRange: 'Fuel & tolls',
       suitabilityScore: 80,
       pros: 'Total flexibility and freedom to stop along the way.',
@@ -115,16 +122,33 @@ export function getGenericDynamicIntelligence(
       hasSwitchOrTransfer: false,
       desc: `Overland highway drive from ${startCity} to ${destination}`,
       tag: 'Road Highway',
-      transitHoursOneWay: 8,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.round(dist / 65),
+      transitDaysRoundTrip: carOneWay * 2,
+      minRequiredDaysForMode: carOneWay * 2
+    },
+    {
+      mode: 'Bike / Motorcycle',
+      label: 'Bike / Motorcycle',
+      icon: '🏍️',
+      isRecommended: false,
+      durationEstimate: bikeOneWay > 1 ? `${bikeOneWay} days touring ride (~${dist} km)` : `${Math.round(dist / 50)}h ride`,
+      estimatedCostRange: 'Fuel & gear',
+      suitabilityScore: 78,
+      pros: 'Pure touring adrenaline, scenic highway and pass experience.',
+      cons: 'Riding stamina and mountain terrain fatigue.',
+      hasSwitchOrTransfer: false,
+      desc: `Touring motorcycle ride from ${startCity} to ${destination}`,
+      tag: 'Motorcycle Tour',
+      transitHoursOneWay: Math.round(dist / 50),
+      transitDaysRoundTrip: bikeOneWay * 2,
+      minRequiredDaysForMode: bikeOneWay * 2
     },
     {
       mode: 'Bus',
       label: 'Bus / Coach',
       icon: '🚌',
       isRecommended: false,
-      durationEstimate: 'Intercity bus',
+      durationEstimate: busOneWay > 1 ? `${busOneWay} days intercity bus` : 'Intercity bus / sleeper',
       estimatedCostRange: 'Bus fare',
       suitabilityScore: 75,
       pros: 'Budget-friendly overnight or daytime transit.',
@@ -132,17 +156,22 @@ export function getGenericDynamicIntelligence(
       hasSwitchOrTransfer: false,
       desc: `Intercity bus or sleeper coach from ${startCity} to ${destination}`,
       tag: 'Bus Transit',
-      transitHoursOneWay: 11,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.round(dist / 45),
+      transitDaysRoundTrip: busOneWay * 2,
+      minRequiredDaysForMode: busOneWay * 2
     }
   ];
+
+  const primaryTransit = travelMode === 'Bike / Motorcycle' ? bikeOneWay * 2 :
+                         travelMode === 'Car / Road Trip' ? carOneWay * 2 :
+                         travelMode === 'Train' ? trainOneWay * 2 :
+                         travelMode === 'Bus' ? busOneWay * 2 : 2;
 
   return {
     destination,
     startCity,
-    distanceKm: 800,
-    minimumRequiredDays: 2,
+    distanceKm: dist,
+    minimumRequiredDays: primaryTransit,
     idealDays: 5,
     durationReason: `Route logistics from ${startCity} to ${destination}.`,
     travelTransitReason: `Roundtrip travel transit accounts for approximately 2 days.`,
@@ -203,15 +232,15 @@ CRITICAL REQUIREMENT:
 The minimum days ('minimumRequiredDays' and 'minRequiredDaysForMode' for each mode) MUST BE EQUAL TO THE EXACT NUMBER OF DAYS REQUIRED TO GO AND COME BACK TO THE PLACE based on that mode of travel:
 1. Exact Roundtrip Travel Formula:
    minimumRequiredDays = (Exact calendar days needed to travel from "${startCity}" to "${destination}") + (Exact calendar days needed to travel back from "${destination}" to "${startCity}").
-2. Rules based on realistic transit time and distance:
-   - Short-haul (< 4-5 hours one-way transit, e.g. short drive < 250 km or short flight): If same-day return is realistic, 1 day; otherwise 2 days (1 day to go + 1 day to return).
-   - Medium-haul (6 to 18 hours one-way transit, e.g. 300 - 1000 km road drive, overnight train, sleeper bus, or flight with airport transfers): EXACTLY 2 DAYS (1 full day to go + 1 full day to return).
-   - Long-haul / multi-day transit (1000 - 2000 km road drive, or 24-36h train journey): EXACTLY 4 DAYS (2 days driving/transit to go + 2 days driving/transit to return).
-   - Extreme long-haul (> 2000 km road trip, or multi-layover cross-continent travel): EXACTLY 4 to 6 DAYS.
+2. Rules based on realistic transit speed and distance:
+   - Flight: 1 calendar day to go + 1 calendar day to return = 2 days minimum roundtrip travel.
+   - Train (~1,100 km per 24h): Distance <= 900 km: 1 day each way (2 days roundtrip); 901-1800 km: 2 days each way (4 days roundtrip); > 1800 km: 3 days each way (6 days roundtrip).
+   - Car / Road Trip (~700 km/day): Distance <= 650 km: 1 day each way (2 days roundtrip); 651-1300 km: 2 days each way (4 days roundtrip); 1301-2000 km: 3 days each way (6 days roundtrip); > 2000 km: 4 to 5 days each way (8 to 10 days roundtrip).
+   - Bike / Motorcycle (~500 km/day, ~200 km/day in mountains): Distance <= 500 km: 1 day each way (2 days roundtrip); 501-1000 km: 2 days each way (4 days roundtrip); 1001-1500 km: 3 days each way (6 days roundtrip); 1501-2100 km: 4 days each way (8 days roundtrip); 2101-2700 km: 5 days each way (10 days roundtrip); > 2700 km (e.g. Bangalore to Ladakh ~3,100 km): 5 to 6 days each way (10 to 12 days roundtrip).
 3. For EVERY possible mode in 'modesBreakdown', calculate:
-   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '12h Train', '14h Drive')
-   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days)
-   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode (e.g. 2 for 1 day go + 1 day return).
+   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '3 days Rail', '5 days Motorcycle Ride (~3,100 km)')
+   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days for Flight, 10-12 days for Bangalore->Ladakh Bike)
+   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode.
 
 Provide the output in strictly valid JSON matching this schema:
 {

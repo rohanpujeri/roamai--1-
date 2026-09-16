@@ -435,6 +435,167 @@ RULES:
   return [];
 }
 
+// server/utils/routeEstimator.ts
+var KNOWN_CITY_COORDINATES = {
+  // Indian Metros & Tier 1
+  "bangalore": { lat: 12.9716, lng: 77.5946 },
+  "bengaluru": { lat: 12.9716, lng: 77.5946 },
+  "delhi": { lat: 28.6139, lng: 77.209 },
+  "new delhi": { lat: 28.6139, lng: 77.209 },
+  "mumbai": { lat: 19.076, lng: 72.8777 },
+  "chennai": { lat: 13.0827, lng: 80.2707 },
+  "kolkata": { lat: 22.5726, lng: 88.3639 },
+  "hyderabad": { lat: 17.385, lng: 78.4867 },
+  "pune": { lat: 18.5204, lng: 73.8567 },
+  "ahmedabad": { lat: 23.0225, lng: 72.5714 },
+  "jaipur": { lat: 26.9124, lng: 75.7873 },
+  "chandigarh": { lat: 30.7333, lng: 76.7794 },
+  "lucknow": { lat: 26.8467, lng: 80.9462 },
+  "kochi": { lat: 9.9312, lng: 76.2673 },
+  "cochin": { lat: 9.9312, lng: 76.2673 },
+  "trivandrum": { lat: 8.5241, lng: 76.9366 },
+  "thiruvananthapuram": { lat: 8.5241, lng: 76.9366 },
+  "goa": { lat: 15.2993, lng: 74.124 },
+  "panaji": { lat: 15.4909, lng: 73.8278 },
+  // Mountain & Himalayan Destinations
+  "ladakh": { lat: 34.1526, lng: 77.5771 },
+  "leh": { lat: 34.1526, lng: 77.5771 },
+  "leh ladakh": { lat: 34.1526, lng: 77.5771 },
+  "kargil": { lat: 34.5539, lng: 76.1349 },
+  "srinagar": { lat: 34.0837, lng: 74.7973 },
+  "jammu": { lat: 32.7266, lng: 74.857 },
+  "manali": { lat: 32.2432, lng: 77.1892 },
+  "shimla": { lat: 31.1048, lng: 77.1734 },
+  "dharamshala": { lat: 32.219, lng: 76.3234 },
+  "mcleodganj": { lat: 32.2426, lng: 76.3213 },
+  "spiti": { lat: 32.2461, lng: 78.0349 },
+  "kaza": { lat: 32.2276, lng: 78.0526 },
+  "rishikesh": { lat: 30.0869, lng: 78.2676 },
+  "haridwar": { lat: 29.9457, lng: 78.1642 },
+  "dehradun": { lat: 30.3165, lng: 78.0322 },
+  "mussoorie": { lat: 30.4598, lng: 78.0644 },
+  "nainital": { lat: 29.3919, lng: 79.4542 },
+  // South Indian Destinations
+  "ooty": { lat: 11.4102, lng: 76.695 },
+  "munnar": { lat: 10.0889, lng: 77.0595 },
+  "coorg": { lat: 12.3375, lng: 75.8069 },
+  "madikeri": { lat: 12.4244, lng: 75.7382 },
+  "mysore": { lat: 12.2958, lng: 76.6394 },
+  "mysuru": { lat: 12.2958, lng: 76.6394 },
+  "wayanad": { lat: 11.6854, lng: 76.132 },
+  "kodaikanal": { lat: 10.2381, lng: 77.4892 },
+  "coimbatore": { lat: 11.0168, lng: 76.9558 },
+  "pondicherry": { lat: 11.9416, lng: 79.8083 },
+  "puducherry": { lat: 11.9416, lng: 79.8083 },
+  "hampi": { lat: 15.335, lng: 76.46 },
+  "gokarna": { lat: 14.5479, lng: 74.3188 },
+  // East & North East
+  "guwahati": { lat: 26.1445, lng: 91.7362 },
+  "shillong": { lat: 25.5788, lng: 91.8933 },
+  "darjeeling": { lat: 27.041, lng: 88.2663 },
+  "gangtok": { lat: 27.3389, lng: 88.6065 },
+  // West & Central
+  "udaipur": { lat: 24.5854, lng: 73.7125 },
+  "jodhpur": { lat: 26.2389, lng: 73.0243 },
+  "jaisalmer": { lat: 26.9157, lng: 70.9083 },
+  "varanasi": { lat: 25.3176, lng: 82.9739 },
+  "agra": { lat: 27.1767, lng: 78.0081 },
+  // International
+  "dubai": { lat: 25.2048, lng: 55.2708 },
+  "singapore": { lat: 1.3521, lng: 103.8198 },
+  "bangkok": { lat: 13.7563, lng: 100.5018 },
+  "bali": { lat: -8.4095, lng: 115.1889 },
+  "paris": { lat: 48.8566, lng: 2.3522 },
+  "london": { lat: 51.5074, lng: -0.1278 },
+  "tokyo": { lat: 35.6762, lng: 139.6503 },
+  "kathmandu": { lat: 27.7172, lng: 85.324 }
+};
+function findCoordsByName(name) {
+  if (!name) return null;
+  const clean = name.toLowerCase().trim();
+  for (const [key, coords] of Object.entries(KNOWN_CITY_COORDINATES)) {
+    if (clean === key || clean.includes(key) || key.includes(clean)) {
+      return coords;
+    }
+  }
+  return null;
+}
+function calculateHaversineKm(c1, c2) {
+  const R = 6371;
+  const dLat = (c2.lat - c1.lat) * Math.PI / 180;
+  const dLng = (c2.lng - c1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+function estimateRouteDistanceKm(startCity, destName, startCoords, destCoords) {
+  const c1 = startCoords || findCoordsByName(startCity);
+  const c2 = destCoords || findCoordsByName(destName);
+  if (c1 && c2) {
+    const directKm = calculateHaversineKm(c1, c2);
+    return Math.max(50, Math.round(directKm * 1.3));
+  }
+  const isFar = destName.toLowerCase().includes("ladakh") || destName.toLowerCase().includes("leh") || destName.toLowerCase().includes("kashmir");
+  return isFar ? 2800 : 650;
+}
+function calculateTransitDaysOneWay(distanceKm, mode) {
+  switch (mode) {
+    case "Flight":
+      return 1;
+    case "Bike / Motorcycle":
+      if (distanceKm <= 500) return 1;
+      if (distanceKm <= 1e3) return 2;
+      if (distanceKm <= 1500) return 3;
+      if (distanceKm <= 2100) return 4;
+      if (distanceKm <= 2700) return 5;
+      return Math.min(6, Math.ceil(distanceKm / 520));
+    // e.g. Bangalore to Ladakh (3,100 km) = 5 to 6 days
+    case "Car / Road Trip":
+    case "Self-Drive Rental":
+      if (distanceKm <= 650) return 1;
+      if (distanceKm <= 1300) return 2;
+      if (distanceKm <= 2e3) return 3;
+      if (distanceKm <= 2800) return 4;
+      return Math.min(5, Math.ceil(distanceKm / 700));
+    case "Train":
+      if (distanceKm <= 900) return 1;
+      if (distanceKm <= 1800) return 2;
+      return Math.min(4, Math.ceil(distanceKm / 1e3));
+    case "Bus":
+      if (distanceKm <= 550) return 1;
+      if (distanceKm <= 1100) return 2;
+      return Math.min(4, Math.ceil(distanceKm / 500));
+    default:
+      return 1;
+  }
+}
+function allocateTripDays(totalDurationDays, transitDaysOneWay) {
+  if (transitDaysOneWay <= 1) {
+    const returnDays2 = 1;
+    const outboundDays2 = 1;
+    const coreDestDays2 = Math.max(1, totalDurationDays - (outboundDays2 + returnDays2));
+    return {
+      outboundDays: outboundDays2,
+      coreDestDays: coreDestDays2,
+      returnDays: returnDays2,
+      isOverlandMultiDay: false
+    };
+  }
+  let outboundDays = transitDaysOneWay;
+  let returnDays = transitDaysOneWay;
+  if (outboundDays + returnDays >= totalDurationDays) {
+    outboundDays = Math.max(1, Math.floor((totalDurationDays - 1) / 2));
+    returnDays = Math.max(1, Math.floor((totalDurationDays - 1) / 2));
+  }
+  const coreDestDays = Math.max(1, totalDurationDays - (outboundDays + returnDays));
+  return {
+    outboundDays,
+    coreDestDays,
+    returnDays,
+    isOverlandMultiDay: true
+  };
+}
+
 // server/services/serverPlanner.ts
 var ADAPT_OPTIONS = [
   {
@@ -531,6 +692,20 @@ async function generateTripFromInputs(params) {
   const foodPref = params.preferences.food || "No preference";
   const alcoholPref = params.preferences.alcohol || "No";
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
+  const estDistanceKm = estimateRouteDistanceKm(
+    startCity,
+    destName,
+    null,
+    destLat && destLng ? { lat: destLat, lng: destLng } : null
+  );
+  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, travelMode);
+  const allocation = allocateTripDays(params.durationDays, transitDaysOneWay);
+  const isMultiDayTransit = allocation.isOverlandMultiDay;
+  const outboundEndDay = allocation.outboundDays;
+  const destStartDay = outboundEndDay + 1;
+  const destEndDay = outboundEndDay + allocation.coreDestDays;
+  const returnStartDay = destEndDay + 1;
+  const totalDays = params.durationDays;
   const prompt = `You are a world-class AI travel planner and local expert.
 Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
 Destination: "${destName}" (${destAddress}).
@@ -538,6 +713,8 @@ ${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
+Estimated Route Distance: ~${estDistanceKm} km.
+One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
 Budget Level: ${params.budgetTier} (~\u20B9${params.targetBudget?.toLocaleString() || "30,000"} total for ${params.travellersCount} people over ${params.durationDays} days).
 
 USER PREFERENCES TO STRICTLY ADHERE TO:
@@ -571,21 +748,36 @@ USER PREFERENCES TO STRICTLY ADHERE TO:
 STRICT ACCURACY & TIMELINE RULES:
 1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
-   - OUTBOUND PHASE (Day 1 / Early Days):
-     \u2022 Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
+
+${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode} over ~${estDistanceKm} km):
+     \u2022 OUTBOUND OVERLAND STAGES (Days 1 to ${outboundEndDay}):
+       * Since travelling ~${estDistanceKm} km via ${travelMode} takes ${transitDaysOneWay} days one-way, Days 1 through ${outboundEndDay} MUST realistically cover the sequential outbound overland stages.
+       * Day 1 MUST start at "${startCity}": Morning start/fuel-up, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
+       ${outboundEndDay > 2 ? `* Days 2 to ${outboundEndDay - 1}: Sequential intermediate transit legs through real connecting cities, scenic high passes, and overnight stops (e.g., Udaipur -> Chandigarh -> Manali -> Jispa/Keylong).` : ""}
+       * Day ${outboundEndDay}: Final high pass / highway approach, arrival in "${destName}", hotel check-in, rest/acclimatization, and relaxing local dinner.
+
+     \u2022 CORE DESTINATION IMMERSION (Days ${destStartDay} to ${destEndDay}):
+       * Dedicated full days exploring "${destName}"'s iconic landmarks, viewpoints, culture, monasteries/nature, and cuisine with 3 to 4 sequential activities per day.
+
+     \u2022 INBOUND RETURN OVERLAND STAGES (Days ${returnStartDay} to ${totalDays}):
+       * Days ${returnStartDay} to ${totalDays} MUST realistically cover the return overland journey back to "${startCity}" over sequential stages (either reverse route or alternate scenic circuit), concluding with safe arrival back in "${startCity}" on Day ${totalDays}!` : `   - OUTBOUND PHASE (Day 1):
+     \u2022 Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
      \u2022 CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
        - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
          * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
          * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
          * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
          * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
-     \u2022 MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Car/Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound journey, scenic rail/road route, sleeper/en-route food stops, arriving and checking in to "${destName}" on Day 2.
-   - CORE DESTINATION IMMERSION (Middle Days):
+       - If direct flight or same-day transit exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
+
+   - CORE DESTINATION IMMERSION (Days 2 to ${totalDays - 1}):
      \u2022 Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
-   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
-     \u2022 The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!
+
+   - INBOUND RETURN PHASE (Final Day / Day ${totalDays}):
+     \u2022 The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!`}
+
 2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
-3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / nearest airport transfer for Day 1 departure & final day return).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / intermediate route stops for overland travel days & return).
 4. NEVER mix up destinations: Do NOT include unrelated tourist destinations.
 5. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates.
 6. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries and regional cuisine aligned with the ${params.budgetTier} budget tier.
@@ -1783,6 +1975,11 @@ function parseJsonSafely4(text) {
   }
 }
 function getGenericDynamicIntelligence(destination, startCity = "Origin City", travelMode) {
+  const dist = estimateRouteDistanceKm(startCity, destination);
+  const bikeOneWay = calculateTransitDaysOneWay(dist, "Bike / Motorcycle");
+  const carOneWay = calculateTransitDaysOneWay(dist, "Car / Road Trip");
+  const trainOneWay = calculateTransitDaysOneWay(dist, "Train");
+  const busOneWay = calculateTransitDaysOneWay(dist, "Bus");
   const modes = [
     {
       mode: "Flight",
@@ -1806,7 +2003,7 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       label: "Train / Railway",
       icon: "\u{1F686}",
       isRecommended: false,
-      durationEstimate: "Rail transit",
+      durationEstimate: trainOneWay > 1 ? `${trainOneWay} days rail journey (~${dist} km)` : "Overnight/Day rail transit",
       estimatedCostRange: "Train ticket",
       suitabilityScore: 85,
       pros: "Comfortable, scenic rail journey.",
@@ -1814,16 +2011,16 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Train route from ${startCity} to ${destination} or nearest railhead`,
       tag: "Rail Route",
-      transitHoursOneWay: 10,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.min(48, Math.round(dist / 60)),
+      transitDaysRoundTrip: trainOneWay * 2,
+      minRequiredDaysForMode: trainOneWay * 2
     },
     {
       mode: "Car / Road Trip",
       label: "Car / Road Trip",
       icon: "\u{1F697}",
       isRecommended: false,
-      durationEstimate: "Highway drive",
+      durationEstimate: carOneWay > 1 ? `${carOneWay} days road journey (~${dist} km)` : `${Math.round(dist / 65)}h highway drive`,
       estimatedCostRange: "Fuel & tolls",
       suitabilityScore: 80,
       pros: "Total flexibility and freedom to stop along the way.",
@@ -1831,16 +2028,33 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Overland highway drive from ${startCity} to ${destination}`,
       tag: "Road Highway",
-      transitHoursOneWay: 8,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.round(dist / 65),
+      transitDaysRoundTrip: carOneWay * 2,
+      minRequiredDaysForMode: carOneWay * 2
+    },
+    {
+      mode: "Bike / Motorcycle",
+      label: "Bike / Motorcycle",
+      icon: "\u{1F3CD}\uFE0F",
+      isRecommended: false,
+      durationEstimate: bikeOneWay > 1 ? `${bikeOneWay} days touring ride (~${dist} km)` : `${Math.round(dist / 50)}h ride`,
+      estimatedCostRange: "Fuel & gear",
+      suitabilityScore: 78,
+      pros: "Pure touring adrenaline, scenic highway and pass experience.",
+      cons: "Riding stamina and mountain terrain fatigue.",
+      hasSwitchOrTransfer: false,
+      desc: `Touring motorcycle ride from ${startCity} to ${destination}`,
+      tag: "Motorcycle Tour",
+      transitHoursOneWay: Math.round(dist / 50),
+      transitDaysRoundTrip: bikeOneWay * 2,
+      minRequiredDaysForMode: bikeOneWay * 2
     },
     {
       mode: "Bus",
       label: "Bus / Coach",
       icon: "\u{1F68C}",
       isRecommended: false,
-      durationEstimate: "Intercity bus",
+      durationEstimate: busOneWay > 1 ? `${busOneWay} days intercity bus` : "Intercity bus / sleeper",
       estimatedCostRange: "Bus fare",
       suitabilityScore: 75,
       pros: "Budget-friendly overnight or daytime transit.",
@@ -1848,16 +2062,17 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Intercity bus or sleeper coach from ${startCity} to ${destination}`,
       tag: "Bus Transit",
-      transitHoursOneWay: 11,
-      transitDaysRoundTrip: 2,
-      minRequiredDaysForMode: 2
+      transitHoursOneWay: Math.round(dist / 45),
+      transitDaysRoundTrip: busOneWay * 2,
+      minRequiredDaysForMode: busOneWay * 2
     }
   ];
+  const primaryTransit = travelMode === "Bike / Motorcycle" ? bikeOneWay * 2 : travelMode === "Car / Road Trip" ? carOneWay * 2 : travelMode === "Train" ? trainOneWay * 2 : travelMode === "Bus" ? busOneWay * 2 : 2;
   return {
     destination,
     startCity,
-    distanceKm: 800,
-    minimumRequiredDays: 2,
+    distanceKm: dist,
+    minimumRequiredDays: primaryTransit,
     idealDays: 5,
     durationReason: `Route logistics from ${startCity} to ${destination}.`,
     travelTransitReason: `Roundtrip travel transit accounts for approximately 2 days.`,
@@ -1906,15 +2121,15 @@ CRITICAL REQUIREMENT:
 The minimum days ('minimumRequiredDays' and 'minRequiredDaysForMode' for each mode) MUST BE EQUAL TO THE EXACT NUMBER OF DAYS REQUIRED TO GO AND COME BACK TO THE PLACE based on that mode of travel:
 1. Exact Roundtrip Travel Formula:
    minimumRequiredDays = (Exact calendar days needed to travel from "${startCity}" to "${destination}") + (Exact calendar days needed to travel back from "${destination}" to "${startCity}").
-2. Rules based on realistic transit time and distance:
-   - Short-haul (< 4-5 hours one-way transit, e.g. short drive < 250 km or short flight): If same-day return is realistic, 1 day; otherwise 2 days (1 day to go + 1 day to return).
-   - Medium-haul (6 to 18 hours one-way transit, e.g. 300 - 1000 km road drive, overnight train, sleeper bus, or flight with airport transfers): EXACTLY 2 DAYS (1 full day to go + 1 full day to return).
-   - Long-haul / multi-day transit (1000 - 2000 km road drive, or 24-36h train journey): EXACTLY 4 DAYS (2 days driving/transit to go + 2 days driving/transit to return).
-   - Extreme long-haul (> 2000 km road trip, or multi-layover cross-continent travel): EXACTLY 4 to 6 DAYS.
+2. Rules based on realistic transit speed and distance:
+   - Flight: 1 calendar day to go + 1 calendar day to return = 2 days minimum roundtrip travel.
+   - Train (~1,100 km per 24h): Distance <= 900 km: 1 day each way (2 days roundtrip); 901-1800 km: 2 days each way (4 days roundtrip); > 1800 km: 3 days each way (6 days roundtrip).
+   - Car / Road Trip (~700 km/day): Distance <= 650 km: 1 day each way (2 days roundtrip); 651-1300 km: 2 days each way (4 days roundtrip); 1301-2000 km: 3 days each way (6 days roundtrip); > 2000 km: 4 to 5 days each way (8 to 10 days roundtrip).
+   - Bike / Motorcycle (~500 km/day, ~200 km/day in mountains): Distance <= 500 km: 1 day each way (2 days roundtrip); 501-1000 km: 2 days each way (4 days roundtrip); 1001-1500 km: 3 days each way (6 days roundtrip); 1501-2100 km: 4 days each way (8 days roundtrip); 2101-2700 km: 5 days each way (10 days roundtrip); > 2700 km (e.g. Bangalore to Ladakh ~3,100 km): 5 to 6 days each way (10 to 12 days roundtrip).
 3. For EVERY possible mode in 'modesBreakdown', calculate:
-   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '12h Train', '14h Drive')
-   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days)
-   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode (e.g. 2 for 1 day go + 1 day return).
+   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '3 days Rail', '5 days Motorcycle Ride (~3,100 km)')
+   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days for Flight, 10-12 days for Bangalore->Ladakh Bike)
+   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode.
 
 Provide the output in strictly valid JSON matching this schema:
 {

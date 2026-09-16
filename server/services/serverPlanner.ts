@@ -4,6 +4,7 @@ import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 import { fetchAiHotelSuggestions } from './serverHotelAdvisor';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -170,6 +171,21 @@ export async function generateTripFromInputs(params: {
   const alcoholPref = params.preferences.alcohol || 'No';
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : '';
 
+  const estDistanceKm = estimateRouteDistanceKm(
+    startCity,
+    destName,
+    null,
+    destLat && destLng ? { lat: destLat, lng: destLng } : null
+  );
+  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, travelMode);
+  const allocation = allocateTripDays(params.durationDays, transitDaysOneWay);
+  const isMultiDayTransit = allocation.isOverlandMultiDay;
+  const outboundEndDay = allocation.outboundDays;
+  const destStartDay = outboundEndDay + 1;
+  const destEndDay = outboundEndDay + allocation.coreDestDays;
+  const returnStartDay = destEndDay + 1;
+  const totalDays = params.durationDays;
+
   const prompt = `You are a world-class AI travel planner and local expert.
 Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
 Destination: "${destName}" (${destAddress}).
@@ -177,6 +193,8 @@ ${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
+Estimated Route Distance: ~${estDistanceKm} km.
+One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
 Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
 
 USER PREFERENCES TO STRICTLY ADHERE TO:
@@ -210,21 +228,36 @@ USER PREFERENCES TO STRICTLY ADHERE TO:
 STRICT ACCURACY & TIMELINE RULES:
 1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
-   - OUTBOUND PHASE (Day 1 / Early Days):
-     • Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
+
+${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode} over ~${estDistanceKm} km):
+     • OUTBOUND OVERLAND STAGES (Days 1 to ${outboundEndDay}):
+       * Since travelling ~${estDistanceKm} km via ${travelMode} takes ${transitDaysOneWay} days one-way, Days 1 through ${outboundEndDay} MUST realistically cover the sequential outbound overland stages.
+       * Day 1 MUST start at "${startCity}": Morning start/fuel-up, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
+       ${outboundEndDay > 2 ? `* Days 2 to ${outboundEndDay - 1}: Sequential intermediate transit legs through real connecting cities, scenic high passes, and overnight stops (e.g., Udaipur -> Chandigarh -> Manali -> Jispa/Keylong).` : ''}
+       * Day ${outboundEndDay}: Final high pass / highway approach, arrival in "${destName}", hotel check-in, rest/acclimatization, and relaxing local dinner.
+
+     • CORE DESTINATION IMMERSION (Days ${destStartDay} to ${destEndDay}):
+       * Dedicated full days exploring "${destName}"'s iconic landmarks, viewpoints, culture, monasteries/nature, and cuisine with 3 to 4 sequential activities per day.
+
+     • INBOUND RETURN OVERLAND STAGES (Days ${returnStartDay} to ${totalDays}):
+       * Days ${returnStartDay} to ${totalDays} MUST realistically cover the return overland journey back to "${startCity}" over sequential stages (either reverse route or alternate scenic circuit), concluding with safe arrival back in "${startCity}" on Day ${totalDays}!` : `   - OUTBOUND PHASE (Day 1):
+     • Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
      • CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
        - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
          * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
          * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
          * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
          * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
-     • MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Car/Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound journey, scenic rail/road route, sleeper/en-route food stops, arriving and checking in to "${destName}" on Day 2.
-   - CORE DESTINATION IMMERSION (Middle Days):
+       - If direct flight or same-day transit exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
+
+   - CORE DESTINATION IMMERSION (Days 2 to ${totalDays - 1}):
      • Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
-   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
-     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!
+
+   - INBOUND RETURN PHASE (Final Day / Day ${totalDays}):
+     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!`}
+
 2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
-3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / nearest airport transfer for Day 1 departure & final day return).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / intermediate route stops for overland travel days & return).
 4. NEVER mix up destinations: Do NOT include unrelated tourist destinations.
 5. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates.
 6. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries and regional cuisine aligned with the ${params.budgetTier} budget tier.
