@@ -10,6 +10,7 @@ export interface HotelRecommendationParams {
   companionType?: TravelCompanion;
   travelStyles?: string[];
   travelMode?: TravelMode;
+  targetDayNumber?: number;
   daysInfo?: {
     dayNumber: number;
     theme: string;
@@ -18,6 +19,35 @@ export interface HotelRecommendationParams {
     lastActivityLocation?: string;
     lastActivityCategory?: string;
   }[];
+}
+
+export function extractNightStopCity(location?: string, fallbackDest?: string): string {
+  if (!location || !location.trim()) return fallbackDest || '';
+  let clean = location.trim();
+  
+  // Strip highway suffixes like "Highway Stop", "Expressway Stretch", "Highway Exit", "Highway Corridor"
+  clean = clean
+    .replace(/\s+Highway\s+(Stop|Corridor|Stretch|Exit|Hub|Rest Area|Entry)/gi, '')
+    .replace(/\s+Expressway\s+(Stretch|Corridor|Exit|Entry)/gi, '')
+    .replace(/\s+Expressway/gi, '')
+    .replace(/\s+Exit/gi, '')
+    .trim();
+
+  // If comma separated, check if first part is a highway (e.g., "NH-44, Anantapur")
+  if (clean.includes(',')) {
+    const parts = clean.split(',').map(p => p.trim()).filter(Boolean);
+    if (/^NH-?\d+/i.test(parts[0]) && parts[1]) {
+      return parts[1];
+    }
+    return clean;
+  }
+  
+  // If clean is just a highway name like "NH-44", fall back to destination
+  if (/^NH-?\d+$/i.test(clean)) {
+    return fallbackDest || clean;
+  }
+
+  return clean;
 }
 
 const HOTEL_PHOTOS_BY_CATEGORY: Record<string, string[]> = {
@@ -91,8 +121,9 @@ export const PRICE_MAP_BY_TIER = {
 };
 
 function getCacheKey(params: HotelRecommendationParams): string {
-  const lastStopsKey = (params.daysInfo || []).map(d => d.lastActivityTitle || '').join('_');
-  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || 'Solo'}__${params.travelMode || 'any'}__${lastStopsKey}`;
+  const targetDayKey = params.targetDayNumber ? `_day${params.targetDayNumber}` : '_all';
+  const lastStopsKey = (params.daysInfo || []).map(d => `${d.dayNumber}:${d.lastActivityLocation || d.location || ''}:${d.lastActivityTitle || ''}`).join('_');
+  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || 'Solo'}__${params.travelMode || 'any'}${targetDayKey}__${lastStopsKey}`;
 }
 
 export async function fetchAiHotelSuggestions(params: HotelRecommendationParams): Promise<HotelStayRecommendation[]> {
@@ -113,6 +144,13 @@ export async function fetchAiHotelSuggestions(params: HotelRecommendationParams)
     const isRoadVehicleMode = params.travelMode === 'Car / Road Trip' || params.travelMode === 'Bike / Motorcycle';
     const vehicleName = params.travelMode === 'Bike / Motorcycle' ? 'motorcycle' : 'car';
 
+    const targetDay = params.targetDayNumber ? params.daysInfo?.find(d => d.dayNumber === params.targetDayNumber) : undefined;
+    const dayStopRaw = targetDay?.lastActivityLocation || targetDay?.location || (params.daysInfo && params.daysInfo[0]?.lastActivityLocation) || params.destination;
+    const targetNightCity = params.targetDayNumber
+      ? extractNightStopCity(dayStopRaw, params.destination)
+      : params.destination;
+    const targetNearPlace = targetDay?.lastActivityTitle || targetNightCity;
+
     const daysSummary = params.daysInfo && params.daysInfo.length > 0
       ? params.daysInfo.map((d) => {
           const lastPlaceInfo = d.lastActivityTitle
@@ -128,7 +166,7 @@ export async function fetchAiHotelSuggestions(params: HotelRecommendationParams)
 - LOCATION NEAR THE LAST PLACE: Each day's recommended stay MUST be located in close proximity (walking distance or 5-10 min ${vehicleName} drive/ride) to THAT DAY'S FINAL EVENING ACTIVITY/PLACE!
 ${params.daysInfo?.map(d => d.lastActivityTitle ? `  • Day ${d.dayNumber}: Recommend a stay near "${d.lastActivityTitle}" (${d.lastActivityLocation || 'Local Area'}).` : '').filter(Boolean).join('\n')}
 - SAFE PARKING: Every recommended stay MUST offer secure on-site parking for ${vehicleName}s.
-- In "nearPlaceName", specify the exact final stop name (e.g. "Near [Last Place Name]").
+- In "nearPlaceName", specify the exact final stop name (e.g. "Near ${targetNearPlace}").
 - In "matchReason", explain why it is the ideal night stop near the day's final attraction with convenient vehicle parking.`
       : '';
 
@@ -147,7 +185,54 @@ ${params.daysInfo?.map(d => d.lastActivityTitle ? `  • Day ${d.dayNumber}: Rec
       : `STRICT MODERATE TIER MANDATE:
 - Suggest comfortable 3-Star boutique hotels, verified Airbnb apartments, and authentic heritage havelis (₹2,500 to ₹5,200 per night in INR).`;
 
-    const prompt = `You are an elite hotel concierge & accommodation specialist AI.
+    const prompt = params.targetDayNumber
+      ? `You are an elite hotel concierge & accommodation specialist AI.
+Search and suggest 5 authentic, real-world hotels, lodges, homestays, or backpacker hostels located strictly in or near "${targetNightCity}".
+The travelers are concluding Day ${params.targetDayNumber} near "${targetNearPlace}".
+
+Trip Context:
+- Overnight Stop Location for Day ${params.targetDayNumber}: "${targetNightCity}" (Near "${targetNearPlace}")
+- Full Trip Destination: "${params.destination}"
+- Target Budget Tier: "${params.budgetTier}"
+- Travelers: ${params.travellersCount} (${params.companionType || 'Friends'})
+- Day Number: ${params.targetDayNumber}
+- Travel Mode: ${params.travelMode || 'Flexible'}
+- Travel Styles: ${(params.travelStyles || []).join(', ') || 'Nature, Culture, Relaxation'}
+
+${tierGuideline}
+
+${roadTripStayGuideline}
+
+CRITICAL LOCATION MANDATE:
+1. These 5 stays MUST be physically located in "${targetNightCity}" where the travelers are spending the night on Day ${params.targetDayNumber}.
+2. ABSOLUTELY FORBIDDEN: DO NOT recommend stays in "${params.destination}" if Day ${params.targetDayNumber} concludes in "${targetNightCity}" (which is hundreds or thousands of km away)! (For example, if travelers are riding on the highway and stopping in Anantapur on Day 1, recommend real hotels in Anantapur, NOT in Ladakh or destination hundreds of km away).
+3. Every recommended hotel MUST be a real, verifiable property in "${targetNightCity}".
+4. All stays MUST offer secure on-site parking for ${vehicleName}.
+
+Provide 5 real, highly rated hotels/lodges in "${targetNightCity}" strictly in valid JSON format:
+[
+  {
+    "name": "Actual Real Hotel/Lodge Name in ${targetNightCity} matching ${params.budgetTier} tier",
+    "category": "${params.budgetTier === 'Luxury' ? 'Luxury Hotel' : params.budgetTier === 'Budget' ? 'Hostel / Budget' : 'Resort'}",
+    "budgetTier": "${params.budgetTier}",
+    "pricePerNight": number (realistic per-night INR rate matching ${params.budgetTier} tier),
+    "locationArea": "Neighborhood or vicinity in ${targetNightCity}",
+    "nearPlaceName": "Near ${targetNearPlace}",
+    "rating": number (4.4 to 4.9),
+    "reviewCount": number (e.g. 350),
+    "reviewSnippet": "1-2 sentence real guest highlight",
+    "amenities": ["Free Wi-Fi", "Secure Vehicle Parking", "Breakfast Available"],
+    "dayNumber": ${params.targetDayNumber},
+    "recommendedFor": "Road travelers stopping overnight near ${targetNearPlace}",
+    "matchReason": "Why this is an ideal overnight stay in ${targetNightCity} near ${targetNearPlace} with safe parking"
+  }
+]
+
+RULES:
+1. Provide 5 REAL, authentic places that exist in "${targetNightCity}".
+2. All recommended stays MUST strictly adhere to the "${params.budgetTier}" tier constraints.
+3. Return ONLY the valid JSON array without extra text.`
+      : `You are an elite hotel concierge & accommodation specialist AI.
 Search and suggest 5 authentic, real-world hotels, resorts, homestays, or backpacker hostels that currently exist in or near "${params.destination}".
 
 Trip Context:
@@ -184,7 +269,7 @@ Provide 5 real, highly rated hotels/resorts strictly in valid JSON format:
 ]
 
 RULES:
-1. Provide REAL, authentic places that exist in "${params.destination}".
+1. Provide 5 REAL, authentic places that exist in "${params.destination}".
 2. All recommended stays MUST strictly adhere to the "${params.budgetTier}" tier constraints.
 ${isRoadVehicleMode ? '3. For road trips, recommend stays positioned near that day\'s final activity/stop with safe parking.' : ''}
 4. Return ONLY the valid JSON array without extra text.`;
@@ -205,11 +290,12 @@ ${isRoadVehicleMode ? '3. For road trips, recommend stays positioned near that d
 
         if (Array.isArray(parsed) && parsed.length > 0) {
           const tierBounds = PRICE_MAP_BY_TIER[params.budgetTier] || PRICE_MAP_BY_TIER.Moderate;
+          const searchCityForUrls = params.targetDayNumber ? targetNightCity : params.destination;
           const results: HotelStayRecommendation[] = parsed.map((item: any, idx: number) => {
             const cat = item.category || (params.budgetTier === 'Luxury' ? 'Luxury Hotel' : params.budgetTier === 'Budget' ? 'Hostel / Budget' : 'Resort');
             const photo = pickHotelPhoto(cat, idx);
-            const hotelName = item.name || `${params.destination} Stay`;
-            const googleQuery = encodeURIComponent(`${hotelName} ${params.destination}`);
+            const hotelName = item.name || `${searchCityForUrls} Stay`;
+            const googleQuery = encodeURIComponent(`${hotelName} ${searchCityForUrls}`);
             
             // Strictly enforce per-night price within the selected budget tier
             let price = typeof item.pricePerNight === 'number' && item.pricePerNight > 0
@@ -219,10 +305,13 @@ ${isRoadVehicleMode ? '3. For road trips, recommend stays positioned near that d
             if (price < tierBounds.min) price = tierBounds.min;
             if (price > tierBounds.max) price = tierBounds.max;
 
-            const assignedDay = typeof item.dayNumber === 'number' ? Math.max(1, Math.min(params.durationDays, item.dayNumber)) : (idx % params.durationDays) + 1;
+            const assignedDay = params.targetDayNumber
+              ? params.targetDayNumber
+              : (typeof item.dayNumber === 'number' ? Math.max(1, Math.min(params.durationDays, item.dayNumber)) : (idx % params.durationDays) + 1);
+            
             const matchedDayInfo = params.daysInfo?.find(d => d.dayNumber === assignedDay);
             const fallbackNearPlace = matchedDayInfo?.lastActivityTitle ? `Near ${matchedDayInfo.lastActivityTitle}` : undefined;
-            const nearPlace = item.nearPlaceName || fallbackNearPlace;
+            const nearPlace = item.nearPlaceName || fallbackNearPlace || (targetNearPlace ? `Near ${targetNearPlace}` : undefined);
 
             const amenitiesList = Array.isArray(item.amenities) && item.amenities.length > 0 ? [...item.amenities] : ['Breakfast Included', 'Free Wi-Fi', 'Scenic View'];
             if (isRoadVehicleMode && !amenitiesList.some(a => /parking/i.test(a))) {
@@ -230,14 +319,14 @@ ${isRoadVehicleMode ? '3. For road trips, recommend stays positioned near that d
             }
 
             return {
-              id: `hotel_ai_${idx + 1}_${Date.now()}`,
+              id: `hotel_ai_${assignedDay}_${idx + 1}_${Date.now()}`,
               dayNumber: assignedDay,
               name: hotelName,
               category: cat,
               budgetTier: params.budgetTier,
               pricePerNight: price,
               priceFormatted: `₹${price.toLocaleString('en-IN')} / night`,
-              locationArea: item.locationArea || `${params.destination} District`,
+              locationArea: item.locationArea || `${searchCityForUrls} Area`,
               nearPlaceName: nearPlace,
               rating: typeof item.rating === 'number' ? item.rating : 4.7,
               reviewCount: typeof item.reviewCount === 'number' ? item.reviewCount : 320,
@@ -245,7 +334,7 @@ ${isRoadVehicleMode ? '3. For road trips, recommend stays positioned near that d
               amenities: amenitiesList,
               imageUrl: photo,
               bookingSearchUrl: `https://www.google.com/travel/hotels?q=${googleQuery}`,
-              recommendedFor: item.recommendedFor || `Perfect for road travelers seeking ${params.budgetTier} comfort in ${params.destination}`,
+              recommendedFor: item.recommendedFor || `Perfect for road travelers seeking ${params.budgetTier} comfort near ${targetNearPlace || searchCityForUrls}`,
               matchReason: item.matchReason || (nearPlace ? `Convenient stay ${nearPlace} with safe parking for your road trip.` : `Strictly matches your ${params.budgetTier} budget tier.`)
             };
           });

@@ -105,6 +105,11 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     return Array.from(new Set([...future, ...existing].filter(Boolean)));
   }, [days, currentDay, activeDayNumber]);
 
+  const currentDayStays = useMemo(() => {
+    if (!trip.hotelRecommendations || !currentDay) return [];
+    return trip.hotelRecommendations.filter((h) => h.dayNumber === (currentDay?.dayNumber || 1));
+  }, [trip.hotelRecommendations, currentDay?.dayNumber]);
+
   const isStayVisible = !!showStayForDay[currentDay?.dayNumber || activeDayNumber];
 
   const totalTransitCost = getTravelModeTransitCost(
@@ -368,11 +373,11 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               id="tonight-recommended-stay-card"
               className="p-2.5 sm:p-3 rounded-xl bg-black/95 dark:bg-black/95 backdrop-blur-md border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm transition-all"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
                   <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 min-w-0">
                   <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-400 block leading-tight">
                     Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
                   </span>
@@ -392,13 +397,40 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                       ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`
                       : `Handpicked stays matching your ${trip.budgetTier || 'Moderate'} budget`}
                   </p>
+
+                  {/* 4-5 Stays Quick Selector */}
+                  {currentDayStays.length > 1 && (
+                    <div className="flex items-center gap-1 pt-1.5 overflow-x-auto no-scrollbar max-w-full">
+                      <span className="text-[10px] font-bold text-zinc-400 shrink-0 mr-1">
+                        {currentDayStays.length} Stays:
+                      </span>
+                      {currentDayStays.map((stay, sIdx) => {
+                        const isSelected = currentDay.suggestedStay?.id === stay.id;
+                        return (
+                          <button
+                            key={stay.id}
+                            type="button"
+                            onClick={() => onSaveHotelToTrip && onSaveHotelToTrip(stay, currentDay.dayNumber)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer shrink-0 border ${
+                              isSelected
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-xs font-black'
+                                : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border-zinc-700'
+                            }`}
+                            title={`${stay.name} - ${stay.priceFormatted}`}
+                          >
+                            {sIdx + 1}. {stay.name.length > 16 ? `${stay.name.slice(0, 14)}...` : stay.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                 {currentDay?.suggestedStay && (() => {
                   const stayUrls = generateHotelBookingUrls(
                     currentDay.suggestedStay.name,
-                    trip.destination,
+                    currentDay.suggestedStay.locationArea || trip.destination,
                     trip.startDate,
                     trip.endDate,
                     trip.travellersCount

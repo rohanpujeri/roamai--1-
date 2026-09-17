@@ -92,7 +92,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
   }, [tripBudgetTier]);
 
   // Fetch or refresh hotels via AI strictly for the trip's budget tier
-  const loadHotels = async () => {
+  const loadHotels = async (targetDay?: number) => {
     setIsLoadingAi(true);
     try {
       const results = await fetchAiHotelSuggestions({
@@ -103,6 +103,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
         companionType: trip.companionType,
         travelStyles: trip.preferences?.styles,
         travelMode: trip.travelMode,
+        targetDayNumber: targetDay,
         daysInfo: trip.days?.map((d) => {
           const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
           return {
@@ -115,7 +116,16 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
           };
         })
       });
-      setHotelList(results);
+      if (results && results.length > 0) {
+        if (targetDay) {
+          setHotelList((prev) => {
+            const withoutTarget = prev.filter((h) => h.dayNumber !== targetDay);
+            return [...withoutTarget, ...results];
+          });
+        } else {
+          setHotelList(results);
+        }
+      }
     } catch (err) {
       console.warn('Failed to load hotels from AI:', err);
     } finally {
@@ -124,7 +134,24 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
   };
 
   useEffect(() => {
-    loadHotels();
+    if (activeDayNumber) {
+      setSelectedDayFilter(activeDayNumber);
+    }
+  }, [activeDayNumber]);
+
+  useEffect(() => {
+    if (typeof selectedDayFilter === 'number') {
+      const existing = hotelList.filter((h) => h.dayNumber === selectedDayFilter);
+      if (existing.length < 4 && !isLoadingAi) {
+        loadHotels(selectedDayFilter);
+      }
+    }
+  }, [selectedDayFilter]);
+
+  useEffect(() => {
+    if (hotelList.length === 0) {
+      loadHotels(typeof selectedDayFilter === 'number' ? selectedDayFilter : (activeDayNumber || 1));
+    }
   }, [trip.destination, tripBudgetTier]);
 
   const filteredHotels = useMemo(() => {
@@ -223,7 +250,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
           <div className="md:col-span-4 flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-center gap-3">
             <button
               type="button"
-              onClick={() => loadHotels()}
+              onClick={() => loadHotels(typeof selectedDayFilter === 'number' ? selectedDayFilter : undefined)}
               disabled={isLoadingAi}
               className="px-4 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs sm:text-sm border border-white/30 backdrop-blur-md shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
             >
@@ -359,11 +386,28 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
 
       {/* Hotels & Resorts Grid */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <BedDouble className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span>Available Stays ({filteredHotels.length})</span>
-          </h4>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <BedDouble className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                {typeof selectedDayFilter === 'number'
+                  ? `Day ${selectedDayFilter} Recommended Stays (${filteredHotels.length} options)`
+                  : `Available Stays (${filteredHotels.length})`}
+              </span>
+            </h4>
+            {typeof selectedDayFilter === 'number' && (() => {
+              const activeDayObj = trip.days?.find(d => d.dayNumber === selectedDayFilter);
+              const lastAct = activeDayObj?.activities && activeDayObj.activities.length > 0 ? activeDayObj.activities[activeDayObj.activities.length - 1] : undefined;
+              if (!lastAct) return null;
+              return (
+                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300/80 dark:border-emerald-700/80 px-2.5 py-1 rounded-xl flex items-center gap-1">
+                  <span>📍</span>
+                  <span>Near {lastAct.title} ({lastAct.location || activeDayObj?.location || 'Local Area'})</span>
+                </span>
+              );
+            })()}
+          </div>
           <span className="text-xs text-slate-500 font-semibold">
             Prices calibrated for {activeBudgetTier} Tier
           </span>
@@ -519,7 +563,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                   {(() => {
                     const bookingUrls = generateHotelBookingUrls(
                       hotel.name,
-                      trip.destination,
+                      hotel.locationArea || trip.destination,
                       trip.startDate,
                       trip.endDate,
                       trip.travellersCount

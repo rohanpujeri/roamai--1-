@@ -256,6 +256,22 @@ function formatGenAiError(err) {
 
 // server/services/serverHotelAdvisor.ts
 import { GoogleGenAI } from "@google/genai";
+function extractNightStopCity(location, fallbackDest) {
+  if (!location || !location.trim()) return fallbackDest || "";
+  let clean = location.trim();
+  clean = clean.replace(/\s+Highway\s+(Stop|Corridor|Stretch|Exit|Hub|Rest Area|Entry)/gi, "").replace(/\s+Expressway\s+(Stretch|Corridor|Exit|Entry)/gi, "").replace(/\s+Expressway/gi, "").replace(/\s+Exit/gi, "").trim();
+  if (clean.includes(",")) {
+    const parts = clean.split(",").map((p) => p.trim()).filter(Boolean);
+    if (/^NH-?\d+/i.test(parts[0]) && parts[1]) {
+      return parts[1];
+    }
+    return clean;
+  }
+  if (/^NH-?\d+$/i.test(clean)) {
+    return fallbackDest || clean;
+  }
+  return clean;
+}
 var HOTEL_PHOTOS_BY_CATEGORY = {
   "Resort": [
     "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80",
@@ -321,8 +337,9 @@ var PRICE_MAP_BY_TIER = {
   Luxury: { min: 16e3, max: 45e3 }
 };
 function getCacheKey(params) {
-  const lastStopsKey = (params.daysInfo || []).map((d) => d.lastActivityTitle || "").join("_");
-  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || "Solo"}__${params.travelMode || "any"}__${lastStopsKey}`;
+  const targetDayKey = params.targetDayNumber ? `_day${params.targetDayNumber}` : "_all";
+  const lastStopsKey = (params.daysInfo || []).map((d) => `${d.dayNumber}:${d.lastActivityLocation || d.location || ""}:${d.lastActivityTitle || ""}`).join("_");
+  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || "Solo"}__${params.travelMode || "any"}${targetDayKey}__${lastStopsKey}`;
 }
 async function fetchAiHotelSuggestions(params) {
   const cacheKey = getCacheKey(params);
@@ -338,6 +355,10 @@ async function fetchAiHotelSuggestions(params) {
     const ai = new GoogleGenAI({ apiKey });
     const isRoadVehicleMode = params.travelMode === "Car / Road Trip" || params.travelMode === "Bike / Motorcycle";
     const vehicleName = params.travelMode === "Bike / Motorcycle" ? "motorcycle" : "car";
+    const targetDay = params.targetDayNumber ? params.daysInfo?.find((d) => d.dayNumber === params.targetDayNumber) : void 0;
+    const dayStopRaw = targetDay?.lastActivityLocation || targetDay?.location || params.daysInfo && params.daysInfo[0]?.lastActivityLocation || params.destination;
+    const targetNightCity = params.targetDayNumber ? extractNightStopCity(dayStopRaw, params.destination) : params.destination;
+    const targetNearPlace = targetDay?.lastActivityTitle || targetNightCity;
     const daysSummary = params.daysInfo && params.daysInfo.length > 0 ? params.daysInfo.map((d) => {
       const lastPlaceInfo = d.lastActivityTitle ? ` | FINAL EVENING STOP: "${d.lastActivityTitle}" (${d.lastActivityLocation || d.location || "Local Area"})` : "";
       return `Day ${d.dayNumber}: ${d.theme}${lastPlaceInfo}`;
@@ -347,7 +368,7 @@ async function fetchAiHotelSuggestions(params) {
 - LOCATION NEAR THE LAST PLACE: Each day's recommended stay MUST be located in close proximity (walking distance or 5-10 min ${vehicleName} drive/ride) to THAT DAY'S FINAL EVENING ACTIVITY/PLACE!
 ${params.daysInfo?.map((d) => d.lastActivityTitle ? `  \u2022 Day ${d.dayNumber}: Recommend a stay near "${d.lastActivityTitle}" (${d.lastActivityLocation || "Local Area"}).` : "").filter(Boolean).join("\n")}
 - SAFE PARKING: Every recommended stay MUST offer secure on-site parking for ${vehicleName}s.
-- In "nearPlaceName", specify the exact final stop name (e.g. "Near [Last Place Name]").
+- In "nearPlaceName", specify the exact final stop name (e.g. "Near ${targetNearPlace}").
 - In "matchReason", explain why it is the ideal night stop near the day's final attraction with convenient vehicle parking.` : "";
     const tierGuideline = params.budgetTier === "Luxury" ? `STRICT LUXURY TIER MANDATE:
 - Suggest ONLY premier 5-Star luxury hotels (e.g. Taj, Oberoi, Marriott, Leela, Four Seasons), heritage palaces, and private luxury pool villas.
@@ -357,7 +378,52 @@ ${params.daysInfo?.map((d) => d.lastActivityTitle ? `  \u2022 Day ${d.dayNumber}
 - Nightly rate MUST be in the budget tier (\u20B9800 to \u20B91,800 per night in INR).` : params.budgetTier === "Premium" ? `STRICT PREMIUM TIER MANDATE:
 - Suggest 4-Star boutique resorts, cliffside pool suites, and premium villas (\u20B96,500 to \u20B914,000 per night in INR).` : `STRICT MODERATE TIER MANDATE:
 - Suggest comfortable 3-Star boutique hotels, verified Airbnb apartments, and authentic heritage havelis (\u20B92,500 to \u20B95,200 per night in INR).`;
-    const prompt = `You are an elite hotel concierge & accommodation specialist AI.
+    const prompt = params.targetDayNumber ? `You are an elite hotel concierge & accommodation specialist AI.
+Search and suggest 5 authentic, real-world hotels, lodges, homestays, or backpacker hostels located strictly in or near "${targetNightCity}".
+The travelers are concluding Day ${params.targetDayNumber} near "${targetNearPlace}".
+
+Trip Context:
+- Overnight Stop Location for Day ${params.targetDayNumber}: "${targetNightCity}" (Near "${targetNearPlace}")
+- Full Trip Destination: "${params.destination}"
+- Target Budget Tier: "${params.budgetTier}"
+- Travelers: ${params.travellersCount} (${params.companionType || "Friends"})
+- Day Number: ${params.targetDayNumber}
+- Travel Mode: ${params.travelMode || "Flexible"}
+- Travel Styles: ${(params.travelStyles || []).join(", ") || "Nature, Culture, Relaxation"}
+
+${tierGuideline}
+
+${roadTripStayGuideline}
+
+CRITICAL LOCATION MANDATE:
+1. These 5 stays MUST be physically located in "${targetNightCity}" where the travelers are spending the night on Day ${params.targetDayNumber}.
+2. ABSOLUTELY FORBIDDEN: DO NOT recommend stays in "${params.destination}" if Day ${params.targetDayNumber} concludes in "${targetNightCity}" (which is hundreds or thousands of km away)! (For example, if travelers are riding on the highway and stopping in Anantapur on Day 1, recommend real hotels in Anantapur, NOT in Ladakh or destination hundreds of km away).
+3. Every recommended hotel MUST be a real, verifiable property in "${targetNightCity}".
+4. All stays MUST offer secure on-site parking for ${vehicleName}.
+
+Provide 5 real, highly rated hotels/lodges in "${targetNightCity}" strictly in valid JSON format:
+[
+  {
+    "name": "Actual Real Hotel/Lodge Name in ${targetNightCity} matching ${params.budgetTier} tier",
+    "category": "${params.budgetTier === "Luxury" ? "Luxury Hotel" : params.budgetTier === "Budget" ? "Hostel / Budget" : "Resort"}",
+    "budgetTier": "${params.budgetTier}",
+    "pricePerNight": number (realistic per-night INR rate matching ${params.budgetTier} tier),
+    "locationArea": "Neighborhood or vicinity in ${targetNightCity}",
+    "nearPlaceName": "Near ${targetNearPlace}",
+    "rating": number (4.4 to 4.9),
+    "reviewCount": number (e.g. 350),
+    "reviewSnippet": "1-2 sentence real guest highlight",
+    "amenities": ["Free Wi-Fi", "Secure Vehicle Parking", "Breakfast Available"],
+    "dayNumber": ${params.targetDayNumber},
+    "recommendedFor": "Road travelers stopping overnight near ${targetNearPlace}",
+    "matchReason": "Why this is an ideal overnight stay in ${targetNightCity} near ${targetNearPlace} with safe parking"
+  }
+]
+
+RULES:
+1. Provide 5 REAL, authentic places that exist in "${targetNightCity}".
+2. All recommended stays MUST strictly adhere to the "${params.budgetTier}" tier constraints.
+3. Return ONLY the valid JSON array without extra text.` : `You are an elite hotel concierge & accommodation specialist AI.
 Search and suggest 5 authentic, real-world hotels, resorts, homestays, or backpacker hostels that currently exist in or near "${params.destination}".
 
 Trip Context:
@@ -395,7 +461,7 @@ Provide 5 real, highly rated hotels/resorts strictly in valid JSON format:
 ]
 
 RULES:
-1. Provide REAL, authentic places that exist in "${params.destination}".
+1. Provide 5 REAL, authentic places that exist in "${params.destination}".
 2. All recommended stays MUST strictly adhere to the "${params.budgetTier}" tier constraints.
 ${isRoadVehicleMode ? "3. For road trips, recommend stays positioned near that day's final activity/stop with safe parking." : ""}
 4. Return ONLY the valid JSON array without extra text.`;
@@ -413,31 +479,32 @@ ${isRoadVehicleMode ? "3. For road trips, recommend stays positioned near that d
         const parsed = parseJsonSafely(text);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const tierBounds = PRICE_MAP_BY_TIER[params.budgetTier] || PRICE_MAP_BY_TIER.Moderate;
+          const searchCityForUrls = params.targetDayNumber ? targetNightCity : params.destination;
           const results = parsed.map((item, idx) => {
             const cat = item.category || (params.budgetTier === "Luxury" ? "Luxury Hotel" : params.budgetTier === "Budget" ? "Hostel / Budget" : "Resort");
             const photo = pickHotelPhoto(cat, idx);
-            const hotelName = item.name || `${params.destination} Stay`;
-            const googleQuery = encodeURIComponent(`${hotelName} ${params.destination}`);
+            const hotelName = item.name || `${searchCityForUrls} Stay`;
+            const googleQuery = encodeURIComponent(`${hotelName} ${searchCityForUrls}`);
             let price = typeof item.pricePerNight === "number" && item.pricePerNight > 0 ? item.pricePerNight : tierBounds.min + Math.round((tierBounds.max - tierBounds.min) * 0.5);
             if (price < tierBounds.min) price = tierBounds.min;
             if (price > tierBounds.max) price = tierBounds.max;
-            const assignedDay = typeof item.dayNumber === "number" ? Math.max(1, Math.min(params.durationDays, item.dayNumber)) : idx % params.durationDays + 1;
+            const assignedDay = params.targetDayNumber ? params.targetDayNumber : typeof item.dayNumber === "number" ? Math.max(1, Math.min(params.durationDays, item.dayNumber)) : idx % params.durationDays + 1;
             const matchedDayInfo = params.daysInfo?.find((d) => d.dayNumber === assignedDay);
             const fallbackNearPlace = matchedDayInfo?.lastActivityTitle ? `Near ${matchedDayInfo.lastActivityTitle}` : void 0;
-            const nearPlace = item.nearPlaceName || fallbackNearPlace;
+            const nearPlace = item.nearPlaceName || fallbackNearPlace || (targetNearPlace ? `Near ${targetNearPlace}` : void 0);
             const amenitiesList = Array.isArray(item.amenities) && item.amenities.length > 0 ? [...item.amenities] : ["Breakfast Included", "Free Wi-Fi", "Scenic View"];
             if (isRoadVehicleMode && !amenitiesList.some((a) => /parking/i.test(a))) {
               amenitiesList.push("Secure Vehicle Parking");
             }
             return {
-              id: `hotel_ai_${idx + 1}_${Date.now()}`,
+              id: `hotel_ai_${assignedDay}_${idx + 1}_${Date.now()}`,
               dayNumber: assignedDay,
               name: hotelName,
               category: cat,
               budgetTier: params.budgetTier,
               pricePerNight: price,
               priceFormatted: `\u20B9${price.toLocaleString("en-IN")} / night`,
-              locationArea: item.locationArea || `${params.destination} District`,
+              locationArea: item.locationArea || `${searchCityForUrls} Area`,
               nearPlaceName: nearPlace,
               rating: typeof item.rating === "number" ? item.rating : 4.7,
               reviewCount: typeof item.reviewCount === "number" ? item.reviewCount : 320,
@@ -445,7 +512,7 @@ ${isRoadVehicleMode ? "3. For road trips, recommend stays positioned near that d
               amenities: amenitiesList,
               imageUrl: photo,
               bookingSearchUrl: `https://www.google.com/travel/hotels?q=${googleQuery}`,
-              recommendedFor: item.recommendedFor || `Perfect for road travelers seeking ${params.budgetTier} comfort in ${params.destination}`,
+              recommendedFor: item.recommendedFor || `Perfect for road travelers seeking ${params.budgetTier} comfort near ${targetNearPlace || searchCityForUrls}`,
               matchReason: item.matchReason || (nearPlace ? `Convenient stay ${nearPlace} with safe parking for your road trip.` : `Strictly matches your ${params.budgetTier} budget tier.`)
             };
           });
@@ -603,17 +670,27 @@ STRICT ACCURACY & TIMELINE RULES:
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
 
 ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MANDATE:
-     \u2022 The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
-     \u2022 ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
-     \u2022 OUTBOUND DAY 1: Activity 1 is highway departure from "${startCity}" by ${vehicleType} (fueling up, luggage loaded, hitting the highway). Activity 2 is highway cruising via scenic expressway/national highway with a highway dhaba/food court pitstop. Activity 3 is driving/riding into "${destName}", scenic ghat/mountain road, arriving and parking directly at the hotel/resort, checking in. Activity 4 is an evening relaxed dinner or walk.
-     \u2022 LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
-     \u2022 MULTI-DAY TRANSIT RULE: If distance is > 1,200 km where driving/riding takes multiple days, Day 1 and Day 2 realistically cover the outbound road trip journey with scenic stops and overnight highway stay.
-     \u2022 INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
-     \u2022 ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
-       - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
-       - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
-       - "recommendedMode": "${travelMode}"
-       - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)` : `   - OUTBOUND PHASE (Day 1 / Early Days):
+      \u2022 The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
+      \u2022 ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
+      \u2022 OUTBOUND ROAD TRANSIT:
+        - If the one-way road distance between "${startCity}" and "${destName}" is within a single day's ride/drive (<= 550 km):
+          * Day 1 departs "${startCity}", cruises via highway/scenic expressway with dhaba pitstop, arrives in "${destName}" by late afternoon/evening, checks into hotel/resort in "${destName}" with secure ${vehicleType} parking, and enjoys an evening relaxed walk/dinner in "${destName}".
+        - If the one-way road distance is long (> 550 km, e.g. Bengaluru to Ladakh is ~3,000 km, Delhi to Goa is ~1,900 km, Bengaluru to Mumbai is ~1,000 km, etc.):
+          * Day 1 CANNOT reach "${destName}"! Travelers realistically ride/drive 400-550 km per day.
+          * Day 1 covers the first ~400-500 km highway corridor from "${startCity}" along the national highway (e.g. NH-44), stopping overnight in a realistic intermediate transit city/town (e.g., Anantapur, Kurnool, Hyderabad, etc.).
+          * Activity 1: Highway departure prep & tank-up in "${startCity}".
+          * Activity 2: Morning highway cruising on the national highway.
+          * Activity 3: Highway dhaba lunch stop along the corridor.
+          * Activity 4: Evening arrival at the intermediate highway transit city (e.g., Anantapur / Kurnool), checking in to a local highway hotel/lodge with secure ${vehicleType} parking, and dinner. The location for Activity 4 MUST be in that intermediate transit city, NOT "${destName}".
+          * Subsequent transit days continue onward through intermediate transit hubs until reaching "${destName}".
+          * Sights and activities inside "${destName}" MUST strictly only begin after the travelers have arrived in "${destName}"!
+      \u2022 LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
+      \u2022 INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
+      \u2022 ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
+        - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
+        - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
+        - "recommendedMode": "${travelMode}"
+        - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)` : `   - OUTBOUND PHASE (Day 1 / Early Days):
      \u2022 Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
      \u2022 CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
        - If travelMode is Flight and there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
@@ -837,7 +914,18 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
       };
     })
   );
-  const initialHotels = await fetchAiHotelSuggestions({
+  const daysInfo = days.map((d) => {
+    const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : void 0;
+    return {
+      dayNumber: d.dayNumber,
+      theme: d.theme,
+      location: lastAct?.location || destName,
+      lastActivityTitle: lastAct?.title,
+      lastActivityLocation: lastAct?.location,
+      lastActivityCategory: lastAct?.category
+    };
+  });
+  const day1HotelsPromise = fetchAiHotelSuggestions({
     destination: destName,
     budgetTier: params.budgetTier,
     durationDays: params.durationDays,
@@ -845,25 +933,33 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
     companionType: params.companionType,
     travelStyles: params.preferences?.styles,
     travelMode,
-    daysInfo: days.map((d) => {
-      const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : void 0;
-      return {
-        dayNumber: d.dayNumber,
-        theme: d.theme,
-        location: lastAct?.location || destName,
-        lastActivityTitle: lastAct?.title,
-        lastActivityLocation: lastAct?.location,
-        lastActivityCategory: lastAct?.category
-      };
-    })
+    targetDayNumber: 1,
+    daysInfo
   });
+  const destHotelsPromise = fetchAiHotelSuggestions({
+    destination: destName,
+    budgetTier: params.budgetTier,
+    durationDays: params.durationDays,
+    travellersCount: params.travellersCount,
+    companionType: params.companionType,
+    travelStyles: params.preferences?.styles,
+    travelMode,
+    daysInfo
+  });
+  const [day1Hotels, destHotels] = await Promise.all([day1HotelsPromise, destHotelsPromise]);
+  const initialHotels = [
+    ...day1Hotels,
+    ...destHotels.filter((dh) => dh.dayNumber !== 1 && !day1Hotels.some((d1) => d1.id === dh.id))
+  ];
   const daysWithStays = days.map((day) => {
-    let matchStay = initialHotels.find((h) => h.dayNumber === day.dayNumber);
-    if (!matchStay && initialHotels.length > 0) {
-      matchStay = initialHotels[(day.dayNumber - 1) % initialHotels.length];
+    let matchStay;
+    if (day.dayNumber === 1 && day1Hotels.length > 0) {
+      matchStay = day1Hotels[0];
+    } else {
+      matchStay = destHotels.find((h) => h.dayNumber === day.dayNumber) || destHotels[(day.dayNumber - 1) % destHotels.length] || day1Hotels[0];
     }
     const lastAct = day.activities && day.activities.length > 0 ? day.activities[day.activities.length - 1] : void 0;
-    if (matchStay && lastAct && isRoadVehicleMode && !matchStay.nearPlaceName) {
+    if (matchStay && lastAct && !matchStay.nearPlaceName) {
       matchStay = {
         ...matchStay,
         nearPlaceName: `Near ${lastAct.title}`

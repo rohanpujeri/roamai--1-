@@ -216,17 +216,27 @@ STRICT ACCURACY & TIMELINE RULES:
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
 
 ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MANDATE:
-     • The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
-     • ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
-     • OUTBOUND DAY 1: Activity 1 is highway departure from "${startCity}" by ${vehicleType} (fueling up, luggage loaded, hitting the highway). Activity 2 is highway cruising via scenic expressway/national highway with a highway dhaba/food court pitstop. Activity 3 is driving/riding into "${destName}", scenic ghat/mountain road, arriving and parking directly at the hotel/resort, checking in. Activity 4 is an evening relaxed dinner or walk.
-     • LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
-     • MULTI-DAY TRANSIT RULE: If distance is > 1,200 km where driving/riding takes multiple days, Day 1 and Day 2 realistically cover the outbound road trip journey with scenic stops and overnight highway stay.
-     • INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
-     • ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
-       - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
-       - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
-       - "recommendedMode": "${travelMode}"
-       - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)`
+      • The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
+      • ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
+      • OUTBOUND ROAD TRANSIT:
+        - If the one-way road distance between "${startCity}" and "${destName}" is within a single day's ride/drive (<= 550 km):
+          * Day 1 departs "${startCity}", cruises via highway/scenic expressway with dhaba pitstop, arrives in "${destName}" by late afternoon/evening, checks into hotel/resort in "${destName}" with secure ${vehicleType} parking, and enjoys an evening relaxed walk/dinner in "${destName}".
+        - If the one-way road distance is long (> 550 km, e.g. Bengaluru to Ladakh is ~3,000 km, Delhi to Goa is ~1,900 km, Bengaluru to Mumbai is ~1,000 km, etc.):
+          * Day 1 CANNOT reach "${destName}"! Travelers realistically ride/drive 400-550 km per day.
+          * Day 1 covers the first ~400-500 km highway corridor from "${startCity}" along the national highway (e.g. NH-44), stopping overnight in a realistic intermediate transit city/town (e.g., Anantapur, Kurnool, Hyderabad, etc.).
+          * Activity 1: Highway departure prep & tank-up in "${startCity}".
+          * Activity 2: Morning highway cruising on the national highway.
+          * Activity 3: Highway dhaba lunch stop along the corridor.
+          * Activity 4: Evening arrival at the intermediate highway transit city (e.g., Anantapur / Kurnool), checking in to a local highway hotel/lodge with secure ${vehicleType} parking, and dinner. The location for Activity 4 MUST be in that intermediate transit city, NOT "${destName}".
+          * Subsequent transit days continue onward through intermediate transit hubs until reaching "${destName}".
+          * Sights and activities inside "${destName}" MUST strictly only begin after the travelers have arrived in "${destName}"!
+      • LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
+      • INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
+      • ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
+        - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
+        - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
+        - "recommendedMode": "${travelMode}"
+        - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)`
 : `   - OUTBOUND PHASE (Day 1 / Early Days):
      • Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
      • CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
@@ -468,7 +478,20 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
     })
   );
 
-  const initialHotels = await fetchAiHotelSuggestions({
+  const daysInfo = days.map(d => {
+    const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
+    return {
+      dayNumber: d.dayNumber,
+      theme: d.theme,
+      location: lastAct?.location || destName,
+      lastActivityTitle: lastAct?.title,
+      lastActivityLocation: lastAct?.location,
+      lastActivityCategory: lastAct?.category
+    };
+  });
+
+  // 1. Fetch 5 verified stays specifically tailored for Day 1 near Day 1's night stop / last place
+  const day1HotelsPromise = fetchAiHotelSuggestions({
     destination: destName,
     budgetTier: params.budgetTier,
     durationDays: params.durationDays,
@@ -476,26 +499,41 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
     companionType: params.companionType,
     travelStyles: params.preferences?.styles,
     travelMode,
-    daysInfo: days.map(d => {
-      const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
-      return {
-        dayNumber: d.dayNumber,
-        theme: d.theme,
-        location: lastAct?.location || destName,
-        lastActivityTitle: lastAct?.title,
-        lastActivityLocation: lastAct?.location,
-        lastActivityCategory: lastAct?.category
-      };
-    })
+    targetDayNumber: 1,
+    daysInfo
   });
 
+  // 2. Fetch verified stays for subsequent / destination days
+  const destHotelsPromise = fetchAiHotelSuggestions({
+    destination: destName,
+    budgetTier: params.budgetTier,
+    durationDays: params.durationDays,
+    travellersCount: params.travellersCount,
+    companionType: params.companionType,
+    travelStyles: params.preferences?.styles,
+    travelMode,
+    daysInfo
+  });
+
+  const [day1Hotels, destHotels] = await Promise.all([day1HotelsPromise, destHotelsPromise]);
+
+  // Combine recommendations: Day 1 stays (all 4-5) followed by destination stays
+  const initialHotels = [
+    ...day1Hotels,
+    ...destHotels.filter(dh => dh.dayNumber !== 1 && !day1Hotels.some(d1 => d1.id === dh.id))
+  ];
+
   const daysWithStays = days.map((day) => {
-    let matchStay = initialHotels.find(h => h.dayNumber === day.dayNumber);
-    if (!matchStay && initialHotels.length > 0) {
-      matchStay = initialHotels[(day.dayNumber - 1) % initialHotels.length];
+    let matchStay: HotelStayRecommendation | undefined;
+    if (day.dayNumber === 1 && day1Hotels.length > 0) {
+      matchStay = day1Hotels[0];
+    } else {
+      matchStay = destHotels.find(h => h.dayNumber === day.dayNumber)
+        || destHotels[(day.dayNumber - 1) % destHotels.length]
+        || day1Hotels[0];
     }
     const lastAct = day.activities && day.activities.length > 0 ? day.activities[day.activities.length - 1] : undefined;
-    if (matchStay && lastAct && isRoadVehicleMode && !matchStay.nearPlaceName) {
+    if (matchStay && lastAct && !matchStay.nearPlaceName) {
       matchStay = {
         ...matchStay,
         nearPlaceName: `Near ${lastAct.title}`
