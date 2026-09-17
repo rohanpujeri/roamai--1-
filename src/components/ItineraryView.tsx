@@ -16,10 +16,12 @@ import {
   Building2,
   BedDouble,
   ExternalLink,
-  Loader2
+  Loader2,
+  Zap
 } from 'lucide-react';
 import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem, HotelStayRecommendation } from '../types';
 import { ActivityCard } from './ActivityCard';
+import { SerpentineItineraryTimeline } from './SerpentineItineraryTimeline';
 import { PreparationView } from './PreparationView';
 import { MapView } from './MapView';
 import { HotelsAndStaysView } from './HotelsAndStaysView';
@@ -61,6 +63,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onMoveActivityUp,
   onMoveActivityDown,
   onRemoveActivity,
+  onToggleActivityComplete,
   onAddCustomActivity,
   onAddActivityToDay,
   onTogglePackingItem,
@@ -74,6 +77,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'hotels'>('itinerary');
   const [showStayForDay, setShowStayForDay] = useState<Record<number, boolean>>({});
   const [isAddPlaceModalOpen, setIsAddPlaceModalOpen] = useState<boolean>(false);
+  const [itineraryLayoutMode, setItineraryLayoutMode] = useState<'serpentine' | 'cards'>('serpentine');
 
   const days = trip?.days || [];
   const currentDay = days.find(d => d.dayNumber === activeDayNumber) || days[0] || {
@@ -342,6 +346,37 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               </span>
             </div>
 
+            {/* Center: Serpentine Route vs Classic Cards Toggle */}
+            <div className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setItineraryLayoutMode('serpentine')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  itineraryLayoutMode === 'serpentine'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Cinematic serpentine animated route view"
+              >
+                <Zap className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="hidden sm:inline">Serpentine Flow</span>
+                <span className="sm:hidden">Route</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setItineraryLayoutMode('cards')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  itineraryLayoutMode === 'cards'
+                    ? 'bg-zinc-800 text-white shadow-xs'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Standard activity cards view"
+              >
+                <span className="hidden sm:inline">Classic Cards</span>
+                <span className="sm:hidden">Cards</span>
+              </button>
+            </div>
+
             {/* Right: Repositioned Recommend a Stay Button */}
             <button
               id="toggle-recommend-stay-btn"
@@ -460,61 +495,78 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </div>
           )}
 
-          {/* Scheduled Day Activities Timeline */}
-          <div className="space-y-3 pb-24">
-            {currentDayActivities.map((activity, index) => (
-              <ActivityCard
-                key={activity.id}
-                activity={activity}
+          {/* Scheduled Day Activities: Serpentine Journey Flow vs Classic Cards */}
+          {itineraryLayoutMode === 'serpentine' ? (
+            <div className="pb-24">
+              <SerpentineItineraryTimeline
+                activities={currentDayActivities}
+                trip={trip}
                 currency={trip?.currency || 'INR'}
-                isFirst={index === 0}
-                isLast={index === currentDayActivities.length - 1}
                 onOpenDetails={onOpenActivityDetails}
-                onReplace={onReplaceActivity}
-                onMoveUp={onMoveActivityUp}
-                onMoveDown={onMoveActivityDown}
-                onRemove={onRemoveActivity}
+                onReplaceActivity={onReplaceActivity}
+                onMoveActivityUp={onMoveActivityUp}
+                onMoveActivityDown={onMoveActivityDown}
+                onRemoveActivity={onRemoveActivity}
+                onToggleActivityComplete={onToggleActivityComplete}
                 onAddPlace={() => setIsAddPlaceModalOpen(true)}
               />
-            ))}
-
-            {/* "Add a Place" button directly below the last place of day itinerary */}
-            <div className="pt-2">
-              <button
-                id="btn-add-place-below-last-activity"
-                type="button"
-                onClick={() => setIsAddPlaceModalOpen(true)}
-                className="w-full group py-4 px-5 rounded-2xl border-2 border-dashed border-emerald-500 hover:border-emerald-400 bg-black/95 dark:bg-black/95 backdrop-blur-2xl transition-all duration-200 flex items-center justify-between text-left shadow-2xl cursor-pointer ring-1 ring-emerald-500/30 hover:ring-emerald-500/60"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-600 group-hover:bg-emerald-500 text-white flex items-center justify-center shadow-md transition-colors shrink-0">
-                    <Plus className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-black text-white group-hover:text-emerald-400 transition-colors">
-                        Add a Place
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 border border-emerald-800">
-                        <Sparkles className="w-3 h-3 text-emerald-400" />
-                        Nearby Recommendations
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-300 mt-0.5 font-medium">
-                      {lastActivity
-                        ? `Explore curated spots nearby to "${lastActivity.title}" (excludes future day stops)`
-                        : `Explore top curated spots in ${trip.destination}`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-800">
-                  <span>Explore Nearby</span>
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </button>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3 pb-24">
+              {currentDayActivities.map((activity, index) => (
+                <ActivityCard
+                  key={activity.id}
+                  activity={activity}
+                  currency={trip?.currency || 'INR'}
+                  isFirst={index === 0}
+                  isLast={index === currentDayActivities.length - 1}
+                  onOpenDetails={onOpenActivityDetails}
+                  onReplace={onReplaceActivity}
+                  onMoveUp={onMoveActivityUp}
+                  onMoveDown={onMoveActivityDown}
+                  onRemove={onRemoveActivity}
+                  onAddPlace={() => setIsAddPlaceModalOpen(true)}
+                />
+              ))}
+
+              {/* "Add a Place" button directly below the last place of day itinerary */}
+              <div className="pt-2">
+                <button
+                  id="btn-add-place-below-last-activity"
+                  type="button"
+                  onClick={() => setIsAddPlaceModalOpen(true)}
+                  className="w-full group py-4 px-5 rounded-2xl border-2 border-dashed border-emerald-500 hover:border-emerald-400 bg-black/95 dark:bg-black/95 backdrop-blur-2xl transition-all duration-200 flex items-center justify-between text-left shadow-2xl cursor-pointer ring-1 ring-emerald-500/30 hover:ring-emerald-500/60"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-emerald-600 group-hover:bg-emerald-500 text-white flex items-center justify-center shadow-md transition-colors shrink-0">
+                      <Plus className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-black text-white group-hover:text-emerald-400 transition-colors">
+                          Add a Place
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 border border-emerald-800">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          Nearby Recommendations
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-300 mt-0.5 font-medium">
+                        {lastActivity
+                          ? `Explore curated spots nearby to "${lastActivity.title}" (excludes future day stops)`
+                          : `Explore top curated spots in ${trip.destination}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-800">
+                    <span>Explore Nearby</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
