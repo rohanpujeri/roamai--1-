@@ -306,6 +306,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
   // Tracks if user has explicitly clicked a travel mode
   const isTravelModeManuallyPickedRef = useRef<boolean>(false);
+  const previousDestNameRef = useRef<string>('');
 
   // Automatically fetch AI travel mode and travel-based minimum required days for the selected destination
   useEffect(() => {
@@ -316,17 +317,18 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
     if (!destName) return;
 
-    // Reset manual travel mode pick when destination or start city changes
-    isTravelModeManuallyPickedRef.current = false;
+    // Only reset manual travel mode pick if destination actually changed to a different place
+    if (previousDestNameRef.current && previousDestNameRef.current.toLowerCase() !== destName.toLowerCase()) {
+      isTravelModeManuallyPickedRef.current = false;
+    }
+    previousDestNameRef.current = destName;
 
     // Provide instant responsive baseline (0ms) so user never perceives lag
     const instantGeneric = getGenericDynamicIntelligence(destName, effectiveStartCity);
     setAiDestinationInfo((prev) => (prev && prev.destination.toLowerCase() === destName.toLowerCase() ? prev : instantGeneric));
     
-    // If user hasn't explicitly chosen a mode yet, default to first available mode
-    if (!isTravelModeManuallyPickedRef.current && !travelMode && instantGeneric.recommendedTravelMode) {
-      setTravelMode(instantGeneric.recommendedTravelMode);
-    }
+    // If user hasn't explicitly chosen a mode yet and no travelMode is set, default to first available mode
+    setTravelMode((curr) => curr || instantGeneric.recommendedTravelMode || 'Flight');
 
     if (instantGeneric.minimumRequiredDays && instantGeneric.minimumRequiredDays > 0) {
       setDurationDays((curr) => {
@@ -354,19 +356,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
             return curr;
           });
         }
-        // Only if current mode is physically impossible for this route (e.g. driving to an overseas island), fallback to a valid mode
-        if (info.modesBreakdown && info.modesBreakdown.length > 0) {
-          const validModes = info.modesBreakdown.map((m) => m.mode);
-          setTravelMode((currentMode) => {
-            if (isTravelModeManuallyPickedRef.current && currentMode) {
-              return currentMode; // Always keep the user's manual selection
-            }
-            if (currentMode && validModes.includes(currentMode)) {
-              return currentMode;
-            }
-            return validModes[0];
-          });
-        }
+        // Preserve user's currentMode, only initialize if empty
+        setTravelMode((currentMode) => currentMode || info.recommendedTravelMode || 'Flight');
       })
       .catch((err) => {
         console.warn('Failed to fetch AI destination intelligence:', err);
@@ -378,7 +369,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity, startDate]);
+  }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity]);
 
   // Handle manual refetch button
   const handleFetchPossibleTravelModes = useCallback(async () => {
