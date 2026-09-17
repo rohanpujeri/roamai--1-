@@ -227,11 +227,13 @@ async function fetchRealPlacePhoto(placeTitle, destination = "", category = "") 
 
 // server/utils/geminiModels.ts
 var PREFERRED_GEMINI_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
   "gemini-flash-latest",
-  "gemini-2.5-flash-lite"
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gemini-3.8-flash"
 ];
 function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || "";
@@ -433,1005 +435,6 @@ RULES:
   return [];
 }
 
-// server/utils/routeEstimator.ts
-function isBikeMode(mode) {
-  if (!mode) return false;
-  const m = mode.toLowerCase();
-  return m.includes("bike") || m.includes("motor") || m.includes("cycle") || m.includes("two-wheeler") || m.includes("scooter");
-}
-function isRoadTripMode(mode) {
-  if (!mode) return false;
-  const m = mode.toLowerCase();
-  return isBikeMode(mode) || m.includes("car") || m.includes("road") || m.includes("drive") || m.includes("vehicle") || m.includes("self-drive") || m.includes("suv") || m.includes("cab");
-}
-function normalizeTravelMode(mode) {
-  if (!mode) return "Flight";
-  if (isBikeMode(mode)) return "Bike / Motorcycle";
-  if (isRoadTripMode(mode)) return "Car / Road Trip";
-  const m = mode.toLowerCase();
-  if (m.includes("train") || m.includes("rail")) return "Train";
-  if (m.includes("bus") || m.includes("coach")) return "Bus";
-  return "Flight";
-}
-var FLIGHT_AND_RENTAL_REGEX = /\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|plane|airplane|aircraft|airfare|takeoff|landing|blr|ixl|ixc|del|bom|maa|hyd|ccu|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|bike rental|motorcycle rental|rent a bike|renting motorcycle|renting bike|chandigarh rental|leh rental|manali rental|rental shop|pick up motorcycles|hire a bike)\b/i;
-var KNOWN_CITY_COORDINATES = {
-  // Indian Metros & Tier 1
-  "bangalore": { lat: 12.9716, lng: 77.5946 },
-  "bengaluru": { lat: 12.9716, lng: 77.5946 },
-  "delhi": { lat: 28.6139, lng: 77.209 },
-  "new delhi": { lat: 28.6139, lng: 77.209 },
-  "mumbai": { lat: 19.076, lng: 72.8777 },
-  "chennai": { lat: 13.0827, lng: 80.2707 },
-  "kolkata": { lat: 22.5726, lng: 88.3639 },
-  "hyderabad": { lat: 17.385, lng: 78.4867 },
-  "pune": { lat: 18.5204, lng: 73.8567 },
-  "ahmedabad": { lat: 23.0225, lng: 72.5714 },
-  "jaipur": { lat: 26.9124, lng: 75.7873 },
-  "chandigarh": { lat: 30.7333, lng: 76.7794 },
-  "lucknow": { lat: 26.8467, lng: 80.9462 },
-  "kochi": { lat: 9.9312, lng: 76.2673 },
-  "cochin": { lat: 9.9312, lng: 76.2673 },
-  "trivandrum": { lat: 8.5241, lng: 76.9366 },
-  "thiruvananthapuram": { lat: 8.5241, lng: 76.9366 },
-  "goa": { lat: 15.2993, lng: 74.124 },
-  "panaji": { lat: 15.4909, lng: 73.8278 },
-  // Mountain & Himalayan Destinations
-  "ladakh": { lat: 34.1526, lng: 77.5771 },
-  "leh": { lat: 34.1526, lng: 77.5771 },
-  "leh ladakh": { lat: 34.1526, lng: 77.5771 },
-  "kargil": { lat: 34.5539, lng: 76.1349 },
-  "srinagar": { lat: 34.0837, lng: 74.7973 },
-  "jammu": { lat: 32.7266, lng: 74.857 },
-  "manali": { lat: 32.2432, lng: 77.1892 },
-  "shimla": { lat: 31.1048, lng: 77.1734 },
-  "dharamshala": { lat: 32.219, lng: 76.3234 },
-  "mcleodganj": { lat: 32.2426, lng: 76.3213 },
-  "spiti": { lat: 32.2461, lng: 78.0349 },
-  "kaza": { lat: 32.2276, lng: 78.0526 },
-  "rishikesh": { lat: 30.0869, lng: 78.2676 },
-  "haridwar": { lat: 29.9457, lng: 78.1642 },
-  "dehradun": { lat: 30.3165, lng: 78.0322 },
-  "mussoorie": { lat: 30.4598, lng: 78.0644 },
-  "nainital": { lat: 29.3919, lng: 79.4542 },
-  // South Indian Destinations
-  "ooty": { lat: 11.4102, lng: 76.695 },
-  "munnar": { lat: 10.0889, lng: 77.0595 },
-  "coorg": { lat: 12.3375, lng: 75.8069 },
-  "madikeri": { lat: 12.4244, lng: 75.7382 },
-  "mysore": { lat: 12.2958, lng: 76.6394 },
-  "mysuru": { lat: 12.2958, lng: 76.6394 },
-  "wayanad": { lat: 11.6854, lng: 76.132 },
-  "kodaikanal": { lat: 10.2381, lng: 77.4892 },
-  "coimbatore": { lat: 11.0168, lng: 76.9558 },
-  "pondicherry": { lat: 11.9416, lng: 79.8083 },
-  "puducherry": { lat: 11.9416, lng: 79.8083 },
-  "hampi": { lat: 15.335, lng: 76.46 },
-  "gokarna": { lat: 14.5479, lng: 74.3188 },
-  // East & North East
-  "guwahati": { lat: 26.1445, lng: 91.7362 },
-  "shillong": { lat: 25.5788, lng: 91.8933 },
-  "darjeeling": { lat: 27.041, lng: 88.2663 },
-  "gangtok": { lat: 27.3389, lng: 88.6065 },
-  // West & Central
-  "udaipur": { lat: 24.5854, lng: 73.7125 },
-  "jodhpur": { lat: 26.2389, lng: 73.0243 },
-  "jaisalmer": { lat: 26.9157, lng: 70.9083 },
-  "varanasi": { lat: 25.3176, lng: 82.9739 },
-  "agra": { lat: 27.1767, lng: 78.0081 },
-  // International
-  "dubai": { lat: 25.2048, lng: 55.2708 },
-  "singapore": { lat: 1.3521, lng: 103.8198 },
-  "bangkok": { lat: 13.7563, lng: 100.5018 },
-  "bali": { lat: -8.4095, lng: 115.1889 },
-  "paris": { lat: 48.8566, lng: 2.3522 },
-  "london": { lat: 51.5074, lng: -0.1278 },
-  "tokyo": { lat: 35.6762, lng: 139.6503 },
-  "kathmandu": { lat: 27.7172, lng: 85.324 }
-};
-function findCoordsByName(name) {
-  if (!name) return null;
-  const clean = name.toLowerCase().trim();
-  for (const [key, coords] of Object.entries(KNOWN_CITY_COORDINATES)) {
-    if (clean === key || clean.includes(key) || key.includes(clean)) {
-      return coords;
-    }
-  }
-  return null;
-}
-function calculateHaversineKm(c1, c2) {
-  const R = 6371;
-  const dLat = (c2.lat - c1.lat) * Math.PI / 180;
-  const dLng = (c2.lng - c1.lng) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
-function estimateRouteDistanceKm(startCity, destName, startCoords, destCoords) {
-  const c1 = startCoords || findCoordsByName(startCity);
-  const c2 = destCoords || findCoordsByName(destName);
-  if (c1 && c2) {
-    const directKm = calculateHaversineKm(c1, c2);
-    return Math.max(50, Math.round(directKm * 1.3));
-  }
-  const isFar = destName.toLowerCase().includes("ladakh") || destName.toLowerCase().includes("leh") || destName.toLowerCase().includes("kashmir");
-  return isFar ? 2800 : 650;
-}
-function calculateTransitDaysOneWay(distanceKm, mode) {
-  switch (mode) {
-    case "Flight":
-      return 1;
-    case "Bike / Motorcycle":
-      if (distanceKm <= 500) return 1;
-      if (distanceKm <= 1e3) return 2;
-      if (distanceKm <= 1500) return 3;
-      if (distanceKm <= 2100) return 4;
-      if (distanceKm <= 2700) return 5;
-      return Math.min(6, Math.ceil(distanceKm / 520));
-    // e.g. Bangalore to Ladakh (3,100 km) = 5 to 6 days
-    case "Car / Road Trip":
-    case "Self-Drive Rental":
-      if (distanceKm <= 650) return 1;
-      if (distanceKm <= 1300) return 2;
-      if (distanceKm <= 2e3) return 3;
-      if (distanceKm <= 2800) return 4;
-      return Math.min(5, Math.ceil(distanceKm / 700));
-    case "Train":
-      if (distanceKm <= 900) return 1;
-      if (distanceKm <= 1800) return 2;
-      return Math.min(4, Math.ceil(distanceKm / 1e3));
-    case "Bus":
-      if (distanceKm <= 550) return 1;
-      if (distanceKm <= 1100) return 2;
-      return Math.min(4, Math.ceil(distanceKm / 500));
-    default:
-      return 1;
-  }
-}
-function getOverlandStageDetails(params) {
-  const { startCity, destName, dayNum, totalDays, outboundDays, coreDestDays, travelMode } = params;
-  const isBike = travelMode === "Bike / Motorcycle";
-  const vehicleName = isBike ? "Motorcycle" : "Road Trip Car";
-  const verb = isBike ? "Riding" : "Driving";
-  const mountVerb = isBike ? "Luggage saddlebags mounting & riding gear check" : "Luggage packing & vehicle inspection";
-  const startClean = startCity.toLowerCase();
-  const destClean = destName.toLowerCase();
-  const isSouthOrigin = startClean.includes("bangalore") || startClean.includes("bengaluru") || startClean.includes("chennai") || startClean.includes("hyderabad") || startClean.includes("kochi") || startClean.includes("mysore");
-  const isNorthHimalayas = destClean.includes("manali") || destClean.includes("ladakh") || destClean.includes("leh") || destClean.includes("shimla") || destClean.includes("spiti") || destClean.includes("kashmir") || destClean.includes("dharamshala") || destClean.includes("kullu");
-  if (dayNum <= outboundDays) {
-    if (outboundDays === 1) {
-      return {
-        title: `${startCity} to ${destName}: Scenic Highway Journey`,
-        theme: `Direct Overland Expedition to ${destName}`,
-        vibe: `Crisp morning start, scenic highway stretches, mountain foothills, and arrival at ${destName}`,
-        activities: [
-          {
-            id: `act-${dayNum}-1`,
-            time: "06:00 AM",
-            endTime: "08:30 AM",
-            title: `Early Morning Departure from ${startCity}`,
-            category: "Travel",
-            location: `${startCity} Highway Exit`,
-            coordinates: findCoordsByName(startCity) || { lat: 12.9716, lng: 77.5946 },
-            estimatedCost: isBike ? 600 : 1200,
-            travelTimeFromPrev: "0 min",
-            duration: "2.5 hrs",
-            description: `${mountVerb}, tank refuel, and heading out on the national highway before morning traffic.`,
-            imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-            recommendationReason: `Starting early guarantees smooth highway progress out of ${startCity}.`,
-            isIndoor: false,
-            isRainSafe: true,
-            rating: 4.8
-          },
-          {
-            id: `act-${dayNum}-2`,
-            time: "09:00 AM",
-            endTime: "10:15 AM",
-            title: "Highway Breakfast & Fuel Refill Stop",
-            category: "Food",
-            location: "National Highway Waypoint",
-            coordinates: { lat: 14.225, lng: 76.398 },
-            estimatedCost: 350,
-            travelTimeFromPrev: "30 min drive",
-            duration: "1.25 hrs",
-            description: `Rest stop at an authentic highway restaurant for fresh breakfast, hot tea/coffee, and vehicle check.`,
-            imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-            recommendationReason: "Essential hydration, fuel, and meal break along the highway.",
-            isIndoor: true,
-            isRainSafe: true,
-            rating: 4.7
-          },
-          {
-            id: `act-${dayNum}-3`,
-            time: "01:00 PM",
-            endTime: "02:30 PM",
-            title: `Scenic Approach & Highway Dhaba Lunch`,
-            category: "Food",
-            location: `En-Route Ghats to ${destName}`,
-            coordinates: { lat: 15.3647, lng: 75.124 },
-            estimatedCost: 450,
-            travelTimeFromPrev: "2 hrs drive",
-            duration: "1.5 hrs",
-            description: `Scenic winding ghat approach, panoramic photo point stop, and hearty regional lunch.`,
-            imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-            recommendationReason: "Scenic mountain climb transition with delicious roadside dining.",
-            isIndoor: true,
-            isRainSafe: true,
-            rating: 4.8
-          },
-          {
-            id: `act-${dayNum}-4`,
-            time: "05:30 PM",
-            endTime: "08:00 PM",
-            title: `Arrival in ${destName} & Hotel Check-in`,
-            category: "Travel",
-            location: `${destName} Center`,
-            coordinates: findCoordsByName(destName) || { lat: 32.2432, lng: 77.1892 },
-            estimatedCost: 500,
-            travelTimeFromPrev: "1.5 hrs drive",
-            duration: "2.5 hrs",
-            description: `Arriving in ${destName}, parking vehicle safely, hotel check-in, hot shower, and relaxed evening stroll with dinner.`,
-            imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-            recommendationReason: `Successful completion of the ${travelMode} road journey to ${destName}.`,
-            isIndoor: false,
-            isRainSafe: false,
-            rating: 4.9
-          }
-        ]
-      };
-    }
-    if (isSouthOrigin && isNorthHimalayas) {
-      if (dayNum === 1) {
-        return {
-          title: `${startCity} to Kolhapur / Pune: NH48 Highway Flag-off`,
-          theme: `Stage 1: Highway Departure & Maharashtra Border Transit`,
-          vibe: `High-octane morning departure, cruising along the golden quadrilateral, roadside coconut water and dhabas`,
-          activities: [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:00 AM",
-              endTime: "08:30 AM",
-              title: `${vehicleName} Inspection & Highway Flag-Off`,
-              category: "Travel",
-              location: `${startCity} NH48 / Nelamangala Tollway Exit`,
-              coordinates: { lat: 13.098, lng: 77.389 },
-              estimatedCost: isBike ? 800 : 2e3,
-              travelTimeFromPrev: "0 min",
-              duration: "2.5 hrs",
-              description: `Final tyre pressure calibration, fuel tank fill-up, mounting saddlebags/gear, and hitting NH48 northbound out of ${startCity}.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: `Early morning start beats city traffic and sets high mileage pace on Day 1.`,
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "09:00 AM",
-              endTime: "10:15 AM",
-              title: "Highway Refuel & Tumkur/Chitradurga Breakfast",
-              category: "Food",
-              location: "NH48 Chitradurga Highway Corridor",
-              coordinates: { lat: 14.225, lng: 76.398 },
-              estimatedCost: 300,
-              travelTimeFromPrev: "1.5 hrs riding",
-              duration: "1.25 hrs",
-              description: `Fuel refill and hot crispy dosas, filter coffee, and tyre inspection at a renowned highway food court.`,
-              imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Classic highway refueling and energizing South Indian breakfast.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.7
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:30 PM",
-              endTime: "03:00 PM",
-              title: "Belagavi / Hubli Highway Dhaba Lunch Stop",
-              category: "Food",
-              location: "NH48 Karnataka-Maharashtra Border Highway Dhaba",
-              coordinates: { lat: 15.8497, lng: 74.4977 },
-              estimatedCost: 450,
-              travelTimeFromPrev: "3 hrs riding",
-              duration: "1.5 hrs",
-              description: `Authentic roadside dhaba thali lunch, fresh sugarcane juice, hydration rest, and bike cooling halt.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Mid-route sustenance and rider recovery milestone.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "06:30 PM",
-              endTime: "09:00 PM",
-              title: "Arrival in Kolhapur / Pune & Transit Rest",
-              category: "Travel",
-              location: "Kolhapur / Pune Transit Hub",
-              coordinates: { lat: 16.705, lng: 74.2433 },
-              estimatedCost: 600,
-              travelTimeFromPrev: "2.5 hrs riding",
-              duration: "2.5 hrs",
-              description: `Check into rider-friendly transit hotel, secure vehicle parking, hot refreshing shower, and authentic Kolhapuri/Maharashtrian dinner.`,
-              imageUrl: "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "First major milestone completed on the overland route north.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.8
-            }
-          ]
-        };
-      }
-      if (dayNum === 2) {
-        return {
-          title: "Maharashtra to Udaipur: Western Express Highway",
-          theme: "Stage 2: Gujarat Transit & Aravalli Foothills Approach",
-          vibe: "Smooth multi-lane expressway cruising, vibrant highway dhabas, and entering Rajasthan",
-          activities: [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:30 AM",
-              endTime: "09:00 AM",
-              title: "Morning Throttle onto Gujarat & Rajasthan Corridor",
-              category: "Travel",
-              location: "NH48 Vadodara-Ahmedabad Expressway Stretch",
-              coordinates: { lat: 22.3072, lng: 73.1812 },
-              estimatedCost: isBike ? 800 : 2e3,
-              travelTimeFromPrev: "0 min",
-              duration: "2.5 hrs",
-              description: `Early morning engine start, tank refill, and cruising past industrial corridors towards Rajasthan hills.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Fast transit leg utilizing India\u2019s best expressway sections.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "09:30 AM",
-              endTime: "10:30 AM",
-              title: "Highway Kathiyawadi Breakfast & Chai Stop",
-              category: "Food",
-              location: "National Highway Express Hub",
-              coordinates: { lat: 23.0225, lng: 72.5714 },
-              estimatedCost: 300,
-              travelTimeFromPrev: "1 hr riding",
-              duration: "1 hr",
-              description: `Hot fafda, jalebi, masala chai, and rider hydration pause.`,
-              imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Cultural culinary taste on the western highway circuit.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.7
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:30 PM",
-              endTime: "03:00 PM",
-              title: "Rajasthani Highway Dhaba Lunch",
-              category: "Food",
-              location: "Himmatnagar-Ratanpur Rajasthan Border Highway",
-              coordinates: { lat: 23.85, lng: 73.4 },
-              estimatedCost: 450,
-              travelTimeFromPrev: "2.5 hrs riding",
-              duration: "1.5 hrs",
-              description: `Authentic Dal Baati Churma and sev tamatar at a traditional roadside charpai dhaba.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Classic Indian road-trip dhaba experience.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "06:30 PM",
-              endTime: "09:00 PM",
-              title: "Arrival in Udaipur & Lakeside Relaxing Dinner",
-              category: "Travel",
-              location: "Udaipur City Center",
-              coordinates: { lat: 24.5854, lng: 73.7125 },
-              estimatedCost: 700,
-              travelTimeFromPrev: "2.5 hrs riding",
-              duration: "2.5 hrs",
-              description: `Checking into hotel near Lake Pichola, bike wash/lubrication, and a soothing rooftop dinner overlooking the illuminated palaces.`,
-              imageUrl: "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Picturesque royal halt recharging energy for northern highways.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 4.9
-            }
-          ]
-        };
-      }
-      if (dayNum === 3) {
-        return {
-          title: "Udaipur to Chandigarh Gateway: Northern Plains Route",
-          theme: "Stage 3: Jaipur Bypass & Himalayan Foothills Gateway",
-          vibe: "Long sweeping northern highways, Grand Trunk Road dhabas, and approaching the Shivalik hills",
-          activities: [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:00 AM",
-              endTime: "09:00 AM",
-              title: "Early Morning Cruise along Rajasthan-Haryana Expressways",
-              category: "Travel",
-              location: "NH48 Jaipur-Delhi Western Peripheral Corridor",
-              coordinates: { lat: 26.9124, lng: 75.7873 },
-              estimatedCost: isBike ? 800 : 2e3,
-              travelTimeFromPrev: "0 min",
-              duration: "3 hrs",
-              description: `Cruising along Delhi-Jaipur highway bypass into Haryana, morning cool breeze, and quick fuel top-up.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Efficient expressway transit crossing north into the foothills gateway.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "09:30 AM",
-              endTime: "10:30 AM",
-              title: "Highway Tea & Pyaz Kachori Breakfast",
-              category: "Food",
-              location: "Neemrana Highway Food Stop",
-              coordinates: { lat: 27.989, lng: 76.386 },
-              estimatedCost: 250,
-              travelTimeFromPrev: "1 hr riding",
-              duration: "1 hr",
-              description: `Crispy Rajasthani kachoris, tea, and quick vehicle inspection.`,
-              imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Fast, tasty breakfast halt.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.7
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:30 PM",
-              endTime: "03:00 PM",
-              title: "Murthal / Ambala Authentic Punjabi Dhaba Lunch",
-              category: "Food",
-              location: "Grand Trunk Road Murthal / Ambala Dhaba",
-              coordinates: { lat: 28.988, lng: 77.07 },
-              estimatedCost: 500,
-              travelTimeFromPrev: "2.5 hrs riding",
-              duration: "1.5 hrs",
-              description: `Legendary tandoori stuffed parathas with fresh white butter, sweet lassi, and road traveler camaraderie.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Iconic North Indian highway dining institution.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "06:00 PM",
-              endTime: "08:30 PM",
-              title: "Arrival in Chandigarh / Foothills Gateway & Gear Briefing",
-              category: "Travel",
-              location: "Chandigarh / Zirakpur Himalayan Gateway",
-              coordinates: { lat: 30.7333, lng: 76.7794 },
-              estimatedCost: 650,
-              travelTimeFromPrev: "2 hrs riding",
-              duration: "2.5 hrs",
-              description: `Checking into hotel, final mountain gear inspection, chain lubrication, warm dinner, and rest before ascending the Himalayas.`,
-              imageUrl: "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Strategic resting point at the base of the Himalayas.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.8
-            }
-          ]
-        };
-      }
-      if (dayNum === 4 && (destClean.includes("ladakh") || destClean.includes("leh")) && outboundDays > 4) {
-        return {
-          title: `Chandigarh to Manali: Himalayan Gateway Stage`,
-          theme: `Stage 4: Beas Valley Ride to Manali Basecamp`,
-          vibe: `Winding mountain roads, Beas river rapids, and resting at the foot of Rohtang/Atal Tunnel`,
-          activities: [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:30 AM",
-              endTime: "09:30 AM",
-              title: "Ascending Himachal Hills via Kiratpur-Manali Expressway",
-              category: "Travel",
-              location: "Kiratpur-Manali 4-Lane Expressway / Swarghat",
-              coordinates: { lat: 31.25, lng: 76.7 },
-              estimatedCost: isBike ? 600 : 1500,
-              travelTimeFromPrev: "0 min",
-              duration: "3 hrs",
-              description: `Riding into the majestic Shivalik and Dhauladhar foothills on the 4-lane mountain highway.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Crucial mountain transit connecting the plains to the high Himalayas.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "10:00 AM",
-              endTime: "11:15 AM",
-              title: "Mountain Viewpoint Chai & Pandoh Dam Stop",
-              category: "Sightseeing",
-              location: "Pandoh Dam / Mandi Ghat Waypoint",
-              coordinates: { lat: 31.67, lng: 77.01 },
-              estimatedCost: 200,
-              travelTimeFromPrev: "45 min ride",
-              duration: "1.25 hrs",
-              description: `Stopping beside the turquoise Beas river reservoir for hot ginger tea and panoramic photo shoots.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Classic Himalayan photo spot along the river corridor.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:30 PM",
-              endTime: "03:00 PM",
-              title: "Riverside Himachali Trout & Siddu Lunch in Kullu",
-              category: "Food",
-              location: "Kullu Valley Beas Riverbank Cafe",
-              coordinates: { lat: 31.9579, lng: 77.1095 },
-              estimatedCost: 550,
-              travelTimeFromPrev: "1.5 hrs ride",
-              duration: "1.5 hrs",
-              description: `Authentic traditional Siddu with ghee, fresh river trout/dal, and riverside apple orchard views.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Iconic local Himachali mountain meal.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "05:30 PM",
-              endTime: "08:30 PM",
-              title: `Arrival in Manali Basecamp & High Altitude Check`,
-              category: "Travel",
-              location: "Manali / Old Manali Basecamp",
-              coordinates: { lat: 32.2432, lng: 77.1892 },
-              estimatedCost: 600,
-              travelTimeFromPrev: "1.5 hrs ride",
-              duration: "3 hrs",
-              description: `Checking into hotel in Manali, mountain bike inspection, warm dinner, and rest before crossing high Himalayan passes.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Essential mountain acclimatization and staging point for Ladakh.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.9
-            }
-          ]
-        };
-      }
-      if (dayNum === 5 && (destClean.includes("ladakh") || destClean.includes("leh")) && outboundDays > 4) {
-        return {
-          title: `Manali to Jispa / Keylong: Crossing Atal Tunnel into Lahaul`,
-          theme: `Stage 5: High Altitude Lahaul Valley Expedition`,
-          vibe: `Atal Tunnel transit, roaring Chandra-Bhaga rivers, snow peaks, and high mountain camping`,
-          activities: [
-            {
-              id: `act-${dayNum}-1`,
-              time: "07:00 AM",
-              endTime: "09:30 AM",
-              title: "Atal Tunnel Crossing & Sissu Waterfall Halt",
-              category: "Travel",
-              location: "Atal Tunnel North Portal / Sissu, Lahaul",
-              coordinates: { lat: 32.48, lng: 77.12 },
-              estimatedCost: isBike ? 500 : 1200,
-              travelTimeFromPrev: "0 min",
-              duration: "2.5 hrs",
-              description: `Riding through the engineering marvel of Atal Tunnel (9.02 km at 3,048m) and emerging into the breathtaking rugged Lahaul valley with views of Sissu Waterfall.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Spectacular gateway into the trans-Himalayan landscape.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 5
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "10:00 AM",
-              endTime: "11:30 AM",
-              title: "Tandi Chandra-Bhaga Confluence & Fuel Top-up",
-              category: "Travel",
-              location: "Tandi Petrol Pump / River Confluence",
-              coordinates: { lat: 32.55, lng: 76.97 },
-              estimatedCost: isBike ? 800 : 2500,
-              travelTimeFromPrev: "45 min ride",
-              duration: "1.5 hrs",
-              description: `Sacred confluence of Chandra & Bhaga rivers and full tank fuel top-up at the iconic last regular petrol station.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Critical fuel stop and historic Himalayan waypoint.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:00 PM",
-              endTime: "02:30 PM",
-              title: "Lahauli Thukpa & Momos Lunch in Keylong",
-              category: "Food",
-              location: "Keylong High Mountain Cafe",
-              coordinates: { lat: 32.571, lng: 77.032 },
-              estimatedCost: 350,
-              travelTimeFromPrev: "30 min ride",
-              duration: "1.5 hrs",
-              description: `Steaming hot Tibetan noodle thukpa, spicy chutney momos, and hot butter tea.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Warming mountain meal in the heart of Lahaul.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "05:30 PM",
-              endTime: "08:30 PM",
-              title: "Arrival in Jispa Riverside Campsite & Bonfire Briefing",
-              category: "Travel",
-              location: "Bhaga Riverfront Camp, Jispa (3,200m)",
-              coordinates: { lat: 32.639, lng: 77.185 },
-              estimatedCost: 700,
-              travelTimeFromPrev: "1 hr ride",
-              duration: "3 hrs",
-              description: `Riverside alpine stay, motorcycle check, starlit dinner by the Bhaga river, and acclimatization sleep.`,
-              imageUrl: "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Unforgettable mountain wilderness overnight halt.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.9
-            }
-          ]
-        };
-      }
-      if (dayNum === outboundDays || dayNum === 4 && (!destClean.includes("ladakh") && !destClean.includes("leh"))) {
-        const isLadakhFinal = destClean.includes("ladakh") || destClean.includes("leh");
-        return {
-          title: isLadakhFinal ? `Jispa to Leh: High Passes (Baralacha La, Tanglang La & More Plains)` : `Chandigarh to ${destName}: Himalayan Ghats & Mountain Ascent`,
-          theme: isLadakhFinal ? `The Ultimate High Pass Expedition to Leh (3,500m)` : `Final Ascent: Beas Valley & Arrival in ${destName}`,
-          vibe: isLadakhFinal ? `Epic mountain passes (4,890m to 5,328m), surreal moonscapes of More Plains, and triumphant entry into Leh` : `Winding mountain passes, Beas river rapids, pine-scented mountain air, and triumphant entry into ${destName}`,
-          activities: isLadakhFinal ? [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:00 AM",
-              endTime: "09:30 AM",
-              title: "Crossing Baralacha La Pass (4,890m) & Deepak Tal",
-              category: "Travel",
-              location: "Baralacha La High Mountain Pass",
-              coordinates: { lat: 32.7567, lng: 77.4206 },
-              estimatedCost: isBike ? 600 : 1500,
-              travelTimeFromPrev: "0 min",
-              duration: "3.5 hrs",
-              description: `Early morning throttle across Suraj Tal & Deepak Tal lakes, ascending the dramatic snow walls of Baralacha La pass.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "One of the most thrilling high altitude mountain passes in the world.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 5
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "10:30 AM",
-              endTime: "12:30 PM",
-              title: "Gata Loops (21 Hairpin Bends) & Nakee La (4,739m)",
-              category: "Travel",
-              location: "Gata Loops / Nakee La Highway Pass",
-              coordinates: { lat: 32.95, lng: 77.58 },
-              estimatedCost: 200,
-              travelTimeFromPrev: "1 hr ride",
-              duration: "2 hrs",
-              description: `Negotiating the legendary 21 hairpin bends of Gata Loops and crossing Nakee La and Lachung La into Ladakh.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Iconic milestone on the Manali-Leh highway.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:00 PM",
-              endTime: "03:00 PM",
-              title: "Cruising the More Plains (40 km High Altitude Plateau) & Pang Lunch",
-              category: "Food",
-              location: "More Plains & Pang Military Rest Camp",
-              coordinates: { lat: 33.15, lng: 77.65 },
-              estimatedCost: 450,
-              travelTimeFromPrev: "1.5 hrs ride",
-              duration: "2 hrs",
-              description: `Riding across the astonishing flat high-altitude More Plains plateau at 4,000m altitude and hot Maggi/dal-chawal lunch in Pang.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Surreal geological wonder and hearty mountain meal.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "05:30 PM",
-              endTime: "08:30 PM",
-              title: "Tanglang La Pass (5,328m) & Triumphant Arrival in Leh",
-              category: "Travel",
-              location: "Leh Main Market / Shanti Stupa Valley (3,500m)",
-              coordinates: { lat: 34.1526, lng: 77.5771 },
-              estimatedCost: 700,
-              travelTimeFromPrev: "2.5 hrs ride",
-              duration: "3 hrs",
-              description: `Conquering Tanglang La (the 2nd highest motorable pass), descending into the Indus River valley, and celebratory arrival in Leh on ${travelMode}! Check into hotel, hot shower, and relaxed dinner.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: `Triumphant overland arrival completing the great journey from ${startCity} to Leh!`,
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 5
-            }
-          ] : [
-            {
-              id: `act-${dayNum}-1`,
-              time: "06:30 AM",
-              endTime: "09:30 AM",
-              title: "Ascending Himachal Hills via Kiratpur-Manali Highway",
-              category: "Travel",
-              location: "Kiratpur-Manali 4-Lane Expressway / Swarghat",
-              coordinates: { lat: 31.25, lng: 76.7 },
-              estimatedCost: isBike ? 600 : 1500,
-              travelTimeFromPrev: "0 min",
-              duration: "3 hrs",
-              description: `Riding into the majestic Shivalik and Dhauladhar foothills, crossing scenic hill tunnels, and breathing crisp pine mountain air.`,
-              imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Breathtaking mountain riding on one of India\u2019s most scenic hill highways.",
-              isIndoor: false,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-2`,
-              time: "10:00 AM",
-              endTime: "11:15 AM",
-              title: "Mountain Viewpoint Chai & Pandoh Dam Stop",
-              category: "Sightseeing",
-              location: "Pandoh Dam / Mandi Ghat Waypoint",
-              coordinates: { lat: 31.67, lng: 77.01 },
-              estimatedCost: 200,
-              travelTimeFromPrev: "45 min ride",
-              duration: "1.25 hrs",
-              description: `Stopping beside the turquoise Beas river reservoir for hot ginger tea and panoramic photo shoots.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Classic Himalayan photo spot along the river corridor.",
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 4.8
-            },
-            {
-              id: `act-${dayNum}-3`,
-              time: "01:30 PM",
-              endTime: "03:00 PM",
-              title: "Riverside Himachali Trout & Siddu Lunch in Kullu",
-              category: "Food",
-              location: "Kullu Valley Beas Riverbank Cafe",
-              coordinates: { lat: 31.9579, lng: 77.1095 },
-              estimatedCost: 550,
-              travelTimeFromPrev: "1.5 hrs ride",
-              duration: "1.5 hrs",
-              description: `Authentic traditional Siddu with ghee, fresh river trout/dal, and riverside apple orchard views.`,
-              imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: "Iconic local Himachali mountain meal.",
-              isIndoor: true,
-              isRainSafe: true,
-              rating: 4.9
-            },
-            {
-              id: `act-${dayNum}-4`,
-              time: "05:30 PM",
-              endTime: "08:30 PM",
-              title: `Triumphant Arrival in ${destName} & Hotel Check-in`,
-              category: "Travel",
-              location: `${destName} Old Town / Mall Road`,
-              coordinates: findCoordsByName(destName) || { lat: 32.2432, lng: 77.1892 },
-              estimatedCost: 600,
-              travelTimeFromPrev: "1.5 hrs ride",
-              duration: "3 hrs",
-              description: `Rolling into ${destName} on ${travelMode}, celebrating completion of the great overland stage from ${startCity}, check-in, and relaxed dinner.`,
-              imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
-              recommendationReason: `Arrival milestone at your dream destination: ${destName}.`,
-              isIndoor: false,
-              isRainSafe: false,
-              rating: 5
-            }
-          ]
-        };
-      }
-    }
-  }
-  if (dayNum > outboundDays + coreDestDays) {
-    const returnStageIndex = dayNum - (outboundDays + coreDestDays);
-    const isFinalReturnDay = dayNum === totalDays;
-    return {
-      title: isFinalReturnDay ? `Final Stage: Highway Return to ${startCity}` : `Return Stage ${returnStageIndex}: Cruising Southbound Towards ${startCity}`,
-      theme: isFinalReturnDay ? `Homeward Arrival in ${startCity}` : `Scenic Return Circuit Transit`,
-      vibe: `Reflective highway cruising, open roads, souvenir stops, and safe return home`,
-      activities: [
-        {
-          id: `act-${dayNum}-1`,
-          time: "07:00 AM",
-          endTime: "09:30 AM",
-          title: `Morning Return Highway Leg Start`,
-          category: "Travel",
-          location: "National Return Highway Corridor",
-          coordinates: { lat: 20, lng: 76 },
-          estimatedCost: isBike ? 700 : 1800,
-          travelTimeFromPrev: "0 min",
-          duration: "2.5 hrs",
-          description: `Morning vehicle check, tank refuel, and steady cruising on the return highway stretch.`,
-          imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-          recommendationReason: "Smooth early return leg beating highway congestion.",
-          isIndoor: false,
-          isRainSafe: true,
-          rating: 4.8
-        },
-        {
-          id: `act-${dayNum}-2`,
-          time: "10:00 AM",
-          endTime: "11:15 AM",
-          title: "Highway Tea & Regional Refreshment Stop",
-          category: "Food",
-          location: "Highway Waypoint Rest Area",
-          coordinates: { lat: 18.5, lng: 75.5 },
-          estimatedCost: 300,
-          travelTimeFromPrev: "1 hr riding",
-          duration: "1.25 hrs",
-          description: `Mid-morning tea break, stretching legs, and fuel top-up.`,
-          imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-          recommendationReason: "Rider alertness and hydration.",
-          isIndoor: true,
-          isRainSafe: true,
-          rating: 4.7
-        },
-        {
-          id: `act-${dayNum}-3`,
-          time: "01:30 PM",
-          endTime: "03:00 PM",
-          title: "Highway Dhaba Lunch & Route Milestone",
-          category: "Food",
-          location: "National Highway Food Hub",
-          coordinates: { lat: 16.5, lng: 75 },
-          estimatedCost: 450,
-          travelTimeFromPrev: "2.5 hrs riding",
-          duration: "1.5 hrs",
-          description: `Hearty lunch thali, cold lassi/tender coconut, and vehicle check.`,
-          imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-          recommendationReason: "Traditional highway meal before the final stretch.",
-          isIndoor: true,
-          isRainSafe: true,
-          rating: 4.8
-        },
-        {
-          id: `act-${dayNum}-4`,
-          time: "06:00 PM",
-          endTime: "08:30 PM",
-          title: isFinalReturnDay ? `Safe Arrival Back Home in ${startCity}` : "Evening Transit Lodge & Rest",
-          category: "Travel",
-          location: isFinalReturnDay ? `${startCity} Home / City Center` : "Intermediate Transit Stay",
-          coordinates: isFinalReturnDay ? findCoordsByName(startCity) || { lat: 12.9716, lng: 77.5946 } : { lat: 15, lng: 75 },
-          estimatedCost: 500,
-          travelTimeFromPrev: "2 hrs riding",
-          duration: "2.5 hrs",
-          description: isFinalReturnDay ? `Safely entering ${startCity}, completing the epic round-trip ${travelMode} expedition, unpack, and celebrate the unforgettable journey!` : `Checking into transit lodge, securing vehicle, hot dinner, and rest for the next day's ride.`,
-          imageUrl: isFinalReturnDay ? "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop" : "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-          recommendationReason: isFinalReturnDay ? `Triumphant return home with lifelong road-trip memories.` : `Well-deserved rest on the return circuit.`,
-          isIndoor: isFinalReturnDay ? false : true,
-          isRainSafe: true,
-          rating: 5
-        }
-      ]
-    };
-  }
-  return {
-    title: `Overland Road Trip: En-Route to ${destName}`,
-    theme: `Highway Touring on ${travelMode}`,
-    vibe: `Open highways, scenic vistas, and steady riding progress`,
-    activities: [
-      {
-        id: `act-${dayNum}-1`,
-        time: "07:00 AM",
-        endTime: "09:30 AM",
-        title: `Morning Highway Stage`,
-        category: "Travel",
-        location: `Highway Route to ${destName}`,
-        coordinates: { lat: 20, lng: 76 },
-        estimatedCost: isBike ? 600 : 1500,
-        travelTimeFromPrev: "0 min",
-        duration: "2.5 hrs",
-        description: `Hitting the highway, steady cruising, and scenic open landscape vistas.`,
-        imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop",
-        recommendationReason: "Highway touring progress.",
-        isIndoor: false,
-        isRainSafe: true,
-        rating: 4.8
-      },
-      {
-        id: `act-${dayNum}-2`,
-        time: "10:00 AM",
-        endTime: "11:15 AM",
-        title: "Highway Refuel & Breakfast Stop",
-        category: "Food",
-        location: "Highway Waypoint",
-        coordinates: { lat: 21, lng: 76.5 },
-        estimatedCost: 300,
-        travelTimeFromPrev: "1 hr",
-        duration: "1.25 hrs",
-        description: `Fuel refill and fresh breakfast at a roadside eatery.`,
-        imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
-        recommendationReason: "Essential road sustenance.",
-        isIndoor: true,
-        isRainSafe: true,
-        rating: 4.7
-      },
-      {
-        id: `act-${dayNum}-3`,
-        time: "01:30 PM",
-        endTime: "03:00 PM",
-        title: "Roadside Dhaba Lunch",
-        category: "Food",
-        location: "Midway Highway Dhaba",
-        coordinates: { lat: 22, lng: 77 },
-        estimatedCost: 400,
-        travelTimeFromPrev: "2 hrs",
-        duration: "1.5 hrs",
-        description: `Hot lunch thali, cold beverages, and relaxing under the shade.`,
-        imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop",
-        recommendationReason: "Delicious highway food stop.",
-        isIndoor: true,
-        isRainSafe: true,
-        rating: 4.8
-      },
-      {
-        id: `act-${dayNum}-4`,
-        time: "06:00 PM",
-        endTime: "08:30 PM",
-        title: "Stage Check-In & Rest",
-        category: "Travel",
-        location: "Overnight Transit Lodge",
-        coordinates: { lat: 23, lng: 77.5 },
-        estimatedCost: 500,
-        travelTimeFromPrev: "2 hrs",
-        duration: "2.5 hrs",
-        description: `Check into hotel, vehicle safe parking, hot shower, and dinner.`,
-        imageUrl: "https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop",
-        recommendationReason: "Rest and recovery.",
-        isIndoor: true,
-        isRainSafe: true,
-        rating: 4.8
-      }
-    ]
-  };
-}
-function allocateTripDays(totalDurationDays, transitDaysOneWay) {
-  if (transitDaysOneWay <= 1) {
-    const returnDays2 = 1;
-    const outboundDays2 = 1;
-    const coreDestDays2 = Math.max(1, totalDurationDays - (outboundDays2 + returnDays2));
-    return {
-      outboundDays: outboundDays2,
-      coreDestDays: coreDestDays2,
-      returnDays: returnDays2,
-      isOverlandMultiDay: false
-    };
-  }
-  let outboundDays = transitDaysOneWay;
-  let returnDays = transitDaysOneWay;
-  if (outboundDays + returnDays >= totalDurationDays) {
-    outboundDays = Math.max(1, Math.floor((totalDurationDays - 1) / 2));
-    returnDays = Math.max(1, Math.floor((totalDurationDays - 1) / 2));
-  }
-  const coreDestDays = Math.max(1, totalDurationDays - (outboundDays + returnDays));
-  return {
-    outboundDays,
-    coreDestDays,
-    returnDays,
-    isOverlandMultiDay: true
-  };
-}
-
 // server/services/serverPlanner.ts
 var ADAPT_OPTIONS = [
   {
@@ -1509,9 +512,7 @@ async function generateTripFromInputs(params) {
   if (!apiKey) {
     throw new Error("Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Environment Variables or .env file.");
   }
-  const travelMode = normalizeTravelMode(params.travelMode || params.preferences.travelMode);
-  const isBike = isBikeMode(travelMode);
-  const isRoadTrip = isRoadTripMode(travelMode);
+  const travelMode = params.travelMode || params.preferences.travelMode || "Flight";
   const startCity = params.startCity || params.preferences.startCity || "Origin City";
   const destName = params.destinationPlace?.name || params.destinationId;
   const destAddress = params.destinationPlace?.address || destName;
@@ -1530,46 +531,17 @@ async function generateTripFromInputs(params) {
   const foodPref = params.preferences.food || "No preference";
   const alcoholPref = params.preferences.alcohol || "No";
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
-  const estDistanceKm = estimateRouteDistanceKm(
-    startCity,
-    destName,
-    null,
-    destLat && destLng ? { lat: destLat, lng: destLng } : null
-  );
-  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, travelMode);
-  const allocation = allocateTripDays(params.durationDays, transitDaysOneWay);
-  const isMultiDayTransit = allocation.isOverlandMultiDay;
-  const outboundEndDay = allocation.outboundDays;
-  const destStartDay = outboundEndDay + 1;
-  const destEndDay = outboundEndDay + allocation.coreDestDays;
-  const returnStartDay = destEndDay + 1;
-  const totalDays = params.durationDays;
+  const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
+  const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : "car / personal road vehicle";
+  const actionVerb = travelMode === "Bike / Motorcycle" ? "motorcycle ride" : "car drive";
   const prompt = `You are a world-class AI travel planner and local expert.
 Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
 Destination: "${destName}" (${destAddress}).
 ${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}, Longitude ${destLng}.` : ""}
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
-Selected Travel Mode: "${travelMode}".
-Estimated Route Distance: ~${estDistanceKm} km.
-One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
+Travel Mode: ${travelMode}.
 Budget Level: ${params.budgetTier} (~\u20B9${params.targetBudget?.toLocaleString() || "30,000"} total for ${params.travellersCount} people over ${params.durationDays} days).
-
-========================================================================================
-ABSOLUTE TRAVEL MODE MANDATE (MODE: "${travelMode}"):
-${isBike ? `\u2022 THIS IS A 100% PURE MOTORCYCLE EXPEDITION STARTING DIRECTLY FROM "${startCity}".
-\u2022 THE USER IS RIDING THEIR MOTORCYCLE ALL THE WAY FROM "${startCity}" TO "${destName}" AND ALL THE WAY BACK.
-\u2022 ABSOLUTELY ZERO FLIGHTS! DO NOT SUGGEST FLIGHTS TO CHANDIGARH, DELHI, LEH, OR ANY OTHER CITY.
-\u2022 ABSOLUTELY ZERO INTERMEDIATE RENTALS (Do NOT say "Fly to Leh/Chandigarh and pick up rental bike").
-\u2022 THE ENTIRE TRIP IS ON THE ROAD:
-  - Day 1: Depart "${startCity}" on motorcycle via National Highway (NH44/NH48), morning highway riding, fuel pitstop, roadside dhaba lunch, and evening arrival at Stage 1 transit city (e.g. Kolhapur/Pune/Hyderabad).
-  - Days 2 to ${outboundEndDay}: Sequential daily highway riding stages crossing intermediate states towards "${destName}".
-  - Day ${outboundEndDay}: Final mountain pass/highway approach, ride motorcycle into "${destName}", hotel check-in & rest.
-  - Days ${destStartDay} to ${destEndDay}: Dedicated days exploring "${destName}" on motorcycle.
-  - Days ${returnStartDay} to ${totalDays}: Sequential return highway riding stages back home to "${startCity}".` : isRoadTrip ? `\u2022 THIS IS A 100% PURE CAR ROAD TRIP STARTING DIRECTLY FROM "${startCity}".
-\u2022 THE USER DRIVES ON THE HIGHWAYS ALL THE WAY FROM "${startCity}" TO "${destName}" AND BACK.
-\u2022 ABSOLUTELY ZERO FLIGHTS, ZERO AIRPORTS, ZERO AIRLINE TICKETS!` : travelMode === "Train" ? `\u2022 THE ENTIRE JOURNEY IS BY TRAIN / RAILWAYS FROM "${startCity}" RAILWAY STATION. ZERO FLIGHTS!` : `\u2022 Air travel via commercial flights from "${startCity}" airport to destination airport (or nearest commercial airport + scenic road transfer).`}
-========================================================================================
 
 USER PREFERENCES TO STRICTLY ADHERE TO:
 1. TRAVEL STYLES (${stylesList}):
@@ -1603,40 +575,37 @@ STRICT ACCURACY & TIMELINE RULES:
 1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
 
-${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode} over ~${estDistanceKm} km):
-     \u2022 OUTBOUND OVERLAND STAGES (Days 1 to ${outboundEndDay}):
-       * Since travelling ~${estDistanceKm} km via ${travelMode} takes ${transitDaysOneWay} days one-way, Days 1 through ${outboundEndDay} MUST realistically cover the sequential outbound overland stages.
-       * Day 1 MUST start at "${startCity}": Morning departure on ${travelMode}, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
-       ${outboundEndDay > 2 ? `* Days 2 to ${outboundEndDay - 1}: Sequential intermediate transit legs through real connecting cities, scenic high passes, and overnight stops (e.g., Udaipur -> Chandigarh -> Manali -> Jispa/Keylong).` : ""}
-       * Day ${outboundEndDay}: Final high pass / highway approach, arrival in "${destName}", hotel check-in, rest/acclimatization, and relaxing local dinner.
-
-     \u2022 CORE DESTINATION IMMERSION (Days ${destStartDay} to ${destEndDay}):
-       * Dedicated full days exploring "${destName}"'s iconic landmarks, viewpoints, culture, monasteries/nature, and cuisine with 3 to 4 sequential activities per day.
-
-     \u2022 INBOUND RETURN OVERLAND STAGES (Days ${returnStartDay} to ${totalDays}):
-       * Days ${returnStartDay} to ${totalDays} MUST realistically cover the return overland journey back to "${startCity}" over sequential stages (either reverse route or alternate scenic circuit), concluding with safe arrival back in "${startCity}" on Day ${totalDays}!` : `   - OUTBOUND PHASE (Day 1):
-     \u2022 Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}".
-     \u2022 If travelMode is Flight:
-       - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg), or no direct flight exists:
-         * Leg 1 (Flight): Fly from "${startCity}" airport to Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg).
-         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway to "${destName}".
-         * Leg 3 (Arrival & Stay): Reaching "${destName}", hotel check-in, and relaxing evening walk/dinner.
-       - If direct flight exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
-     \u2022 If travelMode is Road / Train: Depart "${startCity}" via ${travelMode}, scenic transit, arriving in "${destName}", hotel check-in, and evening exploration.
-
-   - CORE DESTINATION IMMERSION (Days 2 to ${totalDays - 1}):
+${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MANDATE:
+     \u2022 The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
+     \u2022 ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
+     \u2022 OUTBOUND DAY 1: Activity 1 is highway departure from "${startCity}" by ${vehicleType} (fueling up, luggage loaded, hitting the highway). Activity 2 is highway cruising via scenic expressway/national highway with a highway dhaba/food court pitstop. Activity 3 is driving/riding into "${destName}", scenic ghat/mountain road, arriving and parking directly at the hotel/resort, checking in. Activity 4 is an evening relaxed dinner or walk.
+     \u2022 LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
+     \u2022 MULTI-DAY TRANSIT RULE: If distance is > 1,200 km where driving/riding takes multiple days, Day 1 and Day 2 realistically cover the outbound road trip journey with scenic stops and overnight highway stay.
+     \u2022 INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
+     \u2022 ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
+       - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
+       - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
+       - "recommendedMode": "${travelMode}"
+       - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)` : `   - OUTBOUND PHASE (Day 1 / Early Days):
+     \u2022 Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
+     \u2022 CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
+       - If travelMode is Flight and there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
+         * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
+         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
+         * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
+         * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
+     \u2022 MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound journey, scenic rail/road route, sleeper/en-route food stops, arriving and checking in to "${destName}" on Day 2.
+   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
+     \u2022 The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!
+   - TRANSIT LOGISTICS & ROUTE SUMMARY: Calculate realistic distance and transit options from "${startCity}" to "${destName}". If there is no direct flight, "routeSummary.arrivalHub" MUST name the nearest commercial airport and ground transfer (e.g., "Coimbatore Airport (CJB) + 3h Nilgiri Ghat Drive to Ooty").`}
+   - CORE DESTINATION IMMERSION (Middle Days):
      \u2022 Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
-
-   - INBOUND RETURN PHASE (Final Day / Day ${totalDays}):
-     \u2022 The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return transit via ${travelMode}, and safe arrival back home in "${startCity}"!`}
-
 2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
-3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / intermediate route stops for overland travel days & return).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}".
 4. NEVER mix up destinations: Do NOT include unrelated tourist destinations.
 5. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates.
 6. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries and regional cuisine aligned with the ${params.budgetTier} budget tier.
-7. REALISTIC COSTS: Every activity cost in INR must be realistic for real travelers.
-8. TRANSIT LOGISTICS & ROUTE SUMMARY: Calculate realistic distance and transit options from "${startCity}" to "${destName}". If there is no direct flight, "routeSummary.arrivalHub" MUST name the nearest commercial airport and ground transfer (e.g., "Coimbatore Airport (CJB) + 3h Nilgiri Ghat Drive to Ooty").`;
+7. REALISTIC COSTS: Every activity cost in INR must be realistic for real travelers.`;
   const schema = {
     type: "OBJECT",
     properties: {
@@ -1767,13 +736,6 @@ ${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode}
         model: modelName,
         contents: prompt,
         config: {
-          systemInstruction: `You are TripWise AI, an expert travel planner.
-MANDATORY CONSTRAINT:
-The user selected Travel Mode: "${travelMode}".
-- If Travel Mode is "Bike / Motorcycle": The entire round-trip journey is a motorcycle expedition. Under NO circumstances should you include any flights, airplanes, boarding passes, or airports. Every transit activity MUST be motorcycle riding on highways and mountain passes.
-- If Travel Mode is "Car / Road Trip" or "Self-Drive Rental": The entire trip is by car/road. Zero flights.
-- If Travel Mode is "Train": All transit is by train/railway. Zero flights.
-- Only suggest flights if Travel Mode is explicitly "Flight".`,
           responseMimeType: "application/json",
           responseSchema: schema
         }
@@ -1794,102 +756,50 @@ The user selected Travel Mode: "${travelMode}".
   const days = await Promise.all(
     (genData.days || []).map(async (day, dIdx) => {
       const dayNum = day.dayNumber || dIdx + 1;
-      const isRoadTrip2 = isRoadTripMode(travelMode);
-      const isBike2 = isBikeMode(travelMode);
-      const isTransitStage = isRoadTrip2 && (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay) || !isMultiDayTransit && (dayNum === 1 || dayNum === totalDays));
-      const dayRawText = JSON.stringify(day).toLowerCase();
-      const hasContamination = isRoadTrip2 && FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
-      let dayTitle = day.title || `Day ${dayNum} Exploration`;
-      let dayTheme = day.theme || `${destName} Highlights & Exploration`;
-      let dayVibe = day.vibe || "Scenic views, cultural landmarks and delicious local tastes";
-      let rawActivities = day.activities || [];
-      if (isRoadTrip2 && (isTransitStage || (dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination || rawActivities.length === 0)) {
-        const stageDetails = getOverlandStageDetails({
-          startCity,
-          destName,
-          dayNum,
-          totalDays,
-          outboundDays: outboundEndDay,
-          coreDestDays: allocation.coreDestDays,
-          returnDays: allocation.returnDays,
-          travelMode
-        });
-        dayTitle = stageDetails.title;
-        dayTheme = stageDetails.theme;
-        dayVibe = stageDetails.vibe;
-        rawActivities = stageDetails.activities;
-      }
       const activities = await Promise.all(
-        rawActivities.map(async (act, aIdx) => {
+        (day.activities || []).map(async (act, aIdx) => {
           const baseLat = destLat || 20;
           const baseLng = destLng || 78;
           const offsetLat = aIdx * 0.01 * Math.sin(aIdx * 1.5);
           const offsetLng = aIdx * 0.01 * Math.cos(aIdx * 1.5);
-          let finalTitle = act.title || `Highlight Stop ${aIdx + 1}`;
-          let finalLocation = act.location || destName;
-          let finalDesc = act.description || `Experience ${finalTitle}.`;
-          let finalWhy = act.recommendationReason || "Tailored to your preferences and travel style.";
-          let finalCategory = act.category || "Sightseeing";
-          if (isRoadTrip2) {
-            const combinedText = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
-            if (FLIGHT_AND_RENTAL_REGEX.test(combinedText)) {
-              if (isBike2) {
-                finalCategory = "Sightseeing";
-                finalTitle = `${destName} Scenic Mountain & Highway Touring`;
-                finalLocation = `${destName} Panoramic Scenic Route`;
-                finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
-                finalWhy = "Continuous authentic overland motorcycle expedition.";
-              } else {
-                finalCategory = "Sightseeing";
-                finalTitle = `${destName} Scenic Highway & Valley Drive`;
-                finalLocation = `${destName} Scenic Route`;
-                finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
-                finalWhy = "Enjoying the open road and scenic landscapes on your road trip.";
-              }
-            }
+          const realPhoto = await fetchRealPlacePhoto(act.title, destName, act.category);
+          let cleanTravelTime = act.travelTimeFromPrev || (isRoadVehicleMode ? `15 min ${actionVerb}` : "15 min drive");
+          let cleanDescription = act.description || `Experience ${act.title || destName}.`;
+          let cleanRecommendation = act.recommendationReason || "Tailored to your preferences and travel style.";
+          if (isRoadVehicleMode) {
+            cleanTravelTime = cleanTravelTime.replace(/\b(cab|taxi|uber|ola|airport shuttle|metro|train|bus|auto|rickshaw)\b/gi, actionVerb);
+            cleanDescription = cleanDescription.replace(/\b(take a (cab|taxi|flight|train|bus|metro)|hail a (cab|taxi))\b/gi, `${actionVerb} with your ${vehicleType}`).replace(/\b(airport cab|airport transfer|flight to|board the flight|board the train)\b/gi, `${actionVerb}`);
+            cleanRecommendation = cleanRecommendation.replace(/\b(take a (cab|taxi|flight|train|bus|metro)|hail a (cab|taxi))\b/gi, `${actionVerb} with your ${vehicleType}`);
           }
-          const realPhoto = await fetchRealPlacePhoto(finalTitle, destName, finalCategory);
           return {
             id: act.id || `act-${dayNum}-${aIdx + 1}-${crypto.randomUUID()}`,
             time: act.time || "10:00 AM",
             endTime: act.endTime || "12:00 PM",
-            title: finalTitle,
-            category: finalCategory,
-            location: finalLocation,
+            title: act.title || `Highlight Stop ${aIdx + 1}`,
+            category: act.category || "Sightseeing",
+            location: act.location || destName,
             coordinates: act.coordinates && typeof act.coordinates.lat === "number" && typeof act.coordinates.lng === "number" ? act.coordinates : {
               lat: Number((baseLat + offsetLat).toFixed(6)),
               lng: Number((baseLng + offsetLng).toFixed(6))
             },
             estimatedCost: typeof act.estimatedCost === "number" ? act.estimatedCost : 400,
-            travelTimeFromPrev: act.travelTimeFromPrev || "15 min drive",
+            travelTimeFromPrev: cleanTravelTime,
             duration: act.duration || "1.5 hrs",
-            description: finalDesc,
+            description: cleanDescription,
             imageUrl: realPhoto,
-            recommendationReason: finalWhy,
+            recommendationReason: cleanRecommendation,
             isIndoor: Boolean(act.isIndoor),
             isRainSafe: Boolean(act.isRainSafe),
             rating: typeof act.rating === "number" ? act.rating : 4.8
           };
         })
       );
-      let calculatedDate = day.date || `Day ${dayNum}`;
-      if (params.startDate) {
-        try {
-          const d = new Date(params.startDate);
-          if (!isNaN(d.getTime())) {
-            d.setDate(d.getDate() + (dayNum - 1));
-            calculatedDate = d.toISOString().split("T")[0];
-          }
-        } catch {
-          calculatedDate = day.date || `Day ${dayNum}`;
-        }
-      }
       return {
         dayNumber: dayNum,
-        date: calculatedDate,
-        title: dayTitle,
-        theme: dayTheme,
-        vibe: dayVibe,
+        date: day.date || `Day ${dayNum}`,
+        title: day.title || `Day ${dayNum} Exploration`,
+        theme: day.theme || `${destName} Highlights & Exploration`,
+        vibe: day.vibe || "Scenic views, cultural landmarks and delicious local tastes",
         weatherForecast: day.weatherForecast || {
           temp: "27\xB0C",
           condition: "Partly Cloudy",
@@ -1916,23 +826,34 @@ The user selected Travel Mode: "${travelMode}".
       suggestedStay: matchStay
     };
   });
+  const finalRouteSummary = genData.routeSummary ? {
+    distanceKm: genData.routeSummary.distanceKm || 250,
+    flightDuration: isRoadVehicleMode ? void 0 : genData.routeSummary.flightDuration,
+    trainDuration: isRoadVehicleMode ? void 0 : genData.routeSummary.trainDuration,
+    driveDuration: genData.routeSummary.driveDuration || "4h 30m",
+    departureHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.departureHub || "") ? `${startCity} Highway Exit / Expressway Corridor` : genData.routeSummary.departureHub || (isRoadVehicleMode ? `${startCity} Highway Corridor` : `${startCity} Terminal`),
+    arrivalHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.arrivalHub || "") ? `${destName} Valley Entry / Highway Gateway` : genData.routeSummary.arrivalHub || (isRoadVehicleMode ? `${destName} Entry / Highway Hub` : `${destName} Junction`),
+    keyHighwayOrTrain: genData.routeSummary.keyHighwayOrTrain || (isRoadVehicleMode ? "National Highway Corridor" : "Direct Transit Route"),
+    recommendedMode: isRoadVehicleMode ? travelMode : genData.routeSummary.recommendedMode || travelMode,
+    notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : genData.routeSummary.notes || "Direct transit connectivity"
+  } : {
+    distanceKm: 250,
+    flightDuration: isRoadVehicleMode ? void 0 : "1h 30m",
+    trainDuration: isRoadVehicleMode ? void 0 : "5h",
+    driveDuration: "4h 30m",
+    departureHub: isRoadVehicleMode ? `${startCity} Highway Exit / Expressway Corridor` : `${startCity} Terminal`,
+    arrivalHub: isRoadVehicleMode ? `${destName} Valley Entry / Highway Gateway` : `${destName} Junction`,
+    keyHighwayOrTrain: isRoadVehicleMode ? "National Highway Corridor" : "Direct Transit Route",
+    recommendedMode: travelMode,
+    notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : "Direct transit connectivity"
+  };
   return {
     id: crypto.randomUUID(),
     title: `${destName} ${params.companionType} Getaway`,
     destination: destName,
     destinationStateOrCountry: destAddress,
     startCity,
-    routeSummary: genData.routeSummary || {
-      distanceKm: 250,
-      flightDuration: "1h 30m",
-      trainDuration: "5h",
-      driveDuration: "4h 30m",
-      departureHub: `${startCity} Terminal`,
-      arrivalHub: `${destName} Junction`,
-      keyHighwayOrTrain: "Direct Transit Route",
-      recommendedMode: travelMode,
-      notes: "Direct transit connectivity"
-    },
+    routeSummary: finalRouteSummary,
     heroImage: heroImg,
     startDate: params.startDate,
     endDate: params.endDate,
@@ -2202,8 +1123,12 @@ async function generateRealPlaceForDay(params) {
     dayNumber = 1,
     existingActivities = [],
     travelStyles = ["Sightseeing", "Culture", "Food"],
-    budgetTier = "Moderate"
+    budgetTier = "Moderate",
+    travelMode = "Flight"
   } = params;
+  const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
+  const actionVerb = travelMode === "Bike / Motorcycle" ? "motorcycle ride" : "car drive";
+  const defaultTravelTime = isRoadVehicleMode ? `15 min ${actionVerb}` : "15 min drive";
   const existingTitles = existingActivities.map((a) => a.title.toLowerCase());
   const lastAct = existingActivities[existingActivities.length - 1];
   let nextTime = "04:30 PM";
@@ -2236,6 +1161,7 @@ async function generateRealPlaceForDay(params) {
       });
       const prompt = `You are an expert travel concierge for "${destination}" (${destinationStateOrCountry}).
 The traveler is on Day ${dayNumber} of their trip.
+Travel mode is: ${travelMode}.${isRoadVehicleMode ? ` Note: Travelers have their own vehicle throughout the trip. Do NOT suggest cabs or public transit.` : ""}
 Already planned stops for today: ${existingActivities.map((a) => `"${a.title}" (${a.category})`).join(", ") || "None yet"}.
 Traveler styles: ${travelStyles.join(", ")}.
 Budget: ${budgetTier}.
@@ -2251,7 +1177,7 @@ Return ONLY a JSON object:
   "location": "Neighborhood or Area in ${destination}",
   "estimatedCost": 400,
   "duration": "1.5 hrs",
-  "travelTimeFromPrev": "15 min cab",
+  "travelTimeFromPrev": "${defaultTravelTime}",
   "description": "2-sentence authentic highlight of this real place",
   "recommendationReason": "Why this specific place is a must-visit today",
   "isIndoor": false,
@@ -2271,6 +1197,10 @@ Return ONLY a JSON object:
             const parsed = parseJsonSafely2(response.text);
             if (parsed && parsed.title) {
               const photo2 = await resolvePlaceImage(parsed.title, destination, parsed.category || "Sightseeing");
+              let cleanTravelTime = parsed.travelTimeFromPrev || defaultTravelTime;
+              if (isRoadVehicleMode) {
+                cleanTravelTime = cleanTravelTime.replace(/\b(cab|taxi|uber|ola|airport shuttle|metro|train|bus|auto|rickshaw)\b/gi, actionVerb);
+              }
               return {
                 id: `real-stop-${crypto.randomUUID()}`,
                 time: nextTime,
@@ -2280,7 +1210,7 @@ Return ONLY a JSON object:
                 location: parsed.location || `${destination} Area`,
                 estimatedCost: Number(parsed.estimatedCost) || 400,
                 duration: parsed.duration || "1.5 hrs",
-                travelTimeFromPrev: parsed.travelTimeFromPrev || "15 min cab",
+                travelTimeFromPrev: cleanTravelTime,
                 description: parsed.description || `Iconic real destination in ${destination}.`,
                 recommendationReason: parsed.recommendationReason || `Handpicked authentic real place in ${destination}.`,
                 imageUrl: photo2,
@@ -2357,7 +1287,7 @@ Return ONLY a JSON object:
     location: chosen.location,
     estimatedCost: chosen.cost,
     duration: "1.5 hrs",
-    travelTimeFromPrev: "15 min cab",
+    travelTimeFromPrev: defaultTravelTime,
     description: chosen.desc,
     recommendationReason: chosen.reason,
     imageUrl: photo,
@@ -2896,11 +1826,6 @@ function parseJsonSafely4(text) {
   }
 }
 function getGenericDynamicIntelligence(destination, startCity = "Origin City", travelMode) {
-  const dist = estimateRouteDistanceKm(startCity, destination);
-  const bikeOneWay = calculateTransitDaysOneWay(dist, "Bike / Motorcycle");
-  const carOneWay = calculateTransitDaysOneWay(dist, "Car / Road Trip");
-  const trainOneWay = calculateTransitDaysOneWay(dist, "Train");
-  const busOneWay = calculateTransitDaysOneWay(dist, "Bus");
   const modes = [
     {
       mode: "Flight",
@@ -2924,7 +1849,7 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       label: "Train / Railway",
       icon: "\u{1F686}",
       isRecommended: false,
-      durationEstimate: trainOneWay > 1 ? `${trainOneWay} days rail journey (~${dist} km)` : "Overnight/Day rail transit",
+      durationEstimate: "Rail transit",
       estimatedCostRange: "Train ticket",
       suitabilityScore: 85,
       pros: "Comfortable, scenic rail journey.",
@@ -2932,16 +1857,16 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Train route from ${startCity} to ${destination} or nearest railhead`,
       tag: "Rail Route",
-      transitHoursOneWay: Math.min(48, Math.round(dist / 60)),
-      transitDaysRoundTrip: trainOneWay * 2,
-      minRequiredDaysForMode: trainOneWay * 2
+      transitHoursOneWay: 10,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2
     },
     {
       mode: "Car / Road Trip",
       label: "Car / Road Trip",
       icon: "\u{1F697}",
       isRecommended: false,
-      durationEstimate: carOneWay > 1 ? `${carOneWay} days road journey (~${dist} km)` : `${Math.round(dist / 65)}h highway drive`,
+      durationEstimate: "Highway drive",
       estimatedCostRange: "Fuel & tolls",
       suitabilityScore: 80,
       pros: "Total flexibility and freedom to stop along the way.",
@@ -2949,33 +1874,16 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Overland highway drive from ${startCity} to ${destination}`,
       tag: "Road Highway",
-      transitHoursOneWay: Math.round(dist / 65),
-      transitDaysRoundTrip: carOneWay * 2,
-      minRequiredDaysForMode: carOneWay * 2
-    },
-    {
-      mode: "Bike / Motorcycle",
-      label: "Bike / Motorcycle",
-      icon: "\u{1F3CD}\uFE0F",
-      isRecommended: false,
-      durationEstimate: bikeOneWay > 1 ? `${bikeOneWay} days touring ride (~${dist} km)` : `${Math.round(dist / 50)}h ride`,
-      estimatedCostRange: "Fuel & gear",
-      suitabilityScore: 78,
-      pros: "Pure touring adrenaline, scenic highway and pass experience.",
-      cons: "Riding stamina and mountain terrain fatigue.",
-      hasSwitchOrTransfer: false,
-      desc: `Touring motorcycle ride from ${startCity} to ${destination}`,
-      tag: "Motorcycle Tour",
-      transitHoursOneWay: Math.round(dist / 50),
-      transitDaysRoundTrip: bikeOneWay * 2,
-      minRequiredDaysForMode: bikeOneWay * 2
+      transitHoursOneWay: 8,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2
     },
     {
       mode: "Bus",
       label: "Bus / Coach",
       icon: "\u{1F68C}",
       isRecommended: false,
-      durationEstimate: busOneWay > 1 ? `${busOneWay} days intercity bus` : "Intercity bus / sleeper",
+      durationEstimate: "Intercity bus",
       estimatedCostRange: "Bus fare",
       suitabilityScore: 75,
       pros: "Budget-friendly overnight or daytime transit.",
@@ -2983,17 +1891,16 @@ function getGenericDynamicIntelligence(destination, startCity = "Origin City", t
       hasSwitchOrTransfer: false,
       desc: `Intercity bus or sleeper coach from ${startCity} to ${destination}`,
       tag: "Bus Transit",
-      transitHoursOneWay: Math.round(dist / 45),
-      transitDaysRoundTrip: busOneWay * 2,
-      minRequiredDaysForMode: busOneWay * 2
+      transitHoursOneWay: 11,
+      transitDaysRoundTrip: 2,
+      minRequiredDaysForMode: 2
     }
   ];
-  const primaryTransit = travelMode === "Bike / Motorcycle" ? bikeOneWay * 2 : travelMode === "Car / Road Trip" ? carOneWay * 2 : travelMode === "Train" ? trainOneWay * 2 : travelMode === "Bus" ? busOneWay * 2 : 2;
   return {
     destination,
     startCity,
-    distanceKm: dist,
-    minimumRequiredDays: primaryTransit,
+    distanceKm: 800,
+    minimumRequiredDays: 2,
     idealDays: 5,
     durationReason: `Route logistics from ${startCity} to ${destination}.`,
     travelTransitReason: `Roundtrip travel transit accounts for approximately 2 days.`,
@@ -3042,15 +1949,15 @@ CRITICAL REQUIREMENT:
 The minimum days ('minimumRequiredDays' and 'minRequiredDaysForMode' for each mode) MUST BE EQUAL TO THE EXACT NUMBER OF DAYS REQUIRED TO GO AND COME BACK TO THE PLACE based on that mode of travel:
 1. Exact Roundtrip Travel Formula:
    minimumRequiredDays = (Exact calendar days needed to travel from "${startCity}" to "${destination}") + (Exact calendar days needed to travel back from "${destination}" to "${startCity}").
-2. Rules based on realistic transit speed and distance:
-   - Flight: 1 calendar day to go + 1 calendar day to return = 2 days minimum roundtrip travel.
-   - Train (~1,100 km per 24h): Distance <= 900 km: 1 day each way (2 days roundtrip); 901-1800 km: 2 days each way (4 days roundtrip); > 1800 km: 3 days each way (6 days roundtrip).
-   - Car / Road Trip (~700 km/day): Distance <= 650 km: 1 day each way (2 days roundtrip); 651-1300 km: 2 days each way (4 days roundtrip); 1301-2000 km: 3 days each way (6 days roundtrip); > 2000 km: 4 to 5 days each way (8 to 10 days roundtrip).
-   - Bike / Motorcycle (~500 km/day, ~200 km/day in mountains): Distance <= 500 km: 1 day each way (2 days roundtrip); 501-1000 km: 2 days each way (4 days roundtrip); 1001-1500 km: 3 days each way (6 days roundtrip); 1501-2100 km: 4 days each way (8 days roundtrip); 2101-2700 km: 5 days each way (10 days roundtrip); > 2700 km (e.g. Bangalore to Ladakh ~3,100 km): 5 to 6 days each way (10 to 12 days roundtrip).
+2. Rules based on realistic transit time and distance:
+   - Short-haul (< 4-5 hours one-way transit, e.g. short drive < 250 km or short flight): If same-day return is realistic, 1 day; otherwise 2 days (1 day to go + 1 day to return).
+   - Medium-haul (6 to 18 hours one-way transit, e.g. 300 - 1000 km road drive, overnight train, sleeper bus, or flight with airport transfers): EXACTLY 2 DAYS (1 full day to go + 1 full day to return).
+   - Long-haul / multi-day transit (1000 - 2000 km road drive, or 24-36h train journey): EXACTLY 4 DAYS (2 days driving/transit to go + 2 days driving/transit to return).
+   - Extreme long-haul (> 2000 km road trip, or multi-layover cross-continent travel): EXACTLY 4 to 6 DAYS.
 3. For EVERY possible mode in 'modesBreakdown', calculate:
-   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '3 days Rail', '5 days Motorcycle Ride (~3,100 km)')
-   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days for Flight, 10-12 days for Bangalore->Ladakh Bike)
-   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode.
+   - 'durationEstimate': Estimated one-way transit time (e.g. '2h 15m Flight', '12h Train', '14h Drive')
+   - 'transitDaysRoundTrip': Approximate full calendar days spent in transit roundtrip (e.g. 2 days)
+   - 'minRequiredDaysForMode': EXACT roundtrip days required to go and come back via this mode (e.g. 2 for 1 day go + 1 day return).
 
 Provide the output in strictly valid JSON matching this schema:
 {
@@ -3100,10 +2007,9 @@ STRICT ROUTE LOGISTICS RULES:
    - "Flight" (\u2708\uFE0F)
    - "Train" (\u{1F686} - Train / Railway)
    - "Car / Road Trip" (\u{1F697})
-   - "Bike / Motorcycle" (\u{1F3CD}\uFE0F - Motorcycle Touring)
    - "Bus" (\u{1F68C} - Bus / Coach, if road-connected)
    Even if the destination is a hill station or rural town without its own tracks (e.g., Munnar, Wayanad, Coorg, Ooty, Manali, Shimla), train transit via the nearest major railhead (e.g. Aluva/Ernakulam for Munnar, Kozhikode for Wayanad, Mysore for Coorg, Kalka/Chandigarh for Shimla/Manali) is a standard, essential travel option. Mention the nearest railhead in the description.
-4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bike / Motorcycle", "Bus").
+4. Do NOT output hybrid "Fly +" or "Fly + Destination Rental" modes under any circumstances. Keep mode labels strictly standard ("Flight", "Train", "Car / Road Trip", "Bus", "Bike / Motorcycle").
 5. Return ONLY valid raw JSON with no Markdown or text outside JSON.`;
     for (const modelName of PREFERRED_GEMINI_MODELS) {
       try {

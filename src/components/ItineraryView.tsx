@@ -537,7 +537,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
                     <span className="text-zinc-300 font-medium">Departure Hub</span>
                     <span className="font-extrabold text-emerald-300 flex items-center gap-1">
-                      <span>🛫</span>
+                      <span>{trip.travelMode === 'Bike / Motorcycle' ? '🏍️' : trip.travelMode === 'Car / Road Trip' ? '🚗' : trip.travelMode === 'Train' ? '🚆' : trip.travelMode === 'Bus' ? '🚌' : '🛫'}</span>
                       <span>{trip.startCity}</span>
                     </span>
                   </div>

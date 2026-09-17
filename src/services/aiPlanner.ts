@@ -1,6 +1,5 @@
 import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, DayItinerary } from '../types';
 import { GoogleGenAI } from '@google/genai';
-import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails, normalizeTravelMode, isBikeMode, isRoadTripMode, FLIGHT_AND_RENTAL_REGEX } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -114,15 +113,12 @@ export function calculateGroupCompatibility(members: GroupMember[] = []) {
 }
 
 const CLIENT_GEMINI_MODELS = [
-  'gemini-2.5-flash',
   'gemini-flash-lite-latest',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
   'gemini-3.6-flash',
+  'gemini-3.7-flash',
   'gemini-3.8-flash'
 ];
 
@@ -194,96 +190,64 @@ export async function generateTripClientSide(params: {
   const alcoholPref = params.preferences.alcohol || 'No';
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : '';
 
-  const estDistanceKm = estimateRouteDistanceKm(
-    startCity,
-    destName,
-    null,
-    destLat && destLng ? { lat: destLat, lng: destLng } : null
-  );
-  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, travelMode);
-  const allocation = allocateTripDays(params.durationDays, transitDaysOneWay);
-  const isMultiDayTransit = allocation.isOverlandMultiDay;
-  const outboundEndDay = allocation.outboundDays;
-  const destStartDay = outboundEndDay + 1;
-  const destEndDay = outboundEndDay + allocation.coreDestDays;
-  const returnStartDay = destEndDay + 1;
-  const totalDays = params.durationDays;
+  const isRoadVehicleMode = travelMode === 'Car / Road Trip' || travelMode === 'Bike / Motorcycle';
+  const vehicleType = travelMode === 'Bike / Motorcycle' ? 'touring motorcycle / bike' : 'car / personal road vehicle';
+  const actionVerb = travelMode === 'Bike / Motorcycle' ? 'motorcycle ride' : 'car drive';
 
   const prompt = `You are a world-class AI travel planner and local expert.
 Generate a realistic, authentic, detailed ${params.durationDays}-day travel itinerary for:
 Destination: "${destName}" (${destAddress}).
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
-Selected Travel Mode: "${travelMode}".
-Estimated Route Distance: ~${estDistanceKm} km.
-One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
+Travel Mode: ${travelMode}.
 Budget Tier: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total).
 Travel Styles: ${stylesList}.
 Food Preference: ${foodPref}.
 Alcohol Preference: ${alcoholPref}.
 ${customNotesText ? `Special Notes: "${customNotesText}".` : ''}
 
-========================================================================================
-CRITICAL TRAVEL MODE ENFORCEMENT (MODE: "${travelMode}"):
-${isBikeMode(travelMode) ? `• THE ENTIRE JOURNEY IS A MOTORCYCLE / BIKE EXPEDITION!
-• EVERY TRANSIT ACTIVITY MUST BE MOTORCYCLE TOURING & HIGHWAY RIDING.
-• ABSOLUTELY ZERO FLIGHTS! DO NOT MENTION AIRPORTS (No Kempegowda Airport, No Indira Gandhi Airport, No Leh Airport), NO BOARDING GATES, NO AIR TICKETS!
-• Day 1 MUST start with motorcycle gear inspection, morning highway departure from "${startCity}" on NH44/NH48, highway petrol pump refuel, highway dhaba lunch, and reaching intermediate transit city (e.g. Kolhapur/Pune/Hyderabad).
-• Days 2 to ${outboundEndDay}: Sequential overland riding stages across real connecting cities & mountain passes (e.g. Pune -> Udaipur -> Chandigarh -> Manali -> Jispa/Keylong -> Rohtang/Atal Tunnel -> Baralacha La -> Leh).
-• Day ${outboundEndDay}: Ride motorcycle into "${destName}", hotel check-in, rest and acclimatization.
-• Return Days ${returnStartDay} to ${totalDays}: Ride motorcycle back across return highway circuit safely arriving in "${startCity}".` :
-isRoadTripMode(travelMode) ? `• THE ENTIRE TRIP IS A ROAD TRIP BY CAR!
-• ALL TRANSIT MUST BE HIGHWAY DRIVING. ZERO FLIGHTS, ZERO AIRPORTS!` :
-travelMode === 'Train' ? `• THE ENTIRE JOURNEY MUST BE BY TRAIN / RAILWAY!
-• Board trains at railway stations. ZERO FLIGHTS!` :
-`• Air travel via commercial flights from "${startCity}" airport to destination airport (or nearest commercial airport + scenic road transfer).`}
-========================================================================================
-
 RULES:
 1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
    - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
-
-${isMultiDayTransit ? `   - MULTI-DAY OVERLAND JOURNEY ALLOCATION (${travelMode} over ~${estDistanceKm} km):
-     • OUTBOUND OVERLAND STAGES (Days 1 to ${outboundEndDay}):
-       * Since travelling ~${estDistanceKm} km via ${travelMode} takes ${transitDaysOneWay} days one-way, Days 1 through ${outboundEndDay} MUST realistically cover the sequential outbound overland stages.
-       * Day 1 MUST start at "${startCity}": Morning departure on ${travelMode}, highway riding/driving, highway lunch stop, reach intermediate transit city (e.g. Pune/Kolhapur/Jaipur), check into transit hotel, and dinner.
-       ${outboundEndDay > 2 ? `* Days 2 to ${outboundEndDay - 1}: Sequential intermediate transit legs through real connecting cities, scenic high passes, and overnight stops (e.g., Udaipur -> Chandigarh -> Manali -> Jispa/Keylong).` : ''}
-       * Day ${outboundEndDay}: Final high pass / highway approach, arrival in "${destName}", hotel check-in, rest/acclimatization, and relaxing local dinner.
-
-     • CORE DESTINATION IMMERSION (Days ${destStartDay} to ${destEndDay}):
-       * Dedicated full days exploring "${destName}"'s iconic landmarks, viewpoints, culture, monasteries/nature, and cuisine with 3 to 4 sequential activities per day.
-
-     • INBOUND RETURN OVERLAND STAGES (Days ${returnStartDay} to ${totalDays}):
-       * Days ${returnStartDay} to ${totalDays} MUST realistically cover the return overland journey back to "${startCity}" over sequential stages (either reverse route or alternate scenic circuit), concluding with safe arrival back in "${startCity}" on Day ${totalDays}!` : `   - OUTBOUND PHASE (Day 1):
-     • Day 1 MUST start at "${startCity}": Departure logistics from "${startCity}".
-     • If travelMode is Flight:
-       - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg), or no direct flight exists:
-         * Leg 1 (Flight): Fly from "${startCity}" airport to Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg).
-         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway to "${destName}".
-         * Leg 3 (Arrival & Stay): Reaching "${destName}", hotel check-in, and relaxing evening walk/dinner.
-       - If direct flight exists: Depart "${startCity}", arrive in "${destName}", hotel check-in, and evening local exploration.
-     • If travelMode is Road / Train: Depart "${startCity}" via ${travelMode}, scenic transit, arriving in "${destName}", hotel check-in, and evening exploration.
-
-   - CORE DESTINATION IMMERSION (Days 2 to ${totalDays - 1}):
+${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MANDATE:
+     • The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
+     • ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
+     • OUTBOUND DAY 1: Activity 1 is highway departure from "${startCity}" by ${vehicleType} (fueling up, luggage loaded, hitting the highway). Activity 2 is highway cruising via scenic expressway/national highway with a highway dhaba/food court pitstop. Activity 3 is driving/riding into "${destName}", scenic ghat/mountain road, arriving and parking directly at the hotel/resort, checking in. Activity 4 is an evening relaxed dinner or walk.
+     • LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
+     • MULTI-DAY TRANSIT RULE: If distance is > 1,200 km where driving/riding takes multiple days, Day 1 and Day 2 realistically cover the outbound road trip journey with scenic stops and overnight highway stay.
+     • INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
+     • ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
+       - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
+       - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
+       - "recommendedMode": "${travelMode}"
+       - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)`
+: `   - OUTBOUND PHASE (Day 1 / Early Days):
+     • Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
+     • CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
+       - If there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
+         * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
+         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
+         * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
+         * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
+     • MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound transit (scenic rail/road route, sleeper/en-route meals), arriving in "${destName}" on Day 2.
+   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
+     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!`}
+   - CORE DESTINATION IMMERSION (Middle Days):
      • Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day.
-
-   - INBOUND RETURN PHASE (Final Day / Day ${totalDays}):
-     • The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return transit via ${travelMode}, and safe arrival back home in "${startCity}"!`}
-
 2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential activities with realistic times (Morning, Lunch, Afternoon, Evening).
-3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs / intermediate route stops for overland travel days & return).
+3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}" (or legitimate transit hubs for Day 1 departure & final day return).
 4. Provide realistic estimated costs in INR for each activity.
 
 Return ONLY a valid JSON object matching this schema:
 {
   "routeSummary": {
-    "distanceKm": ${estDistanceKm},
+    "distanceKm": 450,
     "flightDuration": "1h 30m",
     "trainDuration": "6h",
     "driveDuration": "7h",
-    "departureHub": "${startCity} Terminal",
-    "arrivalHub": "${destName} Airport / Station",
-    "keyHighwayOrTrain": "Transit Expressway",
+    "departureHub": "${isRoadVehicleMode ? `${startCity} Highway Exit / Expressway Corridor` : `${startCity} Terminal`}",
+    "arrivalHub": "${isRoadVehicleMode ? `${destName} Valley Entry / Highway Gateway` : `${destName} Airport / Station`}",
+    "keyHighwayOrTrain": "${isRoadVehicleMode ? 'Expressway / National Highway' : 'Transit Expressway'}",
     "notes": "Direct connectivity"
   },
   "clothingAdvice": "Comfortable breathable clothing and walking shoes.",
@@ -304,7 +268,7 @@ Return ONLY a valid JSON object matching this schema:
           "category": "Sightseeing",
           "location": "${destName} Center",
           "estimatedCost": 250,
-          "travelTimeFromPrev": "15 min cab",
+          "travelTimeFromPrev": "${isRoadVehicleMode ? `15 min ${actionVerb}` : '15 min drive'}",
           "duration": "2 hrs",
           "description": "Explore the signature historic highlight of ${destName}.",
           "imageUrl": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop",
@@ -389,13 +353,6 @@ Return ONLY a valid JSON object matching this schema:
           model: modelName,
           contents: prompt,
           config: {
-            systemInstruction: `You are TripWise AI, an expert travel planner.
-MANDATORY CONSTRAINT:
-The user selected Travel Mode: "${travelMode}".
-- If Travel Mode is "Bike / Motorcycle": The entire round-trip journey is a motorcycle expedition. Under NO circumstances should you include any flights, airplanes, boarding passes, or airports. Every transit activity MUST be motorcycle riding on highways and mountain passes.
-- If Travel Mode is "Car / Road Trip" or "Self-Drive Rental": The entire trip is by car/road. Zero flights.
-- If Travel Mode is "Train": All transit is by train/railway. Zero flights.
-- Only suggest flights if Travel Mode is explicitly "Flight".`,
             responseMimeType: 'application/json'
           }
         });
@@ -414,78 +371,32 @@ The user selected Travel Mode: "${travelMode}".
     if (genData && genData.days && Array.isArray(genData.days) && genData.days.length > 0) {
       const days: DayItinerary[] = genData.days.map((day: any, dIdx: number) => {
         const dayNum = day.dayNumber || dIdx + 1;
-        const isRoadTrip = isRoadTripMode(travelMode);
-        const isBike = isBikeMode(travelMode);
-        const isTransitStage = isRoadTrip && (
-          (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
-          (!isMultiDayTransit && (dayNum === 1 || dayNum === totalDays))
-        );
-
-        // Check if this day contains any flight/airport/rental hub contamination
-        const dayRawText = JSON.stringify(day).toLowerCase();
-        const hasContamination = isRoadTrip && FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
-
-        let dayTitle = day.title || `Day ${dayNum} in ${destName}`;
-        let dayTheme = day.theme || `${destName} Exploration`;
-        let dayVibe = day.vibe || 'Scenic views, cultural landmarks and delicious local tastes';
-        let rawActivities = day.activities || [];
-
-        // If it's a road transit stage OR an overland stage day OR has flight/transit contamination on a transit day, inject authentic overland stage
-        if (isRoadTrip && (isTransitStage || ((dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination) || rawActivities.length === 0)) {
-          const stageDetails = getOverlandStageDetails({
-            startCity,
-            destName,
-            dayNum,
-            totalDays,
-            outboundDays: outboundEndDay,
-            coreDestDays: allocation.coreDestDays,
-            returnDays: allocation.returnDays,
-            travelMode
-          });
-          dayTitle = stageDetails.title;
-          dayTheme = stageDetails.theme;
-          dayVibe = stageDetails.vibe;
-          rawActivities = stageDetails.activities;
-        }
-
-        const activities = rawActivities.map((act: any, aIdx: number) => {
+        const activities = (day.activities || []).map((act: any, aIdx: number) => {
           const baseLat = destLat;
           const baseLng = destLng;
           const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
           const offsetLng = (aIdx * 0.01) * Math.cos(aIdx * 1.5);
 
-          let finalTitle = act.title || `Highlight Stop ${aIdx + 1}`;
-          let finalLocation = act.location || destName;
-          let finalDesc = act.description || `Experience ${finalTitle}.`;
-          let finalWhy = act.recommendationReason || 'Tailored to your preferences and travel style.';
-          let finalCategory = (act.category as Activity['category']) || 'Sightseeing';
+          let cleanTravelTime = act.travelTimeFromPrev || (isRoadVehicleMode ? `15 min ${actionVerb}` : '15 min drive');
+          let cleanDescription = act.description || `Experience ${act.title || destName}.`;
+          let cleanRecommendation = act.recommendationReason || 'Tailored to your preferences and travel style.';
 
-          if (isRoadTrip) {
-            const combinedText = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
-            if (FLIGHT_AND_RENTAL_REGEX.test(combinedText)) {
-              if (isBike) {
-                finalCategory = 'Sightseeing';
-                finalTitle = `${destName} Scenic Mountain & Highway Touring`;
-                finalLocation = `${destName} Panoramic Scenic Route`;
-                finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
-                finalWhy = 'Continuous authentic overland motorcycle expedition.';
-              } else {
-                finalCategory = 'Sightseeing';
-                finalTitle = `${destName} Scenic Highway & Valley Drive`;
-                finalLocation = `${destName} Scenic Route`;
-                finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
-                finalWhy = 'Enjoying the open road and scenic landscapes on your road trip.';
-              }
-            }
+          if (isRoadVehicleMode) {
+            cleanTravelTime = cleanTravelTime.replace(/\b(cab|taxi|uber|ola|airport shuttle|metro|train|bus|auto|rickshaw)\b/gi, actionVerb);
+            cleanDescription = cleanDescription
+              .replace(/\b(take a (cab|taxi|flight|train|bus|metro)|hail a (cab|taxi))\b/gi, `${actionVerb} with your ${vehicleType}`)
+              .replace(/\b(airport cab|airport transfer|flight to|board the flight|board the train)\b/gi, `${actionVerb}`);
+            cleanRecommendation = cleanRecommendation
+              .replace(/\b(take a (cab|taxi|flight|train|bus|metro)|hail a (cab|taxi))\b/gi, `${actionVerb} with your ${vehicleType}`);
           }
 
           return {
             id: act.id || `act-${dayNum}-${aIdx + 1}-${crypto.randomUUID()}`,
             time: act.time || '10:00 AM',
             endTime: act.endTime || '12:00 PM',
-            title: finalTitle,
-            category: finalCategory,
-            location: finalLocation,
+            title: act.title || `Highlight Stop ${aIdx + 1}`,
+            category: (act.category as Activity['category']) || 'Sightseeing',
+            location: act.location || destName,
             coordinates: (act.coordinates && typeof act.coordinates.lat === 'number' && typeof act.coordinates.lng === 'number')
               ? act.coordinates
               : {
@@ -493,36 +404,23 @@ The user selected Travel Mode: "${travelMode}".
                   lng: Number((baseLng + offsetLng).toFixed(6))
                 },
             estimatedCost: typeof act.estimatedCost === 'number' ? act.estimatedCost : 400,
-            travelTimeFromPrev: act.travelTimeFromPrev || '15 min drive',
+            travelTimeFromPrev: cleanTravelTime,
             duration: act.duration || '1.5 hrs',
-            description: finalDesc,
+            description: cleanDescription,
             imageUrl: act.imageUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
-            recommendationReason: finalWhy,
+            recommendationReason: cleanRecommendation,
             isIndoor: Boolean(act.isIndoor),
             isRainSafe: Boolean(act.isRainSafe),
             rating: typeof act.rating === 'number' ? act.rating : 4.8
           };
         });
 
-        let calculatedDate = day.date || `Day ${dayNum}`;
-        if (params.startDate) {
-          try {
-            const d = new Date(params.startDate);
-            if (!isNaN(d.getTime())) {
-              d.setDate(d.getDate() + (dayNum - 1));
-              calculatedDate = d.toISOString().split('T')[0];
-            }
-          } catch {
-            calculatedDate = day.date || `Day ${dayNum}`;
-          }
-        }
-
         return {
           dayNumber: dayNum,
-          date: calculatedDate,
-          title: dayTitle,
-          theme: dayTheme,
-          vibe: dayVibe,
+          date: day.date || `Day ${dayNum}`,
+          title: day.title || `Day ${dayNum} in ${destName}`,
+          theme: day.theme || `${destName} Exploration`,
+          vibe: day.vibe || 'Scenic views, cultural landmarks and delicious local tastes',
           weatherForecast: {
             temp: day.weatherForecast?.temp || '26°C',
             condition: normalizeWeatherCondition(day.weatherForecast?.condition),
@@ -533,31 +431,39 @@ The user selected Travel Mode: "${travelMode}".
         };
       });
 
+      const finalRouteSummary = genData.routeSummary ? {
+        distanceKm: genData.routeSummary.distanceKm || 350,
+        flightDuration: isRoadVehicleMode ? undefined : genData.routeSummary.flightDuration,
+        trainDuration: isRoadVehicleMode ? undefined : genData.routeSummary.trainDuration,
+        driveDuration: genData.routeSummary.driveDuration || '5h',
+        departureHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.departureHub || '')
+          ? `${startCity} Highway Exit / Expressway Corridor`
+          : (genData.routeSummary.departureHub || (isRoadVehicleMode ? `${startCity} Highway Corridor` : `${startCity} Terminal`)),
+        arrivalHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.arrivalHub || '')
+          ? `${destName} Valley Entry / Highway Gateway`
+          : (genData.routeSummary.arrivalHub || (isRoadVehicleMode ? `${destName} Entry / Highway Hub` : `${destName} Junction`)),
+        keyHighwayOrTrain: genData.routeSummary.keyHighwayOrTrain || (isRoadVehicleMode ? 'Expressway / National Highway' : 'Direct Route'),
+        recommendedMode: isRoadVehicleMode ? travelMode : (genData.routeSummary.recommendedMode || travelMode),
+        notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : (genData.routeSummary.notes || 'Direct transit connectivity')
+      } : {
+        distanceKm: 350,
+        flightDuration: isRoadVehicleMode ? undefined : '1h 30m',
+        trainDuration: isRoadVehicleMode ? undefined : '5h',
+        driveDuration: '5h 30m',
+        departureHub: isRoadVehicleMode ? `${startCity} Highway Exit / Expressway Corridor` : `${startCity} Terminal`,
+        arrivalHub: isRoadVehicleMode ? `${destName} Valley Entry / Highway Gateway` : `${destName} Junction`,
+        keyHighwayOrTrain: isRoadVehicleMode ? 'Expressway / National Highway' : 'Direct Route',
+        recommendedMode: travelMode,
+        notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : 'Direct transit connectivity'
+      };
+
       return {
         id: crypto.randomUUID(),
         title: `${destName} ${params.companionType} Getaway`,
         destination: destName,
         destinationStateOrCountry: destAddress,
         startCity,
-        routeSummary: genData.routeSummary ? {
-          distanceKm: genData.routeSummary.distanceKm || 350,
-          flightDuration: genData.routeSummary.flightDuration,
-          trainDuration: genData.routeSummary.trainDuration,
-          driveDuration: genData.routeSummary.driveDuration,
-          departureHub: genData.routeSummary.departureHub || `${startCity} Terminal`,
-          arrivalHub: genData.routeSummary.arrivalHub || `${destName} Junction`,
-          keyHighwayOrTrain: genData.routeSummary.keyHighwayOrTrain || 'Direct Route',
-          notes: genData.routeSummary.notes || 'Direct transit connectivity'
-        } : {
-          distanceKm: 350,
-          flightDuration: '1h 30m',
-          trainDuration: '5h',
-          driveDuration: '5h 30m',
-          departureHub: `${startCity} Terminal`,
-          arrivalHub: `${destName} Junction`,
-          keyHighwayOrTrain: 'Direct Route',
-          notes: 'Direct transit connectivity'
-        },
+        routeSummary: finalRouteSummary,
         heroImage: heroImg,
         startDate: params.startDate,
         endDate: params.endDate,
@@ -631,7 +537,7 @@ export async function generateTripFromInputs(params: {
     if (response.ok && contentType.includes('application/json')) {
       const data = await response.json();
       if (data && data.days && Array.isArray(data.days) && data.days.length > 0) {
-        return sanitizeRoadTripItinerary(data, params);
+        return data;
       }
     } else {
       const errJson = await response.json().catch(() => null);
@@ -647,8 +553,7 @@ export async function generateTripFromInputs(params: {
 
   // Attempt client-side AI if available
   try {
-    const clientResult = await generateTripClientSide(params);
-    return sanitizeRoadTripItinerary(clientResult, params);
+    return await generateTripClientSide(params);
   } catch (clientErr: any) {
     console.error('[aiPlanner] Generation failed on both server and client:', clientErr);
     throw new Error(
@@ -657,104 +562,6 @@ export async function generateTripFromInputs(params: {
       'AI generation failed. Please check that GEMINI_API_KEY is configured in your Vercel Project Settings > Environment Variables.'
     );
   }
-}
-
-/**
- * Ensures 100% overland enforcement and zero flight/rental contamination on any trip output
- */
-function sanitizeRoadTripItinerary(trip: Trip, params: any): Trip {
-  const activeMode = normalizeTravelMode(trip.travelMode || params.travelMode || params.preferences?.travelMode);
-  if (!isRoadTripMode(activeMode)) return trip;
-
-  const startCity = trip.startCity || params.startCity || params.preferences?.startCity || 'Origin City';
-  const destName = trip.destination || params.destinationPlace?.name || params.destinationId || 'Destination';
-  const totalDays = trip.durationDays || trip.days.length || params.durationDays;
-  const estDistanceKm = trip.routeSummary?.distanceKm || estimateRouteDistanceKm(startCity, destName);
-  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, activeMode);
-  const allocation = allocateTripDays(totalDays, transitDaysOneWay);
-  const outboundEndDay = allocation.outboundDays;
-  const returnStartDay = outboundEndDay + allocation.coreDestDays + 1;
-  const isBike = isBikeMode(activeMode);
-
-  const updatedDays = trip.days.map((day, dIdx) => {
-    const dayNum = day.dayNumber || dIdx + 1;
-    const isTransitStage = (
-      (allocation.isOverlandMultiDay && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
-      (!allocation.isOverlandMultiDay && (dayNum === 1 || dayNum === totalDays))
-    );
-
-    const dayRawText = JSON.stringify(day).toLowerCase();
-    const hasContamination = FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
-
-    let dayTitle = day.title;
-    let dayTheme = day.theme;
-    let dayVibe = day.vibe;
-    let rawActivities = day.activities || [];
-
-    if (isTransitStage || ((dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination) || rawActivities.length === 0) {
-      const stage = getOverlandStageDetails({
-        startCity,
-        destName,
-        dayNum,
-        totalDays,
-        outboundDays: outboundEndDay,
-        coreDestDays: allocation.coreDestDays,
-        returnDays: allocation.returnDays,
-        travelMode: activeMode
-      });
-      dayTitle = stage.title;
-      dayTheme = stage.theme;
-      dayVibe = stage.vibe;
-      rawActivities = stage.activities;
-    }
-
-    const cleanedActivities = rawActivities.map((act, aIdx) => {
-      let finalTitle = act.title || `Stop ${aIdx + 1}`;
-      let finalLocation = act.location || destName;
-      let finalDesc = act.description || `Experience ${finalTitle}.`;
-      let finalWhy = act.recommendationReason || 'Scenic road journey experience.';
-      let finalCategory = act.category || 'Sightseeing';
-
-      const combined = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
-      if (FLIGHT_AND_RENTAL_REGEX.test(combined)) {
-        finalCategory = 'Sightseeing';
-        if (isBike) {
-          finalTitle = `${destName} Scenic Mountain & Highway Touring`;
-          finalLocation = `${destName} Panoramic Scenic Route`;
-          finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
-          finalWhy = 'Continuous authentic overland motorcycle expedition.';
-        } else {
-          finalTitle = `${destName} Scenic Highway & Valley Drive`;
-          finalLocation = `${destName} Scenic Route`;
-          finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
-          finalWhy = 'Enjoying the open road and scenic landscapes on your road trip.';
-        }
-      }
-
-      return {
-        ...act,
-        title: finalTitle,
-        location: finalLocation,
-        description: finalDesc,
-        recommendationReason: finalWhy,
-        category: finalCategory
-      };
-    });
-
-    return {
-      ...day,
-      title: dayTitle,
-      theme: dayTheme,
-      vibe: dayVibe,
-      activities: cleanedActivities
-    };
-  });
-
-  return {
-    ...trip,
-    travelMode: activeMode,
-    days: updatedDays
-  };
 }
 
 /**
@@ -927,7 +734,12 @@ export async function fetchRealPlaceForDay(params: {
   existingActivities?: Activity[];
   travelStyles?: string[];
   budgetTier?: BudgetTier;
+  travelMode?: TravelMode;
 }): Promise<Activity> {
+  const isRoadVehicleMode = params.travelMode === 'Car / Road Trip' || params.travelMode === 'Bike / Motorcycle';
+  const actionVerb = params.travelMode === 'Bike / Motorcycle' ? 'motorcycle ride' : 'car drive';
+  const defaultTravelTime = isRoadVehicleMode ? `15 min ${actionVerb}` : '15 min drive';
+
   try {
     const response = await fetch('/api/ai/add-real-place', {
       method: 'POST',
@@ -937,7 +749,11 @@ export async function fetchRealPlaceForDay(params: {
 
     const contentType = response.headers.get('content-type') || '';
     if (response.ok && contentType.includes('application/json')) {
-      return await response.json();
+      const act = await response.json();
+      if (isRoadVehicleMode && act.travelTimeFromPrev) {
+        act.travelTimeFromPrev = act.travelTimeFromPrev.replace(/\b(cab|taxi|uber|ola|airport shuttle|metro|train|bus|auto|rickshaw)\b/gi, actionVerb);
+      }
+      return act;
     }
   } catch (err) {
     console.warn('Error fetching real place from API:', err);
@@ -954,7 +770,7 @@ export async function fetchRealPlaceForDay(params: {
     location: `${dest} Central Historic Quarter`,
     estimatedCost: 350,
     duration: '1.5 hrs',
-    travelTimeFromPrev: '15 min cab',
+    travelTimeFromPrev: defaultTravelTime,
     description: `Iconic viewpoint and cultural walkway offering authentic regional atmosphere in ${dest}.`,
     recommendationReason: `Curated real stop added to enrich Day ${params.dayNumber}.`,
     imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',

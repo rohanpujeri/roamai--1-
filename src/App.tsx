@@ -411,7 +411,8 @@ export default function App() {
         dayNumber,
         existingActivities: currentDay?.activities || [],
         travelStyles: activeTrip.preferences?.styles,
-        budgetTier: activeTrip.budgetTier
+        budgetTier: activeTrip.budgetTier,
+        travelMode: activeTrip.travelMode
       });
 
       setTrips((prev) =>
