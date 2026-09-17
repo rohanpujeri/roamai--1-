@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import {
   Clock,
@@ -208,6 +208,91 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
 
     return d;
   }, [activities.length]);
+
+  // Mobile Serpentine Route Path dynamic tracker
+  const mobileContainerRef = useRef<HTMLDivElement>(null);
+  const [mobilePathD, setMobilePathD] = useState<string>('');
+  const [mobileSvgSize, setMobileSvgSize] = useState<{ width: number; height: number }>({ width: 360, height: 1200 });
+
+  // Initial fallback path so there is zero flash on first render
+  const mobileInitialFallbackPath = useMemo(() => {
+    if (activities.length === 0) return '';
+    if (activities.length === 1) return 'M 24 35 L 24 220';
+    let d = 'M 24 35';
+    for (let i = 0; i < activities.length - 1; i++) {
+      const isCurrentEven = i % 2 === 0;
+      const x0 = isCurrentEven ? 24 : 330;
+      const x1 = isCurrentEven ? 330 : 24;
+      const y0 = i * 420 + 35;
+      const y1 = (i + 1) * 420 + 35;
+      const dy = y1 - y0;
+      d += ` C ${x0 + (isCurrentEven ? 40 : -40)} ${y0 + dy * 0.45}, ${x1 - (isCurrentEven ? 40 : -40)} ${y1 - dy * 0.45}, ${x1} ${y1}`;
+    }
+    return d;
+  }, [activities.length]);
+
+  useEffect(() => {
+    const calculateMobileCurve = () => {
+      if (!mobileContainerRef.current) return;
+      const container = mobileContainerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const nodes = container.querySelectorAll<HTMLElement>('.mobile-anchor-node');
+      if (nodes.length === 0) return;
+
+      const pts: { x: number; y: number }[] = [];
+      nodes.forEach((node) => {
+        const nodeRect = node.getBoundingClientRect();
+        pts.push({
+          x: nodeRect.left - containerRect.left + nodeRect.width / 2,
+          y: nodeRect.top - containerRect.top + nodeRect.height / 2,
+        });
+      });
+
+      const w = Math.max(300, containerRect.width || 360);
+      const h = Math.max(400, containerRect.height || 1200);
+      setMobileSvgSize({ width: w, height: h });
+
+      if (pts.length === 1) {
+        setMobilePathD(`M ${pts[0].x} 10 L ${pts[0].x} ${pts[0].y + 120}`);
+        return;
+      }
+
+      let d = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const dy = p1.y - p0.y;
+        const dx = p1.x - p0.x;
+
+        // Serpentine S-curve bowing outward before sweeping into destination
+        const cp1x = p0.x + (dx > 0 ? 45 : -45);
+        const cp1y = p0.y + dy * 0.45;
+        const cp2x = p1.x - (dx > 0 ? 45 : -45);
+        const cp2y = p1.y - dy * 0.45;
+
+        d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+      }
+
+      // Add a smooth trailing tail at bottom
+      const lastP = pts[pts.length - 1];
+      d += ` Q ${lastP.x} ${lastP.y + 45} ${lastP.x} ${lastP.y + 85}`;
+
+      setMobilePathD(d);
+    };
+
+    calculateMobileCurve();
+    const t1 = setTimeout(calculateMobileCurve, 100);
+    const t2 = setTimeout(calculateMobileCurve, 400);
+
+    window.addEventListener('resize', calculateMobileCurve);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', calculateMobileCurve);
+    };
+  }, [activities]);
+
+  const effectiveMobilePath = mobilePathD || mobileInitialFallbackPath;
 
   return (
     <div className="relative w-full bg-[#050507] text-white rounded-3xl p-3 sm:p-8 lg:p-12 overflow-hidden shadow-2xl border border-zinc-900/90 select-none">
@@ -758,13 +843,187 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
       </div>
 
       {/* ============================================================ */}
-      {/* MOBILE TIMELINE (< md screens)                               */}
+      {/* MOBILE TIMELINE (< md screens) WITH ANIMATED SERPENTINE FLOW */}
       {/* ============================================================ */}
-      <div className="md:hidden relative space-y-6">
-        {/* Left Vertical Glowing Route Rail */}
-        <div className="absolute top-4 bottom-4 left-6 w-1 bg-gradient-to-b from-emerald-400 via-teal-400 to-emerald-500 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.7)]" />
+      <div
+        ref={mobileContainerRef}
+        className="md:hidden relative space-y-8 overflow-visible"
+      >
+        {/* Mobile SVG Serpentine Route with Live Animated Vehicle */}
+        <svg
+          viewBox={`0 0 ${mobileSvgSize.width} ${mobileSvgSize.height}`}
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10"
+        >
+          <defs>
+            <linearGradient id="mobileNeonGreenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="40%" stopColor="#34d399" />
+              <stop offset="80%" stopColor="#059669" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
 
+            <filter id="mobileNeonGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="5" result="blur1" />
+              <feGaussianBlur stdDeviation="10" result="blur2" />
+              <feMerge>
+                <feMergeNode in="blur2" />
+                <feMergeNode in="blur1" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <filter id="mobileHeadlightBlur" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4" />
+            </filter>
+          </defs>
+
+          {/* Underlay Ambient Glow Path */}
+          <path
+            d={effectiveMobilePath}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="12"
+            strokeOpacity="0.16"
+            strokeLinecap="round"
+          />
+
+          {/* Crisp Neon Curved Route Line */}
+          <path
+            id="mobileSerpentineMotionPath"
+            d={effectiveMobilePath}
+            fill="none"
+            stroke="url(#mobileNeonGreenGradient)"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            filter="url(#mobileNeonGlow)"
+          />
+
+          {/* Dash Pulse Animation along the curve */}
+          <path
+            d={effectiveMobilePath}
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth="2"
+            strokeDasharray="8 32"
+            strokeLinecap="round"
+            opacity="0.85"
+          >
+            <animate
+              attributeName="stroke-dashoffset"
+              values="500; 0"
+              dur="5s"
+              repeatCount="indefinite"
+            />
+          </path>
+
+          {/* Moving Vehicle along the Mobile Serpentine Path */}
+          <g>
+            <animateMotion
+              dur={vehicleConfig.duration}
+              repeatCount="indefinite"
+              rotate="auto"
+            >
+              <mpath href="#mobileSerpentineMotionPath" />
+            </animateMotion>
+
+            {/* Travel Mode Vehicle Graphic on Mobile */}
+            {travelMode === 'Bike / Motorcycle' && (
+              <g transform="translate(0, 0)">
+                <polygon
+                  points="14,-4 42,-14 42,14 14,4"
+                  fill="rgba(250, 204, 21, 0.32)"
+                  filter="url(#mobileHeadlightBlur)"
+                />
+                <circle cx="0" cy="0" r="13" fill="rgba(52, 211, 153, 0.35)" filter="url(#mobileHeadlightBlur)" />
+                <g transform="scale(0.9) translate(-14, -12)">
+                  <circle cx="5" cy="18" r="4.5" fill="#09090b" stroke="#34d399" strokeWidth="1.6" />
+                  <circle cx="23" cy="18" r="4.5" fill="#09090b" stroke="#34d399" strokeWidth="1.6" />
+                  <path d="M 6 18 L 13 13 L 19 13 L 22 18" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
+                  <path d="M 12 13 L 16 10 L 20 13 Z" fill="#10b981" stroke="#ffffff" strokeWidth="1" />
+                  <path d="M 19 10 L 21 6" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="13" cy="6" r="3.2" fill="#34d399" />
+                  <path d="M 13 9.2 L 16 14" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="23" cy="11" r="2" fill="#facc15" />
+                </g>
+              </g>
+            )}
+
+            {travelMode === 'Car / Road Trip' && (
+              <g transform="translate(0, 0)">
+                <polygon
+                  points="16,-5 46,-16 46,16 16,5"
+                  fill="rgba(250, 204, 21, 0.28)"
+                  filter="url(#mobileHeadlightBlur)"
+                />
+                <circle cx="0" cy="0" r="13" fill="rgba(52, 211, 153, 0.3)" />
+                <g transform="scale(0.85) translate(-16, -10)">
+                  <path d="M 3 13 C 3 10, 6 9, 10 9 L 14 4 C 16 3, 18 3, 22 3 L 26 8 L 30 9 C 32 9, 33 11, 33 13 L 33 16 L 3 16 Z" fill="#ffffff" />
+                  <path d="M 14 8 L 18 5 L 23 5 L 25 8 Z" fill="#09090b" />
+                  <circle cx="9" cy="16" r="3.2" fill="#09090b" stroke="#34d399" strokeWidth="1.2" />
+                  <circle cx="26" cy="16" r="3.2" fill="#09090b" stroke="#34d399" strokeWidth="1.2" />
+                  <circle cx="32" cy="11" r="1.8" fill="#facc15" />
+                </g>
+              </g>
+            )}
+
+            {travelMode === 'Train' && (
+              <g transform="translate(0, 0)">
+                <circle cx="0" cy="0" r="12" fill="rgba(56, 189, 248, 0.35)" />
+                <g transform="scale(0.8) translate(-16, -8)">
+                  <path d="M 2 13 L 2 5 C 2 3, 4 3, 8 3 L 24 3 C 28 3, 31 7, 32 10 L 32 13 Z" fill="#ffffff" />
+                  <path d="M 22 5 L 28 8 L 22 8 Z" fill="#09090b" />
+                  <circle cx="6" cy="14" r="2.5" fill="#09090b" stroke="#ffffff" strokeWidth="1" />
+                  <circle cx="14" cy="14" r="2.5" fill="#09090b" stroke="#ffffff" strokeWidth="1" />
+                  <circle cx="26" cy="14" r="2.5" fill="#09090b" stroke="#ffffff" strokeWidth="1" />
+                  <circle cx="30" cy="11" r="1.5" fill="#38bdf8" />
+                </g>
+              </g>
+            )}
+
+            {travelMode === 'Bus' && (
+              <g transform="translate(0, 0)">
+                <circle cx="0" cy="0" r="12" fill="rgba(250, 204, 21, 0.35)" />
+                <g transform="scale(0.8) translate(-16, -9)">
+                  <rect x="2" y="3" width="29" height="11" rx="2.5" fill="#ffffff" />
+                  <rect x="6" y="5" width="5" height="3.5" rx="0.5" fill="#09090b" />
+                  <rect x="13" y="5" width="5" height="3.5" rx="0.5" fill="#09090b" />
+                  <rect x="20" y="5" width="5" height="3.5" rx="0.5" fill="#09090b" />
+                  <circle cx="7" cy="14.5" r="3" fill="#09090b" stroke="#ffffff" strokeWidth="1" />
+                  <circle cx="24" cy="14.5" r="3" fill="#09090b" stroke="#ffffff" strokeWidth="1" />
+                </g>
+              </g>
+            )}
+
+            {travelMode === 'Self-Drive Rental' && (
+              <g transform="translate(0, 0)">
+                <polygon points="14,-4 44,-16 44,16 14,4" fill="rgba(56, 189, 248, 0.25)" filter="url(#mobileHeadlightBlur)" />
+                <circle cx="0" cy="0" r="12" fill="rgba(56, 189, 248, 0.35)" />
+                <g transform="scale(0.8) translate(-14, -8)">
+                  <path d="M 3 11 C 3 9, 5 7, 8 7 L 11 4 C 12 3, 14 3, 21 3 L 26 7 L 29 8 C 30 9, 31 10, 31 12 L 31 14 L 3 14 Z" fill="#ffffff" />
+                  <path d="M 12 6 L 19 5 L 23 7 L 12 7 Z" fill="#09090b" />
+                  <circle cx="8" cy="14" r="3.5" fill="#09090b" stroke="#ffffff" strokeWidth="1.2" />
+                  <circle cx="25" cy="14" r="3.5" fill="#09090b" stroke="#ffffff" strokeWidth="1.2" />
+                </g>
+              </g>
+            )}
+
+            {travelMode === 'Flight' && (
+              <g transform="translate(0, 0)">
+                <circle cx="0" cy="0" r="12" fill="rgba(255, 255, 255, 0.35)" filter="url(#mobileHeadlightBlur)" />
+                <path
+                  d="M 14 0 L -8 -11 L -4 -2 L -14 -4 L -11 0 L -14 4 L -4 2 L -8 11 Z"
+                  fill="#ffffff"
+                  stroke="#09090b"
+                  strokeWidth="0.8"
+                />
+              </g>
+            )}
+          </g>
+        </svg>
+
+        {/* Mobile Alternating Serpentine Activity Nodes */}
         {activities.map((activity, index) => {
+          const isEven = index % 2 === 0;
           const theme = TILE_THEMES[index % TILE_THEMES.length];
           const costText =
             activity.estimatedCost === 0
@@ -784,16 +1043,25 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
             'Optimal timing for high visibility and authentic local vibes.';
 
           return (
-            <div key={activity.id} className="relative pl-14">
-              {/* Left Anchor Icon on Rail */}
+            <div
+              key={activity.id}
+              className={`relative z-20 flex items-start ${
+                isEven ? 'flex-row pl-1.5' : 'flex-row-reverse pr-1.5'
+              }`}
+            >
+              {/* Anchor Node with icon - targeted by .mobile-anchor-node */}
               <div
-                className={`absolute left-2.5 top-5 w-8 h-8 rounded-xl ${theme.bg} ${theme.border} border flex items-center justify-center text-sm shadow-lg z-10`}
+                className={`mobile-anchor-node w-9 h-9 rounded-xl ${theme.bg} ${theme.border} border flex items-center justify-center text-sm shadow-xl z-20 shrink-0 mt-3 ${
+                  isEven ? 'mr-3' : 'ml-3'
+                } ${theme.glow}`}
               >
-                {index === 0 ? vehicleConfig.vehicleIcon : theme.defaultIcon}
+                <div className={`w-6 h-6 rounded-full bg-[#050507] ${theme.ring} ring-2 flex items-center justify-center text-xs`}>
+                  {index === 0 ? vehicleConfig.vehicleIcon : theme.defaultIcon}
+                </div>
               </div>
 
               {/* Card Container */}
-              <div className="bg-[#121316] rounded-2xl border border-zinc-800 p-4 space-y-3 shadow-xl">
+              <div className="flex-1 bg-[#121316]/95 backdrop-blur-xl rounded-2xl border border-zinc-800 p-3.5 sm:p-4 space-y-3 shadow-2xl relative overflow-hidden">
                 {/* Embedded Photo Banner */}
                 <div
                   onClick={() => onOpenDetails(activity)}
@@ -808,6 +1076,9 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                   <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
                     {activity.category}
                   </div>
+                  <div className="absolute bottom-1.5 right-2 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-semibold text-zinc-300">
+                    {activity.location || trip.destination}
+                  </div>
                 </div>
 
                 {/* Header Time & Cost */}
@@ -816,6 +1087,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                     <Clock className="w-3 h-3 text-emerald-400" />
                     {activity.time}
                   </span>
+                  <div className="h-[1px] bg-zinc-800 flex-1 mx-2" />
                   <span className="font-bold text-zinc-400 font-mono text-xs">
                     {costText}
                   </span>
@@ -835,7 +1107,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                 </p>
 
                 {/* Pro-Tip Capsule */}
-                <div className="p-2 rounded-xl bg-[#18191d] border border-white/5 flex items-center gap-2">
+                <div className="p-2.5 rounded-xl bg-[#18191d] border border-white/5 flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs">
                     ⚡
                   </div>
@@ -850,26 +1122,52 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                     <button
                       type="button"
                       onClick={() => onToggleActivityComplete(activity.id)}
-                      className={`flex items-center gap-1 font-bold ${
-                        activity.completed ? 'text-emerald-400' : 'text-zinc-400'
+                      className={`flex items-center gap-1 font-bold cursor-pointer ${
+                        activity.completed ? 'text-emerald-400' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       {activity.completed ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       ) : (
-                        <Circle className="w-3.5 h-3.5" />
+                        <Circle className="w-3.5 h-3.5 text-zinc-500" />
                       )}
                       <span>{activity.completed ? 'Visited' : 'Check-in'}</span>
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => onOpenDetails(activity)}
-                    className="px-2 py-1 rounded-lg bg-zinc-800 text-zinc-200 text-xs font-bold"
-                  >
-                    Details
-                  </button>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => onOpenDetails(activity)}
+                      className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-200 text-xs font-bold hover:bg-zinc-700 cursor-pointer"
+                    >
+                      Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMoveActivityUp(activity.id)}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMoveActivityDown(activity.id)}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReplaceActivity(activity.id)}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-emerald-400 cursor-pointer"
+                      title="Replace"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
