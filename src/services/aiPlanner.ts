@@ -1,6 +1,6 @@
 import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, DayItinerary } from '../types';
 import { GoogleGenAI } from '@google/genai';
-import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays } from '../utils/routeEstimator';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -411,7 +411,42 @@ The user selected Travel Mode: "${travelMode}".
     if (genData && genData.days && Array.isArray(genData.days) && genData.days.length > 0) {
       const days: DayItinerary[] = genData.days.map((day: any, dIdx: number) => {
         const dayNum = day.dayNumber || dIdx + 1;
-        const activities = (day.activities || []).map((act: any, aIdx: number) => {
+        const isRoadTrip = travelMode === 'Bike / Motorcycle' || travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental';
+        const isTransitStage = isRoadTrip && (
+          (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
+          (!isMultiDayTransit && (dayNum === 1 || dayNum === totalDays))
+        );
+
+        // Check if this day contains any flight/airport/rental hub contamination
+        const dayRawText = JSON.stringify(day).toLowerCase();
+        const hasContamination = isRoadTrip && Boolean(
+          dayRawText.match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i)
+        );
+
+        let dayTitle = day.title || `Day ${dayNum} in ${destName}`;
+        let dayTheme = day.theme || `${destName} Exploration`;
+        let dayVibe = day.vibe || 'Scenic views, cultural landmarks and delicious local tastes';
+        let rawActivities = day.activities || [];
+
+        // If it's a road transit stage and either has contamination or missing activities, inject authentic overland stage
+        if (isRoadTrip && (hasContamination || isTransitStage || rawActivities.length === 0)) {
+          const stageDetails = getOverlandStageDetails({
+            startCity,
+            destName,
+            dayNum,
+            totalDays,
+            outboundDays: outboundEndDay,
+            coreDestDays: allocation.coreDestDays,
+            returnDays: allocation.returnDays,
+            travelMode
+          });
+          dayTitle = stageDetails.title;
+          dayTheme = stageDetails.theme;
+          dayVibe = stageDetails.vibe;
+          rawActivities = stageDetails.activities;
+        }
+
+        const activities = rawActivities.map((act: any, aIdx: number) => {
           const baseLat = destLat;
           const baseLng = destLng;
           const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
@@ -423,46 +458,20 @@ The user selected Travel Mode: "${travelMode}".
           let finalWhy = act.recommendationReason || 'Tailored to your preferences and travel style.';
           let finalCategory = (act.category as Activity['category']) || 'Sightseeing';
 
-          if (travelMode === 'Bike / Motorcycle') {
-            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
-            if (isFlightMention) {
+          if (isRoadTrip) {
+            const isFlightOrRentalMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i);
+            if (isFlightOrRentalMention) {
               finalCategory = 'Travel';
-              if (dayNum === 1 && aIdx === 0) {
-                finalTitle = 'Motorcycle Inspection & Morning Highway Departure';
-                finalLocation = `${startCity} Highway Corridor`;
-                finalDesc = `Pre-ride bike safety inspection, tire pressure check, full tank refuel, and hitting the national highway out of ${startCity}.`;
-                finalWhy = 'Essential departure for a long-distance overland motorcycle expedition.';
-              } else if (dayNum === 1 && aIdx === 1) {
-                finalTitle = 'Highway Fuel & Dhaba Stop';
-                finalLocation = 'National Highway Waypoint';
-                finalDesc = `Scenic rest stop at an authentic highway dhaba for tea, regional breakfast/lunch, and bike check.`;
-                finalWhy = 'Hydration and fuel rest halt on the highway.';
-              } else if (dayNum === 1) {
-                finalTitle = 'Arrival & Night Halt at Transit Lodge';
-                finalLocation = 'Intermediate Transit City';
-                finalDesc = `Checking into a biker-friendly transit stay, securing the motorcycle, hot shower, and hearty dinner.`;
-                finalWhy = 'Rest and recovery after Day 1 riding stretch.';
+              if (travelMode === 'Bike / Motorcycle') {
+                finalTitle = 'Scenic Highway Route Riding';
+                finalLocation = `${destName} Scenic Highway Corridor`;
+                finalDesc = `Cruising along scenic mountain curves and open highway stretches with panoramic views.`;
+                finalWhy = 'Continuous authentic motorcycle expedition riding.';
               } else {
-                finalTitle = `Overland Ride Stage ${dayNum}`;
-                finalLocation = `En-route to ${destName}`;
-                finalDesc = `Scenic highway cruising and mountain approach riding towards ${destName}.`;
-                finalWhy = 'Continuous overland stage towards the destination.';
-              }
-            }
-          } else if (travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental') {
-            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
-            if (isFlightMention) {
-              finalCategory = 'Travel';
-              if (dayNum === 1 && aIdx === 0) {
-                finalTitle = 'Early Morning Highway Road Trip Departure';
-                finalLocation = `${startCity} Expressway`;
-                finalDesc = `Loading luggage, vehicle check, and starting the scenic highway drive out of ${startCity}.`;
-                finalWhy = 'Kickstarting the overland road trip expedition.';
-              } else if (dayNum === 1) {
-                finalTitle = 'Highway Dhaba Stop & Fuel Break';
-                finalLocation = 'National Expressway Rest Area';
-                finalDesc = `Comfortable highway pitstop for fuel, coffee, and regional lunch.`;
-                finalWhy = 'Rest break on long-distance road drive.';
+                finalTitle = 'Scenic Expressway Road Drive';
+                finalLocation = `${destName} Highway Route`;
+                finalDesc = `Enjoying the open road, scenic landscapes, and highway journey.`;
+                finalWhy = 'Pure road trip cruising.';
               }
             }
           }
@@ -508,9 +517,9 @@ The user selected Travel Mode: "${travelMode}".
         return {
           dayNumber: dayNum,
           date: calculatedDate,
-          title: day.title || `Day ${dayNum} in ${destName}`,
-          theme: day.theme || `${destName} Exploration`,
-          vibe: day.vibe || 'Scenic views, cultural landmarks and delicious local tastes',
+          title: dayTitle,
+          theme: dayTheme,
+          vibe: dayVibe,
           weatherForecast: {
             temp: day.weatherForecast?.temp || '26°C',
             condition: normalizeWeatherCondition(day.weatherForecast?.condition),

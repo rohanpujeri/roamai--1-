@@ -4,7 +4,7 @@ import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 import { fetchAiHotelSuggestions } from './serverHotelAdvisor';
-import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays } from '../utils/routeEstimator';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -198,18 +198,21 @@ One-Way Physical Transit Duration: ~${transitDaysOneWay} day(s).
 Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
 
 ========================================================================================
-CRITICAL TRAVEL MODE ENFORCEMENT (MODE: "${travelMode}"):
-${travelMode === 'Bike / Motorcycle' ? `• THE ENTIRE JOURNEY IS A MOTORCYCLE / BIKE EXPEDITION!
-• EVERY TRANSIT ACTIVITY MUST BE MOTORCYCLE TOURING & HIGHWAY RIDING.
-• ABSOLUTELY ZERO FLIGHTS! DO NOT MENTION AIRPORTS (No Kempegowda Airport, No Indira Gandhi Airport, No Leh Airport), NO BOARDING GATES, NO AIR TICKETS!
-• Day 1 MUST start with motorcycle gear inspection, morning highway departure from "${startCity}" on NH44/NH48, highway petrol pump refuel, highway dhaba lunch, and reaching intermediate transit city (e.g. Kolhapur/Pune/Hyderabad).
-• Days 2 to ${outboundEndDay}: Sequential overland riding stages across real connecting cities & mountain passes (e.g. Pune -> Udaipur -> Chandigarh -> Manali -> Jispa/Keylong -> Rohtang/Atal Tunnel -> Baralacha La -> Leh).
-• Day ${outboundEndDay}: Ride motorcycle into "${destName}", hotel check-in, rest and acclimatization.
-• Return Days ${returnStartDay} to ${totalDays}: Ride motorcycle back across return highway circuit safely arriving in "${startCity}".` :
-travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental' ? `• THE ENTIRE TRIP IS A ROAD TRIP BY CAR!
-• ALL TRANSIT MUST BE HIGHWAY DRIVING. ZERO FLIGHTS, ZERO AIRPORTS!` :
-travelMode === 'Train' ? `• THE ENTIRE JOURNEY MUST BE BY TRAIN / RAILWAY!
-• Board trains at railway stations. ZERO FLIGHTS!` :
+ABSOLUTE TRAVEL MODE MANDATE (MODE: "${travelMode}"):
+${travelMode === 'Bike / Motorcycle' ? `• THIS IS A 100% PURE MOTORCYCLE EXPEDITION STARTING DIRECTLY FROM "${startCity}".
+• THE USER IS RIDING THEIR MOTORCYCLE ALL THE WAY FROM "${startCity}" TO "${destName}" AND ALL THE WAY BACK.
+• ABSOLUTELY ZERO FLIGHTS! DO NOT SUGGEST FLIGHTS TO CHANDIGARH, DELHI, OR ANY OTHER CITY.
+• ABSOLUTELY ZERO INTERMEDIATE RENTALS (Do NOT say "Fly to Chandigarh and pick up rental bike").
+• THE ENTIRE TRIP IS ON THE ROAD:
+  - Day 1: Depart "${startCity}" on motorcycle via National Highway (NH44/NH48), morning highway riding, fuel pitstop, roadside dhaba lunch, and evening arrival at Stage 1 transit city (e.g. Kolhapur/Pune/Hyderabad).
+  - Days 2 to ${outboundEndDay}: Sequential daily highway riding stages crossing intermediate states towards "${destName}".
+  - Day ${outboundEndDay}: Final mountain pass/highway approach, ride motorcycle into "${destName}", hotel check-in & rest.
+  - Days ${destStartDay} to ${destEndDay}: Dedicated days exploring "${destName}" on motorcycle.
+  - Days ${returnStartDay} to ${totalDays}: Sequential return highway riding stages back home to "${startCity}".` :
+travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental' ? `• THIS IS A 100% PURE CAR ROAD TRIP STARTING DIRECTLY FROM "${startCity}".
+• THE USER DRIVES ON THE HIGHWAYS ALL THE WAY FROM "${startCity}" TO "${destName}" AND BACK.
+• ABSOLUTELY ZERO FLIGHTS, ZERO AIRPORTS, ZERO AIRLINE TICKETS!` :
+travelMode === 'Train' ? `• THE ENTIRE JOURNEY IS BY TRAIN / RAILWAYS FROM "${startCity}" RAILWAY STATION. ZERO FLIGHTS!` :
 `• Air travel via commercial flights from "${startCity}" airport to destination airport (or nearest commercial airport + scenic road transfer).`}
 ========================================================================================
 
@@ -442,8 +445,43 @@ The user selected Travel Mode: "${travelMode}".
   const days = await Promise.all(
     (genData.days || []).map(async (day: any, dIdx: number) => {
       const dayNum = day.dayNumber || dIdx + 1;
+      const isRoadTrip = travelMode === 'Bike / Motorcycle' || travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental';
+      const isTransitStage = isRoadTrip && (
+        (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
+        (!isMultiDayTransit && (dayNum === 1 || dayNum === totalDays))
+      );
+
+      // Check if this day contains any flight/airport/rental hub contamination
+      const dayRawText = JSON.stringify(day).toLowerCase();
+      const hasContamination = isRoadTrip && Boolean(
+        dayRawText.match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i)
+      );
+
+      let dayTitle = day.title || `Day ${dayNum} Exploration`;
+      let dayTheme = day.theme || `${destName} Highlights & Exploration`;
+      let dayVibe = day.vibe || 'Scenic views, cultural landmarks and delicious local tastes';
+      let rawActivities = day.activities || [];
+
+      // If it's a road transit stage and either has contamination or missing activities, inject authentic overland stage
+      if (isRoadTrip && (hasContamination || isTransitStage || rawActivities.length === 0)) {
+        const stageDetails = getOverlandStageDetails({
+          startCity,
+          destName,
+          dayNum,
+          totalDays,
+          outboundDays: outboundEndDay,
+          coreDestDays: allocation.coreDestDays,
+          returnDays: allocation.returnDays,
+          travelMode
+        });
+        dayTitle = stageDetails.title;
+        dayTheme = stageDetails.theme;
+        dayVibe = stageDetails.vibe;
+        rawActivities = stageDetails.activities;
+      }
+
       const activities = await Promise.all(
-        (day.activities || []).map(async (act: any, aIdx: number) => {
+        rawActivities.map(async (act: any, aIdx: number) => {
           const baseLat = destLat || 20.0;
           const baseLng = destLng || 78.0;
           const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
@@ -454,46 +492,20 @@ The user selected Travel Mode: "${travelMode}".
           let finalWhy = act.recommendationReason || 'Tailored to your preferences and travel style.';
           let finalCategory = act.category || 'Sightseeing';
 
-          if (travelMode === 'Bike / Motorcycle') {
-            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
-            if (isFlightMention) {
+          if (isRoadTrip) {
+            const isFlightOrRentalMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i);
+            if (isFlightOrRentalMention) {
               finalCategory = 'Travel';
-              if (dayNum === 1 && aIdx === 0) {
-                finalTitle = 'Motorcycle Inspection & Morning Highway Departure';
-                finalLocation = `${startCity} Highway Corridor`;
-                finalDesc = `Pre-ride bike safety inspection, tire pressure check, full tank refuel, and hitting the national highway out of ${startCity}.`;
-                finalWhy = 'Essential departure for a long-distance overland motorcycle expedition.';
-              } else if (dayNum === 1 && aIdx === 1) {
-                finalTitle = 'Highway Fuel & Dhaba Stop';
-                finalLocation = 'National Highway Waypoint';
-                finalDesc = `Scenic rest stop at an authentic highway dhaba for tea, regional breakfast/lunch, and bike check.`;
-                finalWhy = 'Hydration and fuel rest halt on the highway.';
-              } else if (dayNum === 1) {
-                finalTitle = 'Arrival & Night Halt at Transit Lodge';
-                finalLocation = 'Intermediate Transit City';
-                finalDesc = `Checking into a biker-friendly transit stay, securing the motorcycle, hot shower, and hearty dinner.`;
-                finalWhy = 'Rest and recovery after Day 1 riding stretch.';
+              if (travelMode === 'Bike / Motorcycle') {
+                finalTitle = 'Scenic Highway Route Riding';
+                finalLocation = `${destName} Scenic Highway Corridor`;
+                finalDesc = `Cruising along scenic mountain curves and open highway stretches with panoramic views.`;
+                finalWhy = 'Continuous authentic motorcycle expedition riding.';
               } else {
-                finalTitle = `Overland Ride Stage ${dayNum}`;
-                finalLocation = `En-route to ${destName}`;
-                finalDesc = `Scenic highway cruising and mountain approach riding towards ${destName}.`;
-                finalWhy = 'Continuous overland stage towards the destination.';
-              }
-            }
-          } else if (travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental') {
-            const isFlightMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del)\b/i);
-            if (isFlightMention) {
-              finalCategory = 'Travel';
-              if (dayNum === 1 && aIdx === 0) {
-                finalTitle = 'Early Morning Highway Road Trip Departure';
-                finalLocation = `${startCity} Expressway`;
-                finalDesc = `Loading luggage, vehicle check, and starting the scenic highway drive out of ${startCity}.`;
-                finalWhy = 'Kickstarting the overland road trip expedition.';
-              } else if (dayNum === 1) {
-                finalTitle = 'Highway Dhaba Stop & Fuel Break';
-                finalLocation = 'National Expressway Rest Area';
-                finalDesc = `Comfortable highway pitstop for fuel, coffee, and regional lunch.`;
-                finalWhy = 'Rest break on long-distance road drive.';
+                finalTitle = 'Scenic Expressway Road Drive';
+                finalLocation = `${destName} Highway Route`;
+                finalDesc = `Enjoying the open road, scenic landscapes, and highway journey.`;
+                finalWhy = 'Pure road trip cruising.';
               }
             }
           }
@@ -542,9 +554,9 @@ The user selected Travel Mode: "${travelMode}".
       return {
         dayNumber: dayNum,
         date: calculatedDate,
-        title: day.title || `Day ${dayNum} Exploration`,
-        theme: day.theme || `${destName} Highlights & Exploration`,
-        vibe: day.vibe || 'Scenic views, cultural landmarks and delicious local tastes',
+        title: dayTitle,
+        theme: dayTheme,
+        vibe: dayVibe,
         weatherForecast: day.weatherForecast || {
           temp: '27°C',
           condition: 'Partly Cloudy',
