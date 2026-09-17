@@ -1,6 +1,6 @@
 import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, DayItinerary } from '../types';
 import { GoogleGenAI } from '@google/genai';
-import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails } from '../utils/routeEstimator';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails, normalizeTravelMode, isBikeMode, isRoadTripMode, FLIGHT_AND_RENTAL_REGEX } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -225,14 +225,14 @@ ${customNotesText ? `Special Notes: "${customNotesText}".` : ''}
 
 ========================================================================================
 CRITICAL TRAVEL MODE ENFORCEMENT (MODE: "${travelMode}"):
-${travelMode === 'Bike / Motorcycle' ? `• THE ENTIRE JOURNEY IS A MOTORCYCLE / BIKE EXPEDITION!
+${isBikeMode(travelMode) ? `• THE ENTIRE JOURNEY IS A MOTORCYCLE / BIKE EXPEDITION!
 • EVERY TRANSIT ACTIVITY MUST BE MOTORCYCLE TOURING & HIGHWAY RIDING.
 • ABSOLUTELY ZERO FLIGHTS! DO NOT MENTION AIRPORTS (No Kempegowda Airport, No Indira Gandhi Airport, No Leh Airport), NO BOARDING GATES, NO AIR TICKETS!
 • Day 1 MUST start with motorcycle gear inspection, morning highway departure from "${startCity}" on NH44/NH48, highway petrol pump refuel, highway dhaba lunch, and reaching intermediate transit city (e.g. Kolhapur/Pune/Hyderabad).
 • Days 2 to ${outboundEndDay}: Sequential overland riding stages across real connecting cities & mountain passes (e.g. Pune -> Udaipur -> Chandigarh -> Manali -> Jispa/Keylong -> Rohtang/Atal Tunnel -> Baralacha La -> Leh).
 • Day ${outboundEndDay}: Ride motorcycle into "${destName}", hotel check-in, rest and acclimatization.
 • Return Days ${returnStartDay} to ${totalDays}: Ride motorcycle back across return highway circuit safely arriving in "${startCity}".` :
-travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental' ? `• THE ENTIRE TRIP IS A ROAD TRIP BY CAR!
+isRoadTripMode(travelMode) ? `• THE ENTIRE TRIP IS A ROAD TRIP BY CAR!
 • ALL TRANSIT MUST BE HIGHWAY DRIVING. ZERO FLIGHTS, ZERO AIRPORTS!` :
 travelMode === 'Train' ? `• THE ENTIRE JOURNEY MUST BE BY TRAIN / RAILWAY!
 • Board trains at railway stations. ZERO FLIGHTS!` :
@@ -414,7 +414,8 @@ The user selected Travel Mode: "${travelMode}".
     if (genData && genData.days && Array.isArray(genData.days) && genData.days.length > 0) {
       const days: DayItinerary[] = genData.days.map((day: any, dIdx: number) => {
         const dayNum = day.dayNumber || dIdx + 1;
-        const isRoadTrip = travelMode === 'Bike / Motorcycle' || travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental';
+        const isRoadTrip = isRoadTripMode(travelMode);
+        const isBike = isBikeMode(travelMode);
         const isTransitStage = isRoadTrip && (
           (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
           (!isMultiDayTransit && (dayNum === 1 || dayNum === totalDays))
@@ -422,17 +423,15 @@ The user selected Travel Mode: "${travelMode}".
 
         // Check if this day contains any flight/airport/rental hub contamination
         const dayRawText = JSON.stringify(day).toLowerCase();
-        const hasContamination = isRoadTrip && Boolean(
-          dayRawText.match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i)
-        );
+        const hasContamination = isRoadTrip && FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
 
         let dayTitle = day.title || `Day ${dayNum} in ${destName}`;
         let dayTheme = day.theme || `${destName} Exploration`;
         let dayVibe = day.vibe || 'Scenic views, cultural landmarks and delicious local tastes';
         let rawActivities = day.activities || [];
 
-        // If it's a road transit stage and either has contamination or missing activities, inject authentic overland stage
-        if (isRoadTrip && (hasContamination || isTransitStage || rawActivities.length === 0)) {
+        // If it's a road transit stage OR an overland stage day OR has flight/transit contamination on a transit day, inject authentic overland stage
+        if (isRoadTrip && (isTransitStage || ((dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination) || rawActivities.length === 0)) {
           const stageDetails = getOverlandStageDetails({
             startCity,
             destName,
@@ -462,19 +461,20 @@ The user selected Travel Mode: "${travelMode}".
           let finalCategory = (act.category as Activity['category']) || 'Sightseeing';
 
           if (isRoadTrip) {
-            const isFlightOrRentalMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i);
-            if (isFlightOrRentalMention) {
-              finalCategory = 'Travel';
-              if (travelMode === 'Bike / Motorcycle') {
-                finalTitle = 'Scenic Highway Route Riding';
-                finalLocation = `${destName} Scenic Highway Corridor`;
-                finalDesc = `Cruising along scenic mountain curves and open highway stretches with panoramic views.`;
-                finalWhy = 'Continuous authentic motorcycle expedition riding.';
+            const combinedText = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
+            if (FLIGHT_AND_RENTAL_REGEX.test(combinedText)) {
+              if (isBike) {
+                finalCategory = 'Sightseeing';
+                finalTitle = `${destName} Scenic Mountain & Highway Touring`;
+                finalLocation = `${destName} Panoramic Scenic Route`;
+                finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
+                finalWhy = 'Continuous authentic overland motorcycle expedition.';
               } else {
-                finalTitle = 'Scenic Expressway Road Drive';
-                finalLocation = `${destName} Highway Route`;
-                finalDesc = `Enjoying the open road, scenic landscapes, and highway journey.`;
-                finalWhy = 'Pure road trip cruising.';
+                finalCategory = 'Sightseeing';
+                finalTitle = `${destName} Scenic Highway & Valley Drive`;
+                finalLocation = `${destName} Scenic Route`;
+                finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
+                finalWhy = 'Enjoying the open road and scenic landscapes on your road trip.';
               }
             }
           }

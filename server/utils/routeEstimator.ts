@@ -1,5 +1,29 @@
 import { TravelMode } from '../../src/types';
 
+export function isBikeMode(mode?: string): boolean {
+  if (!mode) return false;
+  const m = mode.toLowerCase();
+  return m.includes('bike') || m.includes('motor') || m.includes('cycle') || m.includes('two-wheeler') || m.includes('scooter');
+}
+
+export function isRoadTripMode(mode?: string): boolean {
+  if (!mode) return false;
+  const m = mode.toLowerCase();
+  return isBikeMode(mode) || m.includes('car') || m.includes('road') || m.includes('drive') || m.includes('vehicle') || m.includes('self-drive') || m.includes('suv') || m.includes('cab');
+}
+
+export function normalizeTravelMode(mode?: string): TravelMode {
+  if (!mode) return 'Flight';
+  if (isBikeMode(mode)) return 'Bike / Motorcycle';
+  if (isRoadTripMode(mode)) return 'Car / Road Trip';
+  const m = mode.toLowerCase();
+  if (m.includes('train') || m.includes('rail')) return 'Train';
+  if (m.includes('bus') || m.includes('coach')) return 'Bus';
+  return 'Flight';
+}
+
+export const FLIGHT_AND_RENTAL_REGEX = /\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|plane|airplane|aircraft|airfare|takeoff|landing|blr|ixl|ixc|del|bom|maa|hyd|ccu|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|bike rental|motorcycle rental|rent a bike|renting motorcycle|renting bike|chandigarh rental|leh rental|manali rental|rental shop|pick up motorcycles|hire a bike)\b/i;
+
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -562,12 +586,254 @@ export function getOverlandStageDetails(params: {
         };
       }
 
-      if (dayNum === 4 || dayNum === outboundDays) {
+      if (dayNum === 4 && (destClean.includes('ladakh') || destClean.includes('leh')) && outboundDays > 4) {
         return {
-          title: `Chandigarh to ${destName}: Himalayan Ghats & Mountain Ascent`,
-          theme: `Final Ascent: Beas Valley & Arrival in ${destName}`,
-          vibe: `Winding mountain passes, Beas river rapids, pine-scented mountain air, and triumphant entry into ${destName}`,
+          title: `Chandigarh to Manali: Himalayan Gateway Stage`,
+          theme: `Stage 4: Beas Valley Ride to Manali Basecamp`,
+          vibe: `Winding mountain roads, Beas river rapids, and resting at the foot of Rohtang/Atal Tunnel`,
           activities: [
+            {
+              id: `act-${dayNum}-1`,
+              time: '06:30 AM',
+              endTime: '09:30 AM',
+              title: 'Ascending Himachal Hills via Kiratpur-Manali Expressway',
+              category: 'Travel',
+              location: 'Kiratpur-Manali 4-Lane Expressway / Swarghat',
+              coordinates: { lat: 31.2500, lng: 76.7000 },
+              estimatedCost: isBike ? 600 : 1500,
+              travelTimeFromPrev: '0 min',
+              duration: '3 hrs',
+              description: `Riding into the majestic Shivalik and Dhauladhar foothills on the 4-lane mountain highway.`,
+              imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Crucial mountain transit connecting the plains to the high Himalayas.',
+              isIndoor: false,
+              isRainSafe: true,
+              rating: 4.9
+            },
+            {
+              id: `act-${dayNum}-2`,
+              time: '10:00 AM',
+              endTime: '11:15 AM',
+              title: 'Mountain Viewpoint Chai & Pandoh Dam Stop',
+              category: 'Sightseeing',
+              location: 'Pandoh Dam / Mandi Ghat Waypoint',
+              coordinates: { lat: 31.6700, lng: 77.0100 },
+              estimatedCost: 200,
+              travelTimeFromPrev: '45 min ride',
+              duration: '1.25 hrs',
+              description: `Stopping beside the turquoise Beas river reservoir for hot ginger tea and panoramic photo shoots.`,
+              imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Classic Himalayan photo spot along the river corridor.',
+              isIndoor: false,
+              isRainSafe: false,
+              rating: 4.8
+            },
+            {
+              id: `act-${dayNum}-3`,
+              time: '01:30 PM',
+              endTime: '03:00 PM',
+              title: 'Riverside Himachali Trout & Siddu Lunch in Kullu',
+              category: 'Food',
+              location: 'Kullu Valley Beas Riverbank Cafe',
+              coordinates: { lat: 31.9579, lng: 77.1095 },
+              estimatedCost: 550,
+              travelTimeFromPrev: '1.5 hrs ride',
+              duration: '1.5 hrs',
+              description: `Authentic traditional Siddu with ghee, fresh river trout/dal, and riverside apple orchard views.`,
+              imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Iconic local Himachali mountain meal.',
+              isIndoor: true,
+              isRainSafe: true,
+              rating: 4.9
+            },
+            {
+              id: `act-${dayNum}-4`,
+              time: '05:30 PM',
+              endTime: '08:30 PM',
+              title: `Arrival in Manali Basecamp & High Altitude Check`,
+              category: 'Travel',
+              location: 'Manali / Old Manali Basecamp',
+              coordinates: { lat: 32.2432, lng: 77.1892 },
+              estimatedCost: 600,
+              travelTimeFromPrev: '1.5 hrs ride',
+              duration: '3 hrs',
+              description: `Checking into hotel in Manali, mountain bike inspection, warm dinner, and rest before crossing high Himalayan passes.`,
+              imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Essential mountain acclimatization and staging point for Ladakh.',
+              isIndoor: true,
+              isRainSafe: true,
+              rating: 4.9
+            }
+          ]
+        };
+      }
+
+      if (dayNum === 5 && (destClean.includes('ladakh') || destClean.includes('leh')) && outboundDays > 4) {
+        return {
+          title: `Manali to Jispa / Keylong: Crossing Atal Tunnel into Lahaul`,
+          theme: `Stage 5: High Altitude Lahaul Valley Expedition`,
+          vibe: `Atal Tunnel transit, roaring Chandra-Bhaga rivers, snow peaks, and high mountain camping`,
+          activities: [
+            {
+              id: `act-${dayNum}-1`,
+              time: '07:00 AM',
+              endTime: '09:30 AM',
+              title: 'Atal Tunnel Crossing & Sissu Waterfall Halt',
+              category: 'Travel',
+              location: 'Atal Tunnel North Portal / Sissu, Lahaul',
+              coordinates: { lat: 32.4800, lng: 77.1200 },
+              estimatedCost: isBike ? 500 : 1200,
+              travelTimeFromPrev: '0 min',
+              duration: '2.5 hrs',
+              description: `Riding through the engineering marvel of Atal Tunnel (9.02 km at 3,048m) and emerging into the breathtaking rugged Lahaul valley with views of Sissu Waterfall.`,
+              imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Spectacular gateway into the trans-Himalayan landscape.',
+              isIndoor: false,
+              isRainSafe: false,
+              rating: 5.0
+            },
+            {
+              id: `act-${dayNum}-2`,
+              time: '10:00 AM',
+              endTime: '11:30 AM',
+              title: 'Tandi Chandra-Bhaga Confluence & Fuel Top-up',
+              category: 'Travel',
+              location: 'Tandi Petrol Pump / River Confluence',
+              coordinates: { lat: 32.5500, lng: 76.9700 },
+              estimatedCost: isBike ? 800 : 2500,
+              travelTimeFromPrev: '45 min ride',
+              duration: '1.5 hrs',
+              description: `Sacred confluence of Chandra & Bhaga rivers and full tank fuel top-up at the iconic last regular petrol station.`,
+              imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Critical fuel stop and historic Himalayan waypoint.',
+              isIndoor: false,
+              isRainSafe: true,
+              rating: 4.8
+            },
+            {
+              id: `act-${dayNum}-3`,
+              time: '01:00 PM',
+              endTime: '02:30 PM',
+              title: 'Lahauli Thukpa & Momos Lunch in Keylong',
+              category: 'Food',
+              location: 'Keylong High Mountain Cafe',
+              coordinates: { lat: 32.5710, lng: 77.0320 },
+              estimatedCost: 350,
+              travelTimeFromPrev: '30 min ride',
+              duration: '1.5 hrs',
+              description: `Steaming hot Tibetan noodle thukpa, spicy chutney momos, and hot butter tea.`,
+              imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Warming mountain meal in the heart of Lahaul.',
+              isIndoor: true,
+              isRainSafe: true,
+              rating: 4.8
+            },
+            {
+              id: `act-${dayNum}-4`,
+              time: '05:30 PM',
+              endTime: '08:30 PM',
+              title: 'Arrival in Jispa Riverside Campsite & Bonfire Briefing',
+              category: 'Travel',
+              location: 'Bhaga Riverfront Camp, Jispa (3,200m)',
+              coordinates: { lat: 32.6390, lng: 77.1850 },
+              estimatedCost: 700,
+              travelTimeFromPrev: '1 hr ride',
+              duration: '3 hrs',
+              description: `Riverside alpine stay, motorcycle check, starlit dinner by the Bhaga river, and acclimatization sleep.`,
+              imageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Unforgettable mountain wilderness overnight halt.',
+              isIndoor: false,
+              isRainSafe: true,
+              rating: 4.9
+            }
+          ]
+        };
+      }
+
+      if (dayNum === outboundDays || (dayNum === 4 && (!destClean.includes('ladakh') && !destClean.includes('leh')))) {
+        const isLadakhFinal = destClean.includes('ladakh') || destClean.includes('leh');
+        return {
+          title: isLadakhFinal
+            ? `Jispa to Leh: High Passes (Baralacha La, Tanglang La & More Plains)`
+            : `Chandigarh to ${destName}: Himalayan Ghats & Mountain Ascent`,
+          theme: isLadakhFinal ? `The Ultimate High Pass Expedition to Leh (3,500m)` : `Final Ascent: Beas Valley & Arrival in ${destName}`,
+          vibe: isLadakhFinal
+            ? `Epic mountain passes (4,890m to 5,328m), surreal moonscapes of More Plains, and triumphant entry into Leh`
+            : `Winding mountain passes, Beas river rapids, pine-scented mountain air, and triumphant entry into ${destName}`,
+          activities: isLadakhFinal ? [
+            {
+              id: `act-${dayNum}-1`,
+              time: '06:00 AM',
+              endTime: '09:30 AM',
+              title: 'Crossing Baralacha La Pass (4,890m) & Deepak Tal',
+              category: 'Travel',
+              location: 'Baralacha La High Mountain Pass',
+              coordinates: { lat: 32.7567, lng: 77.4206 },
+              estimatedCost: isBike ? 600 : 1500,
+              travelTimeFromPrev: '0 min',
+              duration: '3.5 hrs',
+              description: `Early morning throttle across Suraj Tal & Deepak Tal lakes, ascending the dramatic snow walls of Baralacha La pass.`,
+              imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'One of the most thrilling high altitude mountain passes in the world.',
+              isIndoor: false,
+              isRainSafe: false,
+              rating: 5.0
+            },
+            {
+              id: `act-${dayNum}-2`,
+              time: '10:30 AM',
+              endTime: '12:30 PM',
+              title: 'Gata Loops (21 Hairpin Bends) & Nakee La (4,739m)',
+              category: 'Travel',
+              location: 'Gata Loops / Nakee La Highway Pass',
+              coordinates: { lat: 32.9500, lng: 77.5800 },
+              estimatedCost: 200,
+              travelTimeFromPrev: '1 hr ride',
+              duration: '2 hrs',
+              description: `Negotiating the legendary 21 hairpin bends of Gata Loops and crossing Nakee La and Lachung La into Ladakh.`,
+              imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Iconic milestone on the Manali-Leh highway.',
+              isIndoor: false,
+              isRainSafe: false,
+              rating: 4.9
+            },
+            {
+              id: `act-${dayNum}-3`,
+              time: '01:00 PM',
+              endTime: '03:00 PM',
+              title: 'Cruising the More Plains (40 km High Altitude Plateau) & Pang Lunch',
+              category: 'Food',
+              location: 'More Plains & Pang Military Rest Camp',
+              coordinates: { lat: 33.1500, lng: 77.6500 },
+              estimatedCost: 450,
+              travelTimeFromPrev: '1.5 hrs ride',
+              duration: '2 hrs',
+              description: `Riding across the astonishing flat high-altitude More Plains plateau at 4,000m altitude and hot Maggi/dal-chawal lunch in Pang.`,
+              imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: 'Surreal geological wonder and hearty mountain meal.',
+              isIndoor: true,
+              isRainSafe: true,
+              rating: 4.9
+            },
+            {
+              id: `act-${dayNum}-4`,
+              time: '05:30 PM',
+              endTime: '08:30 PM',
+              title: 'Tanglang La Pass (5,328m) & Triumphant Arrival in Leh',
+              category: 'Travel',
+              location: 'Leh Main Market / Shanti Stupa Valley (3,500m)',
+              coordinates: { lat: 34.1526, lng: 77.5771 },
+              estimatedCost: 700,
+              travelTimeFromPrev: '2.5 hrs ride',
+              duration: '3 hrs',
+              description: `Conquering Tanglang La (the 2nd highest motorable pass), descending into the Indus River valley, and celebratory arrival in Leh on ${travelMode}! Check into hotel, hot shower, and relaxed dinner.`,
+              imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+              recommendationReason: `Triumphant overland arrival completing the great journey from ${startCity} to Leh!`,
+              isIndoor: false,
+              isRainSafe: false,
+              rating: 5.0
+            }
+          ] : [
             {
               id: `act-${dayNum}-1`,
               time: '06:30 AM',

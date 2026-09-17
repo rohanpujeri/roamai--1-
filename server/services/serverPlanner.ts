@@ -4,7 +4,7 @@ import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 import { fetchAiHotelSuggestions } from './serverHotelAdvisor';
-import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails } from '../utils/routeEstimator';
+import { estimateRouteDistanceKm, calculateTransitDaysOneWay, allocateTripDays, getOverlandStageDetails, normalizeTravelMode, isBikeMode, isRoadTripMode, FLIGHT_AND_RENTAL_REGEX } from '../utils/routeEstimator';
 
 export interface AdaptOption {
   id: string;
@@ -150,7 +150,9 @@ export async function generateTripFromInputs(params: {
     throw new Error('Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Environment Variables or .env file.');
   }
 
-  const travelMode = params.travelMode || params.preferences.travelMode || 'Flight';
+  const travelMode = normalizeTravelMode(params.travelMode || params.preferences.travelMode);
+  const isBike = isBikeMode(travelMode);
+  const isRoadTrip = isRoadTripMode(travelMode);
   const startCity = params.startCity || params.preferences.startCity || 'Origin City';
   const destName = params.destinationPlace?.name || params.destinationId;
   const destAddress = params.destinationPlace?.address || destName;
@@ -199,17 +201,17 @@ Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() 
 
 ========================================================================================
 ABSOLUTE TRAVEL MODE MANDATE (MODE: "${travelMode}"):
-${travelMode === 'Bike / Motorcycle' ? `• THIS IS A 100% PURE MOTORCYCLE EXPEDITION STARTING DIRECTLY FROM "${startCity}".
+${isBike ? `• THIS IS A 100% PURE MOTORCYCLE EXPEDITION STARTING DIRECTLY FROM "${startCity}".
 • THE USER IS RIDING THEIR MOTORCYCLE ALL THE WAY FROM "${startCity}" TO "${destName}" AND ALL THE WAY BACK.
-• ABSOLUTELY ZERO FLIGHTS! DO NOT SUGGEST FLIGHTS TO CHANDIGARH, DELHI, OR ANY OTHER CITY.
-• ABSOLUTELY ZERO INTERMEDIATE RENTALS (Do NOT say "Fly to Chandigarh and pick up rental bike").
+• ABSOLUTELY ZERO FLIGHTS! DO NOT SUGGEST FLIGHTS TO CHANDIGARH, DELHI, LEH, OR ANY OTHER CITY.
+• ABSOLUTELY ZERO INTERMEDIATE RENTALS (Do NOT say "Fly to Leh/Chandigarh and pick up rental bike").
 • THE ENTIRE TRIP IS ON THE ROAD:
   - Day 1: Depart "${startCity}" on motorcycle via National Highway (NH44/NH48), morning highway riding, fuel pitstop, roadside dhaba lunch, and evening arrival at Stage 1 transit city (e.g. Kolhapur/Pune/Hyderabad).
   - Days 2 to ${outboundEndDay}: Sequential daily highway riding stages crossing intermediate states towards "${destName}".
   - Day ${outboundEndDay}: Final mountain pass/highway approach, ride motorcycle into "${destName}", hotel check-in & rest.
   - Days ${destStartDay} to ${destEndDay}: Dedicated days exploring "${destName}" on motorcycle.
   - Days ${returnStartDay} to ${totalDays}: Sequential return highway riding stages back home to "${startCity}".` :
-travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental' ? `• THIS IS A 100% PURE CAR ROAD TRIP STARTING DIRECTLY FROM "${startCity}".
+isRoadTrip ? `• THIS IS A 100% PURE CAR ROAD TRIP STARTING DIRECTLY FROM "${startCity}".
 • THE USER DRIVES ON THE HIGHWAYS ALL THE WAY FROM "${startCity}" TO "${destName}" AND BACK.
 • ABSOLUTELY ZERO FLIGHTS, ZERO AIRPORTS, ZERO AIRLINE TICKETS!` :
 travelMode === 'Train' ? `• THE ENTIRE JOURNEY IS BY TRAIN / RAILWAYS FROM "${startCity}" RAILWAY STATION. ZERO FLIGHTS!` :
@@ -445,7 +447,8 @@ The user selected Travel Mode: "${travelMode}".
   const days = await Promise.all(
     (genData.days || []).map(async (day: any, dIdx: number) => {
       const dayNum = day.dayNumber || dIdx + 1;
-      const isRoadTrip = travelMode === 'Bike / Motorcycle' || travelMode === 'Car / Road Trip' || travelMode === 'Self-Drive Rental';
+      const isRoadTrip = isRoadTripMode(travelMode);
+      const isBike = isBikeMode(travelMode);
       const isTransitStage = isRoadTrip && (
         (isMultiDayTransit && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
         (!isMultiDayTransit && (dayNum === 1 || dayNum === totalDays))
@@ -453,17 +456,15 @@ The user selected Travel Mode: "${travelMode}".
 
       // Check if this day contains any flight/airport/rental hub contamination
       const dayRawText = JSON.stringify(day).toLowerCase();
-      const hasContamination = isRoadTrip && Boolean(
-        dayRawText.match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i)
-      );
+      const hasContamination = isRoadTrip && FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
 
       let dayTitle = day.title || `Day ${dayNum} Exploration`;
       let dayTheme = day.theme || `${destName} Highlights & Exploration`;
       let dayVibe = day.vibe || 'Scenic views, cultural landmarks and delicious local tastes';
       let rawActivities = day.activities || [];
 
-      // If it's a road transit stage and either has contamination or missing activities, inject authentic overland stage
-      if (isRoadTrip && (hasContamination || isTransitStage || rawActivities.length === 0)) {
+      // If it's a road transit stage OR an overland stage day OR has flight/transit contamination on a transit day, inject authentic overland stage
+      if (isRoadTrip && (isTransitStage || ((dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination) || rawActivities.length === 0)) {
         const stageDetails = getOverlandStageDetails({
           startCity,
           destName,
@@ -493,19 +494,20 @@ The user selected Travel Mode: "${travelMode}".
           let finalCategory = act.category || 'Sightseeing';
 
           if (isRoadTrip) {
-            const isFlightOrRentalMention = (finalTitle + ' ' + finalLocation + ' ' + finalDesc + ' ' + finalWhy).toLowerCase().match(/\b(flight|flights|airport|airports|boarding|terminal|airline|airlines|fly|flying|blr|ixl|del|ixc|maa|bom|hyd|rental hub|pick up rental|pickup rental|bike pickup|motorcycle pickup|rent a bike|renting motorcycle|chandigarh rental|rental shop)\b/i);
-            if (isFlightOrRentalMention) {
-              finalCategory = 'Travel';
-              if (travelMode === 'Bike / Motorcycle') {
-                finalTitle = 'Scenic Highway Route Riding';
-                finalLocation = `${destName} Scenic Highway Corridor`;
-                finalDesc = `Cruising along scenic mountain curves and open highway stretches with panoramic views.`;
-                finalWhy = 'Continuous authentic motorcycle expedition riding.';
+            const combinedText = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
+            if (FLIGHT_AND_RENTAL_REGEX.test(combinedText)) {
+              if (isBike) {
+                finalCategory = 'Sightseeing';
+                finalTitle = `${destName} Scenic Mountain & Highway Touring`;
+                finalLocation = `${destName} Panoramic Scenic Route`;
+                finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
+                finalWhy = 'Continuous authentic overland motorcycle expedition.';
               } else {
-                finalTitle = 'Scenic Expressway Road Drive';
-                finalLocation = `${destName} Highway Route`;
-                finalDesc = `Enjoying the open road, scenic landscapes, and highway journey.`;
-                finalWhy = 'Pure road trip cruising.';
+                finalCategory = 'Sightseeing';
+                finalTitle = `${destName} Scenic Highway & Valley Drive`;
+                finalLocation = `${destName} Scenic Route`;
+                finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
+                finalWhy = 'Enjoying the open road and scenic landscapes on your road trip.';
               }
             }
           }
