@@ -631,7 +631,7 @@ export async function generateTripFromInputs(params: {
     if (response.ok && contentType.includes('application/json')) {
       const data = await response.json();
       if (data && data.days && Array.isArray(data.days) && data.days.length > 0) {
-        return data;
+        return sanitizeRoadTripItinerary(data, params);
       }
     } else {
       const errJson = await response.json().catch(() => null);
@@ -647,7 +647,8 @@ export async function generateTripFromInputs(params: {
 
   // Attempt client-side AI if available
   try {
-    return await generateTripClientSide(params);
+    const clientResult = await generateTripClientSide(params);
+    return sanitizeRoadTripItinerary(clientResult, params);
   } catch (clientErr: any) {
     console.error('[aiPlanner] Generation failed on both server and client:', clientErr);
     throw new Error(
@@ -656,6 +657,104 @@ export async function generateTripFromInputs(params: {
       'AI generation failed. Please check that GEMINI_API_KEY is configured in your Vercel Project Settings > Environment Variables.'
     );
   }
+}
+
+/**
+ * Ensures 100% overland enforcement and zero flight/rental contamination on any trip output
+ */
+function sanitizeRoadTripItinerary(trip: Trip, params: any): Trip {
+  const activeMode = normalizeTravelMode(trip.travelMode || params.travelMode || params.preferences?.travelMode);
+  if (!isRoadTripMode(activeMode)) return trip;
+
+  const startCity = trip.startCity || params.startCity || params.preferences?.startCity || 'Origin City';
+  const destName = trip.destination || params.destinationPlace?.name || params.destinationId || 'Destination';
+  const totalDays = trip.durationDays || trip.days.length || params.durationDays;
+  const estDistanceKm = trip.routeSummary?.distanceKm || estimateRouteDistanceKm(startCity, destName);
+  const transitDaysOneWay = calculateTransitDaysOneWay(estDistanceKm, activeMode);
+  const allocation = allocateTripDays(totalDays, transitDaysOneWay);
+  const outboundEndDay = allocation.outboundDays;
+  const returnStartDay = outboundEndDay + allocation.coreDestDays + 1;
+  const isBike = isBikeMode(activeMode);
+
+  const updatedDays = trip.days.map((day, dIdx) => {
+    const dayNum = day.dayNumber || dIdx + 1;
+    const isTransitStage = (
+      (allocation.isOverlandMultiDay && (dayNum <= outboundEndDay || dayNum >= returnStartDay)) ||
+      (!allocation.isOverlandMultiDay && (dayNum === 1 || dayNum === totalDays))
+    );
+
+    const dayRawText = JSON.stringify(day).toLowerCase();
+    const hasContamination = FLIGHT_AND_RENTAL_REGEX.test(dayRawText);
+
+    let dayTitle = day.title;
+    let dayTheme = day.theme;
+    let dayVibe = day.vibe;
+    let rawActivities = day.activities || [];
+
+    if (isTransitStage || ((dayNum <= outboundEndDay || dayNum >= returnStartDay) && hasContamination) || rawActivities.length === 0) {
+      const stage = getOverlandStageDetails({
+        startCity,
+        destName,
+        dayNum,
+        totalDays,
+        outboundDays: outboundEndDay,
+        coreDestDays: allocation.coreDestDays,
+        returnDays: allocation.returnDays,
+        travelMode: activeMode
+      });
+      dayTitle = stage.title;
+      dayTheme = stage.theme;
+      dayVibe = stage.vibe;
+      rawActivities = stage.activities;
+    }
+
+    const cleanedActivities = rawActivities.map((act, aIdx) => {
+      let finalTitle = act.title || `Stop ${aIdx + 1}`;
+      let finalLocation = act.location || destName;
+      let finalDesc = act.description || `Experience ${finalTitle}.`;
+      let finalWhy = act.recommendationReason || 'Scenic road journey experience.';
+      let finalCategory = act.category || 'Sightseeing';
+
+      const combined = `${finalTitle} ${finalLocation} ${finalDesc} ${finalWhy}`;
+      if (FLIGHT_AND_RENTAL_REGEX.test(combined)) {
+        finalCategory = 'Sightseeing';
+        if (isBike) {
+          finalTitle = `${destName} Scenic Mountain & Highway Touring`;
+          finalLocation = `${destName} Panoramic Scenic Route`;
+          finalDesc = `Riding across scenic mountain curves, mountain passes, and panoramic landscapes with your motorcycle.`;
+          finalWhy = 'Continuous authentic overland motorcycle expedition.';
+        } else {
+          finalTitle = `${destName} Scenic Highway & Valley Drive`;
+          finalLocation = `${destName} Scenic Route`;
+          finalDesc = `Cruising through picturesque mountain corridors and valley viewpoints.`;
+          finalWhy = 'Enjoying the open road and scenic landscapes on your road trip.';
+        }
+      }
+
+      return {
+        ...act,
+        title: finalTitle,
+        location: finalLocation,
+        description: finalDesc,
+        recommendationReason: finalWhy,
+        category: finalCategory
+      };
+    });
+
+    return {
+      ...day,
+      title: dayTitle,
+      theme: dayTheme,
+      vibe: dayVibe,
+      activities: cleanedActivities
+    };
+  });
+
+  return {
+    ...trip,
+    travelMode: activeMode,
+    days: updatedDays
+  };
 }
 
 /**
