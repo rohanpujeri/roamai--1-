@@ -60,6 +60,12 @@ export default function App() {
   const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatingDestName, setGeneratingDestName] = useState<string>('');
+  const [generatingParams, setGeneratingParams] = useState<{
+    destinationName: string;
+    startCity?: string;
+    travelMode?: TravelMode;
+    durationDays?: number;
+  } | null>(null);
   const [activeDayNumber, setActiveDayNumber] = useState<number>(1);
 
   // Load user trips on initial mount from Supabase / local persistence
@@ -200,6 +206,12 @@ export default function App() {
   }) => {
     const destinationName = params.destinationPlace?.name || params.destinationId || 'Destination';
     setGeneratingDestName(destinationName);
+    setGeneratingParams({
+      destinationName,
+      startCity: params.startCity,
+      travelMode: params.travelMode,
+      durationDays: params.durationDays,
+    });
     setIsGenerating(true);
 
     try {
@@ -218,7 +230,6 @@ export default function App() {
       setTrips((prev) => [generatedTrip, ...prev.filter((t) => t.id !== generatedTrip.id)]);
       setActiveTripId(generatedTrip.id);
       setActiveDayNumber(1);
-      setIsGenerating(false);
       setCurrentView('itinerary');
       
       if (cloudSyncFailed) {
@@ -236,9 +247,11 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("AI Generation failed:", error);
-      setIsGenerating(false);
       const msg = error?.message || 'There was an issue planning your trip. Please try again.';
       addToast('warning', 'Generation Failed', msg);
+    } finally {
+      setIsGenerating(false);
+      setGeneratingParams(null);
     }
   };
 
@@ -721,7 +734,14 @@ export default function App() {
       {/* Full AI Generation Loading Screen */}
       {isGenerating && (
         <AIGenerationLoader
-          destinationName={generatingDestName}
+          destinationName={generatingParams?.destinationName || generatingDestName}
+          startCity={generatingParams?.startCity}
+          travelMode={generatingParams?.travelMode || 'Flight'}
+          durationDays={generatingParams?.durationDays || 3}
+          onCancel={() => {
+            setIsGenerating(false);
+            setGeneratingParams(null);
+          }}
         />
       )}
 
