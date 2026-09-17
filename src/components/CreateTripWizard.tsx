@@ -867,10 +867,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         budgetTier,
         targetBudget: customBudget,
         preferences: {
-          styles: selectedStyles.length > 0 ? selectedStyles : ['Culture', 'Food', 'Nature', 'Hidden gems'],
+          styles: selectedStyles,
           pace: 'Balanced',
           food: foodPreference || 'No preference',
-          alcohol: alcoholPreference || 'No',
+          alcohol: alcoholPreference || undefined,
           travelMode,
           startCity: effectiveStartCity,
           idealDay: [],

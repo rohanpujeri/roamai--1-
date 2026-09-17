@@ -197,7 +197,7 @@ Trip Context:
 - Travelers: ${params.travellersCount} (${params.companionType || 'Friends'})
 - Day Number: ${params.targetDayNumber}
 - Travel Mode: ${params.travelMode || 'Flexible'}
-- Travel Styles: ${(params.travelStyles || []).join(', ') || 'Nature, Culture, Relaxation'}
+- Travel Styles: ${(params.travelStyles || []).join(', ') || 'Flexible / Open'}
 
 ${tierGuideline}
 
@@ -241,7 +241,7 @@ Trip Context:
 - Travelers: ${params.travellersCount} (${params.companionType || 'Friends'})
 - Trip Length: ${params.durationDays} Days
 - Travel Mode: ${params.travelMode || 'Flexible'}
-- Travel Styles: ${(params.travelStyles || []).join(', ') || 'Nature, Culture, Relaxation'}
+- Travel Styles: ${(params.travelStyles || []).join(', ') || 'Flexible / Open'}
 
 ${tierGuideline}
 

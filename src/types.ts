@@ -17,7 +17,7 @@ export type TravelPace = 'Relaxed' | 'Balanced' | 'Packed';
 
 export type FoodPreference = 'Vegetarian' | 'Non-vegetarian' | 'Vegan' | 'No preference';
 
-export type AlcoholPreference = 'Yes' | 'Occasionally' | 'No';
+export type AlcoholPreference = 'Yes' | 'Occasionally' | 'No' | 'No preference';
 
 export type TravelCompanion = 'Solo' | 'Couple' | 'Friends' | 'Family' | 'Group';
 
@@ -44,8 +44,8 @@ export interface GroupMember {
 export interface UserPreferences {
   styles: TravelStyle[];
   pace: TravelPace;
-  food: FoodPreference;
-  alcohol: AlcoholPreference;
+  food?: FoodPreference;
+  alcohol?: AlcoholPreference;
   travelMode?: TravelMode;
   startCity?: string;
   idealDay: string[];

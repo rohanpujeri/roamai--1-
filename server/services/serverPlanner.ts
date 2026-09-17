@@ -165,9 +165,9 @@ export async function generateTripFromInputs(params: {
     }
   });
   
-  const stylesList = params.preferences.styles.length > 0 ? params.preferences.styles.join(', ') : 'Culture, Food, Nature, Scenic Sightseeing';
-  const foodPref = params.preferences.food || 'No preference';
-  const alcoholPref = params.preferences.alcohol || 'No';
+  const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
+  const foodPref = params.preferences.food;
+  const alcoholPref = params.preferences.alcohol;
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : '';
 
   const isRoadVehicleMode = travelMode === 'Car / Road Trip' || travelMode === 'Bike / Motorcycle';
@@ -183,9 +183,10 @@ Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
 Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
 
-USER PREFERENCES TO STRICTLY ADHERE TO:
-1. TRAVEL STYLES (${stylesList}):
-   - The itinerary MUST directly reflect the selected styles:
+USER PREFERENCES:
+1. TRAVEL STYLES:
+   ${hasUserSelectedStyles
+     ? `• User explicitly selected: ${params.preferences.styles.join(', ')}. The itinerary MUST specifically prioritize these styles:
      ${params.preferences.styles.includes('Adventure') ? '• ADVENTURE: Include outdoor thrills, hiking/trekking trails, watersports, or viewpoints with climbs.' : ''}
      ${params.preferences.styles.includes('Relaxation') ? '• RELAXATION: Include peaceful lakeside/beach walks, gardens, scenic viewpoints, or unhurried tea lounges.' : ''}
      ${params.preferences.styles.includes('Food') ? '• FOOD: Include famous local food streets, heritage bakeries, regional culinary legends, and authentic tasting spots.' : ''}
@@ -197,16 +198,21 @@ USER PREFERENCES TO STRICTLY ADHERE TO:
      ${params.preferences.styles.includes('Spiritual') ? '• SPIRITUAL: Feature iconic historic temples, ashrams, sacred ghats, shrines, or meditation spots.' : ''}
      ${params.preferences.styles.includes('Hidden gems') ? '• HIDDEN GEMS: Include offbeat, secret, uncrowded scenic spots and local-favorite corners.' : ''}
      ${params.preferences.styles.includes('Luxury') ? '• LUXURY: Feature fine dining, exclusive heritage tours, and high-end viewpoints.' : ''}
-     ${params.preferences.styles.includes('Backpacking') ? '• BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points.' : ''}
+     ${params.preferences.styles.includes('Backpacking') ? '• BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points.' : ''}`
+     : '• None selected: The user did NOT select any specific travel styles. DO NOT assume or force any narrow styles. Create an open, versatile, balanced itinerary highlighting the premier authentic attractions of the destination.'}
 
-2. FOOD PREFERENCE (${foodPref}):
+2. FOOD PREFERENCE:
    ${foodPref === 'Vegetarian' ? '• STRICT VEGETARIAN REQUIREMENT: ALL proposed dining, breakfast, lunch, and dinner activities MUST be 100% pure vegetarian restaurants or renowned veg-friendly regional kitchens in the destination.' : ''}
    ${foodPref === 'Vegan' ? '• STRICT VEGAN REQUIREMENT: All meals and cafe stops must be plant-based and vegan-friendly organic eateries.' : ''}
    ${foodPref === 'Non-vegetarian' ? '• NON-VEGETARIAN: Feature famous authentic regional non-veg specialties, seafood, or traditional local meat preparations.' : ''}
-   ${foodPref === 'No preference' ? '• Include a diverse mix of authentic regional culinary highlights.' : ''}
+   ${!foodPref || foodPref === 'No preference' ? '• No specific dietary restrictions specified. Include a diverse mix of authentic regional culinary highlights.' : ''}
 
-3. ALCOHOL PREFERENCE (${alcoholPref}):
-   ${alcoholPref === 'No' ? '• ZERO ALCOHOL VENUES: Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars.' : '• Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks.'}
+3. ALCOHOL PREFERENCE:
+   ${alcoholPref === 'No'
+     ? '• ZERO ALCOHOL VENUES: The user explicitly requested NO alcohol. Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars.'
+     : alcoholPref === 'Yes' || alcoholPref === 'Occasionally'
+     ? '• User drinks alcohol: Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks.'
+     : '• Not specified: Do not restrict or force alcohol venues. Include a natural mix of scenic evening dinner, viewpoints, and cafe spots.'}
 
 4. SPECIAL REQUESTS & CUSTOM NOTES:
    ${customNotesText ? `• CRITICAL USER REQUEST: "${customNotesText}". MUST explicitly integrate this request into the relevant daily activities, dining options, or schedule notes!` : '• None specified.'}

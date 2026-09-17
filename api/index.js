@@ -389,7 +389,7 @@ Trip Context:
 - Travelers: ${params.travellersCount} (${params.companionType || "Friends"})
 - Day Number: ${params.targetDayNumber}
 - Travel Mode: ${params.travelMode || "Flexible"}
-- Travel Styles: ${(params.travelStyles || []).join(", ") || "Nature, Culture, Relaxation"}
+- Travel Styles: ${(params.travelStyles || []).join(", ") || "Flexible / Open"}
 
 ${tierGuideline}
 
@@ -432,7 +432,7 @@ Trip Context:
 - Travelers: ${params.travellersCount} (${params.companionType || "Friends"})
 - Trip Length: ${params.durationDays} Days
 - Travel Mode: ${params.travelMode || "Flexible"}
-- Travel Styles: ${(params.travelStyles || []).join(", ") || "Nature, Culture, Relaxation"}
+- Travel Styles: ${(params.travelStyles || []).join(", ") || "Flexible / Open"}
 
 ${tierGuideline}
 
@@ -621,9 +621,9 @@ async function generateTripFromInputs(params) {
       }
     }
   });
-  const stylesList = params.preferences.styles.length > 0 ? params.preferences.styles.join(", ") : "Culture, Food, Nature, Scenic Sightseeing";
-  const foodPref = params.preferences.food || "No preference";
-  const alcoholPref = params.preferences.alcohol || "No";
+  const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
+  const foodPref = params.preferences.food;
+  const alcoholPref = params.preferences.alcohol;
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
   const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
   const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : "car / personal road vehicle";
@@ -637,9 +637,9 @@ Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
 Budget Level: ${params.budgetTier} (~\u20B9${params.targetBudget?.toLocaleString() || "30,000"} total for ${params.travellersCount} people over ${params.durationDays} days).
 
-USER PREFERENCES TO STRICTLY ADHERE TO:
-1. TRAVEL STYLES (${stylesList}):
-   - The itinerary MUST directly reflect the selected styles:
+USER PREFERENCES:
+1. TRAVEL STYLES:
+   ${hasUserSelectedStyles ? `\u2022 User explicitly selected: ${params.preferences.styles.join(", ")}. The itinerary MUST specifically prioritize these styles:
      ${params.preferences.styles.includes("Adventure") ? "\u2022 ADVENTURE: Include outdoor thrills, hiking/trekking trails, watersports, or viewpoints with climbs." : ""}
      ${params.preferences.styles.includes("Relaxation") ? "\u2022 RELAXATION: Include peaceful lakeside/beach walks, gardens, scenic viewpoints, or unhurried tea lounges." : ""}
      ${params.preferences.styles.includes("Food") ? "\u2022 FOOD: Include famous local food streets, heritage bakeries, regional culinary legends, and authentic tasting spots." : ""}
@@ -651,16 +651,16 @@ USER PREFERENCES TO STRICTLY ADHERE TO:
      ${params.preferences.styles.includes("Spiritual") ? "\u2022 SPIRITUAL: Feature iconic historic temples, ashrams, sacred ghats, shrines, or meditation spots." : ""}
      ${params.preferences.styles.includes("Hidden gems") ? "\u2022 HIDDEN GEMS: Include offbeat, secret, uncrowded scenic spots and local-favorite corners." : ""}
      ${params.preferences.styles.includes("Luxury") ? "\u2022 LUXURY: Feature fine dining, exclusive heritage tours, and high-end viewpoints." : ""}
-     ${params.preferences.styles.includes("Backpacking") ? "\u2022 BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points." : ""}
+     ${params.preferences.styles.includes("Backpacking") ? "\u2022 BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points." : ""}` : "\u2022 None selected: The user did NOT select any specific travel styles. DO NOT assume or force any narrow styles. Create an open, versatile, balanced itinerary highlighting the premier authentic attractions of the destination."}
 
-2. FOOD PREFERENCE (${foodPref}):
+2. FOOD PREFERENCE:
    ${foodPref === "Vegetarian" ? "\u2022 STRICT VEGETARIAN REQUIREMENT: ALL proposed dining, breakfast, lunch, and dinner activities MUST be 100% pure vegetarian restaurants or renowned veg-friendly regional kitchens in the destination." : ""}
    ${foodPref === "Vegan" ? "\u2022 STRICT VEGAN REQUIREMENT: All meals and cafe stops must be plant-based and vegan-friendly organic eateries." : ""}
    ${foodPref === "Non-vegetarian" ? "\u2022 NON-VEGETARIAN: Feature famous authentic regional non-veg specialties, seafood, or traditional local meat preparations." : ""}
-   ${foodPref === "No preference" ? "\u2022 Include a diverse mix of authentic regional culinary highlights." : ""}
+   ${!foodPref || foodPref === "No preference" ? "\u2022 No specific dietary restrictions specified. Include a diverse mix of authentic regional culinary highlights." : ""}
 
-3. ALCOHOL PREFERENCE (${alcoholPref}):
-   ${alcoholPref === "No" ? "\u2022 ZERO ALCOHOL VENUES: Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars." : "\u2022 Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks."}
+3. ALCOHOL PREFERENCE:
+   ${alcoholPref === "No" ? "\u2022 ZERO ALCOHOL VENUES: The user explicitly requested NO alcohol. Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars." : alcoholPref === "Yes" || alcoholPref === "Occasionally" ? "\u2022 User drinks alcohol: Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks." : "\u2022 Not specified: Do not restrict or force alcohol venues. Include a natural mix of scenic evening dinner, viewpoints, and cafe spots."}
 
 4. SPECIAL REQUESTS & CUSTOM NOTES:
    ${customNotesText ? `\u2022 CRITICAL USER REQUEST: "${customNotesText}". MUST explicitly integrate this request into the relevant daily activities, dining options, or schedule notes!` : "\u2022 None specified."}

@@ -186,9 +186,9 @@ export async function generateTripClientSide(params: {
   const destLng = params.destinationPlace?.longitude || 78.0;
   const heroImg = params.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
 
-  const stylesList = params.preferences.styles.length > 0 ? params.preferences.styles.join(', ') : 'Culture, Food, Nature, Sightseeing';
-  const foodPref = params.preferences.food || 'No preference';
-  const alcoholPref = params.preferences.alcohol || 'No';
+  const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
+  const foodPref = params.preferences.food;
+  const alcoholPref = params.preferences.alcohol;
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : '';
 
   const isRoadVehicleMode = travelMode === 'Car / Road Trip' || travelMode === 'Bike / Motorcycle';
@@ -202,9 +202,9 @@ Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
 Budget Tier: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total).
-Travel Styles: ${stylesList}.
-Food Preference: ${foodPref}.
-Alcohol Preference: ${alcoholPref}.
+${hasUserSelectedStyles ? `Travel Styles: ${params.preferences.styles.join(', ')}.` : 'Travel Styles: Not specified (create an open, balanced, authentic itinerary without forcing specific niche styles).'}
+Food Preference: ${foodPref || 'No preference (diverse authentic regional food)'}.
+Alcohol Preference: ${alcoholPref ? (alcoholPref === 'No' ? 'No alcohol (Zero bars/clubs)' : alcoholPref) : 'Not specified (no restrictions or heavy nightlife forced)'}.
 ${customNotesText ? `Special Notes: "${customNotesText}".` : ''}
 
 RULES:
