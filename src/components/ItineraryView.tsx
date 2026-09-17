@@ -376,9 +376,17 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-400 block leading-tight">
                     Tonight's Recommended Stay (Day {currentDay?.dayNumber || 1})
                   </span>
-                  <h5 className="text-xs sm:text-sm font-bold text-white leading-tight">
-                    {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
-                  </h5>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h5 className="text-xs sm:text-sm font-bold text-white leading-tight">
+                      {currentDay?.suggestedStay?.name || `${trip.destination} Curated Resort & Stay`}
+                    </h5>
+                    {currentDay?.suggestedStay?.nearPlaceName && (
+                      <span className="text-[9px] font-extrabold text-emerald-300 bg-emerald-950/80 border border-emerald-700/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span>📍</span>
+                        <span>{currentDay.suggestedStay.nearPlaceName}</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-zinc-400 leading-tight">
                     {currentDay?.suggestedStay
                       ? `${currentDay.suggestedStay.priceFormatted} • ${currentDay.suggestedStay.locationArea}`

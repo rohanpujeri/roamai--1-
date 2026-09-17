@@ -475,11 +475,32 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
     travellersCount: params.travellersCount,
     companionType: params.companionType,
     travelStyles: params.preferences?.styles,
-    daysInfo: days.map(d => ({ dayNumber: d.dayNumber, theme: d.theme }))
+    travelMode,
+    daysInfo: days.map(d => {
+      const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
+      return {
+        dayNumber: d.dayNumber,
+        theme: d.theme,
+        location: lastAct?.location || destName,
+        lastActivityTitle: lastAct?.title,
+        lastActivityLocation: lastAct?.location,
+        lastActivityCategory: lastAct?.category
+      };
+    })
   });
 
   const daysWithStays = days.map((day) => {
-    const matchStay = initialHotels.find(h => h.dayNumber === day.dayNumber) || initialHotels[0];
+    let matchStay = initialHotels.find(h => h.dayNumber === day.dayNumber);
+    if (!matchStay && initialHotels.length > 0) {
+      matchStay = initialHotels[(day.dayNumber - 1) % initialHotels.length];
+    }
+    const lastAct = day.activities && day.activities.length > 0 ? day.activities[day.activities.length - 1] : undefined;
+    if (matchStay && lastAct && isRoadVehicleMode && !matchStay.nearPlaceName) {
+      matchStay = {
+        ...matchStay,
+        nearPlaceName: `Near ${lastAct.title}`
+      };
+    }
     return {
       ...day,
       suggestedStay: matchStay

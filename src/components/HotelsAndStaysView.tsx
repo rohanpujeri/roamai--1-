@@ -102,7 +102,18 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
         travellersCount: trip.travellersCount || 2,
         companionType: trip.companionType,
         travelStyles: trip.preferences?.styles,
-        daysInfo: trip.days?.map((d) => ({ dayNumber: d.dayNumber, theme: d.theme }))
+        travelMode: trip.travelMode,
+        daysInfo: trip.days?.map((d) => {
+          const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
+          return {
+            dayNumber: d.dayNumber,
+            theme: d.theme,
+            location: lastAct?.location || trip.destination,
+            lastActivityTitle: lastAct?.title,
+            lastActivityLocation: lastAct?.location,
+            lastActivityCategory: lastAct?.category
+          };
+        })
       });
       setHotelList(results);
     } catch (err) {
@@ -426,6 +437,12 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
                         {hotel.dayNumber && (
                           <span className="px-2.5 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white text-[11px] font-extrabold border border-emerald-400/40">
                             Day {hotel.dayNumber} Stay
+                          </span>
+                        )}
+                        {hotel.nearPlaceName && (
+                          <span className="px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[11px] font-extrabold border border-blue-400/40 flex items-center gap-1">
+                            <span>📍</span>
+                            <span>{hotel.nearPlaceName}</span>
                           </span>
                         )}
                       </div>

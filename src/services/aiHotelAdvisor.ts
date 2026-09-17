@@ -1,4 +1,4 @@
-import { BudgetTier, TravelCompanion, HotelStayRecommendation } from '../types';
+import { BudgetTier, TravelCompanion, HotelStayRecommendation, TravelMode } from '../types';
 
 export interface HotelRecommendationParams {
   destination: string;
@@ -7,7 +7,15 @@ export interface HotelRecommendationParams {
   travellersCount: number;
   companionType?: TravelCompanion;
   travelStyles?: string[];
-  daysInfo?: { dayNumber: number; theme: string; location?: string }[];
+  travelMode?: TravelMode;
+  daysInfo?: {
+    dayNumber: number;
+    theme: string;
+    location?: string;
+    lastActivityTitle?: string;
+    lastActivityLocation?: string;
+    lastActivityCategory?: string;
+  }[];
 }
 
 export function generateHotelBookingUrls(
@@ -48,31 +56,27 @@ export function generateHotelBookingUrls(
     : `https://www.google.com/travel/hotels?q=${specificQuery}`;
 
   // 2. Booking.com Direct Search
-  let bookingComUrl = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(propertySearchTerm)}&sb=1`;
-  if (hasValidFutureDates) {
-    bookingComUrl += `&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&no_rooms=1`;
-  }
+  const bookingComUrl = hasValidFutureDates
+    ? `https://www.booking.com/searchresults.html?ss=${specificQuery}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}`
+    : `https://www.booking.com/searchresults.html?ss=${specificQuery}`;
 
-  // 3. Agoda Direct Hotel Listing
-  const agodaUrl = `https://www.google.com/search?q=${encodeURIComponent(propertySearchTerm + ' Agoda booking')}`;
+  // 3. Agoda Direct Search
+  const agodaUrl = `https://www.agoda.com/search?text=${specificQuery}`;
 
   // 4. MakeMyTrip Direct Search
-  const makeMyTripUrl = `https://www.google.com/search?q=${encodeURIComponent(propertySearchTerm + ' MakeMyTrip booking')}`;
+  const makeMyTripUrl = `https://www.makemytrip.com/hotels/hotel-listing/?searchText=${specificQuery}`;
 
-  // 5. Google Maps Direct Property Place & Booking
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(propertySearchTerm)}`;
+  // 5. Google Maps Direct Location & Reviews
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${specificQuery}`;
 
-  // 6. TripAdvisor Direct Property & Price Comparison
-  const tripAdvisorUrl = `https://www.tripadvisor.com/Search?q=${encodeURIComponent(propertySearchTerm)}`;
+  // 6. TripAdvisor Reviews & Photos
+  const tripAdvisorUrl = `https://www.tripadvisor.com/Search?q=${specificQuery}`;
 
-  // 7. Expedia Direct Hotel Search
-  let expediaUrl = `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(propertySearchTerm)}`;
-  if (hasValidFutureDates) {
-    expediaUrl += `&startDate=${checkin}&endDate=${checkout}&adults=${adults}&rooms=1`;
-  }
+  // 7. Expedia Direct Rates
+  const expediaUrl = `https://www.expedia.com/Hotel-Search?destination=${specificQuery}`;
 
-  // 8. Direct Official Website Search
-  const officialSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${cleanHotelName} ${cleanDest} official hotel website booking`)}`;
+  // 8. Official / Direct Hotel Website Deep Search
+  const officialSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${cleanHotelName} ${cleanDest} official website direct booking`)}`;
 
   return {
     primary: googleHotelsUrl,
@@ -90,7 +94,8 @@ export function generateHotelBookingUrls(
 const clientHotelCache = new Map<string, HotelStayRecommendation[]>();
 
 function getCacheKey(params: HotelRecommendationParams): string {
-  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || 'Solo'}`;
+  const lastStopsKey = (params.daysInfo || []).map(d => d.lastActivityTitle || '').join('_');
+  return `${params.destination.toLowerCase()}__${params.budgetTier}__${params.durationDays}d__${params.companionType || 'Solo'}__${params.travelMode || 'any'}__${lastStopsKey}`;
 }
 
 export function getDynamicHotelFallback(params: HotelRecommendationParams): HotelStayRecommendation[] {
@@ -98,10 +103,19 @@ export function getDynamicHotelFallback(params: HotelRecommendationParams): Hote
   const tier = params.budgetTier || 'Moderate';
   const isBudget = tier === 'Budget';
   const isLuxury = tier === 'Luxury';
+  const isRoadVehicleMode = params.travelMode === 'Car / Road Trip' || params.travelMode === 'Bike / Motorcycle';
 
   const price1 = isBudget ? 1200 : isLuxury ? 12000 : 3800;
   const price2 = isBudget ? 1800 : isLuxury ? 16500 : 4800;
   const price3 = isBudget ? 900 : isLuxury ? 22000 : 3200;
+
+  const day1Info = params.daysInfo?.find(d => d.dayNumber === 1);
+  const day2Info = params.daysInfo?.find(d => d.dayNumber === 2);
+  const day3Info = params.daysInfo?.find(d => d.dayNumber === 3);
+
+  const near1 = day1Info?.lastActivityTitle ? `Near ${day1Info.lastActivityTitle}` : undefined;
+  const near2 = day2Info?.lastActivityTitle ? `Near ${day2Info.lastActivityTitle}` : undefined;
+  const near3 = day3Info?.lastActivityTitle ? `Near ${day3Info.lastActivityTitle}` : undefined;
 
   const urls1 = generateHotelBookingUrls(
     isLuxury ? `The Grand Heritage Palace & Spa ${dest}` : `${dest} Mountain & Valley View Resort`,
@@ -134,17 +148,20 @@ export function getDynamicHotelFallback(params: HotelRecommendationParams): Hote
       budgetTier: tier,
       pricePerNight: price1,
       priceFormatted: `₹${price1.toLocaleString()} / night`,
-      locationArea: `${dest} Central Scenic Quarter`,
+      locationArea: day1Info?.lastActivityLocation || `${dest} Central Scenic Quarter`,
+      nearPlaceName: near1,
       rating: 4.8,
       reviewCount: 420,
-      reviewSnippet: 'Outstanding hospitality, spotless rooms, and breathtaking morning views.',
-      amenities: ['Free WiFi', 'Breakfast Included', 'Scenic View', 'Air Conditioning', 'Parking'],
+      reviewSnippet: 'Outstanding hospitality, spotless rooms, and safe on-site parking for road travelers.',
+      amenities: ['Free WiFi', 'Breakfast Included', 'Scenic View', 'Air Conditioning', 'Secure Vehicle Parking'],
       imageUrl: isLuxury
         ? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80'
         : 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80',
-      matchReason: `Top-rated stay in ${dest} tailored for ${params.companionType || 'Travellers'} within your ${tier} budget.`,
+      matchReason: near1
+        ? `Located conveniently close to ${day1Info?.lastActivityTitle} with safe parking for your road trip.`
+        : `Top-rated stay in ${dest} tailored for ${params.companionType || 'Travellers'} within your ${tier} budget.`,
       bookingSearchUrl: urls1.primary,
-      recommendedFor: 'Scenic views & central relaxation'
+      recommendedFor: isRoadVehicleMode ? `Road trippers stopping near ${day1Info?.lastActivityTitle || dest}` : 'Scenic views & central relaxation'
     },
     {
       id: `hotel-fallback-2-${crypto.randomUUID()}`,
@@ -154,15 +171,18 @@ export function getDynamicHotelFallback(params: HotelRecommendationParams): Hote
       budgetTier: tier,
       pricePerNight: price2,
       priceFormatted: `₹${price2.toLocaleString()} / night`,
-      locationArea: `${dest} Old Heritage Town`,
+      locationArea: day2Info?.lastActivityLocation || `${dest} Old Heritage Town`,
+      nearPlaceName: near2,
       rating: 4.7,
       reviewCount: 310,
-      reviewSnippet: 'Authentic local charm, peaceful atmosphere, and walking distance to prime attractions.',
-      amenities: ['Free High-Speed WiFi', 'Artisan Cafe', 'Garden Terrace', '24/7 Concierge'],
+      reviewSnippet: 'Authentic local charm, peaceful atmosphere, and secure gated parking.',
+      amenities: ['Free High-Speed WiFi', 'Artisan Cafe', 'Garden Terrace', 'Secure Vehicle Parking'],
       imageUrl: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=600&q=80',
-      matchReason: `Charming boutique sanctuary providing exceptional comfort and direct access to highlights in ${dest}.`,
+      matchReason: near2
+        ? `Located conveniently close to ${day2Info?.lastActivityTitle} with safe vehicle parking.`
+        : `Charming boutique sanctuary providing exceptional comfort and direct access to highlights in ${dest}.`,
       bookingSearchUrl: urls2.primary,
-      recommendedFor: 'Cultural immersion & heritage charm'
+      recommendedFor: isRoadVehicleMode ? `Road trippers stopping near ${day2Info?.lastActivityTitle || dest}` : 'Cultural immersion & heritage charm'
     },
     {
       id: `hotel-fallback-3-${crypto.randomUUID()}`,
@@ -172,15 +192,18 @@ export function getDynamicHotelFallback(params: HotelRecommendationParams): Hote
       budgetTier: tier,
       pricePerNight: price3,
       priceFormatted: `₹${price3.toLocaleString()} / night`,
-      locationArea: `${dest} Nature Foothills`,
+      locationArea: day3Info?.lastActivityLocation || `${dest} Nature Foothills`,
+      nearPlaceName: near3,
       rating: 4.9,
       reviewCount: 512,
-      reviewSnippet: 'Tranquil haven surrounded by nature with infinity views and exceptional dining.',
-      amenities: ['Nature Trails', 'Outdoor Fire Pit', 'Organic Dining', 'Panoramic Deck'],
+      reviewSnippet: 'Tranquil haven surrounded by nature with infinity views and secure parking.',
+      amenities: ['Nature Trails', 'Outdoor Fire Pit', 'Organic Dining', 'Secure Vehicle Parking'],
       imageUrl: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=600&q=80',
-      matchReason: `Serene hillside nature immersion offering unmatched relaxation in ${dest}.`,
+      matchReason: near3
+        ? `Located conveniently close to ${day3Info?.lastActivityTitle} with vehicle parking.`
+        : `Serene hillside nature immersion offering unmatched relaxation in ${dest}.`,
       bookingSearchUrl: urls3.primary,
-      recommendedFor: 'Nature getaways & tranquil wellness'
+      recommendedFor: isRoadVehicleMode ? `Road trippers stopping near ${day3Info?.lastActivityTitle || dest}` : 'Nature getaways & tranquil wellness'
     }
   ];
 }

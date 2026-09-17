@@ -114,6 +114,7 @@ export interface HotelStayRecommendation {
   pricePerNight: number; // in INR
   priceFormatted: string; // e.g. "₹3,400 / night"
   locationArea: string; // e.g. "Mullayanagiri Valley" or "Central Promenade"
+  nearPlaceName?: string; // e.g. "Near Doddabetta Peak (Day's final stop)"
   rating: number; // e.g. 4.7
   reviewCount?: number; // e.g. 380
   reviewSnippet: string;

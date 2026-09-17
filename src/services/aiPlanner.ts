@@ -1,5 +1,6 @@
-import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, DayItinerary } from '../types';
+import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, DayItinerary, HotelStayRecommendation } from '../types';
 import { GoogleGenAI } from '@google/genai';
+import { fetchAiHotelSuggestions } from './aiHotelAdvisor';
 
 export interface AdaptOption {
   id: string;
@@ -457,6 +458,50 @@ Return ONLY a valid JSON object matching this schema:
         notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : 'Direct transit connectivity'
       };
 
+      let initialHotels: HotelStayRecommendation[] = [];
+      try {
+        initialHotels = await fetchAiHotelSuggestions({
+          destination: destName,
+          budgetTier: params.budgetTier,
+          durationDays: params.durationDays,
+          travellersCount: params.travellersCount,
+          companionType: params.companionType,
+          travelStyles: params.preferences?.styles,
+          travelMode,
+          daysInfo: days.map(d => {
+            const lastAct = d.activities && d.activities.length > 0 ? d.activities[d.activities.length - 1] : undefined;
+            return {
+              dayNumber: d.dayNumber,
+              theme: d.theme,
+              location: lastAct?.location || destName,
+              lastActivityTitle: lastAct?.title,
+              lastActivityLocation: lastAct?.location,
+              lastActivityCategory: lastAct?.category
+            };
+          })
+        });
+      } catch (hErr) {
+        console.warn('[aiPlanner] Client hotel suggestions failed:', hErr);
+      }
+
+      const daysWithStays = days.map((day) => {
+        let matchStay = initialHotels.find(h => h.dayNumber === day.dayNumber);
+        if (!matchStay && initialHotels.length > 0) {
+          matchStay = initialHotels[(day.dayNumber - 1) % initialHotels.length];
+        }
+        const lastAct = day.activities && day.activities.length > 0 ? day.activities[day.activities.length - 1] : undefined;
+        if (matchStay && lastAct && isRoadVehicleMode && !matchStay.nearPlaceName) {
+          matchStay = {
+            ...matchStay,
+            nearPlaceName: `Near ${lastAct.title}`
+          };
+        }
+        return {
+          ...day,
+          suggestedStay: matchStay
+        };
+      });
+
       return {
         id: crypto.randomUUID(),
         title: `${destName} ${params.companionType} Getaway`,
@@ -478,7 +523,7 @@ Return ONLY a valid JSON object matching this schema:
           ...params.preferences,
           startCity
         },
-        days,
+        days: daysWithStays,
         packingList: (genData.packingList && genData.packingList.length > 0) ? genData.packingList : [
           { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
           { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
@@ -487,7 +532,7 @@ Return ONLY a valid JSON object matching this schema:
         ],
         requirements: genData.requirements || [],
         bookings: [],
-        hotelRecommendations: [],
+        hotelRecommendations: initialHotels,
         clothingAdvice: genData.clothingAdvice || 'Comfortable breathable travel attire.',
         createdAt: new Date().toISOString().split('T')[0],
         adaptationHistory: []
