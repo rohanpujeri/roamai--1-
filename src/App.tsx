@@ -801,7 +801,7 @@ export default function App() {
 
             {/* VIEW 3: PERSONALIZED ITINERARY DASHBOARD */}
             {currentView === 'itinerary' && activeTrip && (
-              <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+              <div className="px-1.5 sm:px-6 lg:px-8 pt-2 sm:pt-6">
                 <ItineraryView
                   trip={activeTrip}
                   activeDayNumber={activeDayNumber}

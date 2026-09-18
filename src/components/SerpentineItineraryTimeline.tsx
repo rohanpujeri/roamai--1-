@@ -155,10 +155,22 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
     }
   }, [travelMode]);
 
-  // Height per row
-  const ROW_HEIGHT = 360;
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Responsive height per row: compact 240px on mobile eliminates massive empty gaps, 340px on desktop
+  const ROW_HEIGHT = isMobile ? 240 : 340;
   const totalRows = Math.max(1, activities.length);
-  const totalSvgHeight = totalRows * ROW_HEIGHT + 60;
+  const totalSvgHeight = totalRows * ROW_HEIGHT + (isMobile ? 40 : 60);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgDimensions, setSvgDimensions] = useState<{ width: number; height: number }>({
@@ -170,15 +182,15 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
   // Fallback path calculated proportionally so initial paint is instantly seamless
   const fallbackPathD = useMemo(() => {
     if (activities.length === 0) return '';
-    const w = svgDimensions.width || 1000;
+    const w = svgDimensions.width || (isMobile ? 360 : 1000);
     if (activities.length === 1) {
-      return `M ${Math.round(w * 0.46)} 100 L ${Math.round(w * 0.46)} 260`;
+      return `M ${Math.round(w * (isMobile ? 0.32 : 0.46))} 60 L ${Math.round(w * (isMobile ? 0.32 : 0.46))} ${ROW_HEIGHT}`;
     }
     const points: { x: number; y: number }[] = [];
     for (let i = 0; i < activities.length; i++) {
-      const y = i * ROW_HEIGHT + 180;
+      const y = i * ROW_HEIGHT + (isMobile ? 120 : 170);
       const isEven = i % 2 === 0;
-      const x = isEven ? Math.round(w * 0.46) : Math.round(w < 640 ? 28 : 70);
+      const x = isEven ? Math.round(w * (isMobile ? 0.32 : 0.46)) : Math.round(isMobile ? 20 : 70);
       points.push({ x, y });
     }
     let d = `M ${points[0].x} ${points[0].y}`;
@@ -201,9 +213,9 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
       }
     }
     const lastP = points[points.length - 1];
-    d += ` Q ${lastP.x + 15} ${lastP.y + 50} ${lastP.x} ${lastP.y + 90}`;
+    d += ` Q ${lastP.x + 15} ${lastP.y + 40} ${lastP.x} ${lastP.y + 70}`;
     return d;
-  }, [activities.length, svgDimensions.width, ROW_HEIGHT]);
+  }, [activities.length, svgDimensions.width, ROW_HEIGHT, isMobile]);
 
   // Precise DOM measurement of anchor tile centers for pixel-perfect S-curves on ANY device (mobile & desktop)
   const recalculateCurve = useCallback(() => {
@@ -297,7 +309,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
   const effectivePathD = measuredPathD || fallbackPathD;
 
   return (
-    <div className="relative w-full bg-black/95 backdrop-blur-2xl text-white rounded-3xl p-3 sm:p-8 lg:p-12 overflow-hidden shadow-2xl border border-zinc-800 select-none">
+    <div className="relative w-full bg-black/95 backdrop-blur-2xl text-white rounded-3xl p-2 sm:p-6 lg:p-12 overflow-hidden shadow-2xl border border-zinc-800 select-none">
       {/* Background Starry Dust & Subtle Neon Ambient Glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[8%] left-[30%] w-1.5 h-1.5 bg-emerald-400/80 rounded-full animate-pulse" />
@@ -311,7 +323,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
       </div>
 
       {/* Mode of Travel Header Pill Bar */}
-      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 mb-8 sm:mb-12 pb-4 border-b border-zinc-900">
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-2.5 mb-3 sm:mb-12 pb-3 border-b border-zinc-900">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-[#0a3a2a] border border-emerald-500/40 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(16,185,129,0.3)]">
             {vehicleConfig.vehicleIcon}
@@ -349,11 +361,11 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
       {/* ============================================================ */}
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden pb-6"
+        className="relative w-full overflow-hidden pb-4"
         style={{ height: `${totalSvgHeight}px` }}
       >
         <div
-          className="relative w-full min-w-[340px] sm:min-w-0"
+          className="relative w-full overflow-hidden"
           style={{ height: `${totalSvgHeight}px` }}
         >
           {/* Continuous Serpentine SVG Curve & Vehicle */}
@@ -568,15 +580,15 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                   {isEven ? (
                     <>
                       {/* Left Column: Photo (Circular or Rounded) */}
-                      <div className="w-[36%] sm:w-[42%] flex items-center justify-center pl-1 sm:pl-4 lg:pl-10">
+                      <div className="w-[26%] sm:w-[40%] flex items-center justify-center pl-0 sm:pl-4 lg:pl-10 shrink-0">
                         <motion.div
                           whileHover={{ scale: 1.04 }}
                           transition={{ duration: 0.3 }}
                           onClick={() => onOpenDetails(activity)}
                           className={`overflow-hidden shadow-2xl relative group cursor-pointer border-2 ${theme.border} ${
                             index === 0
-                              ? 'w-24 h-24 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full'
-                              : 'w-28 h-24 sm:w-52 sm:h-44 lg:w-64 lg:h-52 rounded-2xl sm:rounded-3xl'
+                              ? 'w-16 h-16 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full'
+                              : 'w-16 h-16 sm:w-52 sm:h-44 lg:w-64 lg:h-52 rounded-2xl sm:rounded-3xl'
                           }`}
                         >
                           <img
@@ -586,8 +598,8 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 group-hover:opacity-40 transition-opacity" />
-                          <div className="absolute bottom-1.5 sm:bottom-2.5 left-1 sm:left-3 right-1 sm:right-3 text-center">
-                            <span className="text-[8px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md text-emerald-300 border border-emerald-500/40 truncate max-w-full inline-block">
+                          <div className="absolute bottom-1 sm:bottom-2.5 left-0.5 sm:left-3 right-0.5 sm:right-3 text-center">
+                            <span className="text-[7px] sm:text-[10px] font-extrabold px-1 py-0.5 rounded-full bg-black/80 backdrop-blur-md text-emerald-300 border border-emerald-500/40 truncate max-w-full inline-block">
                               {activity.location || activity.category}
                             </span>
                           </div>
@@ -595,29 +607,29 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                       </div>
 
                       {/* Center Column: Anchor Tile */}
-                      <div className="w-[16%] flex items-center justify-center relative z-20">
+                      <div className="w-[12%] sm:w-[15%] flex items-center justify-center relative z-20 shrink-0">
                         <div
                           id={`anchor-tile-${index}`}
-                          className={`w-10 h-10 sm:w-18 sm:h-18 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-2xl relative ${theme.glow}`}
+                          className={`w-8 h-8 sm:w-18 sm:h-18 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-2xl relative ${theme.glow}`}
                         >
                           <div
-                            className={`w-7 h-7 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-[#050507] ${theme.ring} ring-2 flex items-center justify-center text-sm sm:text-xl lg:text-2xl shadow-inner`}
+                            className={`w-6 h-6 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-[#050507] ${theme.ring} ring-1.5 sm:ring-2 flex items-center justify-center text-xs sm:text-xl lg:text-2xl shadow-inner`}
                           >
                             {index === 0 ? vehicleConfig.vehicleIcon : theme.defaultIcon}
                           </div>
                         </div>
                       </div>
 
-                      {/* Right Column: Activity Card */}
-                      <div className="w-[48%] sm:w-[42%] pr-1 sm:pr-2 lg:pr-8">
-                        <div className="bg-[#121316]/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-3 sm:p-5 lg:p-6 border border-zinc-800/80 hover:border-zinc-700 shadow-2xl shadow-black/80 transition-all text-left space-y-2 sm:space-y-3.5 relative group overflow-hidden">
+                      {/* Right Column: Activity Card (Wide, clearly legible and fully visible) */}
+                      <div className="w-[62%] sm:w-[45%] pr-0 sm:pr-2 lg:pr-8 flex-1 min-w-0">
+                        <div className="bg-black/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 lg:p-6 border border-zinc-800 hover:border-zinc-700 shadow-2xl shadow-black/80 transition-all text-left space-y-1.5 sm:space-y-3.5 relative group overflow-hidden">
                           {/* Header: Time Pill + Line + Cost */}
-                          <div className="flex items-center justify-between">
-                            <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-xs font-black tracking-wide flex items-center gap-1 sm:gap-1.5 shadow-sm">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-xs font-black tracking-wide flex items-center gap-1 sm:gap-1.5 shadow-sm shrink-0">
                               <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400" />
                               {activity.time}
                             </span>
-                            <div className="h-[1px] bg-zinc-800 flex-1 mx-1.5 sm:mx-3" />
+                            <div className="h-[1px] bg-zinc-800 flex-1 min-w-[8px]" />
                             <span className="text-[9px] sm:text-xs font-bold text-zinc-400 tracking-wider font-mono shrink-0">
                               {costText}
                             </span>
@@ -626,7 +638,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           {/* Title */}
                           <h3
                             onClick={() => onOpenDetails(activity)}
-                            className="text-xs sm:text-lg lg:text-xl font-black text-white group-hover:text-emerald-400 transition-colors tracking-tight leading-tight sm:leading-snug cursor-pointer line-clamp-2"
+                            className="text-xs sm:text-lg lg:text-xl font-bold text-white group-hover:text-emerald-400 transition-colors tracking-tight leading-snug cursor-pointer line-clamp-2"
                           >
                             {activity.title}
                           </h3>
@@ -637,8 +649,8 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           </p>
 
                           {/* Pro-Tip Capsule matching mockup */}
-                          <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-[#18191d] border border-white/5 flex items-center gap-1.5 sm:gap-2.5 shadow-inner">
-                            <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs sm:text-sm">
+                          <div className="p-1.5 sm:p-3 rounded-xl sm:rounded-2xl bg-[#18191d] border border-white/5 flex items-center gap-1.5 sm:gap-2.5 shadow-inner">
+                            <div className="w-4 h-4 sm:w-7 sm:h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-[10px] sm:text-sm">
                               {vehicleConfig.tipIcon}
                             </div>
                             <p className="text-[9px] sm:text-xs text-zinc-300 italic font-medium leading-snug line-clamp-2">
@@ -647,33 +659,33 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           </div>
 
                           {/* Action Bar */}
-                          <div className="pt-1.5 sm:pt-2 border-t border-zinc-800/70 flex items-center justify-between text-[10px] sm:text-xs">
+                          <div className="pt-1 sm:pt-2 border-t border-zinc-800/70 flex items-center justify-between text-[9px] sm:text-xs gap-1">
                             {onToggleActivityComplete && (
                               <button
                                 type="button"
                                 onClick={() => onToggleActivityComplete(activity.id)}
-                                className={`flex items-center gap-1 sm:gap-1.5 font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl transition-all cursor-pointer ${
+                                className={`flex items-center gap-1 font-bold px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl transition-all cursor-pointer text-[9px] sm:text-xs shrink-0 ${
                                   activity.completed
                                     ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
                                 }`}
                               >
                                 {activity.completed ? (
-                                  <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+                                  <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
                                 ) : (
-                                  <Circle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-500" />
+                                  <Circle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-zinc-500 shrink-0" />
                                 )}
                                 <span>{activity.completed ? 'Visited' : 'Check-in'}</span>
                               </button>
                             )}
 
-                            <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
+                            <div className="flex items-center gap-1 ml-auto shrink-0">
                               <button
                                 type="button"
                                 onClick={() => onOpenDetails(activity)}
-                                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-zinc-800/80 hover:bg-zinc-700 font-bold text-zinc-200 transition-colors cursor-pointer flex items-center gap-1"
+                                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-zinc-800/90 hover:bg-zinc-700 font-bold text-zinc-200 transition-colors cursor-pointer flex items-center gap-1 text-[9px] sm:text-xs shrink-0"
                               >
-                                <Info className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400" />
+                                <Info className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 shrink-0" />
                                 <span>Details</span>
                               </button>
                               <button
@@ -707,33 +719,34 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                     </>
                   ) : (
                     /* -------------------------------------------------------- */
+                    /* -------------------------------------------------------- */
                     /* ROW TYPE B (ODD INDEX: 1, 3, 5...)                       */
                     /* Left: Anchor + Activity Card | Right: Photo              */
                     /* -------------------------------------------------------- */
                     <>
-                      {/* Left Column: Anchor Tile + Activity Card */}
-                      <div className="w-[54%] sm:w-[50%] flex items-center gap-1.5 sm:gap-3.5 pl-1 sm:pl-2 lg:pl-6 relative z-20">
+                      {/* Left Column: Anchor Tile + Activity Card (Wide, clearly visible) */}
+                      <div className="w-[72%] sm:w-[55%] flex items-center gap-1 sm:gap-3.5 pl-0 sm:pl-2 lg:pl-6 relative z-20 flex-1 min-w-0">
                         {/* Left Anchor Tile */}
                         <div
                           id={`anchor-tile-${index}`}
-                          className={`w-10 h-10 sm:w-18 sm:h-18 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-2xl relative shrink-0 ${theme.glow}`}
+                          className={`w-8 h-8 sm:w-18 sm:h-18 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-2xl relative shrink-0 ${theme.glow}`}
                         >
                           <div
-                            className={`w-7 h-7 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-[#050507] ${theme.ring} ring-2 flex items-center justify-center text-sm sm:text-xl lg:text-2xl shadow-inner`}
+                            className={`w-6 h-6 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-[#050507] ${theme.ring} ring-1.5 sm:ring-2 flex items-center justify-center text-xs sm:text-xl lg:text-2xl shadow-inner`}
                           >
                             {theme.defaultIcon}
                           </div>
                         </div>
 
                         {/* Attached Activity Card */}
-                        <div className="flex-1 min-w-0 bg-[#121316]/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-3 sm:p-5 lg:p-6 border border-zinc-800/80 hover:border-zinc-700 shadow-2xl shadow-black/80 transition-all text-left space-y-2 sm:space-y-3.5 relative group overflow-hidden">
+                        <div className="flex-1 min-w-0 bg-black/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 lg:p-6 border border-zinc-800 hover:border-zinc-700 shadow-2xl shadow-black/80 transition-all text-left space-y-1.5 sm:space-y-3.5 relative group overflow-hidden">
                           {/* Header */}
-                          <div className="flex items-center justify-between">
-                            <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-xs font-black tracking-wide flex items-center gap-1 sm:gap-1.5 shadow-sm">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-xs font-black tracking-wide flex items-center gap-1 sm:gap-1.5 shadow-sm shrink-0">
                               <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400" />
                               {activity.time}
                             </span>
-                            <div className="h-[1px] bg-zinc-800 flex-1 mx-1.5 sm:mx-3" />
+                            <div className="h-[1px] bg-zinc-800 flex-1 min-w-[8px]" />
                             <span className="text-[9px] sm:text-xs font-bold text-zinc-400 tracking-wider font-mono shrink-0">
                               {costText}
                             </span>
@@ -742,7 +755,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           {/* Title */}
                           <h3
                             onClick={() => onOpenDetails(activity)}
-                            className="text-xs sm:text-lg lg:text-xl font-black text-white group-hover:text-amber-400 transition-colors tracking-tight leading-tight sm:leading-snug cursor-pointer line-clamp-2"
+                            className="text-xs sm:text-lg lg:text-xl font-bold text-white group-hover:text-amber-400 transition-colors tracking-tight leading-snug cursor-pointer line-clamp-2"
                           >
                             {activity.title}
                           </h3>
@@ -753,8 +766,8 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           </p>
 
                           {/* Pro-Tip Capsule */}
-                          <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-[#18191d] border border-white/5 flex items-center gap-1.5 sm:gap-2.5 shadow-inner">
-                            <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 text-xs sm:text-sm">
+                          <div className="p-1.5 sm:p-3 rounded-xl sm:rounded-2xl bg-[#18191d] border border-white/5 flex items-center gap-1.5 sm:gap-2.5 shadow-inner">
+                            <div className="w-4 h-4 sm:w-7 sm:h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 text-[10px] sm:text-sm">
                               {vehicleConfig.tipIcon}
                             </div>
                             <p className="text-[9px] sm:text-xs text-zinc-300 italic font-medium leading-snug line-clamp-2">
@@ -763,33 +776,33 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                           </div>
 
                           {/* Action Bar */}
-                          <div className="pt-1.5 sm:pt-2 border-t border-zinc-800/70 flex items-center justify-between text-[10px] sm:text-xs">
+                          <div className="pt-1 sm:pt-2 border-t border-zinc-800/70 flex items-center justify-between text-[9px] sm:text-xs gap-1">
                             {onToggleActivityComplete && (
                               <button
                                 type="button"
                                 onClick={() => onToggleActivityComplete(activity.id)}
-                                className={`flex items-center gap-1 sm:gap-1.5 font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl transition-all cursor-pointer ${
+                                className={`flex items-center gap-1 font-bold px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl transition-all cursor-pointer text-[9px] sm:text-xs shrink-0 ${
                                   activity.completed
                                     ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
                                 }`}
                               >
                                 {activity.completed ? (
-                                  <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+                                  <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
                                 ) : (
-                                  <Circle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-500" />
+                                  <Circle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-zinc-500 shrink-0" />
                                 )}
                                 <span>{activity.completed ? 'Visited' : 'Check-in'}</span>
                               </button>
                             )}
 
-                            <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
+                            <div className="flex items-center gap-1 ml-auto shrink-0">
                               <button
                                 type="button"
                                 onClick={() => onOpenDetails(activity)}
-                                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-zinc-800/80 hover:bg-zinc-700 font-bold text-zinc-200 transition-colors cursor-pointer flex items-center gap-1"
+                                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-zinc-800/90 hover:bg-zinc-700 font-bold text-zinc-200 transition-colors cursor-pointer flex items-center gap-1 text-[9px] sm:text-xs shrink-0"
                               >
-                                <Info className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400" />
+                                <Info className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 shrink-0" />
                                 <span>Details</span>
                               </button>
                               <button
@@ -822,12 +835,12 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                       </div>
 
                       {/* Right Column: Square Photo */}
-                      <div className="w-[46%] sm:w-[45%] flex items-center justify-center pr-1 sm:pr-4 lg:pr-10">
+                      <div className="w-[28%] sm:w-[45%] flex items-center justify-center pr-0 sm:pr-4 lg:pr-10 shrink-0">
                         <motion.div
                           whileHover={{ scale: 1.04 }}
                           transition={{ duration: 0.3 }}
                           onClick={() => onOpenDetails(activity)}
-                          className={`w-28 h-24 sm:w-52 sm:h-44 lg:w-64 lg:h-52 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl relative group cursor-pointer border-2 ${theme.border}`}
+                          className={`w-16 h-16 sm:w-52 sm:h-44 lg:w-64 lg:h-52 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl relative group cursor-pointer border-2 ${theme.border}`}
                         >
                           <img
                             src={placeImg}
@@ -836,8 +849,8 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 group-hover:opacity-40 transition-opacity" />
-                          <div className="absolute bottom-1.5 sm:bottom-2.5 left-1 sm:left-3 right-1 sm:right-3 text-center">
-                            <span className="text-[8px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md text-amber-300 border border-amber-500/40 truncate max-w-full inline-block">
+                          <div className="absolute bottom-1 sm:bottom-2.5 left-0.5 sm:left-3 right-0.5 sm:right-3 text-center">
+                            <span className="text-[7px] sm:text-[10px] font-extrabold px-1 py-0.5 rounded-full bg-black/80 backdrop-blur-md text-amber-300 border border-amber-500/40 truncate max-w-full inline-block">
                               {activity.location || activity.category}
                             </span>
                           </div>
