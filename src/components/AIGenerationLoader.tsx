@@ -155,7 +155,7 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
   }, [travelMode]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4 sm:p-6 select-none bg-gradient-to-b from-[#181135] via-[#2d1b4e] via-50% to-[#ee8a68]">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4 sm:p-6 select-none bg-black">
       {/* Atmospheric Starry Sky Particles */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[10%] left-[20%] w-1 h-1 bg-white/70 rounded-full animate-ping" />
@@ -167,8 +167,8 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
       </div>
 
       {/* Brand Header top-left */}
-      <div className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg">
-        <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-white">
+      <div className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-zinc-900/90 backdrop-blur-md border border-zinc-800 shadow-lg">
+        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white">
           <Compass className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '10s' }} />
         </div>
         <span className="text-sm font-extrabold text-white tracking-wide">
@@ -256,12 +256,12 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
         </div>
       </motion.div>
 
-      {/* Main Glassmorphic Modal Card */}
+      {/* Main Glassmorphic Modal Card (Deep black card with subtle zinc border) */}
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="relative z-20 max-w-lg sm:max-w-xl w-full bg-white/15 dark:bg-black/25 backdrop-blur-2xl rounded-3xl p-6 sm:p-9 border border-white/25 shadow-2xl shadow-black/40 text-center space-y-6"
+        className="relative z-20 max-w-lg sm:max-w-xl w-full bg-[#09090b]/95 backdrop-blur-2xl rounded-3xl p-6 sm:p-9 border border-zinc-800 shadow-2xl shadow-black text-center space-y-6"
       >
         {/* Dynamic Mode-of-Travel Route Arc & Animated Vehicle */}
         <div className="relative w-full h-32 sm:h-36 flex items-center justify-center">
@@ -572,15 +572,15 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
 
         {/* Multi-Color Gradient Progress Bar */}
         <div className="space-y-2 max-w-md mx-auto">
-          <div className="w-full h-2.5 rounded-full bg-white/20 p-0.5 overflow-hidden backdrop-blur-sm">
+          <div className="w-full h-2.5 rounded-full bg-zinc-900 border border-zinc-800 p-0.5 overflow-hidden backdrop-blur-sm">
             <motion.div
               className="h-full rounded-full bg-gradient-to-r from-purple-500 via-amber-400 to-rose-400 shadow-sm shadow-amber-300/40 transition-all duration-300"
               style={{ width: `${Math.min(100, Math.max(8, progress))}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] font-bold text-white/80 px-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-zinc-300 px-1">
             <span>{stageInfo.label}</span>
-            <span className="font-extrabold text-amber-200">{Math.round(progress)}%</span>
+            <span className="font-extrabold text-amber-300">{Math.round(progress)}%</span>
           </div>
         </div>
 
@@ -590,15 +590,15 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
           <div
             className={`flex items-center gap-1.5 py-1.5 px-3 sm:px-3.5 rounded-full border text-xs font-bold transition-all backdrop-blur-md ${
               stageInfo.transitChecked
-                ? 'bg-white/20 border-white/35 text-white shadow-sm'
-                : 'bg-white/10 border-white/15 text-white/70'
+                ? 'bg-zinc-800/90 border-zinc-700 text-white shadow-sm'
+                : 'bg-zinc-900/70 border-zinc-800/80 text-zinc-400'
             }`}
           >
             <span>{transitModeConfig.icon}</span>
             <span>{transitModeConfig.badgeText}</span>
             <span
               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ml-0.5 transition-all ${
-                stageInfo.transitChecked ? 'bg-white/35 text-white' : 'bg-white/10 text-white/30'
+                stageInfo.transitChecked ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'
               }`}
             >
               <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />
@@ -609,15 +609,15 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
           <div
             className={`flex items-center gap-1.5 py-1.5 px-3 sm:px-3.5 rounded-full border text-xs font-bold transition-all backdrop-blur-md ${
               stageInfo.staysChecked
-                ? 'bg-white/20 border-white/35 text-white shadow-sm'
-                : 'bg-white/10 border-white/15 text-white/70'
+                ? 'bg-zinc-800/90 border-zinc-700 text-white shadow-sm'
+                : 'bg-zinc-900/70 border-zinc-800/80 text-zinc-400'
             }`}
           >
             <span>🛏️</span>
             <span>Stays</span>
             <span
               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ml-0.5 transition-all ${
-                stageInfo.staysChecked ? 'bg-white/35 text-white' : 'bg-white/10 text-white/30'
+                stageInfo.staysChecked ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'
               }`}
             >
               <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />
@@ -628,15 +628,15 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
           <div
             className={`flex items-center gap-1.5 py-1.5 px-3 sm:px-3.5 rounded-full border text-xs font-bold transition-all backdrop-blur-md ${
               stageInfo.activitiesChecked
-                ? 'bg-white/20 border-white/35 text-white shadow-sm'
-                : 'bg-white/10 border-white/15 text-white/70'
+                ? 'bg-zinc-800/90 border-zinc-700 text-white shadow-sm'
+                : 'bg-zinc-900/70 border-zinc-800/80 text-zinc-400'
             }`}
           >
             <span>🏔️</span>
             <span>Activities</span>
             <span
               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ml-0.5 transition-all ${
-                stageInfo.activitiesChecked ? 'bg-white/35 text-white' : 'bg-white/10 text-white/30'
+                stageInfo.activitiesChecked ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'
               }`}
             >
               <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />
@@ -647,15 +647,15 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
           <div
             className={`flex items-center gap-1.5 py-1.5 px-3 sm:px-3.5 rounded-full border text-xs font-bold transition-all backdrop-blur-md ${
               stageInfo.weatherChecked
-                ? 'bg-white/20 border-white/35 text-white shadow-sm'
-                : 'bg-white/10 border-white/15 text-white/70'
+                ? 'bg-zinc-800/90 border-zinc-700 text-white shadow-sm'
+                : 'bg-zinc-900/70 border-zinc-800/80 text-zinc-400'
             }`}
           >
             <span>🌤️</span>
             <span>Weather</span>
             <span
               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ml-0.5 transition-all ${
-                stageInfo.weatherChecked ? 'bg-white/35 text-white' : 'bg-white/10 text-white/30'
+                stageInfo.weatherChecked ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'
               }`}
             >
               <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />
