@@ -312,16 +312,16 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   }, [trip.routeSummary, trip.durationDays, trip.travelMode]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
-      {/* Upper Itinerary Header Dashboard Card (Pure black card background) */}
-      <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-7 border border-zinc-800 shadow-2xl space-y-6 text-white">
+    <div className="space-y-3.5 sm:space-y-6 max-w-7xl mx-auto pb-16 text-left">
+      {/* Upper Itinerary Header Dashboard Card (Compact Pure black card) */}
+      <div className="bg-black/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-3 sm:p-5 border border-zinc-800 shadow-2xl space-y-2.5 sm:space-y-3 text-white">
         {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {onNavigateHome && (
               <button
                 onClick={onNavigateHome}
-                className="p-1.5 sm:p-2 rounded-xl bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                className="p-1.5 rounded-lg sm:rounded-xl bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
                 title="Return to Home / Discover"
               >
                 <Compass className="w-3.5 h-3.5 text-emerald-400" />
@@ -329,125 +329,121 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               </button>
             )}
 
-          {onBackToStep6 && (
-            <button
-              id="back-to-step-6-btn"
-              onClick={onBackToStep6}
-              className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-              title="Back to Step 6 to edit styles and preferences"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Back to Step 6</span>
-            </button>
-          )}
-        </div>
-
-        <button
-          id="enter-trip-mode-btn"
-          onClick={onEnterTripMode}
-          className="px-4 py-2 rounded-xl bg-[#10b981] hover:bg-emerald-400 text-white font-black text-xs flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95 cursor-pointer"
-        >
-          <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
-            <Play className="w-2.5 h-2.5 fill-white text-white ml-0.5" />
-          </div>
-          <span>Enter Trip Mode</span>
-        </button>
-      </div>
-
-      {/* Hero Header: Title & Route Summary matching mockup */}
-      <div className="space-y-2.5 pt-2">
-        <h1 className="font-['Playfair_Display',serif] text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
-          {trip.title}
-        </h1>
-
-        <div 
-          id="itinerary-route-metadata-bar"
-          className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium select-none !bg-transparent"
-          style={{ backgroundColor: 'transparent' }}
-        >
-          {/* Start -> Destination */}
-          <span className="flex items-center gap-1.5 text-zinc-300">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{trip.startCity ? `${trip.startCity} → ${trip.destination}` : trip.destination}</span>
-          </span>
-
-          <span className="text-zinc-600 font-bold">•</span>
-
-          {/* Distance & Transit Time */}
-          <span className="flex items-center gap-1.5 text-zinc-300">
-            <CornerDownRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{transitSummaryText}</span>
-          </span>
-
-          <span className="text-zinc-600 font-bold">•</span>
-
-          {/* Date Range */}
-          <span className="flex items-center gap-1.5 text-zinc-300">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{formattedTripDateRange}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Main Navigation Tabs Bar */}
-      <div className="flex items-center justify-start gap-3 pt-2">
-        {/* Segmented Pill Navigation */}
-        <div className="bg-black p-1.5 rounded-2xl border border-zinc-800 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
-          {[
-            { id: 'itinerary', label: 'Day Itinerary', icon: CalendarDays },
-            { id: 'map', label: 'Route Map', icon: MapPin },
-            { id: 'preparation', label: 'Preparation', icon: CheckCircle2 },
-            { id: 'hotels', label: 'Hotels', icon: BedDouble },
-            { id: 'overview', label: 'Overview', icon: LayoutGrid }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
+            {onBackToStep6 && (
               <button
-                key={tab.id}
-                id={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
-                  isActive
-                    ? 'bg-[#181a1e] text-white border border-zinc-700/60 shadow-md'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
-                }`}
+                id="back-to-step-6-btn"
+                onClick={onBackToStep6}
+                className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Back to Step 6 to edit styles and preferences"
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`} />
-                <span>{tab.label}</span>
+                <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400" />
+                <span>Back to Step 6</span>
               </button>
-            );
-          })}
+            )}
+          </div>
+
+          <button
+            id="enter-trip-mode-btn"
+            onClick={onEnterTripMode}
+            className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-[#10b981] hover:bg-emerald-400 text-white font-black text-xs flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95 cursor-pointer shrink-0"
+          >
+            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white/20 flex items-center justify-center">
+              <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-white text-white ml-0.5" />
+            </div>
+            <span>Enter Trip Mode</span>
+          </button>
+        </div>
+
+        {/* Hero Header: Title & Route Summary */}
+        <div className="space-y-1 sm:space-y-1.5">
+          <h1 className="font-['Playfair_Display',serif] text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight">
+            {trip.title}
+          </h1>
+
+          <div 
+            id="itinerary-route-metadata-bar"
+            className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-zinc-400 font-medium select-none !bg-transparent"
+            style={{ backgroundColor: 'transparent' }}
+          >
+            {/* Start -> Destination */}
+            <span className="flex items-center gap-1 text-zinc-300">
+              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>{trip.startCity ? `${trip.startCity} → ${trip.destination}` : trip.destination}</span>
+            </span>
+
+            <span className="text-zinc-600 font-bold">•</span>
+
+            {/* Distance & Transit Time */}
+            <span className="flex items-center gap-1 text-zinc-300">
+              <CornerDownRight className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>{transitSummaryText}</span>
+            </span>
+
+            <span className="text-zinc-600 font-bold">•</span>
+
+            {/* Date Range */}
+            <span className="flex items-center gap-1 text-zinc-300">
+              <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>{formattedTripDateRange}</span>
+            </span>
+          </div>
         </div>
       </div>
-    </div>
 
-      {/* TAB CONTENTS */}
+      {/* Main Navigation Tabs & (on Itinerary) Your Days Dashboard Card */}
+      <div className="bg-black/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 border border-zinc-800 shadow-2xl space-y-2.5 sm:space-y-3 text-white">
+        {/* Navigation Tabs Bar */}
+        <div className="flex items-center justify-start overflow-x-auto no-scrollbar">
+          <div className="bg-black p-1 rounded-xl border border-zinc-800 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
+            {[
+              { id: 'itinerary', label: 'Day Itinerary', icon: CalendarDays },
+              { id: 'map', label: 'Route Map', icon: MapPin },
+              { id: 'preparation', label: 'Preparation', icon: CheckCircle2 },
+              { id: 'hotels', label: 'Hotels', icon: BedDouble },
+              { id: 'overview', label: 'Overview', icon: LayoutGrid }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  id={`tab-${tab.id}`}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                    isActive
+                      ? 'bg-[#181a1e] text-white border border-zinc-700/60 shadow-md'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                >
+                  <Icon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-      {/* TAB 1: DAY ITINERARY */}
-      {activeTab === 'itinerary' && (
-        <div className="space-y-6">
-          {/* Days Selector & Sub-header Dashboard Card */}
-          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 border border-zinc-800 shadow-2xl space-y-5 text-white">
-            {/* "Your Days" Section matching mockup */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Your Days</h2>
+        {/* When activeTab === 'itinerary': Your Days Carousel & Sub-header Controls */}
+        {activeTab === 'itinerary' && (
+          <div className="pt-2 border-t border-zinc-800/80 space-y-2 sm:space-y-3">
+            {/* "Your Days" Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight">Your Days</h2>
               {onAddDay && (
                 <button
                   id="btn-add-a-day"
                   type="button"
                   onClick={onAddDay}
-                  className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="text-[11px] sm:text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   <span>Add a Day</span>
                 </button>
               )}
             </div>
 
             {/* Horizontal Day Cards Carousel */}
-            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1.5 scroll-smooth">
+            <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar pb-1 scroll-smooth">
               {days.map((day) => {
                 const isActive = day.dayNumber === activeDayNumber;
                 const weatherIcon = getWeatherIcon(day.weatherForecast?.condition, day.weatherForecast?.temp);
@@ -460,96 +456,103 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     id={`day-card-${day.dayNumber}`}
                     type="button"
                     onClick={() => onSelectDay(day.dayNumber)}
-                    className={`w-32 sm:w-36 h-[86px] sm:h-[94px] p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between shrink-0 text-left transition-all duration-200 cursor-pointer select-none ${
+                    className={`w-28 sm:w-32 h-[68px] sm:h-[76px] p-2 sm:p-2.5 rounded-xl flex flex-col justify-between shrink-0 text-left transition-all duration-200 cursor-pointer select-none ${
                       isActive
-                        ? 'bg-[#10b981] text-white shadow-[0_0_22px_rgba(16,185,129,0.4)] border border-emerald-400/50'
+                        ? 'bg-[#10b981] text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] border border-emerald-400/50'
                         : 'bg-black hover:bg-zinc-950 text-white border border-zinc-800 hover:border-zinc-700'
                     }`}
                   >
                     {/* Top row: Day Number + Weather Icon */}
                     <div className="flex items-center justify-between">
-                      <span className={`text-[11px] font-semibold ${isActive ? 'text-white/90' : 'text-zinc-400'}`}>
+                      <span className={`text-[10px] font-semibold ${isActive ? 'text-white/90' : 'text-zinc-400'}`}>
                         Day {day.dayNumber}
                       </span>
-                      <span className={isActive ? 'text-white' : 'text-zinc-400'}>
+                      <span className={`text-xs ${isActive ? 'text-white' : 'text-zinc-400'}`}>
                         {weatherIcon}
                       </span>
                     </div>
 
                     {/* Middle row: Short concise Title */}
-                    <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isActive ? 'text-white font-black' : 'text-white'}`}>
+                    <h4 className={`text-[11px] sm:text-xs font-bold truncate leading-tight ${isActive ? 'text-white font-black' : 'text-white'}`}>
                       {shortTheme}
                     </h4>
 
                     {/* Bottom row: Date · Temperature */}
-                    <span className={`text-[10px] font-medium truncate ${isActive ? 'text-white/90 font-semibold' : 'text-zinc-400'}`}>
+                    <span className={`text-[9px] sm:text-[10px] font-medium truncate ${isActive ? 'text-white/90 font-semibold' : 'text-zinc-400'}`}>
                       {shortDate} · {day.weatherForecast?.temp || '22°C'}
                     </span>
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Sub-header Bar matching mockup */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-            {/* Left: Date + Day Title + Stops planned */}
-            <div>
-              <p className="text-[11px] sm:text-xs font-medium text-zinc-400 mb-0.5">
-                {getFormattedFullDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight">
-                  {currentDay?.theme || `Day ${currentDay?.dayNumber || 1}`}
-                </h3>
-                <span className="text-zinc-600 font-bold hidden sm:inline">•</span>
-                <span className="text-emerald-400 font-bold text-xs sm:text-sm">
-                  {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
-                </span>
-              </div>
-            </div>
-
-            {/* Right: Switch Toggle (Serpentine Flow vs Classic Cards) + Recommend a Stay Button */}
-            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
-              {/* Toggle Switch */}
-              <div
-                onClick={() => setItineraryLayoutMode(prev => prev === 'serpentine' ? 'cards' : 'serpentine')}
-                className="bg-black border border-zinc-800 rounded-xl p-1.5 flex items-center gap-2 cursor-pointer select-none hover:border-zinc-700 transition-colors"
-                title="Toggle view between Serpentine Flow and Classic Cards"
-              >
-                <div className={`w-8 h-4.5 rounded-full p-0.5 flex items-center transition-colors ${itineraryLayoutMode === 'serpentine' ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'}`}>
-                  <div className="w-3.5 h-3.5 rounded-full bg-white shadow-xs" />
+            {/* Sub-header Bar (Date + Title + Stops + Controls) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-zinc-800/60">
+              {/* Left: Date + Day Title + Stops planned */}
+              <div>
+                <p className="text-[10px] sm:text-[11px] font-medium text-zinc-400 mb-0.5">
+                  {getFormattedFullDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="text-xs sm:text-sm lg:text-base font-bold text-white tracking-tight">
+                    {currentDay?.theme || `Day ${currentDay?.dayNumber || 1}`}
+                  </h3>
+                  <span className="text-zinc-600 font-bold hidden sm:inline">•</span>
+                  <span className="text-emerald-400 font-bold text-[10px] sm:text-xs">
+                    {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
+                  </span>
                 </div>
-                <span className={`text-xs font-bold transition-colors ${itineraryLayoutMode === 'serpentine' ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  Serpentine Flow
-                </span>
-                <span className={`text-xs font-medium transition-colors ${itineraryLayoutMode === 'cards' ? 'text-white' : 'text-zinc-500'}`}>
-                  Classic Cards
-                </span>
               </div>
 
-              {/* Recommend a Stay Button */}
-              <button
-                id="toggle-recommend-stay-btn"
-                type="button"
-                onClick={() =>
-                  setShowStayForDay(prev => ({
-                    ...prev,
-                    [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
-                  }))
-                }
-                className="py-2 px-3.5 rounded-xl bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors"
-                title="Click to view or hide recommended stay for this day"
-              >
-                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Recommend a Stay</span>
-                <span className="text-[10px] text-zinc-400">
-                  {isStayVisible ? '▲' : '▼'}
-                </span>
-              </button>
+              {/* Right: Switch Toggle (Serpentine Flow vs Classic Cards) + Recommend a Stay Button */}
+              <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto pt-0.5 sm:pt-0">
+                {/* Toggle Switch */}
+                <div
+                  onClick={() => setItineraryLayoutMode(prev => prev === 'serpentine' ? 'cards' : 'serpentine')}
+                  className="bg-black border border-zinc-800 rounded-lg p-1 flex items-center gap-1.5 cursor-pointer select-none hover:border-zinc-700 transition-colors"
+                  title="Toggle view between Serpentine Flow and Classic Cards"
+                >
+                  <div className={`w-7 h-4 rounded-full p-0.5 flex items-center transition-colors ${itineraryLayoutMode === 'serpentine' ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'}`}>
+                    <div className="w-3 h-3 rounded-full bg-white shadow-xs" />
+                  </div>
+                  <span className={`text-[10px] sm:text-xs font-bold transition-colors ${itineraryLayoutMode === 'serpentine' ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                    Serpentine Flow
+                  </span>
+                  <span className={`text-[10px] sm:text-xs font-medium transition-colors ${itineraryLayoutMode === 'cards' ? 'text-white' : 'text-zinc-500'}`}>
+                    Classic Cards
+                  </span>
+                </div>
+
+                {/* Recommend a Stay Button */}
+                <button
+                  id="toggle-recommend-stay-btn"
+                  type="button"
+                  onClick={() =>
+                    setShowStayForDay(prev => ({
+                      ...prev,
+                      [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
+                    }))
+                  }
+                  className="py-1 px-2.5 sm:py-1.5 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-[10px] sm:text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  title="Click to view or hide recommended stay for this day"
+                >
+                  <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+                  <span>Recommend a Stay</span>
+                  <span className="text-[9px] text-zinc-400">
+                    {isStayVisible ? '▲' : '▼'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* TAB CONTENTS */}
+
+      {/* TAB 1: DAY ITINERARY */}
+      {activeTab === 'itinerary' && (
+        <div className="space-y-4 sm:space-y-6">
 
         {/* Day Stay Highlight / Quick Hotel Selector (Toggled by user) */}
         {isStayVisible && (
