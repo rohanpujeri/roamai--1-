@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Check, Compass, MapPin } from 'lucide-react';
-import { TravelMode } from '../types';
+import { TravelMode, ThemeConfig } from '../types';
 
 export interface AIGenerationLoaderProps {
   destinationName: string;
   startCity?: string;
   travelMode?: TravelMode;
   durationDays?: number;
+  currentTheme?: ThemeConfig;
   onCancel?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
   startCity,
   travelMode = 'Flight',
   durationDays = 3,
+  currentTheme,
   onCancel
 }) => {
   const [progress, setProgress] = useState<number>(12);
@@ -155,7 +157,17 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
   }, [travelMode]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4 sm:p-6 select-none bg-black">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4 sm:p-6 select-none bg-black/30 backdrop-blur-[1.5px]">
+      {/* Theme Atmospheric Ambient Glow */}
+      {currentTheme?.primaryColor && (
+        <div
+          className="absolute inset-0 pointer-events-none opacity-25"
+          style={{
+            background: `radial-gradient(ellipse at 50% 45%, ${currentTheme.primaryColor} 0%, transparent 65%)`
+          }}
+        />
+      )}
+
       {/* Atmospheric Starry Sky Particles */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[10%] left-[20%] w-1 h-1 bg-white/70 rounded-full animate-ping" />

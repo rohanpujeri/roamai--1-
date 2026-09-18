@@ -738,6 +738,7 @@ export default function App() {
           startCity={generatingParams?.startCity}
           travelMode={generatingParams?.travelMode || 'Flight'}
           durationDays={generatingParams?.durationDays || 3}
+          currentTheme={currentTheme}
           onCancel={() => {
             setIsGenerating(false);
             setGeneratingParams(null);
