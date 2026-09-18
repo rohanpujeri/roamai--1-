@@ -1293,8 +1293,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 </div>
 
                 {/* 2. DATE INPUTS */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                         Start Date
@@ -1330,11 +1330,11 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           }
                         }
                       }}
-                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
+                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer block min-w-0"
                     />
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                         End Date
@@ -1360,7 +1360,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           }
                         }
                       }}
-                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
+                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer block min-w-0"
                     />
                   </div>
                 </div>
