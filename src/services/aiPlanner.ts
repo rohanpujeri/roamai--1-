@@ -563,14 +563,29 @@ Return ONLY a valid JSON object matching this schema:
           startCity
         },
         days: daysWithStays,
-        packingList: (genData.packingList && genData.packingList.length > 0) ? genData.packingList : [
-          { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
-          { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
-          { id: 'p-3', name: 'Government ID / booking receipts', category: 'Documents', checked: false, reason: 'Verification' },
-          { id: 'p-4', name: 'Reusable water bottle & sunscreen', category: 'Toiletries', checked: false, reason: 'Daily travel' }
-        ],
-        requirements: genData.requirements || [],
-        bookings: [],
+        packingList: (genData.packingList && genData.packingList.length > 0)
+          ? genData.packingList.map((item: any, idx: number) => ({
+              ...item,
+              id: item.id || `p-${idx + 1}`,
+              checked: false
+            }))
+          : [
+              { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
+              { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
+              { id: 'p-3', name: 'Government ID / booking receipts', category: 'Documents', checked: false, reason: 'Verification' },
+              { id: 'p-4', name: 'Reusable water bottle & sunscreen', category: 'Toiletries', checked: false, reason: 'Daily travel' }
+            ],
+        requirements: (genData.requirements || []).map((doc: any, idx: number) => ({
+          ...doc,
+          id: doc.id || `req-${idx + 1}`,
+          status: (doc.status === 'Completed' || doc.status === 'Ready') ? 'Action Required' : (doc.status || 'Action Required'),
+          isPermit: doc.isPermit ?? (doc.type === 'Government Permit' || /permit/i.test(doc.title))
+        })),
+        bookings: (genData.bookings || []).map((b: any, idx: number) => ({
+          ...b,
+          id: b.id || `b-${idx + 1}`,
+          status: (b.status === 'Confirmed' || b.status === 'Booked') ? 'To Book' : (b.status || 'To Book')
+        })),
         hotelRecommendations: initialHotels,
         clothingAdvice: genData.clothingAdvice || 'Comfortable breathable travel attire.',
         createdAt: new Date().toISOString().split('T')[0],

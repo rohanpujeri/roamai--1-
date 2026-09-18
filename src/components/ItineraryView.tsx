@@ -53,7 +53,10 @@ interface ItineraryViewProps {
   onAddCustomActivity: (dayNumber: number) => void;
   onAddActivityToDay?: (dayNumber: number, activity: Activity) => void;
   onTogglePackingItem: (itemId: string) => void;
+  onToggleAllPacking?: (allPacked: boolean) => void;
   onAddPackingItem: (name: string, category: PackingItem['category']) => void;
+  onToggleRequirement?: (docId: string) => void;
+  onToggleBooking?: (bookingId: string) => void;
   onOpenMapSearch?: () => void;
   onSaveHotelToTrip?: (hotel: HotelStayRecommendation, dayNumber?: number) => void;
   onAddExpense?: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
@@ -78,7 +81,10 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onAddCustomActivity,
   onAddActivityToDay,
   onTogglePackingItem,
+  onToggleAllPacking,
   onAddPackingItem,
+  onToggleRequirement,
+  onToggleBooking,
   onOpenMapSearch,
   onSaveHotelToTrip,
   onAddExpense,
@@ -887,7 +893,10 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
         <PreparationView
           trip={trip}
           onTogglePackingItem={onTogglePackingItem}
+          onToggleAllPacking={onToggleAllPacking}
           onAddPackingItem={onAddPackingItem}
+          onToggleRequirement={onToggleRequirement}
+          onToggleBooking={onToggleBooking}
         />
       )}
 

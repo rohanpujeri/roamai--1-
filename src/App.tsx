@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation } from './types';
+import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation, RequirementDocument, BookingItem } from './types';
 
 import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } from './services/aiPlanner';
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
@@ -25,6 +25,47 @@ import { SnowfallEffect } from './components/SnowfallAtmosphere';
 import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
 import { WhyTripWisePage } from './components/WhyRoamAIPage';
 import { AuthPage } from './components/AuthPage';
+
+function normalizeTripPreparation(trip: Trip): Trip {
+  if (!trip) return trip;
+  let modified = false;
+
+  const requirements = (trip.requirements || []).map((req) => {
+    if ((req.status as string) === 'Completed') {
+      modified = true;
+      return { ...req, status: 'Action Required' as RequirementDocument['status'] };
+    }
+    return req;
+  });
+
+  const bookings = (trip.bookings || []).map((bk) => {
+    if ((bk.status as string) === 'Confirmed') {
+      modified = true;
+      return { ...bk, status: 'Pending' as BookingItem['status'] };
+    }
+    return bk;
+  });
+
+  let packingList = trip.packingList || [];
+  // If every item was initialized as checked (legacy AI generation bug), uncheck all
+  if (
+    packingList.length > 0 &&
+    packingList.every((item) => item.checked) &&
+    !(trip as any)._userExplicitlyPackedAll
+  ) {
+    modified = true;
+    packingList = packingList.map((item) => ({ ...item, checked: false }));
+  }
+
+  if (!modified) return trip;
+
+  return {
+    ...trip,
+    requirements,
+    bookings,
+    packingList
+  };
+}
 
 export default function App() {
   // Theme state
@@ -88,9 +129,10 @@ export default function App() {
         } else if (event === 'SIGNED_IN') {
           fetchUserTrips().then((loadedTrips) => {
             if (loadedTrips && loadedTrips.length > 0) {
-              setTrips(loadedTrips);
+              const normalized = loadedTrips.map(normalizeTripPreparation);
+              setTrips(normalized);
               // Only set active trip if we don't already have one, or if current is invalid
-              setActiveTripId((prev) => prev && loadedTrips.some(t => t.id === prev) ? prev : loadedTrips[0].id);
+              setActiveTripId((prev) => prev && normalized.some(t => t.id === prev) ? prev : normalized[0].id);
             } else {
               setTrips([]);
               setActiveTripId('');
@@ -110,9 +152,10 @@ export default function App() {
     getCurrentUser().then((user) => {
       fetchUserTrips().then((loadedTrips) => {
         if (loadedTrips && loadedTrips.length > 0) {
-          setTrips(loadedTrips);
+          const normalized = loadedTrips.map(normalizeTripPreparation);
+          setTrips(normalized);
           if (user) {
-            setActiveTripId(loadedTrips[0].id);
+            setActiveTripId(normalized[0].id);
           }
         }
       });
@@ -148,7 +191,8 @@ export default function App() {
   };
 
   // Guests must explicitly open a trip to set activeTripId. If not set, do not auto-select trips[0].
-  const activeTrip = activeTripId ? trips.find((t) => t.id === activeTripId) : (session ? trips[0] : null);
+  const rawActiveTrip = activeTripId ? trips.find((t) => t.id === activeTripId) : (session ? trips[0] : null);
+  const activeTrip = rawActiveTrip ? normalizeTripPreparation(rawActiveTrip) : null;
   const recentPlannedTrip = activeTripId ? (trips.find((t) => t.id === activeTripId) || null) : (session ? (trips[0] || null) : null);
 
   // Open specific trip directly
@@ -514,6 +558,62 @@ export default function App() {
     addToast('success', 'Item Added', `"${name}" added to packing checklist.`);
   };
 
+  // Toggle all packing list items
+  const handleToggleAllPacking = (allPacked: boolean) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newPacking = (t.packingList || []).map((item) => ({
+          ...item,
+          checked: allPacked
+        }));
+        const updated = {
+          ...t,
+          packingList: newPacking,
+          _userExplicitlyPackedAll: allPacked
+        };
+        saveTripToBackend(updated).catch(console.warn);
+        return updated;
+      })
+    );
+  };
+
+  // Toggle government / official requirement status
+  const handleToggleRequirement = (docId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newRequirements = (t.requirements || []).map((req) => {
+          if (req.id !== docId) return req;
+          const isDone = req.status === 'Ready' || (req.status as string) === 'Completed';
+          const nextStatus: RequirementDocument['status'] = isDone ? 'Action Required' : 'Ready';
+          return { ...req, status: nextStatus };
+        });
+        const updated = { ...t, requirements: newRequirements };
+        saveTripToBackend(updated).catch(console.warn);
+        return updated;
+      })
+    );
+  };
+
+  // Toggle booking item status
+  const handleToggleBooking = (bookingId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newBookings = (t.bookings || []).map((bk) => {
+          if (bk.id !== bookingId) return bk;
+          const isConfirmed = bk.status === 'Booked' || (bk.status as string) === 'Confirmed';
+          const nextStatus: BookingItem['status'] = isConfirmed ? 'Pending' : 'Booked';
+          return { ...bk, status: nextStatus };
+        });
+        const updated = { ...t, bookings: newBookings };
+        saveTripToBackend(updated).catch(console.warn);
+        return updated;
+      })
+    );
+  };
+
   // Add Day Expense
   const handleAddExpense = (expenseData: Omit<ExpenseItem, 'id' | 'createdAt'>) => {
     if (!activeTrip) return;
@@ -819,7 +919,10 @@ export default function App() {
                   onAddCustomActivity={handleAddCustomActivity}
                   onAddActivityToDay={handleAddActivityToDay}
                   onTogglePackingItem={handleTogglePackingItem}
+                  onToggleAllPacking={handleToggleAllPacking}
                   onAddPackingItem={handleAddPackingItem}
+                  onToggleRequirement={handleToggleRequirement}
+                  onToggleBooking={handleToggleBooking}
                   onOpenMapSearch={() => setCurrentView('map_search')}
                   onSaveHotelToTrip={handleSaveHotelToTrip}
                   onAddExpense={handleAddExpense}
