@@ -718,16 +718,18 @@ export default function App() {
   return (
     <div 
       className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
-      style={{ backgroundColor: currentTheme.canvasBg }}
+      style={{ backgroundColor: currentView === 'itinerary' || currentView === 'trip_mode' ? '#07080a' : currentTheme.canvasBg }}
     >
-      {/* Full-Page Dynamic Photographic Scenic Backdrop across Discover, My Trips, Itinerary, etc. */}
-      <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+      {/* Full-Page Dynamic Photographic Scenic Backdrop across Discover, My Trips, etc. */}
+      {currentView !== 'itinerary' && currentView !== 'trip_mode' && (
+        <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Global Ambient Snowfall when Snow Theme is active */}
-      {themeId === 'snow' && (
+      {themeId === 'snow' && currentView !== 'itinerary' && currentView !== 'trip_mode' && (
         <SnowfallEffect fullScreen={true} density="gentle" />
       )}
 
@@ -748,8 +750,8 @@ export default function App() {
       {/* Main App Layout */}
       {!isGenerating && (
         <>
-          {/* Top Global Navigation */}
-          {currentView !== 'trip_mode' && currentView !== 'auth' && (
+          {/* Top Global Navigation (Hidden on Itinerary to match dedicated mockup navigation) */}
+          {currentView !== 'trip_mode' && currentView !== 'itinerary' && currentView !== 'auth' && (
             <Navbar
               currentView={currentView}
               onNavigate={(view) => setCurrentView(view)}
@@ -801,13 +803,15 @@ export default function App() {
 
             {/* VIEW 3: PERSONALIZED ITINERARY DASHBOARD */}
             {currentView === 'itinerary' && activeTrip && (
-              <div className="px-4 sm:px-6 lg:px-8 pt-6">
+              <div className="w-full bg-[#07080a] min-h-screen px-4 sm:px-6 lg:px-8 pt-2 sm:pt-4">
                 <ItineraryView
                   trip={activeTrip}
                   activeDayNumber={activeDayNumber}
                   onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
                   onEnterTripMode={() => setCurrentView('trip_mode')}
                   onBackToStep6={handleBackToStep6}
+                  onNavigateHome={() => setCurrentView('landing')}
+                  onNavigateToMyTrips={() => setCurrentView('my_trips')}
                   onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
                   onReplaceActivity={handleReplaceActivity}
                   onMoveActivityUp={handleMoveActivityUp}

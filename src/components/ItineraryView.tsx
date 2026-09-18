@@ -43,6 +43,8 @@ interface ItineraryViewProps {
   onSelectDay: (dayNumber: number) => void;
   onEnterTripMode: () => void;
   onBackToStep6?: () => void;
+  onNavigateHome?: () => void;
+  onNavigateToMyTrips?: () => void;
   onOpenActivityDetails: (activity: Activity) => void;
   onReplaceActivity: (activityId: string) => void;
   onMoveActivityUp: (activityId: string) => void;
@@ -66,6 +68,8 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onSelectDay,
   onEnterTripMode,
   onBackToStep6,
+  onNavigateHome,
+  onNavigateToMyTrips,
   onOpenActivityDetails,
   onReplaceActivity,
   onMoveActivityUp,
@@ -304,17 +308,30 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
       {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
       <div className="flex items-center justify-between gap-3 pt-1">
-        {onBackToStep6 ? (
-          <button
-            id="back-to-step-6-btn"
-            onClick={onBackToStep6}
-            className="px-3.5 py-1.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-            title="Back to Step 6 to edit styles and preferences"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Back to Step 6</span>
-          </button>
-        ) : <div />}
+        <div className="flex items-center gap-2">
+          {onNavigateHome && (
+            <button
+              onClick={onNavigateHome}
+              className="p-1.5 sm:p-2 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              title="Return to Home / Discover"
+            >
+              <Compass className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Home</span>
+            </button>
+          )}
+
+          {onBackToStep6 && (
+            <button
+              id="back-to-step-6-btn"
+              onClick={onBackToStep6}
+              className="px-3.5 py-1.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+              title="Back to Step 6 to edit styles and preferences"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Back to Step 6</span>
+            </button>
+          )}
+        </div>
 
         <button
           id="enter-trip-mode-btn"
@@ -399,7 +416,11 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           >
             <Bell className="w-4 h-4" />
           </button>
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-zinc-800 ring-1 ring-white/10 shrink-0 bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-0.5">
+          <div
+            onClick={onNavigateToMyTrips}
+            className="w-9 h-9 rounded-xl overflow-hidden border border-zinc-800 ring-1 ring-white/10 shrink-0 bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-0.5 cursor-pointer hover:scale-105 transition-transform"
+            title="My Trips & Profile"
+          >
             <img
               src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
               alt="User Avatar"
