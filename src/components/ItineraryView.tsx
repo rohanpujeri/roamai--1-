@@ -360,7 +360,11 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           {trip.title}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium select-none">
+        <div 
+          id="itinerary-route-metadata-bar"
+          className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium select-none !bg-transparent"
+          style={{ backgroundColor: 'transparent' }}
+        >
           {/* Start -> Destination */}
           <span className="flex items-center gap-1.5 text-zinc-300">
             <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
