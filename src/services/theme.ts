@@ -87,16 +87,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-sky-600',
     swatches: ['#0284c7', '#0d9488', '#f59e0b', '#f4fbfe'],
     isDark: false,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=90&w=2400&auto=format&fit=crop',
+    heroPhotoUrl: '/images/bg_beach.jpg',
     heroPhotoPosition: 'center 50%',
     heroPhotoTag: '🌊 Crystal Seashore & Foaming Ocean Surf • 29°C',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=85&w=800&auto=format&fit=crop', title: 'Seashore Surf & Foam', location: 'Golden Sand Shore • 29°C' },
-      { url: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?q=85&w=800&auto=format&fit=crop', title: 'Turquoise Seashore', location: 'Crystal Water Line • 28°C' }
+      { url: '/images/bg_beach.jpg', title: 'Seashore Surf & Foam', location: 'Golden Sand Shore • 29°C' },
+      { url: '/images/bg_beach.jpg', title: 'Turquoise Seashore', location: 'Crystal Water Line • 28°C' }
     ],
     previewTrip: {
       title: 'Coastal & Seashore Escape',
-      image: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=90&w=1200&auto=format&fit=crop',
+      image: '/images/bg_beach.jpg',
       subtitle: '4 Days • 3 Travellers • Coastal Sun',
       budget: '₹30,000 Budget',
       temp: '29°C ☀️',
@@ -139,16 +139,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-emerald-600',
     swatches: ['#059669', '#10b981', '#047857', '#ecfdf5'],
     isDark: false,
-    heroPhotoUrl: 'https://images.travelandleisureasia.com/wp-content/uploads/sites/6/2025/03/24213648/manali-tourist-places-fi.jpeg',
+    heroPhotoUrl: '/images/bg_mountain.jpg',
     heroPhotoPosition: 'center 45%',
     heroPhotoTag: '🌿 100% Lush Emerald Green Mountain Peaks • 4K Ultra HD',
     heroFloatingPhotos: [
-      { url: 'https://images.travelandleisureasia.com/wp-content/uploads/sites/6/2025/03/24213648/manali-tourist-places-fi.jpeg', title: 'Lush Green Mountain', location: 'Emerald Ridge • 2,200m' },
-      { url: 'https://images.travelandleisureasia.com/wp-content/uploads/sites/6/2025/03/24213648/manali-tourist-places-fi.jpeg', title: 'Green Forest Valley', location: 'Pine Slopes • 2,050m' }
+      { url: '/images/bg_mountain.jpg', title: 'Lush Green Mountain', location: 'Emerald Ridge • 2,200m' },
+      { url: '/images/bg_mountain.jpg', title: 'Green Forest Valley', location: 'Pine Slopes • 2,050m' }
     ],
     previewTrip: {
       title: 'Alpine & Summit Escape',
-      image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?q=90&w=1200&auto=format&fit=crop',
+      image: '/images/bg_mountain.jpg',
       subtitle: '4 Days • 2 Travellers • Alpine Adventure',
       budget: '₹26,000 Budget',
       temp: '15°C 🏔️',
@@ -191,16 +191,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-cyan-600',
     swatches: ['#06b6d4', '#059669', '#2563eb', '#f0faf9'],
     isDark: false,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?q=90&w=2560&auto=format&fit=crop',
+    heroPhotoUrl: '/images/bg_waterfall.jpg',
     heroPhotoPosition: 'center 35%',
     heroPhotoTag: '🌊 Cascading Natural Waterfalls & Emerald Canyon Rapids',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1546271876-af6caec5fae5?q=85&w=800&auto=format&fit=crop', title: 'Cascade Rapids', location: 'Natural Waterfall Rapids • 22°C' },
-      { url: 'https://images.unsplash.com/photo-1518457607834-6e8d80c183c5?q=85&w=800&auto=format&fit=crop', title: 'Forest Plunge Basin', location: 'Lush Moss Gorge • 21°C' }
+      { url: '/images/bg_waterfall.jpg', title: 'Cascade Rapids', location: 'Natural Waterfall Rapids • 22°C' },
+      { url: '/images/bg_waterfall.jpg', title: 'Forest Plunge Basin', location: 'Lush Moss Gorge • 21°C' }
     ],
     previewTrip: {
       title: 'Waterfalls & Gorge Adventure',
-      image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?q=90&w=1200&auto=format&fit=crop',
+      image: '/images/bg_waterfall.jpg',
       subtitle: '5 Days • 2 Travellers • Waterfall Explorer',
       budget: '₹24,000 Budget',
       temp: '22°C 🌊',
@@ -243,16 +243,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-green-700',
     swatches: ['#15803d', '#047857', '#84cc16', '#f2f9f3'],
     isDark: false,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=90&w=2560&auto=format&fit=crop',
+    heroPhotoUrl: '/images/bg_trekking.jpg',
     heroPhotoPosition: 'center 40%',
     heroPhotoTag: '🥾 High Mountain Trekking Trails & Alpine Ridges',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?q=85&w=800&auto=format&fit=crop', title: 'Mountain Ridge Path', location: 'High Alpine Pass • 18°C' },
-      { url: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=85&w=800&auto=format&fit=crop', title: 'Wilderness Trek', location: 'Alpine Valley Ridge • 17°C' }
+      { url: '/images/bg_trekking.jpg', title: 'Mountain Ridge Path', location: 'High Alpine Pass • 18°C' },
+      { url: '/images/bg_trekking.jpg', title: 'Wilderness Trek', location: 'Alpine Valley Ridge • 17°C' }
     ],
     previewTrip: {
       title: 'Alpine Ridge & Mountain Trek',
-      image: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=90&w=1200&auto=format&fit=crop',
+      image: '/images/bg_trekking.jpg',
       subtitle: '4 Days • 2 Trekkers • High Ridge Expedition',
       budget: '₹22,000 Budget',
       temp: '17°C 🥾',
@@ -295,16 +295,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-sky-400',
     swatches: ['#0ea5e9', '#6366f1', '#38bdf8', '#090d16'],
     isDark: false,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1623057896740-99f8c2f090fc?q=90&w=2560&auto=format&fit=crop',
+    heroPhotoUrl: '/images/bg_snow.jpg',
     heroPhotoPosition: 'center 40%',
     heroPhotoTag: '❄️ Alpine Sunset & Snow Mountain Slopes • -3°C',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1542332213-31f87348057f?q=85&w=800&auto=format&fit=crop', title: 'High-Altitude Ridge', location: 'Alpine Peak • -6°C' },
-      { url: 'https://images.unsplash.com/photo-1517760444937-f6397edcbbcd?q=85&w=800&auto=format&fit=crop', title: 'Powder Pines', location: 'Glacial Valley • -3°C' }
+      { url: '/images/bg_snow.jpg', title: 'High-Altitude Ridge', location: 'Alpine Peak • -6°C' },
+      { url: '/images/bg_snow.jpg', title: 'Powder Pines', location: 'Glacial Valley • -3°C' }
     ],
     previewTrip: {
       title: 'Alpine Snow & Sunset Expedition',
-      image: 'https://images.unsplash.com/photo-1623057896740-99f8c2f090fc?q=90&w=1200&auto=format&fit=crop',
+      image: '/images/bg_snow.jpg',
       subtitle: '5 Days • 2 Travellers • Alpine Snow Explorer',
       budget: '₹34,000 Budget',
       temp: '-3°C ❄️',

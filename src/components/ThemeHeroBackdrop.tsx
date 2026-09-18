@@ -66,7 +66,7 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
 }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const themeId = currentTheme?.id || 'waterfall';
-  const photoUrl = currentTheme?.heroPhotoUrl || 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?q=90&w=2560&auto=format&fit=crop';
+  const photoUrl = currentTheme?.heroPhotoUrl || '/images/bg_waterfall.jpg';
   const photoPosition = currentTheme?.heroPhotoPosition || 'center 35%';
   const primaryColor = currentTheme?.primaryColor || '#06b6d4';
   const secondaryColor = currentTheme?.secondaryColor || '#059669';
