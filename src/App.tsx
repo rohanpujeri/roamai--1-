@@ -717,11 +717,13 @@ export default function App() {
 
   return (
     <div 
-      className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
+      className={`min-h-screen font-sans antialiased flex flex-col transition-colors duration-300 relative ${
+        currentTheme.isDark ? 'text-slate-100' : 'text-slate-900'
+      }`}
       style={{ backgroundColor: currentTheme.canvasBg }}
     >
       {/* Full-Page Dynamic Photographic Scenic Backdrop across Discover, My Trips, Itinerary, etc. */}
-      <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+      <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark ?? false} />
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

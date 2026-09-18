@@ -18,10 +18,10 @@ interface ColorGradePreset {
 
 const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
   basic: {
-    filter: 'brightness(1.02) contrast(1.06) saturate(1.1)',
-    sunFlare: 'radial-gradient(circle at 80% 15%, rgba(254, 240, 138, 0.25) 0%, transparent 60%)',
+    filter: 'brightness(1.0) contrast(1.04)',
+    sunFlare: 'radial-gradient(ellipse at 28% 22%, rgba(6, 182, 212, 0.18) 0%, transparent 60%)',
     shadowTint: 'transparent',
-    highlightTint: 'radial-gradient(ellipse at 60% 30%, rgba(2, 132, 199, 0.12) 0%, transparent 70%)'
+    highlightTint: 'radial-gradient(ellipse at 45% 35%, rgba(14, 165, 233, 0.08) 0%, transparent 70%)'
   },
   beach: {
     // Vibrant tropical grading: warm golden highlights, vivid turquoise oceans, deep palm greens
@@ -160,6 +160,22 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
       </AnimatePresence>
 
       {/* 2. Theme-Specific Particle & Atmospheric Overlays */}
+      {themeId === 'basic' && (
+        <div className="absolute inset-0 pointer-events-none">
+          {/* Subtle micro-dot matrix grid pattern */}
+          <div 
+            className="absolute inset-0 pointer-events-none opacity-40" 
+            style={{
+              backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px)',
+              backgroundSize: '24px 24px'
+            }}
+          />
+          {/* Subtle glowing ambient cyan glints */}
+          <div className="absolute top-16 left-[25%] w-1.5 h-1.5 rounded-full bg-cyan-400/50 blur-[0.5px] animate-pulse" style={{ animationDuration: '4s' }} />
+          <div className="absolute top-48 left-[45%] w-1 h-1 rounded-full bg-teal-300/40 blur-[0.5px] animate-ping" style={{ animationDuration: '6s' }} />
+        </div>
+      )}
+
       {themeId === 'beach' && (
         <div className="absolute inset-0 pointer-events-none">
           {/* Subtle Sun & Crystal Water Glints */}
