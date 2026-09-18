@@ -135,6 +135,16 @@ const getCalculatedDaysBetween = (startString: string, endString: string) => {
   return 4;
 };
 
+const formatDisplayDate = (dateString: string) => {
+  if (!dateString) return '';
+  const parts = dateString.split('-').map(Number);
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  return dateString;
+};
+
 // Helper to estimate realistic transit cost based on travel mode, budget tier, duration, travellers, and distance
 export const getTravelModeTransitCost = (
   mode: TravelMode,
@@ -1292,8 +1302,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   </div>
                 </div>
 
-                {/* 2. DATE INPUTS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
+                {/* 2. DATE INPUTS - SIDE BY SIDE IN ONE LINE WITHOUT OVERLAPPING */}
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-4 pt-1">
                   <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
@@ -1313,25 +1323,31 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         Today
                       </button>
                     </div>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
-                        const minReq = effectiveMinDays;
-                        setStartDate(newStart);
-                        if (newStart && endDate) {
-                          const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
-                          if (calculatedDays < minReq) {
-                            setDurationDays(minReq);
-                            setEndDate(getCalculatedEndDate(newStart, minReq));
-                          } else {
-                            setDurationDays(calculatedDays);
+                    <div className="relative flex items-center justify-between h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm shadow-xs cursor-pointer hover:border-emerald-500 transition-colors overflow-hidden">
+                      <span className="truncate pr-1">
+                        {formatDisplayDate(startDate) || 'Select date'}
+                      </span>
+                      <CalendarIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 shrink-0" />
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          const minReq = effectiveMinDays;
+                          setStartDate(newStart);
+                          if (newStart && endDate) {
+                            const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
+                            if (calculatedDays < minReq) {
+                              setDurationDays(minReq);
+                              setEndDate(getCalculatedEndDate(newStart, minReq));
+                            } else {
+                              setDurationDays(calculatedDays);
+                            }
                           }
-                        }
-                      }}
-                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer block min-w-0"
-                    />
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                    </div>
                   </div>
 
                   <div className="min-w-0">
@@ -1343,25 +1359,31 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         {durationDays} {durationDays === 1 ? 'Day' : 'Days'}
                       </span>
                     </div>
-                    <input
-                      type="date"
-                      value={endDate}
-                      min={getCalculatedEndDate(startDate, effectiveMinDays)}
-                      onChange={(e) => {
-                        const newEnd = e.target.value;
-                        const minReq = effectiveMinDays;
-                        setEndDate(newEnd);
-                        if (startDate && newEnd) {
-                          const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
-                          const safeDays = Math.max(calculatedDays, minReq);
-                          setDurationDays(safeDays);
-                          if (calculatedDays < minReq) {
-                            setEndDate(getCalculatedEndDate(startDate, minReq));
+                    <div className="relative flex items-center justify-between h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm shadow-xs cursor-pointer hover:border-emerald-500 transition-colors overflow-hidden">
+                      <span className="truncate pr-1">
+                        {formatDisplayDate(endDate) || 'Select date'}
+                      </span>
+                      <CalendarIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 shrink-0" />
+                      <input
+                        type="date"
+                        value={endDate}
+                        min={getCalculatedEndDate(startDate, effectiveMinDays)}
+                        onChange={(e) => {
+                          const newEnd = e.target.value;
+                          const minReq = effectiveMinDays;
+                          setEndDate(newEnd);
+                          if (startDate && newEnd) {
+                            const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
+                            const safeDays = Math.max(calculatedDays, minReq);
+                            setDurationDays(safeDays);
+                            if (calculatedDays < minReq) {
+                              setEndDate(getCalculatedEndDate(startDate, minReq));
+                            }
                           }
-                        }
-                      }}
-                      className="w-full h-10 sm:h-11 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer block min-w-0"
-                    />
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                    </div>
                   </div>
                 </div>
 
