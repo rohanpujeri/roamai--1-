@@ -297,7 +297,7 @@ export const SerpentineItineraryTimeline: React.FC<SerpentineItineraryTimelinePr
   const effectivePathD = measuredPathD || fallbackPathD;
 
   return (
-    <div className="relative w-full bg-[#050507] text-white rounded-3xl p-3 sm:p-8 lg:p-12 overflow-hidden shadow-2xl border border-zinc-900/90 select-none">
+    <div className="relative w-full bg-[#050507]/90 backdrop-blur-2xl text-white rounded-3xl p-3 sm:p-8 lg:p-12 overflow-hidden shadow-2xl border border-zinc-800/80 select-none">
       {/* Background Starry Dust & Subtle Neon Ambient Glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[8%] left-[30%] w-1.5 h-1.5 bg-emerald-400/80 rounded-full animate-pulse" />

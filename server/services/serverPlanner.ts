@@ -1,4 +1,4 @@
-import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember } from '../../src/types';
+import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember, HotelStayRecommendation } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
 import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';

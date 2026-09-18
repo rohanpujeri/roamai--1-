@@ -299,26 +299,36 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
   const transitSummaryText = useMemo(() => {
     const km = trip.routeSummary?.distanceKm || Math.round((trip.durationDays || 3) * 140);
-    const hours = trip.routeSummary?.durationHours || Math.max(1, Math.round(km / 45));
+    const duration = trip.travelMode === 'Train'
+      ? trip.routeSummary?.trainDuration
+      : trip.travelMode === 'Flight'
+      ? trip.routeSummary?.flightDuration
+      : trip.routeSummary?.driveDuration;
+    if (duration) {
+      return `${km} km · ${duration}`;
+    }
+    const hours = Math.max(1, Math.round(km / 45));
     const modeText = trip.travelMode === 'Bike / Motorcycle' ? 'ride' : trip.travelMode === 'Train' ? 'train' : 'drive';
     return `${km} km · ${hours}h ${modeText}`;
   }, [trip.routeSummary, trip.durationDays, trip.travelMode]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
-      {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <div className="flex items-center gap-2">
-          {onNavigateHome && (
-            <button
-              onClick={onNavigateHome}
-              className="p-1.5 sm:p-2 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-              title="Return to Home / Discover"
-            >
-              <Compass className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Home</span>
-            </button>
-          )}
+      {/* Upper Itinerary Header Dashboard Card (Housed in dark glassmorphism over landing page background) */}
+      <div className="bg-[#090a0c]/90 backdrop-blur-2xl rounded-3xl p-4 sm:p-7 border border-zinc-800/80 shadow-2xl space-y-6 text-white">
+        {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2">
+            {onNavigateHome && (
+              <button
+                onClick={onNavigateHome}
+                className="p-1.5 sm:p-2 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                title="Return to Home / Discover"
+              >
+                <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Home</span>
+              </button>
+            )}
 
           {onBackToStep6 && (
             <button
@@ -429,15 +439,18 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           </div>
         </div>
       </div>
+    </div>
 
       {/* TAB CONTENTS */}
 
       {/* TAB 1: DAY ITINERARY */}
       {activeTab === 'itinerary' && (
-        <div className="space-y-6 pt-2">
-          {/* "Your Days" Section matching mockup */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+        <div className="space-y-6">
+          {/* Days Selector & Sub-header Dashboard Card */}
+          <div className="bg-[#090a0c]/90 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 border border-zinc-800/80 shadow-2xl space-y-5 text-white">
+            {/* "Your Days" Section matching mockup */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Your Days</h2>
               {onAddDay && (
                 <button
@@ -555,9 +568,10 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Day Stay Highlight / Quick Hotel Selector (Toggled by user) */}
-          {isStayVisible && (
+        {/* Day Stay Highlight / Quick Hotel Selector (Toggled by user) */}
+        {isStayVisible && (
             <div
               id="tonight-recommended-stay-card"
               className="p-2.5 sm:p-3 rounded-xl bg-black/95 dark:bg-black/95 backdrop-blur-md border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm transition-all"

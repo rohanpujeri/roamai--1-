@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { BudgetTier, TravelCompanion, HotelStayRecommendation } from '../../src/types';
+import { BudgetTier, TravelCompanion, HotelStayRecommendation, TravelMode } from '../../src/types';
 import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface HotelRecommendationParams {

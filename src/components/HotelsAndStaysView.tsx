@@ -403,7 +403,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
               return (
                 <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300/80 dark:border-emerald-700/80 px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <span>📍</span>
-                  <span>Near {lastAct.title} ({lastAct.location || activeDayObj?.location || 'Local Area'})</span>
+                  <span>Near {lastAct.title} ({lastAct.location || trip.destination || 'Local Area'})</span>
                 </span>
               );
             })()}
