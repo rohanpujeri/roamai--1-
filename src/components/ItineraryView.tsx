@@ -313,15 +313,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
-      {/* Upper Itinerary Header Dashboard Card (Housed in dark glassmorphism over landing page background) */}
-      <div className="bg-[#090a0c]/90 backdrop-blur-2xl rounded-3xl p-4 sm:p-7 border border-zinc-800/80 shadow-2xl space-y-6 text-white">
+      {/* Upper Itinerary Header Dashboard Card (Pure black card background) */}
+      <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-7 border border-zinc-800 shadow-2xl space-y-6 text-white">
         {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2">
             {onNavigateHome && (
               <button
                 onClick={onNavigateHome}
-                className="p-1.5 sm:p-2 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                className="p-1.5 sm:p-2 rounded-xl bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
                 title="Return to Home / Discover"
               >
                 <Compass className="w-3.5 h-3.5 text-emerald-400" />
@@ -333,7 +333,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             <button
               id="back-to-step-6-btn"
               onClick={onBackToStep6}
-              className="px-3.5 py-1.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
               title="Back to Step 6 to edit styles and preferences"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
@@ -392,7 +392,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       {/* Main Navigation Tabs Bar */}
       <div className="flex items-center justify-start gap-3 pt-2">
         {/* Segmented Pill Navigation */}
-        <div className="bg-[#121316] p-1.5 rounded-2xl border border-zinc-800/80 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
+        <div className="bg-black p-1.5 rounded-2xl border border-zinc-800 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
           {[
             { id: 'itinerary', label: 'Day Itinerary', icon: CalendarDays },
             { id: 'map', label: 'Route Map', icon: MapPin },
@@ -428,7 +428,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       {activeTab === 'itinerary' && (
         <div className="space-y-6">
           {/* Days Selector & Sub-header Dashboard Card */}
-          <div className="bg-[#090a0c]/90 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 border border-zinc-800/80 shadow-2xl space-y-5 text-white">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 border border-zinc-800 shadow-2xl space-y-5 text-white">
             {/* "Your Days" Section matching mockup */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -463,7 +463,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     className={`w-32 sm:w-36 h-[86px] sm:h-[94px] p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between shrink-0 text-left transition-all duration-200 cursor-pointer select-none ${
                       isActive
                         ? 'bg-[#10b981] text-white shadow-[0_0_22px_rgba(16,185,129,0.4)] border border-emerald-400/50'
-                        : 'bg-[#121316] hover:bg-[#181a1e] text-white border border-zinc-800/80 hover:border-zinc-700'
+                        : 'bg-black hover:bg-zinc-950 text-white border border-zinc-800 hover:border-zinc-700'
                     }`}
                   >
                     {/* Top row: Day Number + Weather Icon */}
@@ -514,7 +514,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               {/* Toggle Switch */}
               <div
                 onClick={() => setItineraryLayoutMode(prev => prev === 'serpentine' ? 'cards' : 'serpentine')}
-                className="bg-[#121316] border border-zinc-800 rounded-xl p-1.5 flex items-center gap-2 cursor-pointer select-none hover:border-zinc-700 transition-colors"
+                className="bg-black border border-zinc-800 rounded-xl p-1.5 flex items-center gap-2 cursor-pointer select-none hover:border-zinc-700 transition-colors"
                 title="Toggle view between Serpentine Flow and Classic Cards"
               >
                 <div className={`w-8 h-4.5 rounded-full p-0.5 flex items-center transition-colors ${itineraryLayoutMode === 'serpentine' ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'}`}>
@@ -538,7 +538,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
                   }))
                 }
-                className="py-2 px-3.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors"
+                className="py-2 px-3.5 rounded-xl bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors"
                 title="Click to view or hide recommended stay for this day"
               >
                 <Building2 className="w-3.5 h-3.5 text-emerald-400" />

@@ -151,18 +151,18 @@ export const MapView: React.FC<MapViewProps> = ({
   return (
     <div className="space-y-6 text-left max-w-7xl mx-auto">
       {/* Top Header & Day Navigation */}
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 shadow-xl border border-white/80 dark:border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-4 sm:p-6 shadow-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <span>Google Maps Route Navigation</span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300 dark:border-emerald-700">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 text-[10px] font-bold border border-emerald-700">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live API
               </span>
             </h3>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+          <p className="text-xs text-zinc-400 mt-0.5">
             Day {currentDay.dayNumber}: {currentDay.theme} • {activities.length} Geo-located stops in {trip.destination}
           </p>
         </div>
@@ -181,7 +181,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   day.dayNumber === activeDayNumber
                     ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/70 dark:border-slate-700'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
                 }`}
               >
                 Day {day.dayNumber}
@@ -203,7 +203,7 @@ export const MapView: React.FC<MapViewProps> = ({
           <button
             onClick={() => setIsKeyModalOpen(true)}
             title="Google Maps API Settings"
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-zinc-800 transition-colors cursor-pointer"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -214,7 +214,7 @@ export const MapView: React.FC<MapViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Google Maps Container */}
-        <div className="lg:col-span-8 bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 relative min-h-[540px] flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-black/95 rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 relative min-h-[540px] flex flex-col justify-between">
           
           {/* Top Overlay Controls Toolbar */}
           <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none gap-2">
@@ -411,13 +411,13 @@ export const MapView: React.FC<MapViewProps> = ({
           
           {/* Selected Stop Card */}
           {selectedActivity && (
-            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-5 shadow-xl border border-white/80 dark:border-white/15 space-y-3.5">
+            <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-zinc-800 space-y-3.5 text-white">
               <div className="flex items-center justify-between">
-                <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800 text-xs font-bold flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Stop #{selectedPinIndex + 1} • {selectedActivity.time}
                 </span>
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-white">
                   {selectedActivity.estimatedCost === 0
                     ? 'Free'
                     : `₹${selectedActivity.estimatedCost.toLocaleString()}`}
@@ -448,19 +448,19 @@ export const MapView: React.FC<MapViewProps> = ({
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Duration</span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedActivity.duration}</span>
+                <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-400 block font-medium">Duration</span>
+                  <span className="text-xs font-bold text-white">{selectedActivity.duration}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Transit</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate block">
+                <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-400 block font-medium">Transit</span>
+                  <span className="text-xs font-bold text-emerald-400 truncate block">
                     {selectedActivity.travelTimeFromPrev || '10 min'}
                   </span>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3">
+              <p className="text-xs text-zinc-300 leading-relaxed line-clamp-3">
                 {selectedActivity.description}
               </p>
 
@@ -492,12 +492,12 @@ export const MapView: React.FC<MapViewProps> = ({
           )}
 
           {/* Sequential Route Stop list */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-5 shadow-xl border border-white/80 dark:border-white/15 space-y-3">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-zinc-800 space-y-3 text-white">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                 Day {currentDay.dayNumber} Stops Sequence
               </h4>
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="text-[11px] font-semibold text-emerald-400">
                 {activities.length} stops
               </span>
             </div>
@@ -516,8 +516,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     }}
                     className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
-                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 font-bold shadow-sm'
-                        : 'border-slate-200/70 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                        ? 'border-emerald-500 bg-emerald-950/60 text-emerald-200 font-bold shadow-sm'
+                        : 'border-zinc-800 hover:bg-zinc-900 text-zinc-300'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">

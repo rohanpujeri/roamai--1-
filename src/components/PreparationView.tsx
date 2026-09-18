@@ -98,7 +98,7 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
         
         {/* Left Column: Packing Checklist */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-5">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-zinc-800 space-y-5 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
@@ -221,7 +221,7 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
         <div className="lg:col-span-5 space-y-6">
           
           {/* Government & Official Requirements */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-zinc-800 space-y-4 text-white">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 flex items-center justify-center font-bold">
                 <ShieldCheck className="w-5 h-5" />
@@ -278,7 +278,7 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
           </div>
 
           {/* Things to Book Checklist */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-zinc-800 space-y-4 text-white">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center font-bold">
                 <CalendarCheck className="w-5 h-5" />

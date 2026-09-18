@@ -271,7 +271,7 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
       </div>
 
       {/* Interactive Controls: Day Filter, Category Filter, and Budget Tier Switcher */}
-      <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl p-5 sm:p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-5">
+      <div className="bg-black/95 backdrop-blur-2xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-zinc-800 space-y-5 text-white">
 
         {/* Row 1: Locked Budget Tier Badge & Search Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
@@ -457,9 +457,9 @@ export const HotelsAndStaysView: React.FC<HotelsAndStaysViewProps> = ({
               return (
                 <div
                   key={hotel.id}
-                  className={`rounded-3xl overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border transition-all duration-300 flex flex-col justify-between shadow-xl hover:shadow-2xl ${isSelectedForAnyDay
+                  className={`rounded-3xl overflow-hidden bg-black/95 backdrop-blur-2xl border transition-all duration-300 flex flex-col justify-between shadow-2xl text-white ${isSelectedForAnyDay
                     ? 'border-emerald-500 ring-2 ring-emerald-500/20'
-                    : 'border-white/80 dark:border-white/15 hover:border-emerald-400'
+                    : 'border-zinc-800 hover:border-zinc-700'
                     }`}
                 >
                   <div>
