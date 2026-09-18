@@ -1247,25 +1247,21 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         {
                           days: minDays,
                           label: `${minDays} ${minDays === 1 ? 'Day' : 'Days'}`,
-                          sub: `Min (${travelMode})`,
                           isPlus: false
                         },
                         {
                           days: minDays + 1,
                           label: `${minDays + 1} Days`,
-                          sub: `+1 Day`,
                           isPlus: false
                         },
                         {
                           days: minDays + 2,
                           label: `${minDays + 2} Days`,
-                          sub: `+2 Days`,
                           isPlus: false
                         },
                         {
                           days: minDays + 3,
                           label: `${minDays + 3}+ Days`,
-                          sub: `+3+ Days`,
                           isPlus: true
                         }
                       ];
@@ -1282,14 +1278,13 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               setDurationDays(opt.days);
                               setEndDate(getCalculatedEndDate(startDate, opt.days));
                             }}
-                            className={`wizard-option-btn py-2 px-1.5 sm:px-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                            className={`wizard-option-btn py-2.5 px-2 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center ${
                               isSelected
-                                ? 'is-selected border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500/20'
-                                : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600 font-medium bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                ? 'is-selected border-emerald-500 bg-emerald-600/20 text-emerald-400 font-bold shadow-xs ring-1 ring-emerald-500/40'
+                                : 'border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-white font-semibold bg-zinc-900/90 hover:bg-zinc-800'
                             }`}
                           >
-                            <span className="text-xs sm:text-sm block font-bold leading-tight truncate">{opt.label}</span>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate leading-tight mt-0.5">{opt.sub}</span>
+                            <span className="text-xs sm:text-sm font-bold leading-tight truncate">{opt.label}</span>
                           </button>
                         );
                       });
@@ -1298,11 +1293,12 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 </div>
 
                 {/* 2. DATE INPUTS */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
-                  <div>
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 pt-1">
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
-                        Start Date
+                      <label className="text-xs font-bold text-zinc-300 truncate flex items-center gap-1.5">
+                        <CalendarIcon className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Start Date</span>
                       </label>
                       <button
                         type="button"
@@ -1312,61 +1308,65 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           setStartDate(today);
                           setEndDate(getCalculatedEndDate(today, Math.max(durationDays, minReq)));
                         }}
-                        style={{ color: '#90a1b9' }}
-                        className="text-[11px] font-semibold text-[#90a1b9] hover:text-emerald-800 hover:underline cursor-pointer ml-1"
+                        className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer ml-1"
                       >
                         Today
                       </button>
                     </div>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
-                        const minReq = effectiveMinDays;
-                        setStartDate(newStart);
-                        if (newStart && endDate) {
-                          const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
-                          if (calculatedDays < minReq) {
-                            setDurationDays(minReq);
-                            setEndDate(getCalculatedEndDate(newStart, minReq));
-                          } else {
-                            setDurationDays(calculatedDays);
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          const minReq = effectiveMinDays;
+                          setStartDate(newStart);
+                          if (newStart && endDate) {
+                            const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
+                            if (calculatedDays < minReq) {
+                              setDurationDays(minReq);
+                              setEndDate(getCalculatedEndDate(newStart, minReq));
+                            } else {
+                              setDurationDays(calculatedDays);
+                            }
                           }
-                        }
-                      }}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
-                    />
+                        }}
+                        className="w-full h-10 sm:h-11 px-3 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-zinc-800/90 text-white font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-xs cursor-pointer [color-scheme:dark]"
+                      />
+                    </div>
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
-                        End Date
+                      <label className="text-xs font-bold text-zinc-300 truncate flex items-center gap-1.5">
+                        <CalendarIcon className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>End Date</span>
                       </label>
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap ml-1">
+                      <span className="text-[11px] font-semibold text-zinc-400 whitespace-nowrap ml-1">
                         {durationDays} {durationDays === 1 ? 'Day' : 'Days'}
                       </span>
                     </div>
-                    <input
-                      type="date"
-                      value={endDate}
-                      min={getCalculatedEndDate(startDate, effectiveMinDays)}
-                      onChange={(e) => {
-                        const newEnd = e.target.value;
-                        const minReq = effectiveMinDays;
-                        setEndDate(newEnd);
-                        if (startDate && newEnd) {
-                          const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
-                          const safeDays = Math.max(calculatedDays, minReq);
-                          setDurationDays(safeDays);
-                          if (calculatedDays < minReq) {
-                            setEndDate(getCalculatedEndDate(startDate, minReq));
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={endDate}
+                        min={getCalculatedEndDate(startDate, effectiveMinDays)}
+                        onChange={(e) => {
+                          const newEnd = e.target.value;
+                          const minReq = effectiveMinDays;
+                          setEndDate(newEnd);
+                          if (startDate && newEnd) {
+                            const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
+                            const safeDays = Math.max(calculatedDays, minReq);
+                            setDurationDays(safeDays);
+                            if (calculatedDays < minReq) {
+                              setEndDate(getCalculatedEndDate(startDate, minReq));
+                            }
                           }
-                        }
-                      }}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
-                    />
+                        }}
+                        className="w-full h-10 sm:h-11 px-3 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-zinc-800/90 text-white font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-xs cursor-pointer [color-scheme:dark]"
+                      />
+                    </div>
                   </div>
                 </div>
 
