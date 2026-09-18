@@ -22,7 +22,6 @@ import {
   Play,
   CornerDownRight,
   LayoutGrid,
-  Bell,
   Snowflake,
   Cloud,
   CloudRain
@@ -361,7 +360,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           {trip.title}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium select-none">
           {/* Start -> Destination */}
           <span className="flex items-center gap-1.5 text-zinc-300">
             <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -386,8 +385,8 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation Tabs Bar + Notification & Avatar matching mockup */}
-      <div className="flex items-center justify-between gap-3 pt-2">
+      {/* Main Navigation Tabs Bar */}
+      <div className="flex items-center justify-start gap-3 pt-2">
         {/* Segmented Pill Navigation */}
         <div className="bg-[#121316] p-1.5 rounded-2xl border border-zinc-800/80 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
           {[
@@ -415,28 +414,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               </button>
             );
           })}
-        </div>
-
-        {/* Notification Bell & Profile Avatar */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="w-9 h-9 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-          </button>
-          <div
-            onClick={onNavigateToMyTrips}
-            className="w-9 h-9 rounded-xl overflow-hidden border border-zinc-800 ring-1 ring-white/10 shrink-0 bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-0.5 cursor-pointer hover:scale-105 transition-transform"
-            title="My Trips & Profile"
-          >
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-              alt="User Avatar"
-              className="w-full h-full object-cover rounded-[10px]"
-            />
-          </div>
         </div>
       </div>
     </div>
