@@ -4,6 +4,7 @@ import {
   Navigation,
   MapPin,
   Calendar,
+  CalendarDays,
   Sun,
   Plus,
   ArrowRight,
@@ -17,7 +18,14 @@ import {
   BedDouble,
   ExternalLink,
   Loader2,
-  Zap
+  Zap,
+  Play,
+  CornerDownRight,
+  LayoutGrid,
+  Bell,
+  Snowflake,
+  Cloud,
+  CloudRain
 } from 'lucide-react';
 import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem, HotelStayRecommendation } from '../types';
 import { ActivityCard } from './ActivityCard';
@@ -178,104 +186,226 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     });
   };
 
+  const getWeatherIcon = (condition?: string, temp?: string) => {
+    const c = (condition || '').toLowerCase();
+    const t = parseInt(temp || '20', 10);
+    if (c.includes('snow') || c.includes('ice') || t <= 5) {
+      return <Snowflake className="w-3.5 h-3.5 shrink-0" />;
+    }
+    if (c.includes('rain') || c.includes('shower') || c.includes('drizzle')) {
+      return <CloudRain className="w-3.5 h-3.5 shrink-0" />;
+    }
+    if (c.includes('cloud') || c.includes('overcast') || c.includes('fog')) {
+      return <Cloud className="w-3.5 h-3.5 shrink-0" />;
+    }
+    return <Sun className="w-3.5 h-3.5 shrink-0" />;
+  };
+
+  const getShortDayTitle = (day: DayItinerary) => {
+    if (!day.theme) return `Day ${day.dayNumber}`;
+    const parts = day.theme.split(/\s*[-&:]\s*/);
+    if (parts.length > 1 && parts[0].length >= 3 && parts[0].length <= 18) {
+      return parts[0].trim();
+    }
+    return day.theme;
+  };
+
+  const getShortDayDate = (tripStartDate?: string, dayNumber: number = 1, rawDate?: string): string => {
+    if (tripStartDate) {
+      const parts = tripStartDate.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const dateObj = new Date(y, m, d + (dayNumber - 1));
+          return dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+        }
+      }
+      const parsed = new Date(tripStartDate);
+      if (!isNaN(parsed.getTime())) {
+        parsed.setDate(parsed.getDate() + (dayNumber - 1));
+        return parsed.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      }
+    }
+    if (rawDate) {
+      const trimmed = rawDate.trim();
+      const m = trimmed.match(/\d{1,2}\s+[A-Za-z]{3}/);
+      if (m) return m[0];
+    }
+    return `Day ${dayNumber}`;
+  };
+
+  const getFormattedFullDate = (tripStartDate?: string, dayNumber: number = 1, rawDate?: string): string => {
+    if (tripStartDate) {
+      const parts = tripStartDate.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const dateObj = new Date(y, m, d + (dayNumber - 1));
+          return dateObj.toLocaleDateString('en-US', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          });
+        }
+      }
+      const parsed = new Date(tripStartDate);
+      if (!isNaN(parsed.getTime())) {
+        parsed.setDate(parsed.getDate() + (dayNumber - 1));
+        return parsed.toLocaleDateString('en-US', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      }
+    }
+    return getFormattedDayDate(tripStartDate, dayNumber, rawDate);
+  };
+
+  const formattedTripDateRange = useMemo(() => {
+    if (!trip.startDate) return 'Upcoming Journey';
+    const parseD = (s: string) => {
+      const parts = s.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        return new Date(y, m, d);
+      }
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const d1 = parseD(trip.startDate);
+    const d2 = trip.endDate ? parseD(trip.endDate) : null;
+    if (d1 && d2) {
+      const d1Str = d1.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      const d2Str = d2.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${d1Str} – ${d2Str}`;
+    }
+    if (d1) {
+      return d1.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    return `${trip.startDate}${trip.endDate ? ` – ${trip.endDate}` : ''}`;
+  }, [trip.startDate, trip.endDate]);
+
+  const transitSummaryText = useMemo(() => {
+    const km = trip.routeSummary?.distanceKm || Math.round((trip.durationDays || 3) * 140);
+    const hours = trip.routeSummary?.durationHours || Math.max(1, Math.round(km / 45));
+    const modeText = trip.travelMode === 'Bike / Motorcycle' ? 'ride' : trip.travelMode === 'Train' ? 'train' : 'drive';
+    return `${km} km · ${hours}h ${modeText}`;
+  }, [trip.routeSummary, trip.durationDays, trip.travelMode]);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
-      
-      {/* Top Hero Banner */}
-      <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border border-slate-200/90 bg-slate-900 text-white">
-        <div className="relative h-36 sm:h-44 w-full">
-          <img
-            src={trip.heroImage}
-            alt={trip.destination}
-            className="w-full h-full object-cover"
-          />
-          {/* Image with subtle overlay */}
-          <div className="absolute inset-0 bg-slate-950/30 pointer-events-none" />
+      {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        {onBackToStep6 ? (
+          <button
+            id="back-to-step-6-btn"
+            onClick={onBackToStep6}
+            className="px-3.5 py-1.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+            title="Back to Step 6 to edit styles and preferences"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Back to Step 6</span>
+          </button>
+        ) : <div />}
 
-          {/* Hero Content */}
-          <div className="absolute bottom-3.5 left-4 right-4 sm:bottom-4 sm:left-6 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div className="space-y-1 min-w-0">
-              <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] truncate">
-                {trip.title}
-              </h1>
-
-              <p className="text-[11px] sm:text-xs text-slate-200 font-medium flex flex-wrap items-center gap-2 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span className="truncate">{trip.startCity ? `${trip.startCity} ➔ ${trip.destination}` : trip.destination}, {trip.destinationStateOrCountry}</span>
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1 shrink-0">
-                  <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span>{trip.startDate} to {trip.endDate}</span>
-                </span>
-              </p>
-            </div>
-
-            {/* Quick Actions in Header */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {onBackToStep6 && (
-                <button
-                  id="back-to-step-6-btn"
-                  onClick={onBackToStep6}
-                  className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white/90 hover:bg-white text-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 dark:text-slate-100 font-bold text-xs border border-white/60 dark:border-slate-700 backdrop-blur-md shadow-md flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                  title="Back to Step 6 to edit styles and preferences"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>Back to Step 6</span>
-                </button>
-              )}
-
-              <button
-                id="enter-trip-mode-btn"
-                onClick={onEnterTripMode}
-                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-[#1b4332] hover:bg-[#2d6a4f] text-white font-bold text-xs border border-emerald-500/50 backdrop-blur-md shadow-[0_0_14px_rgba(45,106,79,0.55)] hover:shadow-[0_0_20px_rgba(45,106,79,0.75)] ring-2 ring-emerald-400/30 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-              >
-                <Navigation className="w-4 h-4 text-emerald-300 animate-pulse" />
-                <span>Enter Trip Mode</span>
-              </button>
-            </div>
+        <button
+          id="enter-trip-mode-btn"
+          onClick={onEnterTripMode}
+          className="px-4 py-2 rounded-xl bg-[#10b981] hover:bg-emerald-400 text-white font-black text-xs flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95 cursor-pointer"
+        >
+          <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+            <Play className="w-2.5 h-2.5 fill-white text-white ml-0.5" />
           </div>
+          <span>Enter Trip Mode</span>
+        </button>
+      </div>
+
+      {/* Hero Header: Title & Route Summary matching mockup */}
+      <div className="space-y-2.5 pt-2">
+        <h1 className="font-['Playfair_Display',serif] text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+          {trip.title}
+        </h1>
+
+        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-zinc-400 font-medium">
+          {/* Start -> Destination */}
+          <span className="flex items-center gap-1.5 text-zinc-300">
+            <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>{trip.startCity ? `${trip.startCity} → ${trip.destination}` : trip.destination}</span>
+          </span>
+
+          <span className="text-zinc-600 font-bold">•</span>
+
+          {/* Distance & Transit Time */}
+          <span className="flex items-center gap-1.5 text-zinc-300">
+            <CornerDownRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>{transitSummaryText}</span>
+          </span>
+
+          <span className="text-zinc-600 font-bold">•</span>
+
+          {/* Date Range */}
+          <span className="flex items-center gap-1.5 text-zinc-300">
+            <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>{formattedTripDateRange}</span>
+          </span>
         </div>
       </div>
 
-      {/* Main Tabs Navigation Bar */}
-      <div className="bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2 shadow-xl border border-zinc-800">
-        <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap items-center gap-1.5 sm:gap-2 pb-0.5 sm:pb-0">
-          {(
-            [
-              { id: 'itinerary', label: 'Day Itinerary', icon: Calendar },
-              { id: 'map', label: 'Route Map', icon: MapPin },
-              { id: 'preparation', label: 'Preparation & Packing', icon: CheckCircle2 },
-              { id: 'hotels', label: 'Hotels & Stays', icon: Building2, badge: 'Stays' },
-              { id: 'overview', label: 'Trip Overview', icon: Sparkles }
-            ] as { id: 'itinerary' | 'overview' | 'map' | 'preparation' | 'hotels'; label: string; icon: any; badge?: string }[]
-          ).map((tab) => {
+      {/* Main Navigation Tabs Bar + Notification & Avatar matching mockup */}
+      <div className="flex items-center justify-between gap-3 pt-2">
+        {/* Segmented Pill Navigation */}
+        <div className="bg-[#121316] p-1.5 rounded-2xl border border-zinc-800/80 flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
+          {[
+            { id: 'itinerary', label: 'Day Itinerary', icon: CalendarDays },
+            { id: 'map', label: 'Route Map', icon: MapPin },
+            { id: 'preparation', label: 'Preparation', icon: CheckCircle2 },
+            { id: 'hotels', label: 'Hotels', icon: BedDouble },
+            { id: 'overview', label: 'Overview', icon: LayoutGrid }
+          ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 id={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
                   isActive
-                    ? 'bg-zinc-900 text-white shadow-md ring-1 ring-emerald-400/40 border border-emerald-500/40'
-                    : 'text-zinc-300 hover:text-white bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-800'
+                    ? 'bg-[#181a1e] text-white border border-zinc-700/60 shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`} />
                 <span>{tab.label}</span>
-                {tab.badge && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-extrabold ${
-                    isActive ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-300'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
               </button>
             );
           })}
+        </div>
+
+        {/* Notification Bell & Profile Avatar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            className="w-9 h-9 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+          </button>
+          <div className="w-9 h-9 rounded-xl overflow-hidden border border-zinc-800 ring-1 ring-white/10 shrink-0 bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-0.5">
+            <img
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+              alt="User Avatar"
+              className="w-full h-full object-cover rounded-[10px]"
+            />
+          </div>
         </div>
       </div>
 
@@ -283,123 +413,126 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
       {/* TAB 1: DAY ITINERARY */}
       {activeTab === 'itinerary' && (
-        <div className="space-y-4">
-          {/* Horizontal Day Selector Bar (Day 1, Day 2, Day 3... + Add a Day) */}
-          <div className="bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-zinc-800 flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
+        <div className="space-y-6 pt-2">
+          {/* "Your Days" Section matching mockup */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Your Days</h2>
+              {onAddDay && (
+                <button
+                  id="btn-add-a-day"
+                  type="button"
+                  onClick={onAddDay}
+                  className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add a Day</span>
+                </button>
+              )}
+            </div>
+
+            {/* Horizontal Day Cards Carousel */}
+            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1.5 scroll-smooth">
               {days.map((day) => {
                 const isActive = day.dayNumber === activeDayNumber;
+                const weatherIcon = getWeatherIcon(day.weatherForecast?.condition, day.weatherForecast?.temp);
+                const shortTheme = getShortDayTitle(day);
+                const shortDate = getShortDayDate(trip.startDate, day.dayNumber, day.date);
+
                 return (
                   <button
                     key={day.dayNumber}
-                    id={`day-tab-btn-${day.dayNumber}`}
+                    id={`day-card-${day.dayNumber}`}
+                    type="button"
                     onClick={() => onSelectDay(day.dayNumber)}
-                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
+                    className={`w-32 sm:w-36 h-[86px] sm:h-[94px] p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between shrink-0 text-left transition-all duration-200 cursor-pointer select-none ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-1 ring-emerald-400'
-                        : 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white border border-zinc-800'
+                        ? 'bg-[#10b981] text-white shadow-[0_0_22px_rgba(16,185,129,0.4)] border border-emerald-400/50'
+                        : 'bg-[#121316] hover:bg-[#181a1e] text-white border border-zinc-800/80 hover:border-zinc-700'
                     }`}
                   >
-                    <span className="font-extrabold">Day {day.dayNumber}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
-                      isActive ? 'bg-emerald-700/60 text-emerald-100' : 'bg-zinc-800 text-zinc-300'
-                    }`}>
-                      {day.weatherForecast?.temp || '26°C'}
+                    {/* Top row: Day Number + Weather Icon */}
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-semibold ${isActive ? 'text-white/90' : 'text-zinc-400'}`}>
+                        Day {day.dayNumber}
+                      </span>
+                      <span className={isActive ? 'text-white' : 'text-zinc-400'}>
+                        {weatherIcon}
+                      </span>
+                    </div>
+
+                    {/* Middle row: Short concise Title */}
+                    <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isActive ? 'text-white font-black' : 'text-white'}`}>
+                      {shortTheme}
+                    </h4>
+
+                    {/* Bottom row: Date · Temperature */}
+                    <span className={`text-[10px] font-medium truncate ${isActive ? 'text-white/90 font-semibold' : 'text-zinc-400'}`}>
+                      {shortDate} · {day.weatherForecast?.temp || '22°C'}
                     </span>
                   </button>
                 );
               })}
             </div>
-
-            {onAddDay && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  id="btn-add-a-day"
-                  type="button"
-                  onClick={onAddDay}
-                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
-                  title="Add a new day to itinerary"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add a Day</span>
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* Day Date & Stay Recommendation Header Bar */}
-          <div
-            id="current-day-date-card"
-            className="w-full bg-black/95 dark:bg-black/95 backdrop-blur-2xl rounded-2xl p-2.5 sm:p-3 shadow-md border border-zinc-800 flex items-center justify-between gap-3"
-          >
-            {/* Left: Date & Stops Info */}
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 shrink-0">
-                <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="text-xs sm:text-sm font-bold text-white whitespace-nowrap">
-                  {getFormattedDayDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
+          {/* Sub-header Bar matching mockup */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+            {/* Left: Date + Day Title + Stops planned */}
+            <div>
+              <p className="text-[11px] sm:text-xs font-medium text-zinc-400 mb-0.5">
+                {getFormattedFullDate(trip?.startDate, currentDay?.dayNumber || 1, currentDay?.date)}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight">
+                  {currentDay?.theme || `Day ${currentDay?.dayNumber || 1}`}
+                </h3>
+                <span className="text-zinc-600 font-bold hidden sm:inline">•</span>
+                <span className="text-emerald-400 font-bold text-xs sm:text-sm">
+                  {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Switch Toggle (Serpentine Flow vs Classic Cards) + Recommend a Stay Button */}
+            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+              {/* Toggle Switch */}
+              <div
+                onClick={() => setItineraryLayoutMode(prev => prev === 'serpentine' ? 'cards' : 'serpentine')}
+                className="bg-[#121316] border border-zinc-800 rounded-xl p-1.5 flex items-center gap-2 cursor-pointer select-none hover:border-zinc-700 transition-colors"
+                title="Toggle view between Serpentine Flow and Classic Cards"
+              >
+                <div className={`w-8 h-4.5 rounded-full p-0.5 flex items-center transition-colors ${itineraryLayoutMode === 'serpentine' ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'}`}>
+                  <div className="w-3.5 h-3.5 rounded-full bg-white shadow-xs" />
+                </div>
+                <span className={`text-xs font-bold transition-colors ${itineraryLayoutMode === 'serpentine' ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  Serpentine Flow
+                </span>
+                <span className={`text-xs font-medium transition-colors ${itineraryLayoutMode === 'cards' ? 'text-white' : 'text-zinc-500'}`}>
+                  Classic Cards
                 </span>
               </div>
 
-              <span className="text-xs text-zinc-400 font-semibold px-1 hidden sm:inline truncate">
-                • {(currentDay?.activities || []).length} {(currentDay?.activities || []).length === 1 ? 'stop' : 'stops'} planned
-              </span>
-            </div>
-
-            {/* Center: Serpentine Route vs Classic Cards Toggle */}
-            <div className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 shrink-0">
+              {/* Recommend a Stay Button */}
               <button
+                id="toggle-recommend-stay-btn"
                 type="button"
-                onClick={() => setItineraryLayoutMode('serpentine')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  itineraryLayoutMode === 'serpentine'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title="Cinematic serpentine animated route view"
+                onClick={() =>
+                  setShowStayForDay(prev => ({
+                    ...prev,
+                    [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
+                  }))
+                }
+                className="py-2 px-3.5 rounded-xl bg-[#121316] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors"
+                title="Click to view or hide recommended stay for this day"
               >
-                <Zap className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="hidden sm:inline">Serpentine Flow</span>
-                <span className="sm:hidden">Route</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setItineraryLayoutMode('cards')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  itineraryLayoutMode === 'cards'
-                    ? 'bg-zinc-800 text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title="Standard activity cards view"
-              >
-                <span className="hidden sm:inline">Classic Cards</span>
-                <span className="sm:hidden">Cards</span>
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Recommend a Stay</span>
+                <span className="text-[10px] text-zinc-400">
+                  {isStayVisible ? '▲' : '▼'}
+                </span>
               </button>
             </div>
-
-            {/* Right: Repositioned Recommend a Stay Button */}
-            <button
-              id="toggle-recommend-stay-btn"
-              type="button"
-              onClick={() =>
-                setShowStayForDay(prev => ({
-                  ...prev,
-                  [currentDay?.dayNumber || activeDayNumber]: !prev[currentDay?.dayNumber || activeDayNumber]
-                }))
-              }
-              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 whitespace-nowrap border ${
-                isStayVisible
-                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 ring-1 ring-zinc-400/30'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 hover:shadow-md ring-1 ring-emerald-400/40'
-              }`}
-              title="Click to view or hide recommended stay for this day"
-            >
-              <Building2 className="w-3.5 h-3.5 text-white shrink-0" />
-              <span>{isStayVisible ? 'Hide Stay' : 'Recommend a Stay'}</span>
-              <span className="text-[10px] ml-0.5 font-black opacity-80">
-                {isStayVisible ? '▲' : '▼'}
-              </span>
-            </button>
           </div>
 
           {/* Day Stay Highlight / Quick Hotel Selector (Toggled by user) */}
