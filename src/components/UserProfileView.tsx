@@ -165,15 +165,6 @@ const USER_TRAILS_FEED = [
   }
 ];
 
-// Story Highlights
-const HIGHLIGHTS = [
-  { id: 'h1', title: 'Goa 🌊', imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=300&auto=format&fit=crop&q=80' },
-  { id: 'h2', title: 'Spiti 🏔️', imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=300&auto=format&fit=crop&q=80' },
-  { id: 'h3', title: 'Wayanad 🌲', imageUrl: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=300&auto=format&fit=crop&q=80' },
-  { id: 'h4', title: 'Coorg ☕', imageUrl: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=300&auto=format&fit=crop&q=80' },
-  { id: 'h5', title: 'Bali ✨', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=300&auto=format&fit=crop&q=80' },
-];
-
 // Wishlist saved spots
 const SAMPLE_WISHLIST = [
   { id: 'w1', name: 'Ladakh', subtitle: 'Himalayas', imageUrl: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=600&auto=format&fit=crop&q=80' },
@@ -200,11 +191,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [shareToast, setShareToast] = useState(false);
-
-  // Status Thought Note
-  const [statusNote, setStatusNote] = useState<string>("Can't decide...");
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [noteInput, setNoteInput] = useState("Can't decide...");
 
   // Active trail for modal playback
   const [selectedTrail, setSelectedTrail] = useState<typeof USER_TRAILS_FEED[0] | null>(null);
@@ -240,6 +226,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         tripsCount: Math.max(trips.length, 8),
         placesCount: 124,
         countriesCount: 4,
+        postsCount: 1,
+        followersCount: 804,
+        followingCount: 766,
         level: 'Travel Explorer',
         levelNumber: 4
       }
@@ -332,20 +321,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <span className="w-2 h-2 rounded-full bg-red-500 shadow-xs ml-0.5" />
         </div>
 
-        {/* Right: Threads icon & Hamburger menu */}
-        <div className="flex items-center gap-4">
-          <a
-            href="https://threads.net"
-            target="_blank"
-            rel="noreferrer"
-            className="text-white hover:text-zinc-300 transition-colors cursor-pointer"
-            title="Threads"
-          >
-            <svg className="w-6 h-6 fill-current" viewBox="0 0 192 192">
-              <path d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4184 44.7443 97.2749 44.744 97.1312 44.744C73.4984 44.744 55.4385 61.2721 52.8805 85.2289C50.2198 110.147 64.9749 132.868 91.0772 134.629C104.996 135.568 117.784 130.655 126.797 122.251C133.004 116.463 137.077 108.971 138.835 100.865C138.932 100.419 138.643 99.9863 138.196 99.8899C138.156 99.8814 138.115 99.8771 138.074 99.8771C137.671 99.8771 137.319 100.17 137.247 100.575C135.602 108.065 131.782 114.981 125.992 120.371C117.587 128.207 105.474 132.867 92.2039 131.972C68.1747 130.352 54.3414 109.183 56.8049 86.136C59.206 63.6669 75.3854 48.077 97.1309 48.077C97.2618 48.077 97.3925 48.0773 97.523 48.078C120.672 48.2255 134.42 62.4344 135.803 86.5862C128.537 83.7423 120.264 82.2611 111.411 82.2611C87.9547 82.2611 74.0206 96.1952 74.0206 112.553C74.0206 128.91 87.9547 142.845 111.411 142.845C124.629 142.845 135.795 137.893 143.082 129.479C147.248 124.668 150.151 118.665 151.71 111.96C153.308 105.087 153.649 97.6695 152.721 89.9679C151.107 76.5746 144.331 65.1793 134.385 57.0628C124.718 49.1744 111.666 44.8205 97.1309 44.8205C97.027 44.8205 96.9232 44.8207 96.8193 44.8211C72.0625 44.9818 51.5796 62.7719 48.9189 87.6896C46.1264 113.844 61.6888 137.935 89.2882 139.796C103.883 140.781 117.481 135.592 127.054 126.666C127.382 126.36 127.408 125.857 127.102 125.529C126.796 125.201 126.293 125.175 125.965 125.481C116.848 133.982 103.896 138.924 89.9882 137.986C63.6624 136.21 48.8079 113.228 51.4686 88.3104C54.0049 64.5583 73.5358 47.5748 97.1309 47.5748C111.082 47.5748 123.633 51.7613 132.928 59.3468C142.493 67.1517 149.009 78.1099 150.562 90.9883C152.484 106.929 148.868 120.301 139.816 130.686C132.88 138.653 122.253 143.345 109.611 143.345C87.411 143.345 74.5206 130.126 74.5206 114.553C74.5206 98.9791 87.411 85.7611 109.611 85.7611C117.893 85.7611 125.688 87.1189 132.614 89.7027C135.808 90.8929 138.809 89.4764 141.537 88.9883Z" />
-            </svg>
-          </a>
-
+        {/* Right: Hamburger menu */}
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setIsEditModalOpen(true)}
             className="p-1 text-white hover:text-zinc-300 transition-colors cursor-pointer"
@@ -356,51 +333,32 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       </header>
 
-      {/* 2. PROFILE HEADER: AVATAR & STATS IN ONE STRAIGHT LINE */}
-      <div className="px-4 sm:px-6 pt-3 max-w-2xl mx-auto">
+      {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
+      <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
-          {/* Avatar with thought bubble note */}
-          <div className="flex flex-col items-center shrink-0">
-            {/* Thought Note Bubble */}
-            <div 
-              onClick={() => {
-                setNoteInput(statusNote);
-                setIsEditingNote(true);
-              }}
-              className="relative mb-1.5 cursor-pointer group"
-              title="Click to edit note"
+          {/* Circular Avatar with + Badge (No thought bubble) */}
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
+            <div className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md">
+              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900">
+                <img
+                  src={profile.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
+                  alt={profile.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Bottom Right + Add Badge */}
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="absolute bottom-0 right-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-110 transition-transform"
+              title="Update profile picture"
             >
-              <div className="bg-[#262626] text-white text-[11px] font-medium px-2.5 py-1 rounded-2xl border border-white/10 shadow-lg flex items-center gap-1 max-w-[100px] truncate group-hover:bg-[#333333] transition-colors">
-                <span className="truncate">{statusNote}</span>
-              </div>
-              <div className="absolute -bottom-1 left-4 w-2 h-2 bg-[#262626] rounded-full border border-white/10" />
-              <div className="absolute -bottom-2 left-5 w-1 h-1 bg-[#262626] rounded-full" />
-            </div>
-
-            {/* Circular Avatar with + Badge */}
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24">
-              <div className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md">
-                <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900">
-                  <img
-                    src={profile.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
-                    alt={profile.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-
-              {/* Bottom Right + Add Badge */}
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="absolute bottom-0 right-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-110 transition-transform"
-                title="Update profile picture"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              </button>
-            </div>
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            </button>
           </div>
 
-          {/* Right Column: Name and Stats in ONE STRAIGHT LINE */}
+          {/* Right Column: Name and Stats (post | followers | following) */}
           <div className="flex-1 flex flex-col justify-center">
             {/* User Full Name & Level Badge */}
             <div className="flex items-center gap-2 flex-wrap mb-2.5">
@@ -413,44 +371,38 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </span>
             </div>
 
-            {/* STATS IN ONE STRAIGHT LINE: TRIPS | PLACES | COUNTRIES */}
+            {/* STATS IN ONE STRAIGHT LINE: POST | FOLLOWERS | FOLLOWING */}
             <div className="flex items-center justify-between text-center max-w-[280px] sm:max-w-[340px] pt-1">
-              {/* Trips */}
+              {/* Posts */}
               <div 
                 onClick={() => setActiveTab('trips')}
                 className="cursor-pointer group flex-1"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.tripsCount || Math.max(trips.length, 8)}
+                  {profile.stats?.postsCount ?? Math.max(1, displayTrips.length)}
                 </span>
-                <span className="block text-xs text-zinc-400 font-normal mt-0.5">
-                  trips
+                <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                  post
                 </span>
               </div>
 
-              {/* Places */}
-              <div 
-                onClick={() => setActiveTab('trips')}
-                className="cursor-pointer group flex-1"
-              >
+              {/* Followers */}
+              <div className="cursor-pointer group flex-1">
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.placesCount || 124}
+                  {profile.stats?.followersCount ?? 804}
                 </span>
-                <span className="block text-xs text-zinc-400 font-normal mt-0.5">
-                  places
+                <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                  followers
                 </span>
               </div>
 
-              {/* Countries */}
-              <div 
-                onClick={() => setActiveTab('trips')}
-                className="cursor-pointer group flex-1"
-              >
+              {/* Following */}
+              <div className="cursor-pointer group flex-1">
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.countriesCount || 4}
+                  {profile.stats?.followingCount ?? 766}
                 </span>
-                <span className="block text-xs text-zinc-400 font-normal mt-0.5">
-                  countries
+                <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                  following
                 </span>
               </div>
             </div>
@@ -500,38 +452,60 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </button>
         </div>
 
-        {/* Story Highlights (Horizontal Carousel) */}
-        <div className="flex items-center gap-4 mt-5 overflow-x-auto scrollbar-none pb-2 select-none">
-          {/* + New Highlight */}
-          <div 
-            onClick={() => onStartPlanning()}
-            className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
-          >
-            <div className="w-16 h-16 rounded-full border border-dashed border-zinc-700 group-hover:border-white flex items-center justify-center transition-colors">
-              <Plus className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-[11px] text-zinc-300 font-medium">New</span>
-          </div>
-
-          {/* Highlights */}
-          {HIGHLIGHTS.map((h) => (
+        {/* 3. DEDICATED TRAVEL STATS SECTION: TRIPS, COUNTRIES, AND PLACES IN ONE STRAIGHT LINE */}
+        <div className="mt-4 p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-md">
+          <div className="flex items-center justify-around text-center divide-x divide-zinc-800">
+            {/* Trips */}
             <div 
-              key={h.id} 
               onClick={() => setActiveTab('trips')}
-              className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
+              className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+              title="View all trips"
             >
-              <div className="w-16 h-16 rounded-full p-[2px] border border-zinc-800 group-hover:border-zinc-500 transition-colors">
-                <img
-                  src={h.imageUrl}
-                  alt={h.title}
-                  className="w-full h-full rounded-full object-cover"
-                />
+              <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                <Compass className="w-4 h-4 text-emerald-400 group-hover:rotate-45 transition-transform" />
+                <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors leading-tight">
+                  {profile.stats?.tripsCount || Math.max(trips.length, 8)}
+                </span>
               </div>
-              <span className="text-[11px] text-zinc-300 font-medium max-w-[64px] truncate text-center">
-                {h.title}
+              <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                trips
               </span>
             </div>
-          ))}
+
+            {/* Countries */}
+            <div 
+              onClick={() => setActiveTab('trips')}
+              className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+              title="Countries explored"
+            >
+              <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                <MapPin className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
+                <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-teal-400 transition-colors leading-tight">
+                  {profile.stats?.countriesCount || 4}
+                </span>
+              </div>
+              <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                countries
+              </span>
+            </div>
+
+            {/* Places */}
+            <div 
+              onClick={() => setActiveTab('trips')}
+              className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+              title="Places visited"
+            >
+              <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                <Mountain className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-cyan-400 transition-colors leading-tight">
+                  {profile.stats?.placesCount || 124}
+                </span>
+              </div>
+              <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                places
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -819,41 +793,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       )}
 
-      {/* --- EDIT STATUS NOTE MODAL --- */}
-      {isEditingNote && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-xs bg-zinc-900 rounded-2xl border border-white/15 p-5 text-left shadow-2xl">
-            <h3 className="text-sm font-bold text-white mb-2">
-              Update travel thought
-            </h3>
-            <input
-              type="text"
-              value={noteInput}
-              maxLength={30}
-              onChange={(e) => setNoteInput(e.target.value)}
-              placeholder="e.g. Can't decide... or Spiti next!"
-              className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-xs font-medium focus:outline-hidden focus:border-white"
-            />
-            <div className="flex items-center justify-end gap-2 mt-4">
-              <button
-                onClick={() => setIsEditingNote(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setStatusNote(noteInput.trim() || "Can't decide...");
-                  setIsEditingNote(false);
-                }}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-white text-black hover:bg-zinc-200"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* --- EDIT PROFILE MODAL --- */}
       {isEditModalOpen && (

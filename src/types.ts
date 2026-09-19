@@ -388,6 +388,9 @@ export interface UserProfileData {
     tripsCount?: number;
     placesCount?: number;
     countriesCount?: number;
+    postsCount?: number;
+    followersCount?: number;
+    followingCount?: number;
     level?: string;
     levelNumber?: number;
   };
