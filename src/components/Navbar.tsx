@@ -235,26 +235,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Palette className={`w-3.5 h-3.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
               </button>
 
-              {/* Profile Pill (When Logged In) */}
-              {session && (
-                <button
-                  onClick={() => onNavigate('profile')}
-                  className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
-                    isDarkText
-                      ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
-                      : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
-                  }`}
-                  title="View Profile (Overview, DNA, Trips, Saved, Crew)"
-                >
-                  <div 
-                    className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-2xs shrink-0"
-                    style={{ backgroundColor: currentTheme.primaryColor }}
-                  >
-                    {userDisplayName.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="max-w-[70px] sm:max-w-[100px] truncate hidden md:inline">{userDisplayName}</span>
-                </button>
-              )}
 
               {/* Primary CTA: Plan My Trip (Optimized for mobile single-line) */}
               <button
