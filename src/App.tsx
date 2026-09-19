@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation, RequirementDocument, BookingItem } from './types';
 
 import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } from './services/aiPlanner';
@@ -821,11 +822,410 @@ export default function App() {
     );
   };
 
+  const BOTTOM_NAV_ORDER = [
+    'landing',
+    'trails',
+    'wizard',
+    'travellers_search',
+    'profile'
+  ] as const;
+
+  const [slideDirection, setSlideDirection] = useState<number>(0);
+
+  const navigateBottomTab = (targetView: string, explicitDir?: number) => {
+    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    const targetIndex = BOTTOM_NAV_ORDER.indexOf(targetView as any);
+
+    let dir = explicitDir;
+    if (dir === undefined) {
+      if (currentIndex !== -1 && targetIndex !== -1) {
+        dir = targetIndex >= currentIndex ? 1 : -1;
+      } else {
+        dir = 1;
+      }
+    }
+
+    setSlideDirection(dir);
+
+    if (targetView === 'wizard') {
+      setWizardDestId('');
+      setWizardEditingTrip(null);
+      setWizardInitialStep(1);
+      setCurrentView('wizard');
+    } else {
+      setCurrentView(targetView as any);
+    }
+
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  };
+
+  const goToNextBottomTab = () => {
+    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    if (currentIndex >= 0 && currentIndex < BOTTOM_NAV_ORDER.length - 1) {
+      navigateBottomTab(BOTTOM_NAV_ORDER[currentIndex + 1], 1);
+    }
+  };
+
+  const goToPrevBottomTab = () => {
+    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    if (currentIndex > 0) {
+      navigateBottomTab(BOTTOM_NAV_ORDER[currentIndex - 1], -1);
+    }
+  };
+
+  // Swipe and Keyboard Navigation between Bottom Nav Pages
+  useEffect(() => {
+    if (!BOTTOM_NAV_ORDER.includes(currentView as any)) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isVertical = false;
+    let isValidSwipe = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], [data-no-swipe], .overflow-x-auto, .overflow-x-scroll'
+        )
+      ) {
+        isValidSwipe = false;
+        return;
+      }
+
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      isVertical = false;
+      isValidSwipe = true;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isValidSwipe || isVertical) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      // If vertical motion exceeds horizontal, lock to vertical scrolling
+      if (absY > 8 && absY > absX) {
+        isVertical = true;
+        isValidSwipe = false;
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!isValidSwipe || isVertical) {
+        isValidSwipe = false;
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const dt = Date.now() - touchStartTime;
+
+      if (absX >= 45 && absX > absY * 1.3 && dt < 800) {
+        if (dx < 0) {
+          goToNextBottomTab();
+        } else {
+          goToPrevBottomTab();
+        }
+      }
+      isValidSwipe = false;
+    };
+
+    // Desktop mouse drag support
+    let mouseStartX = 0;
+    let mouseStartY = 0;
+    let mouseStartTime = 0;
+    let isMouseDown = false;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        target.closest(
+          'input, textarea, select, button, a, [contenteditable="true"], [data-no-swipe], .overflow-x-auto, .overflow-x-scroll'
+        )
+      ) {
+        isMouseDown = false;
+        return;
+      }
+      mouseStartX = e.clientX;
+      mouseStartY = e.clientY;
+      mouseStartTime = Date.now();
+      isMouseDown = true;
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (!isMouseDown) return;
+      const dx = e.clientX - mouseStartX;
+      const dy = e.clientY - mouseStartY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const dt = Date.now() - mouseStartTime;
+
+      if (absX >= 60 && absX > absY * 1.5 && dt < 800) {
+        if (dx < 0) {
+          goToNextBottomTab();
+        } else {
+          goToPrevBottomTab();
+        }
+      }
+      isMouseDown = false;
+    };
+
+    // Keyboard Arrow navigation
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        goToNextBottomTab();
+      } else if (e.key === 'ArrowLeft') {
+        goToPrevBottomTab();
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [currentView]);
+
+  const isBottomNavView = BOTTOM_NAV_ORDER.includes(currentView as any);
+
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? '100%' : dir < 0 ? '-100%' : 0,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        x: { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 },
+        opacity: { duration: 0.18 },
+      },
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? '-100%' : dir < 0 ? '100%' : 0,
+      opacity: 0,
+      transition: {
+        x: { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 },
+        opacity: { duration: 0.18 },
+      },
+    }),
+  };
+
   const isNoThemeBgView = 
     currentView === 'trails' || 
     currentView === 'profile' || 
     currentView === 'travellers_search' || 
     currentView === 'wizard';
+
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case 'landing':
+        return (
+          <LandingPage
+            currentTheme={currentTheme}
+            recentTrip={recentPlannedTrip}
+            onOpenTrip={handleOpenTrip}
+            onStartPlanning={handleStartPlanning}
+            onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            onOpenMapSearch={() => setCurrentView('map_search')}
+            onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
+          />
+        );
+      case 'wizard':
+        return (
+          <CreateTripWizard
+            initialDestinationId={wizardDestId}
+            initialStep={wizardInitialStep}
+            initialTrip={wizardEditingTrip}
+            onGenerateTrip={handleGenerateTrip}
+            onCancel={() => {
+              if (wizardEditingTrip) {
+                setCurrentView('itinerary');
+              } else {
+                navigateBottomTab('landing', -1);
+              }
+            }}
+          />
+        );
+      case 'itinerary':
+        return activeTrip ? (
+          <div className="px-1.5 sm:px-6 lg:px-8 pt-2 sm:pt-6">
+            <ItineraryView
+              trip={activeTrip}
+              activeDayNumber={activeDayNumber}
+              onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
+              onEnterTripMode={() => setCurrentView('trip_mode')}
+              onBackToStep6={handleBackToStep6}
+              onNavigateHome={() => navigateBottomTab('landing', -1)}
+              onNavigateToMyTrips={() => setCurrentView('my_trips')}
+              onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
+              onReplaceActivity={handleReplaceActivity}
+              onMoveActivityUp={handleMoveActivityUp}
+              onMoveActivityDown={handleMoveActivityDown}
+              onRemoveActivity={handleRemoveActivity}
+              onAddCustomActivity={handleAddCustomActivity}
+              onAddActivityToDay={handleAddActivityToDay}
+              onTogglePackingItem={handleTogglePackingItem}
+              onToggleAllPacking={handleToggleAllPacking}
+              onAddPackingItem={handleAddPackingItem}
+              onToggleRequirement={handleToggleRequirement}
+              onToggleBooking={handleToggleBooking}
+              onOpenMapSearch={() => setCurrentView('map_search')}
+              onSaveHotelToTrip={handleSaveHotelToTrip}
+              onAddExpense={handleAddExpense}
+              onDeleteExpense={handleDeleteExpense}
+              onAddDay={handleAddDay}
+            />
+          </div>
+        ) : null;
+      case 'trip_mode':
+        return activeTrip ? (
+          <TripModeView
+            trip={activeTrip}
+            activeDayNumber={activeDayNumber}
+            onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
+            onOpenAdapt={() => setIsAdaptModalOpen(true)}
+            onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
+            onReplaceActivity={handleReplaceActivity}
+            onToggleActivityCompleted={handleToggleActivityComplete}
+            onAddExpense={handleAddExpense}
+            onDeleteExpense={handleDeleteExpense}
+            onAddCustomActivity={handleAddCustomActivity}
+            onExitTripMode={() => setCurrentView('itinerary')}
+          />
+        ) : null;
+      case 'my_trips':
+        return (
+          <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
+            <MyTripsView
+              trips={trips}
+              activeTripId={activeTripId}
+              onSelectTrip={(tripId) => {
+                setActiveTripId(tripId);
+                setActiveDayNumber(1);
+                setCurrentView('itinerary');
+              }}
+              onEnterTripMode={(trip) => {
+                setActiveTripId(trip.id);
+                setActiveDayNumber(1);
+                setCurrentView('trip_mode');
+              }}
+              onPlanNewTrip={() => navigateBottomTab('wizard', 1)}
+              onDeleteTrip={handleDeleteTrip}
+            />
+          </div>
+        );
+      case 'map_search':
+        return (
+          <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
+            <MapPlaceSearchView
+              activeTrip={activeTrip}
+              onAddPlaceToTrip={handleAddPlaceToTrip}
+            />
+          </div>
+        );
+      case 'why_tripwise':
+      case 'why_roamai':
+        return (
+          <WhyTripWisePage
+            currentTheme={currentTheme}
+            onStartPlanning={() => navigateBottomTab('wizard', 1)}
+            onOpenMapSearch={() => setCurrentView('map_search')}
+          />
+        );
+      case 'auth':
+        return (
+          <AuthPage
+            currentTheme={currentTheme}
+            initialAuthMode={initialAuthMode}
+            onAuthSuccess={() => {
+              setCurrentView(intendedView || 'landing');
+              setIntendedView(null);
+              setInitialAuthMode('signin');
+            }}
+            onCancel={() => {
+              setCurrentView('landing');
+              setIntendedView(null);
+              setInitialAuthMode('signin');
+            }}
+          />
+        );
+      case 'profile':
+        return (
+          <UserProfileView
+            session={session}
+            currentTheme={currentTheme}
+            trips={trips}
+            onOpenTrip={(tripId) => {
+              setActiveTripId(tripId);
+              setActiveDayNumber(1);
+              setCurrentView('itinerary');
+            }}
+            onStartPlanning={(dest) => {
+              setWizardDestId(dest || '');
+              setWizardEditingTrip(null);
+              navigateBottomTab('wizard');
+            }}
+            onBack={() => navigateBottomTab('landing', -1)}
+          />
+        );
+      case 'trails':
+        return (
+          <TrailsView
+            currentTheme={currentTheme}
+            session={session}
+            onStartPlanning={(dest) => {
+              setWizardDestId(dest || '');
+              setWizardEditingTrip(null);
+              navigateBottomTab('wizard');
+            }}
+            onBack={() => navigateBottomTab('landing', -1)}
+          />
+        );
+      case 'travellers_search':
+        return (
+          <TravellerSearchView
+            currentTheme={currentTheme}
+            onSelectTraveller={() => navigateBottomTab('profile', 1)}
+            onOpenTrail={() => navigateBottomTab('trails', -1)}
+            onStartPlanning={(destination) => {
+              setWizardDestId(destination || '');
+              setWizardEditingTrip(null);
+              navigateBottomTab('wizard');
+            }}
+            onBack={() => navigateBottomTab('landing', -1)}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div 
@@ -885,193 +1285,24 @@ export default function App() {
             />
           )}
 
-          {/* Body Views */}
-          <main className="flex-1">
-            {/* VIEW 1: LANDING PAGE */}
-            {currentView === 'landing' && (
-              <LandingPage
-                currentTheme={currentTheme}
-                recentTrip={recentPlannedTrip}
-                onOpenTrip={handleOpenTrip}
-                onStartPlanning={handleStartPlanning}
-                onOpenThemeModal={() => setIsThemeModalOpen(true)}
-                onOpenMapSearch={() => setCurrentView('map_search')}
-                onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
-              />
-            )}
-
-            {/* VIEW 2: CREATE TRIP WIZARD */}
-            {currentView === 'wizard' && (
-              <CreateTripWizard
-                initialDestinationId={wizardDestId}
-                initialStep={wizardInitialStep}
-                initialTrip={wizardEditingTrip}
-                onGenerateTrip={handleGenerateTrip}
-                onCancel={() => {
-                  if (wizardEditingTrip) {
-                    setCurrentView('itinerary');
-                  } else {
-                    setCurrentView('landing');
-                  }
-                }}
-              />
-            )}
-
-            {/* VIEW 3: PERSONALIZED ITINERARY DASHBOARD */}
-            {currentView === 'itinerary' && activeTrip && (
-              <div className="px-1.5 sm:px-6 lg:px-8 pt-2 sm:pt-6">
-                <ItineraryView
-                  trip={activeTrip}
-                  activeDayNumber={activeDayNumber}
-                  onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
-                  onEnterTripMode={() => setCurrentView('trip_mode')}
-                  onBackToStep6={handleBackToStep6}
-                  onNavigateHome={() => setCurrentView('landing')}
-                  onNavigateToMyTrips={() => setCurrentView('my_trips')}
-                  onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
-                  onReplaceActivity={handleReplaceActivity}
-                  onMoveActivityUp={handleMoveActivityUp}
-                  onMoveActivityDown={handleMoveActivityDown}
-                  onRemoveActivity={handleRemoveActivity}
-                  onAddCustomActivity={handleAddCustomActivity}
-                  onAddActivityToDay={handleAddActivityToDay}
-                  onTogglePackingItem={handleTogglePackingItem}
-                  onToggleAllPacking={handleToggleAllPacking}
-                  onAddPackingItem={handleAddPackingItem}
-                  onToggleRequirement={handleToggleRequirement}
-                  onToggleBooking={handleToggleBooking}
-                  onOpenMapSearch={() => setCurrentView('map_search')}
-                  onSaveHotelToTrip={handleSaveHotelToTrip}
-                  onAddExpense={handleAddExpense}
-                  onDeleteExpense={handleDeleteExpense}
-                  onAddDay={handleAddDay}
-                />
-              </div>
-            )}
-
-            {/* VIEW 4: TRIP MODE (LIVE ADAPTIVE COMPANION) */}
-            {currentView === 'trip_mode' && activeTrip && (
-              <TripModeView
-                trip={activeTrip}
-                activeDayNumber={activeDayNumber}
-                onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
-                onOpenAdapt={() => setIsAdaptModalOpen(true)}
-                onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
-                onReplaceActivity={handleReplaceActivity}
-                onToggleActivityCompleted={handleToggleActivityComplete}
-                onAddExpense={handleAddExpense}
-                onDeleteExpense={handleDeleteExpense}
-                onAddCustomActivity={handleAddCustomActivity}
-                onExitTripMode={() => setCurrentView('itinerary')}
-              />
-            )}
-
-            {/* VIEW 5: MY TRIPS */}
-            {currentView === 'my_trips' && (
-              <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
-                <MyTripsView
-                  trips={trips}
-                  activeTripId={activeTripId}
-                  onSelectTrip={(tripId) => {
-                    setActiveTripId(tripId);
-                    setActiveDayNumber(1);
-                    setCurrentView('itinerary');
-                  }}
-                  onEnterTripMode={(trip) => {
-                    setActiveTripId(trip.id);
-                    setActiveDayNumber(1);
-                    setCurrentView('trip_mode');
-                  }}
-                  onPlanNewTrip={() => handleStartPlanning()}
-                  onDeleteTrip={handleDeleteTrip}
-                />
-              </div>
-            )}
-
-            {/* VIEW 6: GOOGLE PLACES & MAP SEARCH */}
-            {currentView === 'map_search' && (
-              <div className="px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-12">
-                <MapPlaceSearchView
-                  activeTrip={activeTrip}
-                  onAddPlaceToTrip={handleAddPlaceToTrip}
-                />
-              </div>
-            )}
-
-            {/* VIEW 7: WHY TRIPWISE & COMPLETE TRAVEL LIFECYCLE */}
-            {(currentView === 'why_tripwise' || currentView === 'why_roamai') && (
-              <WhyTripWisePage
-                currentTheme={currentTheme}
-                onStartPlanning={() => handleStartPlanning()}
-                onOpenMapSearch={() => setCurrentView('map_search')}
-              />
-            )}
-
-            {/* VIEW 8: AUTHENTICATION */}
-            {currentView === 'auth' && (
-              <AuthPage
-                currentTheme={currentTheme}
-                initialAuthMode={initialAuthMode}
-                onAuthSuccess={() => {
-                  setCurrentView(intendedView || 'landing');
-                  setIntendedView(null);
-                  setInitialAuthMode('signin'); // reset for future
-                }}
-                onCancel={() => {
-                  setCurrentView('landing');
-                  setIntendedView(null);
-                  setInitialAuthMode('signin'); // reset for future
-                }}
-              />
-            )}
-
-            {/* VIEW 9: USER TRAVEL PROFILE */}
-            {currentView === 'profile' && (
-              <UserProfileView
-                session={session}
-                currentTheme={currentTheme}
-                trips={trips}
-                onOpenTrip={(tripId) => {
-                  setActiveTripId(tripId);
-                  setActiveDayNumber(1);
-                  setCurrentView('itinerary');
-                }}
-                onStartPlanning={(dest) => {
-                  setWizardDestId(dest || '');
-                  setWizardEditingTrip(null);
-                  setCurrentView('wizard');
-                }}
-                onBack={() => setCurrentView('landing')}
-              />
-            )}
-
-            {/* VIEW 10: TRAILS (REELS VIDEO FEED & UPLOAD) */}
-            {currentView === 'trails' && (
-              <TrailsView
-                currentTheme={currentTheme}
-                session={session}
-                onStartPlanning={(dest) => {
-                  setWizardDestId(dest || '');
-                  setWizardEditingTrip(null);
-                  setCurrentView('wizard');
-                }}
-                onBack={() => setCurrentView('landing')}
-              />
-            )}
-
-            {/* VIEW 11: TRAVELLERS PROFILE SEARCH (SEPARATE PAGE) */}
-            {currentView === 'travellers_search' && (
-              <TravellerSearchView
-                currentTheme={currentTheme}
-                onSelectTraveller={() => setCurrentView('profile')}
-                onOpenTrail={() => setCurrentView('trails')}
-                onStartPlanning={(destination) => {
-                  setWizardDestId(destination || '');
-                  setWizardEditingTrip(null);
-                  setCurrentView('wizard');
-                }}
-                onBack={() => setCurrentView('landing')}
-              />
+          {/* Body Views with horizontal slide support across bottom nav pages */}
+          <main className="flex-1 overflow-x-hidden relative">
+            {isBottomNavView ? (
+              <AnimatePresence mode="wait" custom={slideDirection} initial={false}>
+                <motion.div
+                  key={currentView}
+                  custom={slideDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="w-full min-h-full"
+                >
+                  {renderCurrentView()}
+                </motion.div>
+              </AnimatePresence>
+            ) : (
+              renderCurrentView()
             )}
           </main>
 
@@ -1079,15 +1310,9 @@ export default function App() {
           {currentView !== 'trip_mode' && currentView !== 'auth' && (
             <BottomNavBar
               currentView={currentView}
-              onNavigate={(v) => {
-                if (v === 'wizard') {
-                  handleStartPlanning();
-                } else {
-                  setCurrentView(v);
-                }
-              }}
-              onStartPlanning={() => handleStartPlanning()}
-              onOpenTravellerSearch={() => setCurrentView('travellers_search')}
+              onNavigate={(v) => navigateBottomTab(v)}
+              onStartPlanning={() => navigateBottomTab('wizard')}
+              onOpenTravellerSearch={() => navigateBottomTab('travellers_search')}
               session={session}
             />
           )}

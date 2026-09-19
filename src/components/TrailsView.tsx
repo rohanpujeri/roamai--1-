@@ -182,6 +182,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragDistanceRef = useRef<number>(0);
 
   const activeReel = trails[currentIndex] || trails[0];
 
@@ -401,7 +403,24 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
       {/* Main Reel Container (9:16 mobile aspect ratio on desktop) */}
       <div 
-        onClick={togglePlay}
+        onTouchStart={(e) => {
+          touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          dragDistanceRef.current = 0;
+        }}
+        onTouchMove={(e) => {
+          if (touchStartRef.current) {
+            const dx = e.touches[0].clientX - touchStartRef.current.x;
+            const dy = e.touches[0].clientY - touchStartRef.current.y;
+            dragDistanceRef.current = Math.hypot(dx, dy);
+          }
+        }}
+        onClick={() => {
+          if (dragDistanceRef.current > 15) {
+            dragDistanceRef.current = 0;
+            return;
+          }
+          togglePlay();
+        }}
         className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
       >
         {/* Video Player */}
