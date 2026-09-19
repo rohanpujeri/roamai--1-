@@ -1243,7 +1243,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 4: USER TRAVEL PROFILE */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-white dark:bg-zinc-950 relative">
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-black relative">
                 <UserProfileView
                   session={session}
                   currentTheme={currentTheme}
