@@ -16,74 +16,6 @@ export interface TravellerSearchResult {
   isFollowing?: boolean;
 }
 
-const SAMPLE_TRAVELLERS: TravellerSearchResult[] = [
-  {
-    id: 'tr-1',
-    name: 'Rohan Sharma',
-    username: '@rohantravels',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    location: 'Bangalore, India',
-    bio: 'Exploring new places, one trip at a time 🌍 Trekker & coffee aficionado.',
-    level: 'Level 4 — Travel Explorer',
-    tripsCount: 8,
-    placesCount: 34,
-    topDNA: ['Adventure 90%', 'Photography 88%', 'Nature 82%'],
-    isFollowing: false
-  },
-  {
-    id: 'tr-2',
-    name: 'Aanya Verma',
-    username: '@aanya_verma',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-    location: 'Mumbai, India',
-    bio: 'Beach lover, sunset chaser, and road trip fanatic. Currently in Goa.',
-    level: 'Level 5 — Trailblazer',
-    tripsCount: 14,
-    placesCount: 52,
-    topDNA: ['Nature 95%', 'Food 88%', 'Photography 91%'],
-    isFollowing: true
-  },
-  {
-    id: 'tr-3',
-    name: 'Kabir Dev',
-    username: '@himalayan_nomad',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    location: 'Manali, Himachal Pradesh',
-    bio: 'High-altitude mountaineer & wilderness guide. Spiti & Ladakh specialist.',
-    level: 'Level 6 — Master Nomad',
-    tripsCount: 22,
-    placesCount: 89,
-    topDNA: ['Adventure 98%', 'Nature 94%', 'Camping 90%'],
-    isFollowing: false
-  },
-  {
-    id: 'tr-4',
-    name: 'Sneha Patel',
-    username: '@snehawanders',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-    location: 'Pune, India',
-    bio: 'Solo backpacker on a quest to explore hidden trails across Northeast India.',
-    level: 'Level 3 — Solo Pioneer',
-    tripsCount: 6,
-    placesCount: 28,
-    topDNA: ['Culture 85%', 'Food 92%', 'Nature 80%'],
-    isFollowing: false
-  },
-  {
-    id: 'tr-5',
-    name: 'Vikramaditya Roy',
-    username: '@vikram_aditya',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    location: 'Delhi, India',
-    bio: 'Motorcycle expeditions through Rajasthan, Ladakh, and coastal Konkan.',
-    level: 'Level 4 — Route Master',
-    tripsCount: 11,
-    placesCount: 45,
-    topDNA: ['Road Trips 96%', 'Adventure 89%', 'Heritage 84%'],
-    isFollowing: false
-  }
-];
-
 interface TravellerSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -98,7 +30,7 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTag, setSelectedTag] = useState<string>('All');
-  const [travellers, setTravellers] = useState<TravellerSearchResult[]>(SAMPLE_TRAVELLERS);
+  const [travellers, setTravellers] = useState<TravellerSearchResult[]>([]);
 
   const filterTags = ['All', 'Adventure', 'Nature', 'Photography', 'Food', 'Road Trips'];
 

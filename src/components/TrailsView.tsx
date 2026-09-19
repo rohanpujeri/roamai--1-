@@ -18,7 +18,8 @@ import {
   Compass, 
   Send,
   Sparkles,
-  Check
+  Check,
+  Film
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
@@ -50,91 +51,6 @@ export interface TrailReel {
   }>;
 }
 
-const DEFAULT_TRAILS: TrailReel[] = [
-  {
-    id: 'trail-1',
-    videoUrl: '/videos/beach-waves.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-    creator: {
-      name: 'Aanya Verma',
-      username: '@aanya_travels',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-      isFollowed: false
-    },
-    caption: 'Golden hour waves in Goa! Secret cliffs hidden behind the coconut palms 🌅✨',
-    destination: 'Goa, India',
-    tags: ['#BeachVibes', '#SunsetLover', '#GoaDiaries', '#RoamAI'],
-    audioTitle: 'Ocean Breeze • Original Audio',
-    likesCount: 1420,
-    commentsCount: 88,
-    comments: [
-      { id: 'c1', user: 'Rohan Sharma', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', text: 'Which beach is this? Looks completely serene!', time: '2h ago' },
-      { id: 'c2', user: 'Priya K', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80', text: 'Adding this to my wishlist right now 🔥', time: '1h ago' }
-    ]
-  },
-  {
-    id: 'trail-2',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-green-mountain-with-trees-41480-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
-    creator: {
-      name: 'Kabir Dev',
-      username: '@himalayan_nomad',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-      isFollowed: true
-    },
-    caption: 'Waking up above 10,000 ft in Himachal. The crisp mountain air hits different 🏔️🌲',
-    destination: 'Spiti Valley, Himachal',
-    tags: ['#Himalayas', '#SpitiValley', '#TrekLife', '#MountainCalling'],
-    audioTitle: 'Acoustic Serenity • Trail Sound',
-    likesCount: 3290,
-    commentsCount: 142,
-    comments: [
-      { id: 'c3', user: 'Vikram Singh', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', text: 'Road conditions right now?', time: '3h ago' },
-      { id: 'c4', user: 'Maya', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', text: 'Spiti in autumn is absolute paradise ❤️', time: '45m ago' }
-    ]
-  },
-  {
-    id: 'trail-3',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-top-view-of-water-moving-in-a-lake-43750-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80',
-    creator: {
-      name: 'Sneha Patel',
-      username: '@snehawanders',
-      avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      isFollowed: false
-    },
-    caption: 'Emerald waters in Meghalaya. The clearest river in Asia! You have to experience this boat ride 🛶🌿',
-    destination: 'Dawki, Meghalaya',
-    tags: ['#Meghalaya', '#DawkiRiver', '#NortheastIndia', '#IncredibleIndia'],
-    audioTitle: 'Water Ripple Chill • Nature Audio',
-    likesCount: 2845,
-    commentsCount: 119,
-    comments: [
-      { id: 'c5', user: 'Ankit R', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80', text: 'Floating in crystal clear glass water!', time: '1d ago' }
-    ]
-  },
-  {
-    id: 'trail-4',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-drone-view-of-a-tropical-island-surrounded-by-sea-42045-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80',
-    creator: {
-      name: 'Leo Martin',
-      username: '@leotravels',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-      isFollowed: false
-    },
-    caption: 'Bali cliffside sunsets that don’t even look real 🏝️🧡 Who’s planning their trip this year?',
-    destination: 'Uluwatu, Bali',
-    tags: ['#BaliLife', '#Uluwatu', '#TropicalParadise', '#IslandLife'],
-    audioTitle: 'Chill Island Waves • Bali Sunset',
-    likesCount: 4890,
-    commentsCount: 231,
-    comments: [
-      { id: 'c6', user: 'Diya', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80', text: 'Uluwatu temple sunset is magical!', time: '6h ago' }
-    ]
-  }
-];
-
 interface TrailsViewProps {
   currentTheme: ThemeConfig;
   session: Session | null;
@@ -150,18 +66,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onStartPlanning,
   onBack
 }) => {
-  // Load saved trails or default
+  // Load saved user trails
   const [trails, setTrails] = useState<TrailReel[]>(() => {
     try {
-      const stored = localStorage.getItem('roamai_user_trails');
+      const stored = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (stored) {
         const parsed = JSON.parse(stored);
-        return [...parsed, ...DEFAULT_TRAILS];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // fallback
     }
-    return DEFAULT_TRAILS;
+    return [];
   });
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -386,7 +302,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
         className="absolute inset-0 bg-cover bg-center blur-3xl opacity-25 scale-110 pointer-events-none transition-all duration-700"
-        style={{ backgroundImage: `url(${activeReel.posterUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'})` }}
+        style={{ backgroundImage: activeReel?.posterUrl ? `url(${activeReel.posterUrl})` : 'none' }}
       />
 
       {/* Top Floating Action Bar */}
@@ -396,9 +312,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
             TRAILS
           </span>
-          <span className="text-[11px] font-bold text-neutral-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-            {currentIndex + 1} / {trails.length}
-          </span>
+          {trails.length > 0 && (
+            <span className="text-[11px] font-bold text-neutral-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+              {currentIndex + 1} / {trails.length}
+            </span>
+          )}
         </div>
 
         {/* Upload Trail Button */}
@@ -421,32 +339,53 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       )}
 
       {/* Main Reel Container (9:16 mobile aspect ratio on desktop) */}
-      <div 
-        onTouchStart={(e) => {
-          touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-          dragDistanceRef.current = 0;
-        }}
-        onTouchMove={(e) => {
-          if (touchStartRef.current) {
-            const dx = e.touches[0].clientX - touchStartRef.current.x;
-            const dy = e.touches[0].clientY - touchStartRef.current.y;
-            dragDistanceRef.current = Math.hypot(dx, dy);
-          }
-        }}
-        onClick={() => {
-          if (dragDistanceRef.current > 15) {
+      {!activeReel ? (
+        <div className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex flex-col items-center justify-center p-8 text-center space-y-5">
+          <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner">
+            <Film className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-white tracking-tight">No Trails Yet</h3>
+            <p className="text-xs sm:text-sm text-neutral-400 max-w-xs leading-relaxed">
+              Be the first explorer to upload a travel reel and inspire the community with your adventures.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowUploadModal(true)}
+            className="px-6 py-3 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm flex items-center gap-2 shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-105 active:scale-95"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload First Trail</span>
+          </button>
+        </div>
+      ) : (
+        <div 
+          onTouchStart={(e) => {
+            touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             dragDistanceRef.current = 0;
-            return;
-          }
-          togglePlay();
-        }}
-        className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
-      >
-        {/* Video Player */}
-        <video
-          ref={videoRef}
-          src={activeReel.videoUrl}
-          poster={activeReel.posterUrl}
+          }}
+          onTouchMove={(e) => {
+            if (touchStartRef.current) {
+              const dx = e.touches[0].clientX - touchStartRef.current.x;
+              const dy = e.touches[0].clientY - touchStartRef.current.y;
+              dragDistanceRef.current = Math.hypot(dx, dy);
+            }
+          }}
+          onClick={() => {
+            if (dragDistanceRef.current > 15) {
+              dragDistanceRef.current = 0;
+              return;
+            }
+            togglePlay();
+          }}
+          className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
+        >
+          {/* Video Player */}
+          <video
+            ref={videoRef}
+            src={activeReel.videoUrl}
+            poster={activeReel.posterUrl}
           playsInline
           loop
           autoPlay
@@ -652,6 +591,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           />
         </div>
       </div>
+      )}
 
       {/* Up / Down Navigation Chevrons for Desktop / Tablet */}
       <div className="hidden sm:flex flex-col gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-30">
@@ -681,7 +621,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4 text-emerald-400" />
-                <span>Comments ({activeReel.comments?.length || 0})</span>
+                <span>Comments ({activeReel?.comments?.length || 0})</span>
               </h3>
               <button
                 type="button"
@@ -694,7 +634,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
             {/* Comments List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 divide-y divide-neutral-800/40">
-              {activeReel.comments && activeReel.comments.length > 0 ? (
+              {activeReel?.comments && activeReel.comments.length > 0 ? (
                 activeReel.comments.map((comm) => (
                   <div key={comm.id} className="pt-3 first:pt-0 flex items-start gap-3">
                     <img 

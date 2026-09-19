@@ -43,137 +43,16 @@ interface UserProfileViewProps {
   onBack: () => void;
 }
 
-// Default recent trips for grid display
-const SAMPLE_RECENT_TRIPS = [
-  {
-    id: 'sample-1',
-    destination: 'Goa',
-    date: 'Jan 2024',
-    duration: '4 days',
-    cost: '₹28,430',
-    imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80',
-    isCarousel: true
-  },
-  {
-    id: 'sample-2',
-    destination: 'Wayanad',
-    date: 'Oct 2023',
-    duration: '3 days',
-    cost: '₹16,800',
-    imageUrl: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80',
-    isCarousel: false
-  },
-  {
-    id: 'sample-3',
-    destination: 'Coorg',
-    date: 'Mar 2023',
-    duration: '2 days',
-    cost: '₹11,200',
-    imageUrl: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=800&auto=format&fit=crop&q=80',
-    isCarousel: true
-  },
-  {
-    id: 'sample-4',
-    destination: 'Spiti Valley',
-    date: 'Jul 2023',
-    duration: '6 days',
-    cost: '₹34,500',
-    imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80',
-    isCarousel: true
-  },
-  {
-    id: 'sample-5',
-    destination: 'Ladakh',
-    date: 'Aug 2023',
-    duration: '7 days',
-    cost: '₹42,000',
-    imageUrl: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=800&auto=format&fit=crop&q=80',
-    isCarousel: false
-  },
-  {
-    id: 'sample-6',
-    destination: 'Meghalaya',
-    date: 'Nov 2023',
-    duration: '5 days',
-    cost: '₹22,900',
-    imageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80',
-    isCarousel: true
-  }
-];
-
-// User's uploaded travel reels / trails
-const USER_TRAILS_FEED = [
-  {
-    id: 'user-trail-1',
-    title: 'Sunset Cliffs in South Goa',
-    destination: 'Goa',
-    viewsCount: '14.2K',
-    likesCount: '1,840',
-    videoUrl: '/videos/beach-waves.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-    duration: '0:24'
-  },
-  {
-    id: 'user-trail-2',
-    title: 'Chasing Waterfalls in Wayanad',
-    destination: 'Wayanad',
-    viewsCount: '8.9K',
-    likesCount: '942',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-green-mountain-with-trees-41480-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=600&q=80',
-    duration: '0:35'
-  },
-  {
-    id: 'user-trail-3',
-    title: 'Sunrise above the Clouds at 11,000 ft',
-    destination: 'Spiti Valley',
-    viewsCount: '24.5K',
-    likesCount: '3,120',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-top-view-of-water-moving-in-a-lake-43750-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80',
-    duration: '0:42'
-  },
-  {
-    id: 'user-trail-4',
-    title: 'Secret Coffee Plantation Walk',
-    destination: 'Coorg',
-    viewsCount: '6.1K',
-    likesCount: '780',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=600&q=80',
-    duration: '0:18'
-  },
-  {
-    id: 'user-trail-5',
-    title: 'Emerald Lake Crystal Waters',
-    destination: 'Meghalaya',
-    viewsCount: '31.8K',
-    likesCount: '4,520',
-    videoUrl: '/videos/beach-waves.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
-    duration: '0:30'
-  },
-  {
-    id: 'user-trail-6',
-    title: 'Highway Pass Ride at Sunset',
-    destination: 'Ladakh',
-    viewsCount: '19.4K',
-    likesCount: '2,890',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-green-mountain-with-trees-41480-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80',
-    duration: '0:28'
-  }
-];
-
-// Wishlist saved spots
-const SAMPLE_WISHLIST = [
-  { id: 'w1', name: 'Ladakh', subtitle: 'Himalayas', imageUrl: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=600&auto=format&fit=crop&q=80' },
-  { id: 'w2', name: 'Bali', subtitle: 'Indonesia', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&auto=format&fit=crop&q=80' },
-  { id: 'w3', name: 'Kyoto', subtitle: 'Japan', imageUrl: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&auto=format&fit=crop&q=80' },
-  { id: 'w4', name: 'Amalfi', subtitle: 'Italy', imageUrl: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?w=600&auto=format&fit=crop&q=80' },
-  { id: 'w5', name: 'Reykjavik', subtitle: 'Iceland', imageUrl: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=600&auto=format&fit=crop&q=80' },
-  { id: 'w6', name: 'Zermatt', subtitle: 'Switzerland', imageUrl: 'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=600&auto=format&fit=crop&q=80' }
-];
+export interface UserTrailItem {
+  id: string;
+  title: string;
+  destination: string;
+  viewsCount: string;
+  likesCount: string;
+  videoUrl: string;
+  posterUrl?: string;
+  duration?: string;
+}
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
   session,
@@ -193,44 +72,91 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [shareToast, setShareToast] = useState(false);
 
   // Active trail for modal playback
-  const [selectedTrail, setSelectedTrail] = useState<typeof USER_TRAILS_FEED[0] | null>(null);
+  const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
   const [isModalMuted, setIsModalMuted] = useState(true);
+
+  // User uploaded trails from local storage
+  const [userTrails, setUserTrails] = useState<UserTrailItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  // Calculate unique places from real trips
+  const calculatedPlacesCount = React.useMemo(() => {
+    const places = new Set<string>();
+    trips.forEach((t) => {
+      if (t.destination) places.add(t.destination.trim().toLowerCase());
+      t.days?.forEach((d) => {
+        d.activities?.forEach((a) => {
+          if (a.placeName) places.add(a.placeName.trim().toLowerCase());
+        });
+      });
+    });
+    return places.size;
+  }, [trips]);
+
+  // Calculate unique countries from real trips
+  const calculatedCountriesCount = React.useMemo(() => {
+    const countries = new Set<string>();
+    trips.forEach((t) => {
+      if (t.destinationPlace?.country) {
+        countries.add(t.destinationPlace.country.trim().toLowerCase());
+      } else if (t.destination) {
+        const parts = t.destination.split(',');
+        if (parts.length > 1) {
+          countries.add(parts[parts.length - 1].trim().toLowerCase());
+        } else {
+          countries.add(t.destination.trim().toLowerCase());
+        }
+      }
+    });
+    return countries.size;
+  }, [trips]);
 
   // Profile data states
   const [profile, setProfile] = useState<UserProfileData>(() => {
     const cached = user ? getCachedUserProfile(user.id) : null;
+    const defaultUsername = user?.email ? `@${user.email.split('@')[0]}` : '@rohan_pujeri';
     return {
       name: cached?.name || userMeta.full_name || userMeta.name || 'Rohan Pujeri',
-      username: cached?.username || userMeta.username || '@rohan_pujeri',
+      username: cached?.username || userMeta.username || defaultUsername,
       bio: cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍',
       avatarUrl: cached?.avatarUrl || userMeta.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-      dob: cached?.dob || userMeta.dob || '1998-08-15',
+      dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || 'Bengaluru, India',
-      email: user?.email || 'rohan.pujeri@example.com',
+      email: user?.email || '',
       travelDNA: cached?.travelDNA || {
-        adventure: 90,
-        nature: 85,
-        food: 72,
-        photography: 88,
+        adventure: 85,
+        nature: 80,
+        food: 75,
+        photography: 80,
         nightlife: 60,
         luxury: 40
       },
       travelPreferences: cached?.travelPreferences || {
         transport: 'Road trips (Car/Bike)',
         pace: 'Balanced',
-        budget: '₹10K – ₹25K',
+        budget: 'Flexible',
         accommodation: 'Homestays & Boutique Stays',
         food: 'Open to local food'
       },
       stats: {
-        tripsCount: Math.max(trips.length, 8),
-        placesCount: 124,
-        countriesCount: 4,
-        postsCount: 1,
-        followersCount: 804,
-        followingCount: 766,
+        tripsCount: trips.length,
+        placesCount: calculatedPlacesCount,
+        countriesCount: calculatedCountriesCount,
+        postsCount: trips.length + userTrails.length,
+        followersCount: cached?.stats?.followersCount ?? 0,
+        followingCount: cached?.stats?.followingCount ?? 0,
         level: 'Travel Explorer',
-        levelNumber: 4
+        levelNumber: Math.max(1, Math.min(10, Math.floor(trips.length / 2) + 1))
       }
     };
   });
@@ -267,18 +193,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTimeout(() => setShareToast(false), 2500);
   };
 
-  // Combine saved trips with sample trips
-  const displayTrips = trips.length > 0 
-    ? trips.map((t, i) => ({
-        id: t.id,
-        destination: t.destination,
-        date: t.startDate || 'Recent',
-        duration: `${t.durationDays} days`,
-        cost: t.budgetTier,
-        imageUrl: t.destinationPlace?.photoUrl || SAMPLE_RECENT_TRIPS[i % SAMPLE_RECENT_TRIPS.length].imageUrl,
-        isCarousel: i % 2 === 0
-      }))
-    : SAMPLE_RECENT_TRIPS;
+  // Real user planned trips
+  const displayTrips = trips.map((t) => ({
+    id: t.id,
+    destination: t.destination,
+    date: t.startDate || 'Recent',
+    duration: `${t.durationDays} days`,
+    cost: t.budgetTier,
+    imageUrl: t.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
+    isCarousel: (t.days?.length || 0) > 1
+  }));
 
   return (
     <div className="w-full min-h-screen bg-black text-white pb-32">
@@ -379,17 +303,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 className="cursor-pointer group flex-1"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.postsCount ?? Math.max(1, displayTrips.length)}
+                  {trips.length + userTrails.length}
                 </span>
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5">
-                  post
+                  {trips.length + userTrails.length === 1 ? 'post' : 'posts'}
                 </span>
               </div>
 
               {/* Followers */}
               <div className="cursor-pointer group flex-1">
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.followersCount ?? 804}
+                  {profile.stats?.followersCount ?? 0}
                 </span>
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5">
                   followers
@@ -399,7 +323,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               {/* Following */}
               <div className="cursor-pointer group flex-1">
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {profile.stats?.followingCount ?? 766}
+                  {profile.stats?.followingCount ?? 0}
                 </span>
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5">
                   following
@@ -464,7 +388,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <Compass className="w-4 h-4 text-emerald-400 group-hover:rotate-45 transition-transform" />
                 <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors leading-tight">
-                  {profile.stats?.tripsCount || Math.max(trips.length, 8)}
+                  {trips.length}
                 </span>
               </div>
               <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
@@ -481,7 +405,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <MapPin className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
                 <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-teal-400 transition-colors leading-tight">
-                  {profile.stats?.countriesCount || 4}
+                  {calculatedCountriesCount}
                 </span>
               </div>
               <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
@@ -498,7 +422,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <Mountain className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
                 <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-cyan-400 transition-colors leading-tight">
-                  {profile.stats?.placesCount || 124}
+                  {calculatedPlacesCount}
                 </span>
               </div>
               <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
@@ -572,70 +496,106 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         {/* 4. CONTENT GRIDS */}
         {/* --- TAB 1: TRIPS (3-COLUMN MEDIA GRID) --- */}
         {activeTab === 'trips' && (
-          <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
-            {displayTrips.map((trip) => (
-              <div
-                key={trip.id}
-                onClick={() => onOpenTrip(trip.id)}
-                className="relative aspect-square overflow-hidden group cursor-pointer bg-zinc-900"
-              >
-                <img
-                  src={trip.imageUrl}
-                  alt={trip.destination}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-
-                {/* Top-Right Multi-Photo / Carousel Indicator matching screenshot */}
-                {trip.isCarousel && (
-                  <div className="absolute top-2 right-2 text-white/90 drop-shadow-md">
-                    <Layers className="w-4 h-4 fill-white/80" />
-                  </div>
-                )}
-
-                {/* Bottom Title Gradient Overlay */}
-                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end">
-                  <span className="text-xs sm:text-sm font-bold text-white drop-shadow-xs truncate">
-                    {trip.destination}
-                  </span>
-                  <span className="text-[10px] text-zinc-300 font-medium drop-shadow-xs">
-                    {trip.duration}
-                  </span>
+          <div>
+            {displayTrips.length === 0 ? (
+              <div className="py-20 px-4 text-center space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
+                  <LayoutGrid className="w-7 h-7" />
                 </div>
+                <h4 className="text-sm sm:text-base font-bold text-white">No Trips Yet</h4>
+                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                  Plan your first adventure with AI and your customized itinerary will appear here.
+                </p>
+                <button
+                  onClick={() => onStartPlanning()}
+                  className="mt-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs hover:bg-zinc-200 transition-colors cursor-pointer"
+                >
+                  Plan a Trip
+                </button>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
+                {displayTrips.map((trip) => (
+                  <div
+                    key={trip.id}
+                    onClick={() => onOpenTrip(trip.id)}
+                    className="relative aspect-square overflow-hidden group cursor-pointer bg-zinc-900"
+                  >
+                    <img
+                      src={trip.imageUrl}
+                      alt={trip.destination}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+
+                    {/* Top-Right Multi-Photo / Carousel Indicator matching screenshot */}
+                    {trip.isCarousel && (
+                      <div className="absolute top-2 right-2 text-white/90 drop-shadow-md">
+                        <Layers className="w-4 h-4 fill-white/80" />
+                      </div>
+                    )}
+
+                    {/* Bottom Title Gradient Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end">
+                      <span className="text-xs sm:text-sm font-bold text-white drop-shadow-xs truncate">
+                        {trip.destination}
+                      </span>
+                      <span className="text-[10px] text-zinc-300 font-medium drop-shadow-xs">
+                        {trip.duration}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* --- TAB 2: TRAILS (3-COLUMN REELS VIDEO GRID) --- */}
         {activeTab === 'trails' && (
-          <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
-            {USER_TRAILS_FEED.map((trail) => (
-              <div
-                key={trail.id}
-                onClick={() => setSelectedTrail(trail)}
-                className="relative aspect-[9/16] overflow-hidden group cursor-pointer bg-zinc-900"
-              >
-                <img
-                  src={trail.posterUrl}
-                  alt={trail.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-
-                {/* Dark Vignette */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-
-                {/* Bottom-left: Play Icon + Views Count (Instagram Reels style) */}
-                <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-bold drop-shadow-md">
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>{trail.viewsCount}</span>
+          <div>
+            {userTrails.length === 0 ? (
+              <div className="py-20 px-4 text-center space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
+                  <Film className="w-7 h-7" />
                 </div>
-
-                {/* Duration in top right */}
-                <div className="absolute top-2 right-2 text-[10px] font-semibold text-white/80 bg-black/50 px-1.5 py-0.5 rounded-sm">
-                  {trail.duration}
-                </div>
+                <h4 className="text-sm sm:text-base font-bold text-white">No Trails Uploaded</h4>
+                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                  Share your travel moments and video reels with the RoamAI community.
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
+                {userTrails.map((trail) => (
+                  <div
+                    key={trail.id}
+                    onClick={() => setSelectedTrail(trail)}
+                    className="relative aspect-[9/16] overflow-hidden group cursor-pointer bg-zinc-900"
+                  >
+                    <img
+                      src={trail.posterUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80'}
+                      alt={trail.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+
+                    {/* Dark Vignette */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+
+                    {/* Bottom-left: Play Icon + Views Count (Instagram Reels style) */}
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-bold drop-shadow-md">
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>{trail.viewsCount || '0'}</span>
+                    </div>
+
+                    {/* Duration in top right */}
+                    {trail.duration && (
+                      <div className="absolute top-2 right-2 text-[10px] font-semibold text-white/80 bg-black/50 px-1.5 py-0.5 rounded-sm">
+                        {trail.duration}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -650,7 +610,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   Travel DNA Profile
                 </span>
                 <span className="text-xs text-zinc-400 font-semibold">
-                  Level {profile.stats?.levelNumber || 4} Explorer
+                  Level {profile.stats?.levelNumber || 1} Explorer
                 </span>
               </div>
               <h3 className="text-xl font-black text-white">
@@ -699,7 +659,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </div>
                 <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
                   <span className="text-zinc-400 block text-[11px]">Target Budget</span>
-                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.budget || '₹10K – ₹25K'}</span>
+                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.budget || 'Flexible'}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
                   <span className="text-zinc-400 block text-[11px]">Accommodation</span>
@@ -712,28 +672,44 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         {/* --- TAB 4: SAVED (WISHLIST SPOTS) --- */}
         {activeTab === 'saved' && (
-          <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
-            {SAMPLE_WISHLIST.map((spot) => (
-              <div
-                key={spot.id}
-                onClick={() => onStartPlanning(spot.name)}
-                className="relative aspect-square overflow-hidden group cursor-pointer bg-zinc-900"
-              >
-                <img
-                  src={spot.imageUrl}
-                  alt={spot.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2">
-                  <span className="text-xs sm:text-sm font-bold text-white truncate drop-shadow-xs">
-                    {spot.name}
-                  </span>
-                  <span className="text-[10px] text-zinc-300 font-medium truncate drop-shadow-xs">
-                    {spot.subtitle}
-                  </span>
+          <div>
+            {(profile.wishlist || []).length === 0 ? (
+              <div className="py-20 px-4 text-center space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
+                  <Bookmark className="w-7 h-7" />
                 </div>
+                <h4 className="text-sm sm:text-base font-bold text-white">No Saved Places</h4>
+                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                  Bookmark dream destinations and itineraries to easily find them later.
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
+                {(profile.wishlist || []).map((spot) => (
+                  <div
+                    key={spot.id}
+                    onClick={() => onStartPlanning(spot.name)}
+                    className="relative aspect-square overflow-hidden group cursor-pointer bg-zinc-900"
+                  >
+                    <img
+                      src={spot.imageUrl}
+                      alt={spot.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2">
+                      <span className="text-xs sm:text-sm font-bold text-white truncate drop-shadow-xs">
+                        {spot.name}
+                      </span>
+                      {spot.country && (
+                        <span className="text-[10px] text-zinc-300 font-medium truncate drop-shadow-xs">
+                          {spot.country}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
