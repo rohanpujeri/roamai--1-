@@ -214,9 +214,14 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-300 transition-colors truncate">
-                        {traveller.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-300 transition-colors truncate">
+                          {traveller.name}
+                        </h4>
+                        <span className="text-[10px] font-extrabold text-amber-400 bg-amber-950/70 border border-amber-800/60 px-1.5 py-0.2 rounded-md shrink-0">
+                          {traveller.level.split('—')[0].trim()}
+                        </span>
+                      </div>
                       <p className="text-[11px] text-neutral-400 font-medium">
                         {traveller.username}
                       </p>

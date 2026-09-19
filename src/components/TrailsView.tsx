@@ -562,11 +562,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </button>
           </div>
 
-          {/* Creator handle */}
-          <div className="flex items-center gap-2">
+          {/* Creator handle & level */}
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-white drop-shadow-md">
               {activeReel.creator.name}
             </p>
+            <span className="text-[10px] font-extrabold text-amber-300 bg-black/60 backdrop-blur-md border border-amber-500/40 px-1.5 py-0.5 rounded-md shadow-xs">
+              Lvl 4 Explorer
+            </span>
             <span className="text-xs text-neutral-300 font-medium">
               {activeReel.creator.username}
             </span>

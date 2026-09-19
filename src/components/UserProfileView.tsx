@@ -268,10 +268,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
                 {/* Name, Handle, Bio */}
                 <div className="space-y-1 sm:mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                       {profile.name}
                     </h1>
+
+                    {/* Level badge displayed right beside user name */}
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xs">
+                      <Mountain className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>Level {profile.stats?.levelNumber || 4} — {profile.stats?.level || 'Travel Explorer'}</span>
+                    </span>
+
                     {saveSuccess && (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded-full">
                         <Check className="w-3 h-3" />

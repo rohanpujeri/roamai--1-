@@ -518,9 +518,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs sm:text-sm font-bold text-white truncate block group-hover:text-emerald-300 transition-colors">
-                          {userDisplayName}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs sm:text-sm font-bold text-white truncate block group-hover:text-emerald-300 transition-colors">
+                            {userDisplayName}
+                          </span>
+                          <span className="text-[10px] font-extrabold text-amber-400 bg-amber-950/80 border border-amber-800/60 px-1.5 py-0.2 rounded-md shrink-0">
+                            Lvl 4
+                          </span>
+                        </div>
                         <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded-md shrink-0">
                           View
                         </span>
