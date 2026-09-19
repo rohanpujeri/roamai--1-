@@ -360,3 +360,10 @@ export interface RealTripBudgetResult {
   aiConfidence: string;
   isAiGenerated: boolean;
 }
+
+export interface UserProfileData {
+  name: string;
+  dob?: string;
+  place?: string;
+  email?: string;
+}

@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
-import { getSupabaseClient } from '../services/supabaseClient';
+import { getSupabaseClient, getCachedUserProfile } from '../services/supabaseClient';
+import { UserProfileModal } from './UserProfileModal';
 
 interface NavbarProps {
   currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai';
@@ -46,6 +47,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+
+  const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
+  const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
+  const userPlace = cachedProfile?.place || session?.user?.user_metadata?.place || '';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -227,6 +234,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="font-bold hidden md:inline">{currentTheme.name}</span>
                 <Palette className={`w-3.5 h-3.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
               </button>
+
+              {/* Profile Pill (When Logged In) */}
+              {session && (
+                <button
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+                    isDarkText
+                      ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
+                      : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
+                  }`}
+                  title="View Profile (Name, DOB, Place)"
+                >
+                  <div 
+                    className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-2xs shrink-0"
+                    style={{ backgroundColor: currentTheme.primaryColor }}
+                  >
+                    {userDisplayName.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="max-w-[70px] sm:max-w-[100px] truncate hidden md:inline">{userDisplayName}</span>
+                </button>
+              )}
 
               {/* Primary CTA: Plan My Trip (Optimized for mobile single-line) */}
               <button
@@ -476,31 +504,61 @@ export const Navbar: React.FC<NavbarProps> = ({
               </p>
 
               {session ? (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 shadow-md">
+                <div 
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    setIsProfileModalOpen(true);
+                  }}
+                  className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2.5 shadow-md cursor-pointer transition-all hover:bg-neutral-850 group"
+                  title="Click to view and edit profile"
+                >
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div 
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md ring-1 ring-white/20 shrink-0"
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-white font-black text-xs sm:text-sm shadow-md ring-1 ring-white/20 shrink-0 group-hover:scale-105 transition-transform"
                       style={{ backgroundColor: currentTheme.primaryColor }}
                     >
-                      {session.user.email?.charAt(0).toUpperCase() || 'U'}
+                      {userDisplayName.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold text-white truncate block">
-                        {session.user.email?.split('@')[0] || 'User'}
-                      </span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs sm:text-sm font-bold text-white truncate block group-hover:text-emerald-300 transition-colors">
+                          {userDisplayName}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded-md shrink-0">
+                          View
+                        </span>
+                      </div>
                       <p className="text-[10px] text-neutral-400 truncate mt-0.5">
-                        {session.user.email}
+                        {userPlace ? `${userPlace} • ` : ''}{session.user.email}
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full py-1.5 sm:py-2 px-2 rounded-lg sm:rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
+                  <div className="flex items-center gap-2 pt-1 border-t border-neutral-800/80">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDrawerOpen(false);
+                        setIsProfileModalOpen(true);
+                      }}
+                      className="flex-1 py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[10px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <User className="w-3 h-3 text-neutral-400" />
+                      <span>View Profile Info</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSignOut();
+                      }}
+                      className="py-1.5 px-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 shadow-md">
@@ -537,6 +595,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        key={profileRefreshKey}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        session={session}
+        currentTheme={currentTheme}
+        savedTripsCount={savedTripsCount}
+        onSignOut={handleSignOut}
+        onProfileUpdated={() => {
+          setProfileRefreshKey((prev) => prev + 1);
+        }}
+      />
     </>
   );
 };

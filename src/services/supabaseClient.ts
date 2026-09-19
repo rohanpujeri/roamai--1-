@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config';
-import { Trip, SavedPlace } from '../types';
+import { Trip, SavedPlace, UserProfileData } from '../types';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -272,4 +272,51 @@ export async function deletePlaceFromBackend(placeId: string): Promise<void> {
       }
     }
   }
+}
+
+// --- User Profile Persistence ---
+
+const PROFILE_STORAGE_KEY = 'tripwise_user_profile';
+
+export function getCachedUserProfile(userId?: string): UserProfileData | null {
+  if (typeof window === 'undefined' || !userId) return null;
+  try {
+    const raw = localStorage.getItem(`${PROFILE_STORAGE_KEY}_${userId}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Failed to parse cached user profile:', e);
+  }
+  return null;
+}
+
+export async function updateUserProfileData(profile: UserProfileData): Promise<{ error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${user.id}`, JSON.stringify(profile));
+    } catch (e) {
+      console.warn('Failed to cache profile in localStorage:', e);
+    }
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: profile.name,
+          name: profile.name,
+          dob: profile.dob,
+          place: profile.place
+        }
+      });
+      if (error) return { error: error.message };
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to update profile' };
+    }
+  }
+
+  return {};
 }

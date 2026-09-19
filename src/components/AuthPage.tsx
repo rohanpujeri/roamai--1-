@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, AlertCircle, Loader2, Compass, Eye, EyeOff, Check, X } from 'lucide-react';
-import { getSupabaseClient } from '../services/supabaseClient';
+import { Mail, Lock, AlertCircle, Loader2, Compass, Eye, EyeOff, Check, X, User, Calendar, MapPin } from 'lucide-react';
+import { getSupabaseClient, updateUserProfileData } from '../services/supabaseClient';
 import { ThemeConfig } from '../types';
 
 export type AuthMode = 'signin' | 'signup' | 'forgot_password' | 'update_password';
@@ -17,6 +17,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [dob, setDob] = useState('');
+  const [place, setPlace] = useState('');
   
   const [showPassword, setShowPassword] = useState(false);
   
@@ -92,6 +95,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
         const { error: signUpError, data } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              full_name: fullName.trim(),
+              name: fullName.trim(),
+              dob: dob.trim(),
+              place: place.trim()
+            }
+          }
         });
 
         if (signUpError) {
@@ -100,6 +111,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
           if (data.user && data.user.identities && data.user.identities.length === 0) {
             setError('Account already exists. Try signing in.');
           } else {
+            if (data.user) {
+              updateUserProfileData({
+                name: fullName.trim() || email.split('@')[0],
+                dob: dob.trim(),
+                place: place.trim(),
+                email
+              });
+            }
             setMessage('Success! Please check your email for a confirmation link.');
             setShowResend(true);
           }
@@ -253,6 +272,64 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
                   </button>
                 )}
               </div>
+            )}
+
+            {authMode === 'signup' && (
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-opacity-50 focus:outline-none transition-all shadow-sm font-medium text-slate-800"
+                      style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
+                      placeholder="e.g. Rohan Pujeri"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Date of Birth
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="date"
+                        value={dob}
+                        max={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setDob(e.target.value)}
+                        className="w-full pl-10 pr-2 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-opacity-50 focus:outline-none transition-all shadow-sm text-xs sm:text-sm font-medium text-slate-800 cursor-pointer"
+                        style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Place / City
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={place}
+                        onChange={(e) => setPlace(e.target.value)}
+                        className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-opacity-50 focus:outline-none transition-all shadow-sm font-medium text-slate-800 text-xs sm:text-sm"
+                        style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
+                        placeholder="e.g. Bengaluru"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {(authMode === 'signin' || authMode === 'signup' || authMode === 'forgot_password') && (
