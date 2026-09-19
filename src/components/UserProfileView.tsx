@@ -314,17 +314,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   };
 
-  // Real user planned trips with completion status
-  const displayTrips = trips.map((t) => ({
-    id: t.id,
-    destination: t.destination,
-    date: t.startDate || 'Recent',
-    duration: `${t.durationDays} days`,
-    cost: t.budgetTier,
-    imageUrl: t.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
-    isCarousel: (t.days?.length || 0) > 1,
-    isCompleted: isTripCompleted(t)
-  }));
+  // Only display completed trips in profile as requested
+  const displayTrips = trips
+    .filter((t) => isTripCompleted(t))
+    .map((t) => ({
+      id: t.id,
+      destination: t.destination,
+      date: t.startDate || 'Recent',
+      duration: `${t.durationDays} days`,
+      cost: t.budgetTier,
+      imageUrl: t.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
+      isCarousel: (t.days?.length || 0) > 1,
+      isCompleted: true
+    }));
 
   return (
     <div className="w-full min-h-screen bg-black text-white pb-32">
@@ -713,12 +715,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <div>
             {displayTrips.length === 0 ? (
               <div className="py-20 px-4 text-center space-y-3">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
-                  <LayoutGrid className="w-7 h-7" />
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-emerald-400">
+                  <CheckCircle2 className="w-7 h-7" />
                 </div>
-                <h4 className="text-sm sm:text-base font-bold text-white">No Trips Yet</h4>
+                <h4 className="text-sm sm:text-base font-bold text-white">No Completed Trips Yet</h4>
                 <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                  Plan your first adventure with AI and your customized itinerary will appear here.
+                  Only completed trips appear in your profile gallery and travel footprint. Mark your planned trips as completed to display them here!
                 </p>
                 <button
                   onClick={() => onStartPlanning()}
@@ -748,15 +750,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                         e.stopPropagation();
                         handleToggleCompleted(trip.id);
                       }}
-                      className={`absolute top-1.5 left-1.5 z-10 px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-extrabold flex items-center gap-1 shadow-md transition-all cursor-pointer backdrop-blur-md ${
-                        trip.isCompleted
-                          ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                          : 'bg-black/70 hover:bg-black/90 text-zinc-300 border border-white/20'
-                      }`}
-                      title={trip.isCompleted ? 'Completed trip (Click to unmark)' : 'Click to mark as completed'}
+                      className="absolute top-1.5 left-1.5 z-10 px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-extrabold flex items-center gap-1 shadow-md transition-all cursor-pointer backdrop-blur-md bg-emerald-500 hover:bg-emerald-600 text-white"
+                      title="Completed trip (Click to unmark)"
                     >
-                      <Check className={`w-2.5 h-2.5 ${trip.isCompleted ? 'stroke-[3]' : 'opacity-60'}`} />
-                      <span>{trip.isCompleted ? 'Done' : 'Mark Done'}</span>
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      <span>Completed</span>
                     </button>
 
                     {/* Top-Right Multi-Photo / Carousel Indicator matching screenshot */}
