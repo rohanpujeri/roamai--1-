@@ -352,22 +352,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {onToggleTripCompleted && (
-              <button
-                type="button"
-                onClick={() => onToggleTripCompleted(trip.id)}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isTripCompleted(trip)
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-black hover:bg-zinc-900 text-zinc-300 border border-zinc-800'
-                }`}
-                title={isTripCompleted(trip) ? 'Trip Completed (Click to mark as planned)' : 'Click to mark trip as completed'}
-              >
-                <CheckCircle2 className={`w-3.5 h-3.5 ${isTripCompleted(trip) ? 'text-emerald-400' : 'text-zinc-500'}`} />
-                <span>{isTripCompleted(trip) ? 'Completed' : 'Mark Completed'}</span>
-              </button>
-            )}
-
             <button
               id="enter-trip-mode-btn"
               onClick={onEnterTripMode}
@@ -387,32 +371,51 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             {trip.title}
           </h1>
 
-          <div 
-            id="itinerary-route-metadata-bar"
-            className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-zinc-400 font-medium select-none !bg-transparent"
-            style={{ backgroundColor: 'transparent' }}
-          >
-            {/* Start -> Destination */}
-            <span className="flex items-center gap-1 text-zinc-300">
-              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span>{trip.startCity ? `${trip.startCity} → ${trip.destination}` : trip.destination}</span>
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div 
+              id="itinerary-route-metadata-bar"
+              className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-zinc-400 font-medium select-none !bg-transparent"
+              style={{ backgroundColor: 'transparent' }}
+            >
+              {/* Start -> Destination */}
+              <span className="flex items-center gap-1 text-zinc-300">
+                <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>{trip.startCity ? `${trip.startCity} → ${trip.destination}` : trip.destination}</span>
+              </span>
 
-            <span className="text-zinc-600 font-bold">•</span>
+              <span className="text-zinc-600 font-bold">•</span>
 
-            {/* Distance & Transit Time */}
-            <span className="flex items-center gap-1 text-zinc-300">
-              <CornerDownRight className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span>{transitSummaryText}</span>
-            </span>
+              {/* Distance & Transit Time */}
+              <span className="flex items-center gap-1 text-zinc-300">
+                <CornerDownRight className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>{transitSummaryText}</span>
+              </span>
 
-            <span className="text-zinc-600 font-bold">•</span>
+              <span className="text-zinc-600 font-bold">•</span>
 
-            {/* Date Range */}
-            <span className="flex items-center gap-1 text-zinc-300">
-              <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span>{formattedTripDateRange}</span>
-            </span>
+              {/* Date Range */}
+              <span className="flex items-center gap-1 text-zinc-300">
+                <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>{formattedTripDateRange}</span>
+              </span>
+            </div>
+
+            {/* Bottom Right Corner: Mark Completed Button with small font */}
+            {onToggleTripCompleted && (
+              <button
+                type="button"
+                onClick={() => onToggleTripCompleted(trip.id)}
+                className={`ml-auto px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+                  isTripCompleted(trip)
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                }`}
+                title={isTripCompleted(trip) ? 'Trip Completed (Click to mark as planned)' : 'Click to mark trip as completed'}
+              >
+                <CheckCircle2 className={`w-3 h-3 ${isTripCompleted(trip) ? 'text-emerald-400' : 'text-zinc-500'}`} />
+                <span>{isTripCompleted(trip) ? 'Completed' : 'Mark Completed'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
