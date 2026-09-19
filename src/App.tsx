@@ -29,6 +29,7 @@ import { UserProfileView } from './components/UserProfileView';
 import { BottomNavBar } from './components/BottomNavBar';
 import { TrailsView } from './components/TrailsView';
 import { TravellerSearchModal } from './components/TravellerSearchModal';
+import { TravellerSearchView } from './components/TravellerSearchView';
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -99,7 +100,7 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search'>('landing');
   const [isTravellerSearchOpen, setIsTravellerSearchOpen] = useState<boolean>(false);
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
@@ -820,19 +821,27 @@ export default function App() {
     );
   };
 
+  const isNoThemeBgView = 
+    currentView === 'trails' || 
+    currentView === 'profile' || 
+    currentView === 'travellers_search' || 
+    currentView === 'wizard';
+
   return (
     <div 
       className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
-      style={{ backgroundColor: currentTheme.canvasBg }}
+      style={{ backgroundColor: isNoThemeBgView ? '#0a0a0f' : currentTheme.canvasBg }}
     >
-      {/* Full-Page Dynamic Photographic Scenic Backdrop across Discover, My Trips, Itinerary, etc. */}
-      <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+      {/* Full-Page Dynamic Photographic Scenic Backdrop - Disabled on separate bottom nav pages */}
+      {!isNoThemeBgView && (
+        <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Global Ambient Snowfall when Snow Theme is active */}
-      {themeId === 'snow' && (
+      {/* Global Ambient Snowfall when Snow Theme is active - Disabled on separate bottom nav pages */}
+      {!isNoThemeBgView && themeId === 'snow' && (
         <SnowfallEffect fullScreen={true} density="gentle" />
       )}
 
@@ -1046,15 +1055,30 @@ export default function App() {
                 onBack={() => setCurrentView('landing')}
               />
             )}
+
+            {/* VIEW 11: TRAVELLERS PROFILE SEARCH (SEPARATE PAGE) */}
+            {currentView === 'travellers_search' && (
+              <TravellerSearchView
+                currentTheme={currentTheme}
+                onSelectTraveller={() => setCurrentView('profile')}
+                onBack={() => setCurrentView('landing')}
+              />
+            )}
           </main>
 
-          {/* Floating Bottom Navigation Bar (Hidden in trip_mode, wizard, and auth to avoid clutter) */}
-          {currentView !== 'trip_mode' && currentView !== 'wizard' && currentView !== 'auth' && (
+          {/* Floating Bottom Navigation Bar (Accessible across all separate pages, hidden in trip_mode & auth) */}
+          {currentView !== 'trip_mode' && currentView !== 'auth' && (
             <BottomNavBar
               currentView={currentView}
-              onNavigate={(v) => setCurrentView(v)}
+              onNavigate={(v) => {
+                if (v === 'wizard') {
+                  handleStartPlanning();
+                } else {
+                  setCurrentView(v);
+                }
+              }}
               onStartPlanning={() => handleStartPlanning()}
-              onOpenTravellerSearch={() => setIsTravellerSearchOpen(true)}
+              onOpenTravellerSearch={() => setCurrentView('travellers_search')}
               session={session}
             />
           )}

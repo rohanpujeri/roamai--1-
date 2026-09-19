@@ -73,21 +73,34 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onClick={onStartPlanning}
           aria-label="Plan New Trip"
           title="Plan New Trip"
-          className="relative p-2 sm:p-2.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all duration-200 cursor-pointer flex items-center justify-center group shadow-sm hover:shadow-white/10"
+          className={`relative p-2 sm:p-2.5 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group shadow-sm hover:shadow-white/10 ${
+            currentView === 'wizard'
+              ? 'bg-white/30 text-white ring-2 ring-white/60'
+              : 'bg-white/10 hover:bg-white/20 active:scale-95 text-white'
+          }`}
         >
           <Plus className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-[2.5] transition-transform group-hover:rotate-90 group-hover:scale-110" />
           <span className="sr-only">Plan New Trip</span>
         </button>
 
-        {/* 4. Travellers Profile Search */}
+        {/* 4. Travellers Profile Search (Separate Page) */}
         <button
           type="button"
-          onClick={onOpenTravellerSearch}
+          onClick={() => onNavigate('travellers_search')}
           aria-label="Search Travellers"
           title="Search Travellers"
-          className="relative p-2 sm:p-2.5 rounded-full text-neutral-400 hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center group"
+          className={`relative p-2 sm:p-2.5 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+            currentView === 'travellers_search'
+              ? 'text-white'
+              : 'text-neutral-400 hover:text-white'
+          }`}
         >
-          <Search className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-2 transition-transform group-hover:scale-110" />
+          <Search className={`w-5 h-5 sm:w-5.5 sm:h-5.5 transition-transform group-hover:scale-110 ${
+            currentView === 'travellers_search' ? 'stroke-[2.5]' : 'stroke-2'
+          }`} />
+          {currentView === 'travellers_search' && (
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full" />
+          )}
         </button>
 
         {/* 5. Travellers Profile (Avatar with red indicator dot) */}

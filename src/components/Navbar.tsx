@@ -22,8 +22,8 @@ import { getSupabaseClient, getCachedUserProfile } from '../services/supabaseCli
 import { UserProfileModal } from './UserProfileModal';
 
 interface NavbarProps {
-  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails';
-  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails') => void;
+  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search';
+  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search') => void;
   activeTrip: Trip | null;
   savedTripsCount: number;
   currentTheme: ThemeConfig;
@@ -84,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isWhiteBg = isHovered || isScrolled;
   const isDarkText = isWhiteBg || currentTheme.id === 'snow' || !currentTheme.isDark;
 
-  const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails') => {
+  const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search') => {
     onNavigate(view);
     setIsDrawerOpen(false);
   };
