@@ -180,72 +180,67 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-slate-900 dark:text-white pb-16">
-      {/* Top Profile Container */}
-      <div className="max-w-5xl mx-auto px-3 sm:px-6 pt-2 sm:pt-4">
-        
-        {/* Main Card */}
-        <div className="bg-white dark:bg-zinc-950 rounded-3xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800/80">
-          
-          {/* 1. SCENIC COVER IMAGE BANNER */}
-          <div className="relative h-48 sm:h-64 md:h-72 w-full overflow-hidden bg-zinc-900">
-            <img
-              src="/images/bg_mountain.jpg"
-              alt="Mountain Lake Cover"
-              className="w-full h-full object-cover object-center"
-              onError={(e) => {
-                // Fallback to beautiful mountain lake from unsplash if local image fails
-                (e.target as HTMLImageElement).src =
-                  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&auto=format&fit=crop&q=80';
-              }}
-            />
-            {/* Subtle gradient vignette */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
+    <div className="w-full min-h-screen bg-white dark:bg-zinc-950 text-slate-900 dark:text-white pb-28">
+      {/* 1. SCENIC COVER IMAGE BANNER (Full Page Width Edge-to-Edge) */}
+      <div className="relative h-56 sm:h-72 md:h-80 w-full overflow-hidden bg-zinc-900">
+        <img
+          src="/images/bg_mountain.jpg"
+          alt="Mountain Lake Cover"
+          className="w-full h-full object-cover object-center"
+          onError={(e) => {
+            // Fallback to beautiful mountain lake from unsplash if local image fails
+            (e.target as HTMLImageElement).src =
+              'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&auto=format&fit=crop&q=80';
+          }}
+        />
+        {/* Subtle gradient vignette */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
 
-            {/* Back button */}
-            <button
-              onClick={onBack}
-              className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-md text-white text-xs font-bold border border-white/20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
+        {/* Back button */}
+        <button
+          onClick={onBack}
+          className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-md text-white text-xs font-bold border border-white/20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </button>
 
-            {/* Script Text in Top Right: "Collect Experiences Not Things" */}
-            <div className="absolute top-4 sm:top-6 right-4 sm:right-8 text-right pointer-events-none select-none">
-              <span 
-                className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, cursive",
-                  textShadow: '0 2px 10px rgba(0,0,0,0.8)'
-                }}
-              >
-                Collect
-              </span>
-              <span 
-                className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, cursive",
-                  textShadow: '0 2px 10px rgba(0,0,0,0.8)'
-                }}
-              >
-                Experiences
-              </span>
-              <span 
-                className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, cursive",
-                  textShadow: '0 2px 10px rgba(0,0,0,0.8)'
-                }}
-              >
-                Not Things
-              </span>
-            </div>
-          </div>
+        {/* Script Text in Top Right: "Collect Experiences Not Things" */}
+        <div className="absolute top-4 sm:top-6 right-4 sm:right-8 text-right pointer-events-none select-none">
+          <span 
+            className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
+            style={{
+              fontFamily: "'Playfair Display', Georgia, cursive",
+              textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+            }}
+          >
+            Collect
+          </span>
+          <span 
+            className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
+            style={{
+              fontFamily: "'Playfair Display', Georgia, cursive",
+              textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+            }}
+          >
+            Experiences
+          </span>
+          <span 
+            className="block text-white/90 text-lg sm:text-2xl md:text-3xl font-serif italic tracking-wide"
+            style={{
+              fontFamily: "'Playfair Display', Georgia, cursive",
+              textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+            }}
+          >
+            Not Things
+          </span>
+        </div>
+      </div>
 
-          {/* 2. PROFILE HEADER & STATS BAR */}
-          <div className="px-5 sm:px-8 pb-4 pt-0 relative bg-white dark:bg-zinc-950">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 -mt-16 sm:-mt-20 md:-mt-24 mb-6">
+      {/* 2. PROFILE HEADER & CONTENT CONTAINER */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-8">
+        <div className="pb-4 pt-0 relative">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 -mt-16 sm:-mt-20 md:-mt-24 mb-6">
               
               {/* Left: Avatar & Identity */}
               <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-5">
@@ -830,7 +825,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           )}
 
         </div>
-      </div>
 
       {/* --- EDIT PROFILE MODAL / DRAWER --- */}
       {isEditModalOpen && (

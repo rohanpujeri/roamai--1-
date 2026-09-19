@@ -830,7 +830,7 @@ export default function App() {
   return (
     <div 
       className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
-      style={{ backgroundColor: isNoThemeBgView ? '#0a0a0f' : currentTheme.canvasBg }}
+      style={{ backgroundColor: currentView === 'profile' ? '#09090b' : isNoThemeBgView ? '#0a0a0f' : currentTheme.canvasBg }}
     >
       {/* Full-Page Dynamic Photographic Scenic Backdrop - Disabled on separate bottom nav pages */}
       {!isNoThemeBgView && (
