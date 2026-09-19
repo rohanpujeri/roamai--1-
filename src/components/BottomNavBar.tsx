@@ -23,10 +23,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || 'Traveler';
 
   return (
-    <div className="fixed bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+    <div className="fixed bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px]">
       <nav 
         aria-label="Quick Navigation"
-        className="flex items-center gap-2.5 sm:gap-4 px-4 py-2.5 sm:px-6 sm:py-3.5 bg-[#141419]/92 hover:bg-[#141419]/98 backdrop-blur-2xl border border-white/15 rounded-full shadow-[0_16px_50px_rgba(0,0,0,0.75),0_4px_16px_rgba(0,0,0,0.5)] transition-all duration-300"
+        className="w-full flex items-center justify-between px-5 sm:px-7 py-2.5 sm:py-3.5 bg-[#141419]/92 hover:bg-[#141419]/98 backdrop-blur-2xl border border-white/15 rounded-full shadow-[0_16px_50px_rgba(0,0,0,0.75),0_4px_16px_rgba(0,0,0,0.5)] transition-all duration-300"
       >
         {/* 1. Home Button */}
         <button
