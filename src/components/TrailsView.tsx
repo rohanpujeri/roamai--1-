@@ -138,6 +138,7 @@ const DEFAULT_TRAILS: TrailReel[] = [
 interface TrailsViewProps {
   currentTheme: ThemeConfig;
   session: Session | null;
+  isActive?: boolean;
   onStartPlanning: (destination?: string) => void;
   onBack: () => void;
 }
@@ -145,6 +146,7 @@ interface TrailsViewProps {
 export const TrailsView: React.FC<TrailsViewProps> = ({
   currentTheme,
   session,
+  isActive = true,
   onStartPlanning,
   onBack
 }) => {
@@ -199,6 +201,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       }
     }
   }, [currentIndex]);
+
+  // Pause video if user slides away from Trails
+  useEffect(() => {
+    if (!isActive) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    } else {
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {
+          setIsMuted(true);
+        });
+        setIsPlaying(true);
+      }
+    }
+  }, [isActive]);
 
   const handleNextReel = () => {
     if (currentIndex < trails.length - 1) {

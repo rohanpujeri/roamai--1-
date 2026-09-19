@@ -830,211 +830,130 @@ export default function App() {
     'profile'
   ] as const;
 
-  const [slideDirection, setSlideDirection] = useState<number>(0);
+  const isBottomNavView = BOTTOM_NAV_ORDER.includes(currentView as any);
 
-  const navigateBottomTab = (targetView: string, explicitDir?: number) => {
-    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
-    const targetIndex = BOTTOM_NAV_ORDER.indexOf(targetView as any);
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+  const isProgrammaticScroll = useRef(false);
 
-    let dir = explicitDir;
-    if (dir === undefined) {
-      if (currentIndex !== -1 && targetIndex !== -1) {
-        dir = targetIndex >= currentIndex ? 1 : -1;
-      } else {
-        dir = 1;
-      }
-    }
-
-    setSlideDirection(dir);
+  const scrollToTab = (index: number, smooth = true) => {
+    const targetView = BOTTOM_NAV_ORDER[index];
+    if (!targetView) return;
 
     if (targetView === 'wizard') {
       setWizardDestId('');
       setWizardEditingTrip(null);
       setWizardInitialStep(1);
-      setCurrentView('wizard');
-    } else {
-      setCurrentView(targetView as any);
     }
 
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    if (!sliderRef.current) {
+      setCurrentView(targetView);
+      return;
+    }
+
+    isProgrammaticScroll.current = true;
+    const width = sliderRef.current.clientWidth;
+    sliderRef.current.scrollTo({
+      left: index * width,
+      behavior: smooth ? 'smooth' : 'instant',
+    });
+    setCurrentView(targetView);
+    setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 450);
   };
 
-  const goToNextBottomTab = () => {
-    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
-    if (currentIndex >= 0 && currentIndex < BOTTOM_NAV_ORDER.length - 1) {
-      navigateBottomTab(BOTTOM_NAV_ORDER[currentIndex + 1], 1);
+  const handleSliderScroll = () => {
+    if (isProgrammaticScroll.current || !sliderRef.current) return;
+    const { scrollLeft, clientWidth } = sliderRef.current;
+    if (!clientWidth) return;
+    const newIndex = Math.round(scrollLeft / clientWidth);
+    if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
+      const targetView = BOTTOM_NAV_ORDER[newIndex];
+      if (targetView !== currentView) {
+        setCurrentView(targetView);
+      }
     }
   };
 
-  const goToPrevBottomTab = () => {
-    const currentIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
-    if (currentIndex > 0) {
-      navigateBottomTab(BOTTOM_NAV_ORDER[currentIndex - 1], -1);
-    }
-  };
-
-  // Swipe and Keyboard Navigation between Bottom Nav Pages
+  // Sync slider position if currentView is changed externally
   useEffect(() => {
-    if (!BOTTOM_NAV_ORDER.includes(currentView as any)) return;
+    if (!isBottomNavView || !sliderRef.current) return;
+    const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    if (index !== -1) {
+      const targetLeft = index * sliderRef.current.clientWidth;
+      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 10) {
+        isProgrammaticScroll.current = true;
+        sliderRef.current.scrollTo({
+          left: targetLeft,
+          behavior: 'smooth',
+        });
+        setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 450);
+      }
+    }
+  }, [currentView, isBottomNavView]);
 
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
-    let isVertical = false;
-    let isValidSwipe = false;
+  // Adjust scroll on window resize (e.g. rotation)
+  useEffect(() => {
+    const handleResize = () => {
+      if (!sliderRef.current || !isBottomNavView) return;
+      const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+      if (index !== -1) {
+        sliderRef.current.scrollTo({
+          left: index * sliderRef.current.clientWidth,
+          behavior: 'instant',
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentView, isBottomNavView]);
 
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
+  // Keyboard navigation for desktop power users
+  useEffect(() => {
+    if (!isBottomNavView) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        target.closest(
-          'input, textarea, select, [contenteditable="true"], [data-no-swipe], .overflow-x-auto, .overflow-x-scroll'
-        )
-      ) {
-        isValidSwipe = false;
-        return;
-      }
-
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-      isVertical = false;
-      isValidSwipe = true;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!isValidSwipe || isVertical) return;
-      const dx = e.touches[0].clientX - touchStartX;
-      const dy = e.touches[0].clientY - touchStartY;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-
-      // If vertical motion exceeds horizontal, lock to vertical scrolling
-      if (absY > 8 && absY > absX) {
-        isVertical = true;
-        isValidSwipe = false;
-      }
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (!isValidSwipe || isVertical) {
-        isValidSwipe = false;
-        return;
-      }
-
-      const touch = e.changedTouches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-      const dt = Date.now() - touchStartTime;
-
-      if (absX >= 45 && absX > absY * 1.3 && dt < 800) {
-        if (dx < 0) {
-          goToNextBottomTab();
-        } else {
-          goToPrevBottomTab();
-        }
-      }
-      isValidSwipe = false;
-    };
-
-    // Desktop mouse drag support
-    let mouseStartX = 0;
-    let mouseStartY = 0;
-    let mouseStartTime = 0;
-    let isMouseDown = false;
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        target.closest(
-          'input, textarea, select, button, a, [contenteditable="true"], [data-no-swipe], .overflow-x-auto, .overflow-x-scroll'
-        )
-      ) {
-        isMouseDown = false;
-        return;
-      }
-      mouseStartX = e.clientX;
-      mouseStartY = e.clientY;
-      mouseStartTime = Date.now();
-      isMouseDown = true;
-    };
-
-    const onMouseUp = (e: MouseEvent) => {
-      if (!isMouseDown) return;
-      const dx = e.clientX - mouseStartX;
-      const dy = e.clientY - mouseStartY;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-      const dt = Date.now() - mouseStartTime;
-
-      if (absX >= 60 && absX > absY * 1.5 && dt < 800) {
-        if (dx < 0) {
-          goToNextBottomTab();
-        } else {
-          goToPrevBottomTab();
-        }
-      }
-      isMouseDown = false;
-    };
-
-    // Keyboard Arrow navigation
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && target.closest('input, textarea, select, [contenteditable="true"]')) {
-        return;
-      }
+      if (target && target.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (e.key === 'ArrowRight') {
-        goToNextBottomTab();
+        const idx = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+        if (idx < BOTTOM_NAV_ORDER.length - 1) scrollToTab(idx + 1);
       } else if (e.key === 'ArrowLeft') {
-        goToPrevBottomTab();
+        const idx = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+        if (idx > 0) scrollToTab(idx - 1);
       }
     };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, isBottomNavView]);
 
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('keydown', onKeyDown);
+  // Mouse drag support for desktop
+  const isMouseDownRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragScrollLeftRef = useRef(0);
 
-    return () => {
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [currentView]);
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || !sliderRef.current) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, button, a, [contenteditable="true"], video')) return;
+    isMouseDownRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragScrollLeftRef.current = sliderRef.current.scrollLeft;
+  };
 
-  const isBottomNavView = BOTTOM_NAV_ORDER.includes(currentView as any);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isMouseDownRef.current || !sliderRef.current) return;
+    const dx = e.clientX - dragStartXRef.current;
+    sliderRef.current.scrollLeft = dragScrollLeftRef.current - dx;
+  };
 
-  const slideVariants = {
-    enter: (dir: number) => ({
-      x: dir > 0 ? '100%' : dir < 0 ? '-100%' : 0,
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-      transition: {
-        x: { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 },
-        opacity: { duration: 0.18 },
-      },
-    },
-    exit: (dir: number) => ({
-      x: dir > 0 ? '-100%' : dir < 0 ? '100%' : 0,
-      opacity: 0,
-      transition: {
-        x: { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 },
-        opacity: { duration: 0.18 },
-      },
-    }),
+  const handleMouseUp = () => {
+    if (!isMouseDownRef.current || !sliderRef.current) return;
+    isMouseDownRef.current = false;
+    const { scrollLeft, clientWidth } = sliderRef.current;
+    const targetIndex = Math.round(scrollLeft / clientWidth);
+    scrollToTab(targetIndex);
   };
 
   const isNoThemeBgView = 
@@ -1043,36 +962,8 @@ export default function App() {
     currentView === 'travellers_search' || 
     currentView === 'wizard';
 
-  const renderCurrentView = () => {
+  const renderNonBottomNavView = () => {
     switch (currentView) {
-      case 'landing':
-        return (
-          <LandingPage
-            currentTheme={currentTheme}
-            recentTrip={recentPlannedTrip}
-            onOpenTrip={handleOpenTrip}
-            onStartPlanning={handleStartPlanning}
-            onOpenThemeModal={() => setIsThemeModalOpen(true)}
-            onOpenMapSearch={() => setCurrentView('map_search')}
-            onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
-          />
-        );
-      case 'wizard':
-        return (
-          <CreateTripWizard
-            initialDestinationId={wizardDestId}
-            initialStep={wizardInitialStep}
-            initialTrip={wizardEditingTrip}
-            onGenerateTrip={handleGenerateTrip}
-            onCancel={() => {
-              if (wizardEditingTrip) {
-                setCurrentView('itinerary');
-              } else {
-                navigateBottomTab('landing', -1);
-              }
-            }}
-          />
-        );
       case 'itinerary':
         return activeTrip ? (
           <div className="px-1.5 sm:px-6 lg:px-8 pt-2 sm:pt-6">
@@ -1082,7 +973,7 @@ export default function App() {
               onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
               onEnterTripMode={() => setCurrentView('trip_mode')}
               onBackToStep6={handleBackToStep6}
-              onNavigateHome={() => navigateBottomTab('landing', -1)}
+              onNavigateHome={() => scrollToTab(0)}
               onNavigateToMyTrips={() => setCurrentView('my_trips')}
               onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
               onReplaceActivity={handleReplaceActivity}
@@ -1136,7 +1027,7 @@ export default function App() {
                 setActiveDayNumber(1);
                 setCurrentView('trip_mode');
               }}
-              onPlanNewTrip={() => navigateBottomTab('wizard', 1)}
+              onPlanNewTrip={() => scrollToTab(2)}
               onDeleteTrip={handleDeleteTrip}
             />
           </div>
@@ -1155,7 +1046,7 @@ export default function App() {
         return (
           <WhyTripWisePage
             currentTheme={currentTheme}
-            onStartPlanning={() => navigateBottomTab('wizard', 1)}
+            onStartPlanning={() => scrollToTab(2)}
             onOpenMapSearch={() => setCurrentView('map_search')}
           />
         );
@@ -1176,52 +1067,6 @@ export default function App() {
             }}
           />
         );
-      case 'profile':
-        return (
-          <UserProfileView
-            session={session}
-            currentTheme={currentTheme}
-            trips={trips}
-            onOpenTrip={(tripId) => {
-              setActiveTripId(tripId);
-              setActiveDayNumber(1);
-              setCurrentView('itinerary');
-            }}
-            onStartPlanning={(dest) => {
-              setWizardDestId(dest || '');
-              setWizardEditingTrip(null);
-              navigateBottomTab('wizard');
-            }}
-            onBack={() => navigateBottomTab('landing', -1)}
-          />
-        );
-      case 'trails':
-        return (
-          <TrailsView
-            currentTheme={currentTheme}
-            session={session}
-            onStartPlanning={(dest) => {
-              setWizardDestId(dest || '');
-              setWizardEditingTrip(null);
-              navigateBottomTab('wizard');
-            }}
-            onBack={() => navigateBottomTab('landing', -1)}
-          />
-        );
-      case 'travellers_search':
-        return (
-          <TravellerSearchView
-            currentTheme={currentTheme}
-            onSelectTraveller={() => navigateBottomTab('profile', 1)}
-            onOpenTrail={() => navigateBottomTab('trails', -1)}
-            onStartPlanning={(destination) => {
-              setWizardDestId(destination || '');
-              setWizardEditingTrip(null);
-              navigateBottomTab('wizard');
-            }}
-            onBack={() => navigateBottomTab('landing', -1)}
-          />
-        );
       default:
         return null;
     }
@@ -1229,7 +1074,9 @@ export default function App() {
 
   return (
     <div 
-      className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
+      className={`font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative ${
+        isBottomNavView ? 'h-[100dvh] h-screen w-full overflow-hidden' : 'min-h-screen'
+      }`}
       style={{ backgroundColor: currentView === 'profile' ? '#09090b' : isNoThemeBgView ? '#0a0a0f' : currentTheme.canvasBg }}
     >
       {/* Full-Page Dynamic Photographic Scenic Backdrop - Disabled on separate bottom nav pages */}
@@ -1263,12 +1110,10 @@ export default function App() {
       {/* Main App Layout */}
       {!isGenerating && (
         <>
-          {/* Top Global Navigation (Hidden on trails, travellers_search, and profile per user request) */}
-          {currentView !== 'trip_mode' && 
-           currentView !== 'auth' && 
-           currentView !== 'trails' && 
-           currentView !== 'travellers_search' && 
-           currentView !== 'profile' && (
+          {/* Top Global Navigation for non-bottom-nav pages */}
+          {!isBottomNavView && 
+           currentView !== 'trip_mode' && 
+           currentView !== 'auth' && (
             <Navbar
               currentView={currentView}
               onNavigate={(view) => setCurrentView(view)}
@@ -1281,38 +1126,155 @@ export default function App() {
                 setIntendedView(currentView);
                 setCurrentView('auth');
               }}
-              onPlanTrip={() => handleStartPlanning()}
+              onPlanTrip={() => scrollToTab(2)}
             />
           )}
 
-          {/* Body Views with horizontal slide support across bottom nav pages */}
-          <main className="flex-1 overflow-x-hidden relative">
-            {isBottomNavView ? (
-              <AnimatePresence mode="wait" custom={slideDirection} initial={false}>
-                <motion.div
-                  key={currentView}
-                  custom={slideDirection}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  className="w-full min-h-full"
-                >
-                  {renderCurrentView()}
-                </motion.div>
-              </AnimatePresence>
-            ) : (
-              renderCurrentView()
-            )}
-          </main>
+          {/* Body Views */}
+          {isBottomNavView ? (
+            /* TRUE HORIZONTAL SWIPE / SLIDE VIEW-PAGER FOR ALL 5 BOTTOM NAV PAGES */
+            <div
+              ref={sliderRef}
+              onScroll={handleSliderScroll}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory select-none touch-pan-x"
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {/* SLIDE 0: LANDING PAGE */}
+              <div 
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
+                style={{ backgroundColor: currentTheme.canvasBg }}
+              >
+                <Navbar
+                  currentView="landing"
+                  onNavigate={(view) => {
+                    const idx = BOTTOM_NAV_ORDER.indexOf(view as any);
+                    if (idx !== -1) {
+                      scrollToTab(idx);
+                    } else {
+                      setCurrentView(view);
+                    }
+                  }}
+                  activeTrip={activeTrip}
+                  savedTripsCount={trips.length}
+                  currentTheme={currentTheme}
+                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                  session={session}
+                  onRequireAuth={() => {
+                    setIntendedView('landing');
+                    setCurrentView('auth');
+                  }}
+                  onPlanTrip={() => scrollToTab(2)}
+                />
+                <LandingPage
+                  currentTheme={currentTheme}
+                  recentTrip={recentPlannedTrip}
+                  onOpenTrip={handleOpenTrip}
+                  onStartPlanning={handleStartPlanning}
+                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                  onOpenMapSearch={() => setCurrentView('map_search')}
+                  onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
+                />
+                <div className="h-28" />
+              </div>
+
+              {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
+              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+                <TrailsView
+                  currentTheme={currentTheme}
+                  session={session}
+                  isActive={currentView === 'trails'}
+                  onStartPlanning={(dest) => {
+                    setWizardDestId(dest || '');
+                    setWizardEditingTrip(null);
+                    scrollToTab(2);
+                  }}
+                  onBack={() => scrollToTab(0)}
+                />
+              </div>
+
+              {/* SLIDE 2: CREATE TRIP WIZARD */}
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+                <CreateTripWizard
+                  initialDestinationId={wizardDestId}
+                  initialStep={wizardInitialStep}
+                  initialTrip={wizardEditingTrip}
+                  onGenerateTrip={handleGenerateTrip}
+                  onCancel={() => {
+                    if (wizardEditingTrip) {
+                      setCurrentView('itinerary');
+                    } else {
+                      scrollToTab(0);
+                    }
+                  }}
+                />
+                <div className="h-28" />
+              </div>
+
+              {/* SLIDE 3: TRAVELLERS SEARCH */}
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+                <TravellerSearchView
+                  currentTheme={currentTheme}
+                  onSelectTraveller={() => scrollToTab(4)}
+                  onOpenTrail={() => scrollToTab(1)}
+                  onStartPlanning={(destination) => {
+                    setWizardDestId(destination || '');
+                    setWizardEditingTrip(null);
+                    scrollToTab(2);
+                  }}
+                  onBack={() => scrollToTab(0)}
+                />
+                <div className="h-28" />
+              </div>
+
+              {/* SLIDE 4: USER TRAVEL PROFILE */}
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-white dark:bg-zinc-950 relative">
+                <UserProfileView
+                  session={session}
+                  currentTheme={currentTheme}
+                  trips={trips}
+                  onOpenTrip={(tripId) => {
+                    setActiveTripId(tripId);
+                    setActiveDayNumber(1);
+                    setCurrentView('itinerary');
+                  }}
+                  onStartPlanning={(dest) => {
+                    setWizardDestId(dest || '');
+                    setWizardEditingTrip(null);
+                    scrollToTab(2);
+                  }}
+                  onBack={() => scrollToTab(0)}
+                />
+                <div className="h-28" />
+              </div>
+            </div>
+          ) : (
+            <main className="flex-1">
+              {renderNonBottomNavView()}
+            </main>
+          )}
 
           {/* Floating Bottom Navigation Bar (Accessible across all separate pages, hidden in trip_mode & auth) */}
           {currentView !== 'trip_mode' && currentView !== 'auth' && (
             <BottomNavBar
               currentView={currentView}
-              onNavigate={(v) => navigateBottomTab(v)}
-              onStartPlanning={() => navigateBottomTab('wizard')}
-              onOpenTravellerSearch={() => navigateBottomTab('travellers_search')}
+              onNavigate={(v) => {
+                const idx = BOTTOM_NAV_ORDER.indexOf(v);
+                if (idx !== -1) {
+                  scrollToTab(idx);
+                } else {
+                  setCurrentView(v);
+                }
+              }}
+              onStartPlanning={() => scrollToTab(2)}
+              onOpenTravellerSearch={() => scrollToTab(3)}
               session={session}
             />
           )}
