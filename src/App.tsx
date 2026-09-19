@@ -959,8 +959,7 @@ export default function App() {
   const isNoThemeBgView = 
     currentView === 'trails' || 
     currentView === 'profile' || 
-    currentView === 'travellers_search' || 
-    currentView === 'wizard';
+    currentView === 'travellers_search';
 
   const renderNonBottomNavView = () => {
     switch (currentView) {
@@ -1200,21 +1199,30 @@ export default function App() {
                 />
               </div>
 
-              {/* SLIDE 2: CREATE TRIP WIZARD */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
-                <CreateTripWizard
-                  initialDestinationId={wizardDestId}
-                  initialStep={wizardInitialStep}
-                  initialTrip={wizardEditingTrip}
-                  onGenerateTrip={handleGenerateTrip}
-                  onCancel={() => {
-                    if (wizardEditingTrip) {
-                      setCurrentView('itinerary');
-                    } else {
-                      scrollToTab(0);
-                    }
-                  }}
-                />
+              {/* SLIDE 2: CREATE TRIP WIZARD (+ Button with Theme Background) */}
+              <div 
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
+                style={{ backgroundColor: currentTheme.canvasBg }}
+              >
+                {/* Full Photographic Scenic Backdrop */}
+                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+                {themeId === 'snow' && <SnowfallEffect fullScreen={true} density="gentle" />}
+
+                <div className="relative z-10">
+                  <CreateTripWizard
+                    initialDestinationId={wizardDestId}
+                    initialStep={wizardInitialStep}
+                    initialTrip={wizardEditingTrip}
+                    onGenerateTrip={handleGenerateTrip}
+                    onCancel={() => {
+                      if (wizardEditingTrip) {
+                        setCurrentView('itinerary');
+                      } else {
+                        scrollToTab(0);
+                      }
+                    }}
+                  />
+                </div>
                 <div className="h-28" />
               </div>
 
