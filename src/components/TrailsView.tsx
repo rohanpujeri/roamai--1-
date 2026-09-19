@@ -1,0 +1,836 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Heart, 
+  MessageCircle, 
+  Bookmark, 
+  Share2, 
+  Volume2, 
+  VolumeX, 
+  Play, 
+  Pause, 
+  Plus, 
+  MapPin, 
+  Music, 
+  Upload, 
+  X, 
+  ChevronUp, 
+  ChevronDown, 
+  Compass, 
+  Send,
+  Sparkles,
+  Check
+} from 'lucide-react';
+import { ThemeConfig } from '../types';
+import { Session } from '@supabase/supabase-js';
+
+export interface TrailReel {
+  id: string;
+  videoUrl: string;
+  posterUrl?: string;
+  creator: {
+    name: string;
+    username: string;
+    avatarUrl: string;
+    isFollowed?: boolean;
+  };
+  caption: string;
+  destination: string;
+  tags: string[];
+  audioTitle: string;
+  likesCount: number;
+  commentsCount: number;
+  isLiked?: boolean;
+  isSaved?: boolean;
+  comments?: Array<{
+    id: string;
+    user: string;
+    avatar: string;
+    text: string;
+    time: string;
+  }>;
+}
+
+const DEFAULT_TRAILS: TrailReel[] = [
+  {
+    id: 'trail-1',
+    videoUrl: '/videos/beach-waves.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+    creator: {
+      name: 'Aanya Verma',
+      username: '@aanya_travels',
+      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+      isFollowed: false
+    },
+    caption: 'Golden hour waves in Goa! Secret cliffs hidden behind the coconut palms 🌅✨',
+    destination: 'Goa, India',
+    tags: ['#BeachVibes', '#SunsetLover', '#GoaDiaries', '#RoamAI'],
+    audioTitle: 'Ocean Breeze • Original Audio',
+    likesCount: 1420,
+    commentsCount: 88,
+    comments: [
+      { id: 'c1', user: 'Rohan Sharma', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', text: 'Which beach is this? Looks completely serene!', time: '2h ago' },
+      { id: 'c2', user: 'Priya K', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80', text: 'Adding this to my wishlist right now 🔥', time: '1h ago' }
+    ]
+  },
+  {
+    id: 'trail-2',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-green-mountain-with-trees-41480-large.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+    creator: {
+      name: 'Kabir Dev',
+      username: '@himalayan_nomad',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isFollowed: true
+    },
+    caption: 'Waking up above 10,000 ft in Himachal. The crisp mountain air hits different 🏔️🌲',
+    destination: 'Spiti Valley, Himachal',
+    tags: ['#Himalayas', '#SpitiValley', '#TrekLife', '#MountainCalling'],
+    audioTitle: 'Acoustic Serenity • Trail Sound',
+    likesCount: 3290,
+    commentsCount: 142,
+    comments: [
+      { id: 'c3', user: 'Vikram Singh', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', text: 'Road conditions right now?', time: '3h ago' },
+      { id: 'c4', user: 'Maya', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', text: 'Spiti in autumn is absolute paradise ❤️', time: '45m ago' }
+    ]
+  },
+  {
+    id: 'trail-3',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-top-view-of-water-moving-in-a-lake-43750-large.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80',
+    creator: {
+      name: 'Sneha Patel',
+      username: '@snehawanders',
+      avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+      isFollowed: false
+    },
+    caption: 'Emerald waters in Meghalaya. The clearest river in Asia! You have to experience this boat ride 🛶🌿',
+    destination: 'Dawki, Meghalaya',
+    tags: ['#Meghalaya', '#DawkiRiver', '#NortheastIndia', '#IncredibleIndia'],
+    audioTitle: 'Water Ripple Chill • Nature Audio',
+    likesCount: 2845,
+    commentsCount: 119,
+    comments: [
+      { id: 'c5', user: 'Ankit R', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80', text: 'Floating in crystal clear glass water!', time: '1d ago' }
+    ]
+  },
+  {
+    id: 'trail-4',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-drone-view-of-a-tropical-island-surrounded-by-sea-42045-large.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80',
+    creator: {
+      name: 'Leo Martin',
+      username: '@leotravels',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+      isFollowed: false
+    },
+    caption: 'Bali cliffside sunsets that don’t even look real 🏝️🧡 Who’s planning their trip this year?',
+    destination: 'Uluwatu, Bali',
+    tags: ['#BaliLife', '#Uluwatu', '#TropicalParadise', '#IslandLife'],
+    audioTitle: 'Chill Island Waves • Bali Sunset',
+    likesCount: 4890,
+    commentsCount: 231,
+    comments: [
+      { id: 'c6', user: 'Diya', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80', text: 'Uluwatu temple sunset is magical!', time: '6h ago' }
+    ]
+  }
+];
+
+interface TrailsViewProps {
+  currentTheme: ThemeConfig;
+  session: Session | null;
+  onStartPlanning: (destination?: string) => void;
+  onBack: () => void;
+}
+
+export const TrailsView: React.FC<TrailsViewProps> = ({
+  currentTheme,
+  session,
+  onStartPlanning,
+  onBack
+}) => {
+  // Load saved trails or default
+  const [trails, setTrails] = useState<TrailReel[]>(() => {
+    try {
+      const stored = localStorage.getItem('roamai_user_trails');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return [...parsed, ...DEFAULT_TRAILS];
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_TRAILS;
+  });
+
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [showComments, setShowComments] = useState<boolean>(false);
+  const [newCommentText, setNewCommentText] = useState<string>('');
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  // Upload modal form state
+  const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
+  const [uploadVideoPreview, setUploadVideoPreview] = useState<string>('');
+  const [uploadCaption, setUploadCaption] = useState<string>('');
+  const [uploadDestination, setUploadDestination] = useState<string>('');
+  const [uploadTags, setUploadTags] = useState<string>('#Travel #RoamAI');
+  const [uploadAudio, setUploadAudio] = useState<string>('Original Travel Sound');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const activeReel = trails[currentIndex] || trails[0];
+
+  // Auto-play when active reel changes
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      if (isPlaying) {
+        videoRef.current.play().catch(() => {
+          // browser autoplay policy may require mute
+          setIsMuted(true);
+        });
+      }
+    }
+  }, [currentIndex]);
+
+  const handleNextReel = () => {
+    if (currentIndex < trails.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      setCurrentIndex(0); // loop back
+    }
+  };
+
+  const handlePrevReel = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    } else {
+      setCurrentIndex(trails.length - 1);
+    }
+  };
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleLike = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTrails((prev) =>
+      prev.map((t, idx) => {
+        if (idx === currentIndex) {
+          const isLiked = !t.isLiked;
+          return {
+            ...t,
+            isLiked,
+            likesCount: isLiked ? t.likesCount + 1 : t.likesCount - 1
+          };
+        }
+        return t;
+      })
+    );
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTrails((prev) =>
+      prev.map((t, idx) => {
+        if (idx === currentIndex) {
+          return { ...t, isSaved: !t.isSaved };
+        }
+        return t;
+      })
+    );
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+      setShareToast('Trail link copied to clipboard!');
+      setTimeout(() => setShareToast(null), 2500);
+    }
+  };
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommentText.trim()) return;
+
+    const userDisplayName = session?.user?.user_metadata?.full_name || 'You';
+    const userAvatar = session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+
+    const newComment = {
+      id: `comm-${Date.now()}`,
+      user: userDisplayName,
+      avatar: userAvatar,
+      text: newCommentText.trim(),
+      time: 'Just now'
+    };
+
+    setTrails((prev) =>
+      prev.map((t, idx) => {
+        if (idx === currentIndex) {
+          return {
+            ...t,
+            commentsCount: t.commentsCount + 1,
+            comments: [newComment, ...(t.comments || [])]
+          };
+        }
+        return t;
+      })
+    );
+
+    setNewCommentText('');
+  };
+
+  // Video File Selection Handler
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadVideoFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setUploadVideoPreview(previewUrl);
+    }
+  };
+
+  // Submit User Trail
+  const handleUploadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadVideoPreview) return;
+
+    setIsSubmitting(true);
+    const creatorName = session?.user?.user_metadata?.full_name || 'You';
+    const username = session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler';
+    const avatarUrl = session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+
+    const newTrail: TrailReel = {
+      id: `user-trail-${Date.now()}`,
+      videoUrl: uploadVideoPreview,
+      creator: {
+        name: creatorName,
+        username: username,
+        avatarUrl: avatarUrl,
+        isFollowed: true
+      },
+      caption: uploadCaption || 'Exploring this breathtaking destination! 🌍✈️',
+      destination: uploadDestination || 'Travel Destination',
+      tags: uploadTags.split(' ').filter(Boolean),
+      audioTitle: uploadAudio || 'Original Sound',
+      likesCount: 1,
+      commentsCount: 0,
+      isLiked: true,
+      comments: []
+    };
+
+    // Save to user trails in local storage
+    try {
+      const stored = localStorage.getItem('roamai_user_trails');
+      const existing = stored ? JSON.parse(stored) : [];
+      localStorage.setItem('roamai_user_trails', JSON.stringify([newTrail, ...existing]));
+    } catch {
+      // ignore
+    }
+
+    setTrails((prev) => [newTrail, ...prev]);
+    setCurrentIndex(0);
+    setIsSubmitting(false);
+    setShowUploadModal(false);
+    setUploadVideoFile(null);
+    setUploadVideoPreview('');
+    setUploadCaption('');
+    setUploadDestination('');
+  };
+
+  return (
+    <div className="relative w-full h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] bg-black overflow-hidden flex items-center justify-center select-none">
+      {/* Background Ambience (Blurred Video Frame) */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center blur-3xl opacity-25 scale-110 pointer-events-none transition-all duration-700"
+        style={{ backgroundImage: `url(${activeReel.posterUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'})` }}
+      />
+
+      {/* Top Floating Action Bar */}
+      <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between max-w-md mx-auto pointer-events-auto">
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center gap-1.5 shadow-lg">
+            <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
+            TRAILS
+          </span>
+          <span className="text-[11px] font-bold text-neutral-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+            {currentIndex + 1} / {trails.length}
+          </span>
+        </div>
+
+        {/* Upload Trail Button */}
+        <button
+          type="button"
+          onClick={() => setShowUploadModal(true)}
+          className="px-3 py-1.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/50 cursor-pointer transition-all hover:scale-105 active:scale-95"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          <span>Upload Trail</span>
+        </button>
+      </div>
+
+      {/* Share Toast */}
+      {shareToast && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-bounce">
+          <Check className="w-4 h-4" />
+          <span>{shareToast}</span>
+        </div>
+      )}
+
+      {/* Main Reel Container (9:16 mobile aspect ratio on desktop) */}
+      <div 
+        onClick={togglePlay}
+        className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
+      >
+        {/* Video Player */}
+        <video
+          ref={videoRef}
+          src={activeReel.videoUrl}
+          poster={activeReel.posterUrl}
+          playsInline
+          loop
+          autoPlay
+          muted={isMuted}
+          className="w-full h-full object-cover"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+        />
+
+        {/* Play/Pause Center Overlay Animation */}
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none transition-all">
+            <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
+              <Play className="w-8 h-8 fill-white ml-1" />
+            </div>
+          </div>
+        )}
+
+        {/* Gradient Overlays for readable text */}
+        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
+
+        {/* Right Action Sidebar */}
+        <div className="absolute right-3 bottom-24 sm:bottom-20 z-20 flex flex-col items-center gap-4 pointer-events-auto">
+          {/* Creator Avatar with Follow button */}
+          <div className="relative flex flex-col items-center">
+            <div className="w-11 h-11 rounded-full ring-2 ring-white/80 overflow-hidden shadow-lg bg-neutral-800">
+              <img 
+                src={activeReel.creator.avatarUrl} 
+                alt={activeReel.creator.name} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            {!activeReel.creator.isFollowed && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTrails((prev) =>
+                    prev.map((t, idx) => {
+                      if (idx === currentIndex) {
+                        return {
+                          ...t,
+                          creator: { ...t.creator, isFollowed: true }
+                        };
+                      }
+                      return t;
+                    })
+                  );
+                }}
+                className="absolute -bottom-1.5 w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110"
+              >
+                <Plus className="w-3 h-3 stroke-[3]" />
+              </button>
+            )}
+          </div>
+
+          {/* Like Button */}
+          <button
+            type="button"
+            onClick={handleLike}
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+          >
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 ${
+              activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/40 hover:bg-black/60 text-white'
+            }`}>
+              <Heart className={`w-6 h-6 transition-transform group-active/btn:scale-75 ${
+                activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white'
+              }`} />
+            </div>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
+              {activeReel.likesCount}
+            </span>
+          </button>
+
+          {/* Comments Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowComments(true);
+            }}
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+              <MessageCircle className="w-6 h-6" />
+            </div>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
+              {activeReel.commentsCount}
+            </span>
+          </button>
+
+          {/* Save / Bookmark Button */}
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+          >
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
+              activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/40 hover:bg-black/60 text-white'
+            }`}>
+              <Bookmark className={`w-6 h-6 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
+            </div>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
+              Save
+            </span>
+          </button>
+
+          {/* Share Button */}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+              <Share2 className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
+              Share
+            </span>
+          </button>
+
+          {/* Sound Mute/Unmute Toggle */}
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer"
+          >
+            {isMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
+          </button>
+        </div>
+
+        {/* Bottom Left Info & Caption Overlay */}
+        <div className="absolute left-4 right-16 bottom-16 sm:bottom-12 z-20 space-y-2 pointer-events-none">
+          {/* Destination Badge & Plan Trip CTA */}
+          <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>{activeReel.destination}</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartPlanning(activeReel.destination);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-md cursor-pointer transition-transform hover:scale-105"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>Plan This Trip</span>
+            </button>
+          </div>
+
+          {/* Creator handle */}
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-white drop-shadow-md">
+              {activeReel.creator.name}
+            </p>
+            <span className="text-xs text-neutral-300 font-medium">
+              {activeReel.creator.username}
+            </span>
+          </div>
+
+          {/* Caption */}
+          <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm">
+            {activeReel.caption}
+          </p>
+
+          {/* Tags */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeReel.tags.map((tag, i) => (
+              <span key={i} className="text-[11px] font-semibold text-emerald-300/90">
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Audio Soundtrack Banner */}
+          <div className="flex items-center gap-2 text-neutral-300 text-xs font-medium pt-1">
+            <Music className="w-3.5 h-3.5 text-white animate-pulse" />
+            <span className="truncate max-w-[200px]">{activeReel.audioTitle}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Up / Down Navigation Chevrons for Desktop / Tablet */}
+      <div className="hidden sm:flex flex-col gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-30">
+        <button
+          type="button"
+          onClick={handlePrevReel}
+          className="w-10 h-10 rounded-full bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg cursor-pointer"
+          title="Previous Trail"
+        >
+          <ChevronUp className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={handleNextReel}
+          className="w-10 h-10 rounded-full bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg cursor-pointer"
+          title="Next Trail"
+        >
+          <ChevronDown className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Comments Drawer / Sheet */}
+      {showComments && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4">
+          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-3xl h-[70vh] max-h-[600px] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
+            {/* Drawer Header */}
+            <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4 text-emerald-400" />
+                <span>Comments ({activeReel.comments?.length || 0})</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowComments(false)}
+                className="w-7 h-7 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 divide-y divide-neutral-800/40">
+              {activeReel.comments && activeReel.comments.length > 0 ? (
+                activeReel.comments.map((comm) => (
+                  <div key={comm.id} className="pt-3 first:pt-0 flex items-start gap-3">
+                    <img 
+                      src={comm.avatar} 
+                      alt={comm.user} 
+                      className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-white">{comm.user}</span>
+                        <span className="text-[10px] text-neutral-500">{comm.time}</span>
+                      </div>
+                      <p className="text-xs text-neutral-300 mt-0.5 leading-relaxed">{comm.text}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-neutral-500">
+                  <MessageCircle className="w-8 h-8 mb-2 stroke-1" />
+                  <p className="text-xs">No comments yet. Be the first to share your thoughts!</p>
+                </div>
+              )}
+            </div>
+
+            {/* Comment Input */}
+            <form onSubmit={handleAddComment} className="p-3 border-t border-neutral-800 flex items-center gap-2 bg-neutral-950">
+              <input
+                type="text"
+                value={newCommentText}
+                onChange={(e) => setNewCommentText(e.target.value)}
+                placeholder="Add a travel comment..."
+                className="flex-1 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={!newCommentText.trim()}
+                className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white flex items-center justify-center cursor-pointer transition-transform active:scale-90"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Trail Modal */}
+      {showUploadModal && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Upload Travel Trail</h3>
+                  <p className="text-[11px] text-neutral-400">Share your travel reel with other travellers</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUploadModal(false)}
+                className="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadSubmit} className="space-y-4">
+              {/* Video File Picker */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">
+                  Select Travel Video (MP4 / WebM / MOV)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {uploadVideoPreview ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-emerald-500/50 bg-black h-48 flex items-center justify-center">
+                    <video
+                      src={uploadVideoPreview}
+                      controls
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute top-2 right-2 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-xs font-bold backdrop-blur-md cursor-pointer"
+                    >
+                      Change Video
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-neutral-700 hover:border-emerald-500/80 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-neutral-950/60 hover:bg-neutral-950"
+                  >
+                    <Upload className="w-8 h-8 text-neutral-500 mb-2" />
+                    <p className="text-xs font-bold text-neutral-200">Click to upload your travel clip</p>
+                    <p className="text-[11px] text-neutral-500 mt-1">Supports vertical reel videos or regular clips up to 200MB</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Destination Tag */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                  Destination Tag *
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  <input
+                    type="text"
+                    required
+                    value={uploadDestination}
+                    onChange={(e) => setUploadDestination(e.target.value)}
+                    placeholder="e.g. Manali, Himachal Pradesh or Bali, Indonesia"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                  Caption & Story
+                </label>
+                <textarea
+                  rows={2}
+                  value={uploadCaption}
+                  onChange={(e) => setUploadCaption(e.target.value)}
+                  placeholder="Describe your experience or secret spots..."
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                  Hashtags
+                </label>
+                <input
+                  type="text"
+                  value={uploadTags}
+                  onChange={(e) => setUploadTags(e.target.value)}
+                  placeholder="#Beach #Trek #SoloTravel"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Audio Soundtrack Title */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                  Audio / Soundtrack Name
+                </label>
+                <div className="relative">
+                  <Music className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={uploadAudio}
+                    onChange={(e) => setUploadAudio(e.target.value)}
+                    placeholder="e.g. Mountain Chill • Original Sound"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!uploadVideoPreview || isSubmitting}
+                  className="px-5 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'Publishing...' : 'Publish Trail'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

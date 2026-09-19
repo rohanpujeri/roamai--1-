@@ -26,6 +26,9 @@ import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
 import { WhyTripWisePage } from './components/WhyRoamAIPage';
 import { AuthPage } from './components/AuthPage';
 import { UserProfileView } from './components/UserProfileView';
+import { BottomNavBar } from './components/BottomNavBar';
+import { TrailsView } from './components/TrailsView';
+import { TravellerSearchModal } from './components/TravellerSearchModal';
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -96,7 +99,8 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails'>('landing');
+  const [isTravellerSearchOpen, setIsTravellerSearchOpen] = useState<boolean>(false);
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
   const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
@@ -1028,7 +1032,42 @@ export default function App() {
                 onBack={() => setCurrentView('landing')}
               />
             )}
+
+            {/* VIEW 10: TRAILS (REELS VIDEO FEED & UPLOAD) */}
+            {currentView === 'trails' && (
+              <TrailsView
+                currentTheme={currentTheme}
+                session={session}
+                onStartPlanning={(dest) => {
+                  setWizardDestId(dest || '');
+                  setWizardEditingTrip(null);
+                  setCurrentView('wizard');
+                }}
+                onBack={() => setCurrentView('landing')}
+              />
+            )}
           </main>
+
+          {/* Floating Bottom Navigation Bar (Hidden in trip_mode, wizard, and auth to avoid clutter) */}
+          {currentView !== 'trip_mode' && currentView !== 'wizard' && currentView !== 'auth' && (
+            <BottomNavBar
+              currentView={currentView}
+              onNavigate={(v) => setCurrentView(v)}
+              onStartPlanning={() => handleStartPlanning()}
+              onOpenTravellerSearch={() => setIsTravellerSearchOpen(true)}
+              session={session}
+            />
+          )}
+
+          {/* Travellers Profile Search Modal */}
+          <TravellerSearchModal
+            isOpen={isTravellerSearchOpen}
+            onClose={() => setIsTravellerSearchOpen(false)}
+            onSelectTraveller={() => {
+              setIsTravellerSearchOpen(false);
+              setCurrentView('profile');
+            }}
+          />
 
           {/* Activity Details Modal */}
           {selectedActivityForModal && (
