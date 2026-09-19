@@ -30,11 +30,12 @@ import {
   VolumeX,
   Loader2,
   AtSign,
-  LogIn
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
-import { getCachedUserProfile, updateUserProfileData } from '../services/supabaseClient';
+import { getCachedUserProfile, updateUserProfileData, getSupabaseClient } from '../services/supabaseClient';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
@@ -556,7 +557,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Edit profile | Share profile */}
+        {/* Action Buttons: Edit profile | Share profile | Sign Out */}
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={() => {
@@ -572,6 +573,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center"
           >
             Share profile
+          </button>
+          <button
+            onClick={async () => {
+              const supabase = getSupabaseClient();
+              if (supabase) {
+                await supabase.auth.signOut();
+              }
+            }}
+            className="py-1.5 sm:py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+            title="Sign Out"
+            aria-label="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Sign Out</span>
           </button>
         </div>
 
@@ -1115,6 +1130,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         onPlanTrip={() => {
           setIsDrawerOpen(false);
           onStartPlanning();
+        }}
+        onSignOut={async () => {
+          setIsDrawerOpen(false);
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            await supabase.auth.signOut();
+          }
         }}
       />
     </div>

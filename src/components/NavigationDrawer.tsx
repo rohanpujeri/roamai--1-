@@ -85,28 +85,31 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
   return (
     <div 
-      className={`fixed inset-0 z-50 transition-visibility duration-300 ${
+      className={`fixed inset-0 z-[100] transition-visibility duration-300 ${
         isOpen ? 'pointer-events-auto' : 'pointer-events-none'
       }`}
     >
       {/* Backdrop Overlay */}
       <div 
         onClick={onClose}
-        className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-in-out ${
+        className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-in-out z-[100] ${
           isOpen ? 'opacity-100' : 'opacity-0'
         }`}
         aria-hidden="true"
       />
 
-      {/* Slide-Out Drawer Panel - Fills Half Screen Width on Desktop, Responsive on Mobile */}
+      {/* Slide-Out Drawer Panel - Above bottom navigation bar with full viewport height */}
       <div 
-        className={`fixed top-0 right-0 bottom-0 w-[85vw] max-w-[440px] sm:w-1/2 sm:max-w-[50vw] bg-black text-white border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between transition-transform duration-300 ease-out transform ${
+        className={`fixed top-0 right-0 bottom-0 h-[100dvh] h-screen w-[88vw] max-w-[420px] sm:w-1/2 sm:max-w-[480px] bg-black text-white border-l border-neutral-800 shadow-2xl z-[101] flex flex-col justify-between transition-transform duration-300 ease-out transform ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ backgroundColor: '#000000' }}
       >
-        {/* Main Scrollable Drawer Content */}
-        <div className="p-3 sm:p-5 overflow-y-auto space-y-4 sm:space-y-6 flex-1 flex flex-col bg-black">
+        {/* Main Scrollable Drawer Content - Smooth touch scrolling with bottom clearance */}
+        <div 
+          className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4 sm:space-y-6 flex-1 flex flex-col bg-black pb-40 sm:pb-28"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        >
           {/* Drawer Header */}
           <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-800">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -294,11 +297,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             )}
           </div>
 
-          {/* Spacer */}
-          <div className="flex-1 min-h-2" />
-
-          {/* Login Profile Section (Positioned at Bottom of Drawer) */}
-          <div className="pt-3 border-t border-neutral-800 mt-auto">
+          {/* Login Profile Section */}
+          <div className="pt-3 border-t border-neutral-800">
             <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400 px-1 mb-1.5">
               Login Profile
             </p>
@@ -336,16 +336,16 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-1 border-t border-neutral-800/80">
+                <div className="flex flex-col gap-2 pt-2 border-t border-neutral-800/80">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDrawerNavigate('profile');
                     }}
-                    className="flex-1 py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[10px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    className="w-full py-2 px-3 rounded-xl bg-neutral-850 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-neutral-750"
                   >
-                    <User className="w-3 h-3 text-neutral-400" />
+                    <User className="w-3.5 h-3.5 text-neutral-400" />
                     <span>View Profile Info</span>
                   </button>
                   <button
@@ -354,9 +354,9 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       e.stopPropagation();
                       handleSignOutInternal();
                     }}
-                    className="py-1.5 px-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-red-200 text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
                   >
-                    <LogOut className="w-3 h-3" />
+                    <LogOut className="w-4 h-4 text-red-400" />
                     <span>Sign Out</span>
                   </button>
                 </div>
