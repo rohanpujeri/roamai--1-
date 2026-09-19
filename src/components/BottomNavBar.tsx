@@ -2,6 +2,7 @@ import React from 'react';
 import { Home, Play, Plus, Search, User } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile } from '../services/supabaseClient';
+import { ThemeConfig } from '../types';
 
 export interface BottomNavBarProps {
   currentView: string;
@@ -9,6 +10,7 @@ export interface BottomNavBarProps {
   onStartPlanning: () => void;
   onOpenTravellerSearch: () => void;
   session: Session | null;
+  currentTheme?: ThemeConfig;
 }
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
@@ -16,7 +18,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onNavigate,
   onStartPlanning,
   onOpenTravellerSearch,
-  session
+  session,
+  currentTheme
 }) => {
   const cachedProfile = getCachedUserProfile(session?.user?.id);
   const userAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
@@ -67,16 +70,20 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           </div>
         </button>
 
-        {/* 3. + Plan New Trip Button (Center) */}
+        {/* 3. + Plan New Trip Button (Center with Theme Background) */}
         <button
           type="button"
           onClick={onStartPlanning}
           aria-label="Plan New Trip"
           title="Plan New Trip"
-          className={`relative p-2.5 sm:p-3 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group shadow-sm hover:shadow-white/10 ${
+          style={{
+            background: currentTheme?.heroGradient || currentTheme?.primaryColor || 'linear-gradient(135deg, #0284c7, #0d9488)',
+            boxShadow: `0 4px 18px ${currentTheme?.primaryColor || '#0284c7'}70`
+          }}
+          className={`relative p-2.5 sm:p-3 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group active:scale-95 text-white ${
             currentView === 'wizard'
-              ? 'bg-white/30 text-white ring-2 ring-white/60'
-              : 'bg-white/10 hover:bg-white/20 active:scale-95 text-white'
+              ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-900 scale-105'
+              : 'hover:brightness-110 hover:scale-105'
           }`}
         >
           <Plus className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5] transition-transform group-hover:rotate-90 group-hover:scale-110" />

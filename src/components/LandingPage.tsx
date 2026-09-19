@@ -116,7 +116,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   style={{
                     backgroundImage: vibeTextGradient,
                     WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent'
+                    WebkitTextFillColor: 'transparent',
+                    filter: isDark ? 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' : 'drop-shadow(0 1px 1px rgba(2, 132, 199, 0.2))'
                   }}
                 >
                   Your vibe.

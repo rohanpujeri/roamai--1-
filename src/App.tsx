@@ -1108,7 +1108,7 @@ export default function App() {
     >
       {/* Full-Page Dynamic Photographic Scenic Backdrop - Disabled on separate bottom nav pages */}
       {!isNoThemeBgView && (
-        <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+        <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
       )}
 
       {/* Toast Notifications */}
@@ -1179,37 +1179,43 @@ export default function App() {
                 className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
-                <Navbar
-                  currentView="landing"
-                  onNavigate={(view) => {
-                    const idx = BOTTOM_NAV_ORDER.indexOf(view as any);
-                    if (idx !== -1) {
-                      scrollToTab(idx);
-                    } else {
-                      setCurrentView(view);
-                    }
-                  }}
-                  activeTrip={activeTrip}
-                  savedTripsCount={trips.length}
-                  currentTheme={currentTheme}
-                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
-                  session={session}
-                  onRequireAuth={() => {
-                    setIntendedView('landing');
-                    setCurrentView('auth');
-                  }}
-                  onPlanTrip={() => scrollToTab(2)}
-                />
-                <LandingPage
-                  currentTheme={currentTheme}
-                  recentTrip={recentPlannedTrip}
-                  onOpenTrip={handleOpenTrip}
-                  onStartPlanning={handleStartPlanning}
-                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
-                  onOpenMapSearch={() => setCurrentView('map_search')}
-                  onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
-                />
-                <div className="h-28" />
+                {/* Full Dynamic Photographic Scenic Backdrop */}
+                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
+                {themeId === 'snow' && <SnowfallEffect fullScreen={true} density="gentle" />}
+
+                <div className="relative z-10">
+                  <Navbar
+                    currentView="landing"
+                    onNavigate={(view) => {
+                      const idx = BOTTOM_NAV_ORDER.indexOf(view as any);
+                      if (idx !== -1) {
+                        scrollToTab(idx);
+                      } else {
+                        setCurrentView(view);
+                      }
+                    }}
+                    activeTrip={activeTrip}
+                    savedTripsCount={trips.length}
+                    currentTheme={currentTheme}
+                    onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                    session={session}
+                    onRequireAuth={() => {
+                      setIntendedView('landing');
+                      setCurrentView('auth');
+                    }}
+                    onPlanTrip={() => scrollToTab(2)}
+                  />
+                  <LandingPage
+                    currentTheme={currentTheme}
+                    recentTrip={recentPlannedTrip}
+                    onOpenTrip={handleOpenTrip}
+                    onStartPlanning={handleStartPlanning}
+                    onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                    onOpenMapSearch={() => setCurrentView('map_search')}
+                    onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
+                  />
+                  <div className="h-28" />
+                </div>
               </div>
 
               {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
@@ -1233,7 +1239,7 @@ export default function App() {
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
                 {/* Full Photographic Scenic Backdrop */}
-                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
                 {themeId === 'snow' && <SnowfallEffect fullScreen={true} density="gentle" />}
 
                 <div className="relative z-10">
@@ -1326,6 +1332,7 @@ export default function App() {
               onStartPlanning={() => scrollToTab(2)}
               onOpenTravellerSearch={() => scrollToTab(3)}
               session={session}
+              currentTheme={currentTheme}
             />
           )}
 

@@ -24,7 +24,7 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     heroGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%)',
     heroBannerBg: 'linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.10) 55%, #f8fafc 100%)',
     heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(2, 132, 199, 0.15) 0%, transparent 70%)',
-    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%)',
+    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 45%, #0d9488 100%)',
     heroBadgeBg: 'rgba(255, 255, 255, 0.85)',
     heroBadgeBorder: 'rgba(226, 232, 240, 0.75)',
     heroBadgeText: '#0f172a',
@@ -76,7 +76,7 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     heroGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%)',
     heroBannerBg: 'linear-gradient(180deg, rgba(224, 242, 254, 0.30) 0%, rgba(204, 251, 241, 0.10) 55%, #f4fbfe 100%)',
     heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(2, 132, 199, 0.20) 0%, rgba(13, 148, 136, 0.15) 40%, rgba(245, 158, 11, 0.10) 70%, transparent 100%)',
-    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%)',
+    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #d97706 100%)',
     heroBadgeBg: 'rgba(224, 242, 254, 0.85)',
     heroBadgeBorder: 'rgba(186, 230, 253, 0.75)',
     heroBadgeText: '#0369a1',
@@ -284,7 +284,7 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     heroGradient: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #38bdf8 100%)',
     heroBannerBg: 'linear-gradient(180deg, rgba(15, 23, 42, 0.90) 0%, rgba(13, 21, 39, 0.95) 55%, #090d16 100%)',
     heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(14, 165, 233, 0.25) 0%, rgba(99, 102, 241, 0.18) 40%, rgba(56, 189, 248, 0.10) 70%, transparent 100%)',
-    vibeTextGradient: 'linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #e0f2fe 100%)',
+    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #4f46e5 50%, #0284c7 100%)',
     heroBadgeBg: 'rgba(15, 23, 42, 0.90)',
     heroBadgeBorder: 'rgba(56, 189, 248, 0.40)',
     heroBadgeText: '#7dd3fc',
@@ -326,6 +326,7 @@ export function applyThemeToDocument(theme: ThemeConfig): void {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
+  root.setAttribute('data-theme', theme.id);
 
   root.style.setProperty('--color-primary', theme.primaryColor);
   root.style.setProperty('--color-secondary', theme.secondaryColor);
