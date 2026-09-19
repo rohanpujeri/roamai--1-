@@ -20,7 +20,6 @@ import {
   LayoutGrid,
   Film,
   ChevronDown,
-  UserPlus,
   Menu,
   Copy,
   Layers,
@@ -347,7 +346,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Edit profile | Share profile | UserPlus */}
+        {/* Action Buttons: Edit profile | Share profile */}
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={() => {
@@ -363,13 +362,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center"
           >
             Share profile
-          </button>
-          <button
-            onClick={() => onStartPlanning()}
-            className="py-1.5 sm:py-2 px-2.5 rounded-lg bg-[#262626] hover:bg-[#333333] text-white transition-colors cursor-pointer flex items-center justify-center"
-            title="Plan trip with friends"
-          >
-            <UserPlus className="w-4 h-4" />
           </button>
         </div>
 
