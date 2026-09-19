@@ -278,11 +278,81 @@ export async function deletePlaceFromBackend(placeId: string): Promise<void> {
 
 const PROFILE_STORAGE_KEY = 'tripwise_user_profile';
 
+/**
+ * Strips out any hardcoded or predefined stock avatars (such as the Unsplash photo-1534528741775-53994a69daeb)
+ * so that users only see their own uploaded photo or clean initial avatars.
+ */
+export function sanitizeAvatarUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed.includes('photo-1534528741775-53994a69daeb')) return '';
+  return trimmed;
+}
+
+/**
+ * Resizes and compresses an uploaded user image to a clean ~512x512 JPEG data URL.
+ * Keeps storage light (<60KB) to comfortably fit in localStorage and Supabase user_metadata.
+ */
+export function processAvatarImageFile(file: File, maxDimension = 512, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      return reject(new Error('Please select a valid image file (PNG, JPG, JPEG, or WEBP).'));
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      return reject(new Error('Image file is too large. Please select an image under 15MB.'));
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Failed to load image for processing.'));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return resolve(reader.result as string);
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function getCachedUserProfile(userId?: string): UserProfileData | null {
   if (typeof window === 'undefined' || !userId) return null;
   try {
     const raw = localStorage.getItem(`${PROFILE_STORAGE_KEY}_${userId}`);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed) {
+        parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
+        return parsed;
+      }
+    }
   } catch (e) {
     console.warn('Failed to parse cached user profile:', e);
   }
@@ -293,9 +363,14 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
   const user = await getCurrentUser();
   if (!user) return { error: 'Not authenticated' };
 
+  const sanitizedProfile: UserProfileData = {
+    ...profile,
+    avatarUrl: sanitizeAvatarUrl(profile.avatarUrl)
+  };
+
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${user.id}`, JSON.stringify(profile));
+      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${user.id}`, JSON.stringify(sanitizedProfile));
     } catch (e) {
       console.warn('Failed to cache profile in localStorage:', e);
     }
@@ -306,15 +381,16 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
     try {
       const { error } = await supabase.auth.updateUser({
         data: {
-          full_name: profile.name,
-          name: profile.name,
-          username: profile.username,
-          bio: profile.bio,
-          avatarUrl: profile.avatarUrl,
-          dob: profile.dob,
-          place: profile.place,
-          travelDNA: profile.travelDNA,
-          travelPreferences: profile.travelPreferences
+          full_name: sanitizedProfile.name,
+          name: sanitizedProfile.name,
+          username: sanitizedProfile.username,
+          bio: sanitizedProfile.bio,
+          avatarUrl: sanitizedProfile.avatarUrl,
+          avatar_url: sanitizedProfile.avatarUrl,
+          dob: sanitizedProfile.dob,
+          place: sanitizedProfile.place,
+          travelDNA: sanitizedProfile.travelDNA,
+          travelPreferences: sanitizedProfile.travelPreferences
         }
       });
       if (error) return { error: error.message };
@@ -325,3 +401,4 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
 
   return {};
 }
+

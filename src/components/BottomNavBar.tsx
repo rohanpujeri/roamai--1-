@@ -1,7 +1,7 @@
 import React from 'react';
 import { Home, Play, Plus, Search, User } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
-import { getCachedUserProfile } from '../services/supabaseClient';
+import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 import { ThemeConfig } from '../types';
 
 export interface BottomNavBarProps {
@@ -22,7 +22,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   currentTheme
 }) => {
   const cachedProfile = getCachedUserProfile(session?.user?.id);
-  const userAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+  const rawAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+  const userAvatar = sanitizeAvatarUrl(rawAvatar);
   const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'Traveler';
 
   return (

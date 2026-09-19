@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
+import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 
 export interface TrailReel {
   id: string;
@@ -212,8 +213,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     e.preventDefault();
     if (!newCommentText.trim()) return;
 
-    const userDisplayName = session?.user?.user_metadata?.full_name || 'You';
-    const userAvatar = session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+    const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
+    const userDisplayName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
+    const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+    const userAvatar = sanitizeAvatarUrl(rawAvatar);
 
     const newComment = {
       id: `comm-${Date.now()}`,
@@ -255,9 +258,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (!uploadVideoPreview) return;
 
     setIsSubmitting(true);
-    const creatorName = session?.user?.user_metadata?.full_name || 'You';
-    const username = session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler';
-    const avatarUrl = session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+    const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
+    const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
+    const username = cached?.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
+    const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+    const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
     const newTrail: TrailReel = {
       id: `user-trail-${Date.now()}`,
@@ -490,13 +495,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </button>
 
           {/* Audio Album Thumbnail (Matches Instagram Reels screenshot at bottom right) */}
-          <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform">
-            <img 
-              src={activeReel.creator.avatarUrl} 
-              alt="Sound cover"
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+          <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center">
+            {activeReel.creator.avatarUrl ? (
+              <img 
+                src={activeReel.creator.avatarUrl} 
+                alt="Sound cover"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <span className="text-xs">🎵</span>
+            )}
           </div>
         </div>
 
@@ -506,12 +518,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <div className="flex items-center gap-2.5 pointer-events-auto">
             {/* Circular Photo with Gradient Ring */}
             <div className="p-[2px] rounded-full bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md shrink-0">
-              <img
-                src={activeReel.creator.avatarUrl}
-                alt={activeReel.creator.username}
-                className="w-9 h-9 rounded-full object-cover border-2 border-black"
-                referrerPolicy="no-referrer"
-              />
+              {activeReel.creator.avatarUrl ? (
+                <img
+                  src={activeReel.creator.avatarUrl}
+                  alt={activeReel.creator.username}
+                  className="w-9 h-9 rounded-full object-cover border-2 border-black"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs border-2 border-black select-none">
+                  {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                </div>
+              )}
             </div>
 
             {/* Username only (no full name) */}
@@ -637,12 +658,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               {activeReel?.comments && activeReel.comments.length > 0 ? (
                 activeReel.comments.map((comm) => (
                   <div key={comm.id} className="pt-3 first:pt-0 flex items-start gap-3">
-                    <img 
-                      src={comm.avatar} 
-                      alt={comm.user} 
-                      className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
+                    {comm.avatar ? (
+                      <img 
+                        src={comm.avatar} 
+                        alt={comm.user} 
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs shrink-0 ring-1 ring-white/15 select-none">
+                        {comm.user?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-white">{comm.user}</span>

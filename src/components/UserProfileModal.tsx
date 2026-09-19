@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, UserProfileData } from '../types';
-import { getCachedUserProfile, updateUserProfileData, getSupabaseClient } from '../services/supabaseClient';
+import { getCachedUserProfile, updateUserProfileData, getSupabaseClient, sanitizeAvatarUrl } from '../services/supabaseClient';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -43,6 +43,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [fullName, setFullName] = useState<string>('');
   const [dob, setDob] = useState<string>('');
   const [place, setPlace] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
@@ -55,10 +56,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const initialName = cached?.name || userMeta.full_name || userMeta.name || user.email?.split('@')[0] || '';
     const initialDob = cached?.dob || userMeta.dob || '';
     const initialPlace = cached?.place || userMeta.place || '';
+    const initialAvatar = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
 
     setFullName(initialName);
     setDob(initialDob);
     setPlace(initialPlace);
+    setAvatarUrl(initialAvatar);
     setIsEditing(false);
     setSaveSuccess(false);
     setErrorMessage(null);
@@ -166,10 +169,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="flex items-end justify-between gap-3">
             <div className="relative">
               <div 
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl sm:rounded-3xl border-4 border-zinc-950 flex items-center justify-center text-white font-extrabold text-2xl sm:text-3xl shadow-xl ring-2 ring-white/10"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl sm:rounded-3xl border-4 border-zinc-950 overflow-hidden flex items-center justify-center text-white font-extrabold text-2xl sm:text-3xl shadow-xl ring-2 ring-white/10"
                 style={{ backgroundColor: currentTheme.primaryColor }}
               >
-                {userInitial}
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={fullName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  userInitial
+                )}
               </div>
               <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-zinc-950 ring-1 ring-emerald-400/40" />
             </div>

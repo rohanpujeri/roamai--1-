@@ -16,6 +16,7 @@ import {
   Users
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
+import { sanitizeAvatarUrl } from '../services/supabaseClient';
 
 export interface TravellerProfile {
   id: string;
@@ -85,7 +86,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             likesCount: t.likesCount ? String(t.likesCount) : '0',
             creator: {
               username: t.creator?.username || '@traveler',
-              avatarUrl: t.creator?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+              avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
             },
             spanTwoRows: idx % 6 === 0
           }));
@@ -306,12 +307,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     {/* Hover Overlay with Destination Title & Creator */}
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3">
                       <div className="flex items-center gap-1.5">
-                        <img
-                          src={tile.creator.avatarUrl}
-                          alt={tile.creator.username}
-                          className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
-                          referrerPolicy="no-referrer"
-                        />
+                        {tile.creator.avatarUrl ? (
+                          <img
+                            src={tile.creator.avatarUrl}
+                            alt={tile.creator.username}
+                            className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-[9px] text-white font-bold ring-1 ring-white select-none">
+                            {tile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                          </div>
+                        )}
                         <span className="text-[11px] font-bold text-white truncate">
                           {tile.creator.username}
                         </span>
@@ -532,12 +542,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             <div className="p-4 pt-1 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    src={selectedTile.creator.avatarUrl}
-                    alt={selectedTile.creator.username}
-                    className="w-8 h-8 rounded-full object-cover ring-1 ring-white/30"
-                    referrerPolicy="no-referrer"
-                  />
+                  {selectedTile.creator.avatarUrl ? (
+                    <img
+                      src={selectedTile.creator.avatarUrl}
+                      alt={selectedTile.creator.username}
+                      className="w-8 h-8 rounded-full object-cover ring-1 ring-white/30"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-linear-to-br from-emerald-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/30 select-none">
+                      {selectedTile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs font-bold text-white">
                       @{selectedTile.creator.username}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -32,11 +32,19 @@ import {
   Loader2,
   AtSign,
   LogIn,
-  LogOut
+  LogOut,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
-import { getCachedUserProfile, updateUserProfileData, getSupabaseClient } from '../services/supabaseClient';
+import {
+  getCachedUserProfile,
+  updateUserProfileData,
+  getSupabaseClient,
+  sanitizeAvatarUrl,
+  processAvatarImageFile
+} from '../services/supabaseClient';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
@@ -167,7 +175,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       name: cached?.name || getFallbackName(user, userMeta),
       username: cached?.username || getFallbackUsername(user, userMeta),
       bio: cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍',
-      avatarUrl: cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '',
+      avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || ''),
       dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || '',
       email: user?.email || '',
@@ -202,13 +210,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [editForm, setEditForm] = useState<UserProfileData>(profile);
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarToast, setAvatarToast] = useState<string | null>(null);
+
+  const headerFileInputRef = useRef<HTMLInputElement | null>(null);
+  const modalFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
     const cached = user ? getCachedUserProfile(user.id) : null;
     const name = cached?.name || getFallbackName(user, userMeta);
     const username = cached?.username || getFallbackUsername(user, userMeta);
-    const avatarUrl = cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '';
+    const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
     const place = cached?.place || userMeta.place || '';
     const bio = cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍';
     const dob = cached?.dob || userMeta.dob || '';
@@ -298,6 +311,42 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   };
 
+  const handleUploadPhoto = async (file: File) => {
+    try {
+      setIsUploadingAvatar(true);
+      const dataUrl = await processAvatarImageFile(file, 512, 0.85);
+      const updated: UserProfileData = {
+        ...profile,
+        avatarUrl: dataUrl
+      };
+      setProfile(updated);
+      setEditForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
+      if (user) {
+        await updateUserProfileData(updated);
+      }
+      setAvatarToast('Profile photo updated!');
+      setTimeout(() => setAvatarToast(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to process image:', err);
+      alert(err?.message || 'Failed to process image.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleModalPhotoSelect = async (file: File) => {
+    try {
+      setIsUploadingAvatar(true);
+      const dataUrl = await processAvatarImageFile(file, 512, 0.85);
+      setEditForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
+    } catch (err: any) {
+      console.error('Failed to process image:', err);
+      alert(err?.message || 'Failed to process image.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleShareProfile = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href);
@@ -343,6 +392,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-950 text-emerald-200 text-xs font-semibold shadow-2xl border border-emerald-500/40 flex items-center gap-2 animate-fade-in">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>Profile successfully updated!</span>
+        </div>
+      )}
+
+      {avatarToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-950 text-emerald-200 text-xs font-semibold shadow-2xl border border-emerald-500/40 flex items-center gap-2 animate-fade-in">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span>{avatarToast}</span>
         </div>
       )}
 
@@ -456,35 +512,68 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
           <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
-          {/* Circular Avatar with + Badge (Uses custom avatar or clean initial) */}
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
-            <div className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md">
-              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900 flex items-center justify-center">
+          {/* Circular Avatar with Camera / Upload Badge (Tap to upload photo from device) */}
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 group">
+            <input
+              ref={headerFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadPhoto(file);
+                if (e.target) e.target.value = '';
+              }}
+            />
+
+            <div 
+              onClick={() => headerFileInputRef.current?.click()}
+              className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md cursor-pointer relative"
+              title="Click to upload profile photo"
+            >
+              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900 flex items-center justify-center relative">
                 {profile.avatarUrl ? (
                   <img
                     src={profile.avatarUrl}
                     alt={profile.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-2xl sm:text-3xl select-none">
+                  <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-2xl sm:text-3xl select-none group-hover:brightness-110 transition-all">
                     {profile.name?.charAt(0).toUpperCase() || 'T'}
+                  </div>
+                )}
+
+                {/* Upload Hover Overlay */}
+                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                  <Camera className="w-5 h-5 drop-shadow" />
+                  <span className="text-[9px] font-bold mt-0.5 tracking-wider uppercase">Upload</span>
+                </div>
+
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-white">
+                    <Loader2 className="w-6 h-6 animate-spin text-white" />
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Bottom Right + Add Badge */}
+            {/* Bottom Right Camera Badge Button */}
             <button
-              onClick={() => setIsEditModalOpen(true)}
-              className="absolute bottom-0 right-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-110 transition-transform"
-              title="Update profile picture"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                headerFileInputRef.current?.click();
+              }}
+              className="absolute bottom-0 right-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+              title="Upload profile photo"
+              aria-label="Upload profile photo"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
             </button>
           </div>
 
@@ -1052,14 +1141,77 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 )}
               </div>
 
+              {/* Profile Photo Upload Section */}
               <div>
-                <label className="block text-zinc-400 font-semibold mb-1">Avatar Image URL</label>
-                <input
-                  type="url"
-                  value={editForm.avatarUrl}
-                  onChange={(e) => setEditForm({ ...editForm, avatarUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white"
-                />
+                <label className="block text-zinc-400 font-semibold mb-2">Profile Photo</label>
+                <div className="flex items-center gap-4 p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+                  {/* Photo Preview */}
+                  <div className="relative w-16 h-16 rounded-full overflow-hidden shrink-0 border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center">
+                    {editForm.avatarUrl ? (
+                      <img
+                        src={editForm.avatarUrl}
+                        alt="Profile preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-bold text-xl select-none">
+                        {editForm.name?.charAt(0).toUpperCase() || 'T'}
+                      </div>
+                    )}
+                    {isUploadingAvatar && (
+                      <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <input
+                      ref={modalFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleModalPhotoSelect(f);
+                        if (e.target) e.target.value = '';
+                      }}
+                    />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => modalFileInputRef.current?.click()}
+                        disabled={isUploadingAvatar}
+                        className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                      >
+                        {isUploadingAvatar ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                        )}
+                        <span>{editForm.avatarUrl ? 'Change Photo' : 'Upload Photo'}</span>
+                      </button>
+
+                      {editForm.avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditForm((prev) => ({ ...prev, avatarUrl: '' }))}
+                          className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-500 leading-snug">
+                      Tap to choose or capture a photo from your camera or device (PNG, JPG, WEBP)
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div>
