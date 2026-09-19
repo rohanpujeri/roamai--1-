@@ -11,6 +11,7 @@ import { fetchAiHotelSuggestions } from './services/serverHotelAdvisor';
 import { fetchNearbyPlaces } from './services/serverNearbyPlaces';
 import { reverseGeocodeCoordinates, detectLocationFromIp } from './services/serverLocationDetector';
 import { fetchAiThemePreviewTrip } from './services/serverDestinationInspiration';
+import { isUsernameAvailable, registerServerUsername } from './services/serverUsernameRegistry';
 
 dotenv.config();
 
@@ -200,6 +201,25 @@ export function createExpressApp() {
       console.error('IP location detection error:', err);
       res.status(500).json({ error: err.message || 'IP location detection failed' });
     }
+  });
+
+  // Check username uniqueness & format
+  apiRouter.get('/auth/check-username', (req, res) => {
+    const username = (req.query.username as string) || '';
+    const userId = (req.query.userId as string) || undefined;
+    const result = isUsernameAvailable(username, userId);
+    res.json(result);
+  });
+
+  // Claim/register a username
+  apiRouter.post('/auth/register-username', (req, res) => {
+    const { username, userId, email } = req.body;
+    const result = registerServerUsername(username, userId, email);
+    if (!result.success) {
+      res.status(409).json(result);
+      return;
+    }
+    res.json(result);
   });
 
   // Mount router at both /api and / to ensure compatibility with Vercel rewrites and standalone Node server

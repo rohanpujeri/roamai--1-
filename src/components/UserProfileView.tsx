@@ -26,12 +26,15 @@ import {
   Award,
   Flame,
   Volume2,
-  VolumeX
+  VolumeX,
+  Loader2,
+  AtSign
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
 import { getCachedUserProfile, updateUserProfileData } from '../services/supabaseClient';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
+import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 
 interface UserProfileViewProps {
   session: Session | null;
@@ -185,6 +188,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   });
 
   const [editForm, setEditForm] = useState<UserProfileData>(profile);
+  const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
@@ -236,13 +241,48 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfile(editForm);
+    setEditUsernameError(null);
+
+    const currentClean = (profile.username || '').replace(/^@/, '').toLowerCase().trim();
+    const newClean = (editForm.username || '').replace(/^@/, '').toLowerCase().trim();
+
+    // Check if username changed and validate uniqueness
+    if (newClean && newClean !== currentClean) {
+      const formatCheck = validateUsernameFormat(newClean);
+      if (!formatCheck.isValid) {
+        setEditUsernameError(formatCheck.error || 'Invalid username format.');
+        return;
+      }
+
+      setIsSavingProfile(true);
+      try {
+        const availability = await checkUsernameAvailability(newClean, user?.id);
+        if (!availability.available) {
+          setEditUsernameError(availability.error || 'This username is already taken by another account.');
+          setIsSavingProfile(false);
+          return;
+        }
+
+        // Claim username across server and database
+        await claimUsername(newClean, user?.id || 'local_user', user?.email || undefined);
+      } catch (err) {
+        console.error('Failed to verify username availability:', err);
+      }
+    }
+
+    const updatedData: UserProfileData = {
+      ...editForm,
+      username: newClean ? `@${newClean}` : editForm.username
+    };
+
+    setProfile(updatedData);
+    setIsSavingProfile(false);
     setIsEditModalOpen(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
 
     if (user) {
-      await updateUserProfileData(editForm);
+      await updateUserProfileData(updatedData);
     }
   };
 
@@ -891,12 +931,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
               <div>
                 <label className="block text-zinc-400 font-semibold mb-1">Username Handle</label>
-                <input
-                  type="text"
-                  value={editForm.username}
-                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">@</span>
+                  <input
+                    type="text"
+                    value={editForm.username?.replace(/^@/, '') || ''}
+                    onChange={(e) => {
+                      setEditUsernameError(null);
+                      setEditForm({ ...editForm, username: e.target.value.toLowerCase().replace(/\s+/g, '') });
+                    }}
+                    className={`w-full pl-8 pr-3 py-2 rounded-xl bg-zinc-900 border text-white font-medium focus:outline-hidden ${
+                      editUsernameError ? 'border-red-500 focus:border-red-400' : 'border-zinc-800 focus:border-white'
+                    }`}
+                    placeholder="unique_username"
+                    required
+                  />
+                </div>
+                {editUsernameError ? (
+                  <p className="text-red-400 text-xs font-medium mt-1 ml-1">{editUsernameError}</p>
+                ) : (
+                  <p className="text-zinc-500 text-[11px] mt-1 ml-1">Must be unique across all TripWise accounts</p>
+                )}
               </div>
 
               <div>
@@ -933,14 +988,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-semibold cursor-pointer"
+                  disabled={isSavingProfile}
+                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold cursor-pointer transition-colors"
+                  disabled={isSavingProfile}
+                  className="px-5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold cursor-pointer transition-colors flex items-center gap-2 disabled:opacity-70"
                 >
+                  {isSavingProfile && <Loader2 className="w-4 h-4 animate-spin text-black" />}
                   Save Changes
                 </button>
               </div>

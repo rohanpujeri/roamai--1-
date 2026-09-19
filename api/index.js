@@ -1,6 +1,6 @@
 // server/app.ts
 import express from "express";
-import path from "path";
+import path2 from "path";
 import dotenv from "dotenv";
 
 // server/services/serverPlanner.ts
@@ -2886,6 +2886,100 @@ Return strictly valid JSON with this exact schema:
   };
 }
 
+// server/services/serverUsernameRegistry.ts
+import fs from "fs";
+import path from "path";
+var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
+  "admin",
+  "administrator",
+  "tripwise",
+  "roamai",
+  "support",
+  "official",
+  "help",
+  "root",
+  "system",
+  "moderator",
+  "explore",
+  "trails",
+  "profile",
+  "api",
+  "dev",
+  "guest"
+]);
+var claimedUsernamesMap = /* @__PURE__ */ new Map();
+var dataDir = path.join(process.cwd(), "data");
+var dataFile = path.join(dataDir, "usernames.json");
+try {
+  if (fs.existsSync(dataFile)) {
+    const raw = fs.readFileSync(dataFile, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec.username) {
+          claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("Could not read usernames.json from disk:", err);
+}
+function persistToDisk() {
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    const array = Array.from(claimedUsernamesMap.values());
+    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Could not persist usernames to disk:", err);
+  }
+}
+function isUsernameAvailable(rawUsername, currentUserId) {
+  if (!rawUsername) {
+    return { available: false, error: "Username is required." };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  if (clean.length < 3) {
+    return { available: false, error: "Username must be at least 3 characters long." };
+  }
+  if (clean.length > 20) {
+    return { available: false, error: "Username cannot exceed 20 characters." };
+  }
+  const validRegex = /^[a-z0-9_]+$/;
+  if (!validRegex.test(clean)) {
+    return { available: false, error: "Only lowercase letters, numbers, and underscores are allowed." };
+  }
+  if (RESERVED_USERNAMES.has(clean)) {
+    return { available: false, error: "This username is reserved. Please choose another." };
+  }
+  const existing = claimedUsernamesMap.get(clean);
+  if (existing) {
+    if (currentUserId && existing.userId === currentUserId) {
+      return { available: true };
+    }
+    return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+  }
+  return { available: true };
+}
+function registerServerUsername(rawUsername, userId, email) {
+  const check = isUsernameAvailable(rawUsername, userId);
+  if (!check.available) {
+    return { success: false, error: check.error };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  const record = {
+    username: clean,
+    userId,
+    email,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  claimedUsernamesMap.set(clean, record);
+  persistToDisk();
+  return { success: true };
+}
+
 // server/app.ts
 dotenv.config();
 function createExpressApp() {
@@ -2900,8 +2994,8 @@ function createExpressApp() {
     next();
   });
   app2.use(express.json({ limit: "10mb" }));
-  app2.use("/Images", express.static(path.join(process.cwd(), "public/images")));
-  app2.use("/images", express.static(path.join(process.cwd(), "public/images")));
+  app2.use("/Images", express.static(path2.join(process.cwd(), "public/images")));
+  app2.use("/images", express.static(path2.join(process.cwd(), "public/images")));
   const apiRouter = express.Router();
   apiRouter.get("/health", (req, res) => {
     res.json({
@@ -3039,6 +3133,21 @@ function createExpressApp() {
       console.error("IP location detection error:", err);
       res.status(500).json({ error: err.message || "IP location detection failed" });
     }
+  });
+  apiRouter.get("/auth/check-username", (req, res) => {
+    const username = req.query.username || "";
+    const userId = req.query.userId || void 0;
+    const result = isUsernameAvailable(username, userId);
+    res.json(result);
+  });
+  apiRouter.post("/auth/register-username", (req, res) => {
+    const { username, userId, email } = req.body;
+    const result = registerServerUsername(username, userId, email);
+    if (!result.success) {
+      res.status(409).json(result);
+      return;
+    }
+    res.json(result);
   });
   app2.use("/api", apiRouter);
   app2.use("/", apiRouter);

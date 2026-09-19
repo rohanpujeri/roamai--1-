@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, AlertCircle, Loader2, Compass, Eye, EyeOff, Check, X, User, Calendar, MapPin } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, Compass, Eye, EyeOff, Check, X, User, Calendar, MapPin, AtSign, CheckCircle2 } from 'lucide-react';
 import { getSupabaseClient, updateUserProfileData } from '../services/supabaseClient';
+import { validateUsernameFormat, checkUsernameAvailability, claimUsername, cleanUsernameInput } from '../services/usernameService';
 import { ThemeConfig } from '../types';
 
 export type AuthMode = 'signin' | 'signup' | 'forgot_password' | 'update_password';
@@ -18,6 +19,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
+  const [usernameFeedback, setUsernameFeedback] = useState<string | null>(null);
   const [dob, setDob] = useState('');
   const [place, setPlace] = useState('');
   
@@ -35,6 +39,45 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
   const hasUppercase = /[A-Z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const passwordsMatch = password === confirmPassword && password !== '';
+
+  // Debounced check for username availability in real-time as user types
+  useEffect(() => {
+    if (authMode !== 'signup') {
+      setUsernameStatus('idle');
+      setUsernameFeedback(null);
+      return;
+    }
+
+    const clean = cleanUsernameInput(username);
+    if (!clean) {
+      setUsernameStatus('idle');
+      setUsernameFeedback(null);
+      return;
+    }
+
+    const validation = validateUsernameFormat(clean);
+    if (!validation.isValid) {
+      setUsernameStatus('invalid');
+      setUsernameFeedback(validation.error || 'Invalid username');
+      return;
+    }
+
+    setUsernameStatus('checking');
+    setUsernameFeedback(null);
+
+    const timer = setTimeout(async () => {
+      const res = await checkUsernameAvailability(clean);
+      if (res.available) {
+        setUsernameStatus('available');
+        setUsernameFeedback('Username is available');
+      } else {
+        setUsernameStatus('taken');
+        setUsernameFeedback(res.error || `@${clean} is already taken.`);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [username, authMode]);
 
   const getErrorMessage = (err: any): string => {
     const msg = err?.message?.toLowerCase() || '';
@@ -60,12 +103,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
     setShowResend(false);
 
     if (authMode === 'signup') {
+      const cleanUname = cleanUsernameInput(username);
+      const validation = validateUsernameFormat(cleanUname);
+      if (!validation.isValid) {
+        setError(validation.error || 'Please choose a valid username.');
+        return;
+      }
+
+      // Check unique availability
+      setLoading(true);
+      const availCheck = await checkUsernameAvailability(cleanUname);
+      if (!availCheck.available) {
+        setError(availCheck.error || `@${cleanUname} is already registered. Please choose another username.`);
+        setUsernameStatus('taken');
+        setUsernameFeedback(availCheck.error || `@${cleanUname} is already registered.`);
+        setLoading(false);
+        return;
+      }
+
       if (!hasMinLength || !hasUppercase || !hasNumber) {
         setError('Please ensure your password meets all requirements.');
+        setLoading(false);
         return;
       }
       if (!passwordsMatch) {
         setError('Passwords do not match.');
+        setLoading(false);
         return;
       }
     }
@@ -92,11 +155,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
 
     try {
       if (authMode === 'signup') {
+        const cleanUname = cleanUsernameInput(username);
         const { error: signUpError, data } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
+              username: `@${cleanUname}`,
               full_name: fullName.trim(),
               name: fullName.trim(),
               dob: dob.trim(),
@@ -111,9 +176,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
           if (data.user && data.user.identities && data.user.identities.length === 0) {
             setError('Account already exists. Try signing in.');
           } else {
+            // Reserve unique username in system
+            await claimUsername(cleanUname, data.user?.id, email);
+
             if (data.user) {
               updateUserProfileData({
-                name: fullName.trim() || email.split('@')[0],
+                name: fullName.trim() || cleanUname,
+                username: `@${cleanUname}`,
                 dob: dob.trim(),
                 place: place.trim(),
                 email
@@ -288,10 +357,92 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-opacity-50 focus:outline-none transition-all shadow-sm font-medium text-slate-800"
                       style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
-                      placeholder="e.g. Rohan Pujeri"
+                      placeholder="e.g. Alex Rivera"
                       required
                     />
                   </div>
+                </div>
+
+                {/* Unique Username field */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-slate-700">
+                      Username <span className="text-red-500">*</span>
+                    </label>
+                    {usernameStatus === 'checking' && (
+                      <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Checking...
+                      </span>
+                    )}
+                    {usernameStatus === 'available' && (
+                      <span className="text-xs text-emerald-600 flex items-center gap-1 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Available
+                      </span>
+                    )}
+                    {usernameStatus === 'taken' && (
+                      <span className="text-xs text-red-600 flex items-center gap-1 font-semibold">
+                        <X className="w-3.5 h-3.5" />
+                        Already taken
+                      </span>
+                    )}
+                    {usernameStatus === 'invalid' && username.trim().length > 0 && (
+                      <span className="text-xs text-amber-600 flex items-center gap-1 font-medium">
+                        Invalid
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none text-slate-400 font-bold text-sm">
+                      <AtSign className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                      className={`w-full pl-10 pr-10 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-opacity-50 focus:outline-none transition-all shadow-sm font-semibold text-slate-800 lowercase ${
+                        usernameStatus === 'available' 
+                          ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-200' 
+                          : usernameStatus === 'taken' || usernameStatus === 'invalid'
+                            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                            : 'border-slate-200'
+                      }`}
+                      style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
+                      placeholder="traveler_99"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck="false"
+                      required
+                    />
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                      {usernameStatus === 'checking' && (
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                      )}
+                      {usernameStatus === 'available' && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      )}
+                      {usernameStatus === 'taken' && (
+                        <X className="w-4 h-4 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                  {usernameFeedback && (
+                    <p className={`text-xs mt-1.5 ml-1 font-medium ${
+                      usernameStatus === 'available' 
+                        ? 'text-emerald-600' 
+                        : usernameStatus === 'taken' 
+                          ? 'text-red-600' 
+                          : 'text-amber-600'
+                    }`}>
+                      {usernameFeedback}
+                    </p>
+                  )}
+                  {!usernameFeedback && (
+                    <p className="text-[11px] text-slate-400 mt-1.5 ml-1">
+                      Must be unique. 3–20 lowercase letters, numbers, or underscores.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -437,7 +588,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
 
             <button
               type="submit"
-              disabled={loading || ((authMode === 'signup' || authMode === 'update_password') && (!hasMinLength || !hasUppercase || !hasNumber || !passwordsMatch))}
+              disabled={
+                loading ||
+                (authMode === 'signup' && (
+                  !fullName.trim() ||
+                  !username.trim() ||
+                  usernameStatus !== 'available' ||
+                  !hasMinLength ||
+                  !hasUppercase ||
+                  !hasNumber ||
+                  !passwordsMatch
+                )) ||
+                (authMode === 'update_password' && (!hasMinLength || !hasUppercase || !hasNumber || !passwordsMatch))
+              }
               className="w-full py-3.5 px-4 rounded-xl text-white font-bold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2 mt-6"
               style={{ backgroundColor: currentTheme.primaryColor }}
             >
