@@ -327,17 +327,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
         {/* Top Bar: Back to Step 6 (Left) & Enter Trip Mode (Right) */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {onNavigateHome && (
-              <button
-                onClick={onNavigateHome}
-                className="p-1.5 rounded-lg sm:rounded-xl bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-                title="Return to Home / Discover"
-              >
-                <Compass className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Home</span>
-              </button>
-            )}
-
             {onBackToStep6 && (
               <button
                 id="back-to-step-6-btn"
