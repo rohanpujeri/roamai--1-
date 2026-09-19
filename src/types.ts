@@ -187,6 +187,8 @@ export interface Trip {
   title: string;
   destination: string;
   destinationStateOrCountry: string;
+  isCompleted?: boolean;
+  completedAt?: string;
   startCity?: string;
   routeSummary?: RouteSummary;
   heroImage: string;

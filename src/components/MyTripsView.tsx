@@ -10,9 +10,11 @@ import {
   Navigation,
   Trash2,
   Copy,
-  Clock
+  Clock,
+  Check
 } from 'lucide-react';
 import { Trip } from '../types';
+import { isTripCompleted } from '../utils/tripCompletion';
 
 interface MyTripsViewProps {
   trips: Trip[];
@@ -21,6 +23,7 @@ interface MyTripsViewProps {
   onEnterTripMode: (trip: Trip) => void;
   onPlanNewTrip: () => void;
   onDeleteTrip: (tripId: string) => void;
+  onToggleTripCompleted?: (tripId: string) => void;
 }
 
 export const MyTripsView: React.FC<MyTripsViewProps> = ({
@@ -29,7 +32,8 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
   onSelectTrip,
   onEnterTripMode,
   onPlanNewTrip,
-  onDeleteTrip
+  onDeleteTrip,
+  onToggleTripCompleted
 }) => {
   return (
     <div className="space-y-4 sm:space-y-6 text-left max-w-6xl mx-auto">
@@ -143,6 +147,22 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
                 {/* Actions */}
                 <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 flex flex-col gap-2">
                   <div className="flex items-center gap-2">
+                    {onToggleTripCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleTripCompleted(trip.id)}
+                        className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                          isTripCompleted(trip)
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500 hover:text-white border border-slate-200 dark:border-slate-700'
+                        }`}
+                        title={isTripCompleted(trip) ? 'Trip Completed (Click to mark as planned)' : 'Mark trip as completed'}
+                      >
+                        <Check className={`w-3.5 h-3.5 ${isTripCompleted(trip) ? 'stroke-[3]' : ''}`} />
+                        <span className="hidden sm:inline">{isTripCompleted(trip) ? 'Completed' : 'Complete'}</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => onSelectTrip(trip.id)}
                       className="flex-1 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"

@@ -6,6 +6,7 @@ import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } fro
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
 import { getTheme, applyThemeToDocument, getSavedThemeId } from './services/theme';
 import { Session } from '@supabase/supabase-js';
+import { isTripCompleted, setTripCompletedLocal } from './utils/tripCompletion';
 
 // Subcomponents
 import { Navbar } from './components/Navbar';
@@ -337,6 +338,31 @@ export default function App() {
         }));
         const updated = { ...t, days: newDays };
         saveTripToBackend(updated).catch(console.warn);
+        return updated;
+      })
+    );
+  };
+
+  // Toggle trip completion
+  const handleToggleTripCompleted = (tripId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== tripId) return t;
+        const willBeCompleted = !isTripCompleted(t);
+        setTripCompletedLocal(t.id, willBeCompleted);
+        const updated: Trip = {
+          ...t,
+          isCompleted: willBeCompleted,
+          completedAt: willBeCompleted ? new Date().toISOString() : undefined
+        };
+        saveTripToBackend(updated).catch(console.warn);
+        addToast(
+          'success',
+          willBeCompleted ? 'Trip Completed! 🎉' : 'Trip Marked as Planned',
+          willBeCompleted
+            ? `Congratulations! ${t.destination} has been added to your completed journeys.`
+            : `${t.destination} is now marked as an upcoming trip.`
+        );
         return updated;
       })
     );
@@ -991,6 +1017,7 @@ export default function App() {
               onAddExpense={handleAddExpense}
               onDeleteExpense={handleDeleteExpense}
               onAddDay={handleAddDay}
+              onToggleTripCompleted={handleToggleTripCompleted}
             />
           </div>
         ) : null;
@@ -1028,6 +1055,7 @@ export default function App() {
               }}
               onPlanNewTrip={() => scrollToTab(2)}
               onDeleteTrip={handleDeleteTrip}
+              onToggleTripCompleted={handleToggleTripCompleted}
             />
           </div>
         );
@@ -1258,6 +1286,7 @@ export default function App() {
                     setWizardEditingTrip(null);
                     scrollToTab(2);
                   }}
+                  onToggleTripCompleted={handleToggleTripCompleted}
                   onBack={() => scrollToTab(0)}
                 />
                 <div className="h-28" />

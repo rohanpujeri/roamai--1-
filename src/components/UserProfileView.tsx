@@ -31,6 +31,7 @@ import {
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
 import { getCachedUserProfile, updateUserProfileData } from '../services/supabaseClient';
+import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 
 interface UserProfileViewProps {
   session: Session | null;
@@ -38,6 +39,7 @@ interface UserProfileViewProps {
   trips: Trip[];
   onOpenTrip: (tripId: string) => void;
   onStartPlanning: (destination?: string) => void;
+  onToggleTripCompleted?: (tripId: string) => void;
   onBack: () => void;
 }
 
@@ -58,10 +60,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   trips,
   onOpenTrip,
   onStartPlanning,
+  onToggleTripCompleted,
   onBack
 }) => {
   const user = session?.user;
-  const userMeta = user?.user_metadata || {};
+  const userMeta = (user?.user_metadata || {}) as Record<string, any>;
 
   // Tabs: trips (grid), trails (reels), dna (travel personality), saved (bookmarks)
   const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna' | 'saved'>('trips');
@@ -87,10 +90,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return [];
   });
 
-  // Calculate unique places from real trips
+  // Filter ONLY completed trips for travel footprint counters (trips, countries, places)
+  const completedTrips = React.useMemo(() => {
+    return trips.filter((t) => isTripCompleted(t));
+  }, [trips]);
+
+  // Calculate unique places ONLY from completed trips
   const calculatedPlacesCount = React.useMemo(() => {
     const places = new Set<string>();
-    trips.forEach((t) => {
+    completedTrips.forEach((t) => {
       if (t.destination) places.add(t.destination.trim().toLowerCase());
       t.days?.forEach((d) => {
         d.activities?.forEach((a) => {
@@ -99,12 +107,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       });
     });
     return places.size;
-  }, [trips]);
+  }, [completedTrips]);
 
-  // Calculate unique countries from real trips
+  // Calculate unique countries ONLY from completed trips
   const calculatedCountriesCount = React.useMemo(() => {
     const countries = new Set<string>();
-    trips.forEach((t) => {
+    completedTrips.forEach((t) => {
       if (t.destinationPlace?.country) {
         countries.add(t.destinationPlace.country.trim().toLowerCase());
       } else if (t.destination) {
@@ -117,19 +125,36 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
     });
     return countries.size;
-  }, [trips]);
+  }, [completedTrips]);
 
-  // Profile data states
+  const getFallbackUsername = (u?: typeof user, meta?: Record<string, any>) => {
+    if (meta?.username?.trim()) return meta.username.trim();
+    if (u?.email) {
+      return `@${u.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_')}`;
+    }
+    return '@traveler';
+  };
+
+  const getFallbackName = (u?: typeof user, meta?: Record<string, any>) => {
+    if (meta?.full_name?.trim()) return meta.full_name.trim();
+    if (meta?.name?.trim()) return meta.name.trim();
+    if (u?.email) {
+      const emailPrefix = u.email.split('@')[0].replace(/[._]/g, ' ');
+      return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+    }
+    return 'Traveler';
+  };
+
+  // Profile data states - dynamically mapped to current authenticated user
   const [profile, setProfile] = useState<UserProfileData>(() => {
     const cached = user ? getCachedUserProfile(user.id) : null;
-    const defaultUsername = user?.email ? `@${user.email.split('@')[0]}` : '@rohan_pujeri';
     return {
-      name: cached?.name || userMeta.full_name || userMeta.name || 'Rohan Pujeri',
-      username: cached?.username || userMeta.username || defaultUsername,
+      name: cached?.name || getFallbackName(user, userMeta),
+      username: cached?.username || getFallbackUsername(user, userMeta),
       bio: cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍',
-      avatarUrl: cached?.avatarUrl || userMeta.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
+      avatarUrl: cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '',
       dob: cached?.dob || userMeta.dob || '',
-      place: cached?.place || userMeta.place || 'Bengaluru, India',
+      place: cached?.place || userMeta.place || '',
       email: user?.email || '',
       travelDNA: cached?.travelDNA || {
         adventure: 85,
@@ -147,29 +172,67 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         food: 'Open to local food'
       },
       stats: {
-        tripsCount: trips.length,
+        tripsCount: completedTrips.length,
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
-        postsCount: trips.length + userTrails.length,
+        postsCount: completedTrips.length + userTrails.length,
         followersCount: cached?.stats?.followersCount ?? 0,
         followingCount: cached?.stats?.followingCount ?? 0,
         level: 'Travel Explorer',
-        levelNumber: Math.max(1, Math.min(10, Math.floor(trips.length / 2) + 1))
+        levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
     };
   });
 
   const [editForm, setEditForm] = useState<UserProfileData>(profile);
 
+  // Sync profile when user identity or metadata changes
   useEffect(() => {
-    if (user) {
-      const cached = getCachedUserProfile(user.id);
-      if (cached) {
-        setProfile((prev) => ({ ...prev, ...cached }));
-        setEditForm((prev) => ({ ...prev, ...cached }));
+    const cached = user ? getCachedUserProfile(user.id) : null;
+    const name = cached?.name || getFallbackName(user, userMeta);
+    const username = cached?.username || getFallbackUsername(user, userMeta);
+    const avatarUrl = cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '';
+    const place = cached?.place || userMeta.place || '';
+    const bio = cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍';
+    const dob = cached?.dob || userMeta.dob || '';
+
+    const synced: UserProfileData = {
+      name,
+      username,
+      avatarUrl,
+      place,
+      bio,
+      dob,
+      email: user?.email || '',
+      travelDNA: cached?.travelDNA || profile.travelDNA,
+      travelPreferences: cached?.travelPreferences || profile.travelPreferences,
+      stats: {
+        tripsCount: completedTrips.length,
+        placesCount: calculatedPlacesCount,
+        countriesCount: calculatedCountriesCount,
+        postsCount: completedTrips.length + userTrails.length,
+        followersCount: cached?.stats?.followersCount ?? profile.stats?.followersCount ?? 0,
+        followingCount: cached?.stats?.followingCount ?? profile.stats?.followingCount ?? 0,
+        level: 'Travel Explorer',
+        levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
-    }
-  }, [user]);
+    };
+
+    setProfile(synced);
+    setEditForm(synced);
+  }, [
+    user?.id,
+    user?.email,
+    userMeta?.full_name,
+    userMeta?.name,
+    userMeta?.avatar_url,
+    userMeta?.avatarUrl,
+    userMeta?.username,
+    userMeta?.place,
+    completedTrips.length,
+    calculatedPlacesCount,
+    calculatedCountriesCount
+  ]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +254,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTimeout(() => setShareToast(false), 2500);
   };
 
-  // Real user planned trips
+  const handleToggleCompleted = (tripId: string) => {
+    const currentTrip = trips.find((t) => t.id === tripId);
+    const willBeCompleted = currentTrip ? !isTripCompleted(currentTrip) : true;
+    setTripCompletedLocal(tripId, willBeCompleted);
+    if (onToggleTripCompleted) {
+      onToggleTripCompleted(tripId);
+    }
+  };
+
+  // Real user planned trips with completion status
   const displayTrips = trips.map((t) => ({
     id: t.id,
     destination: t.destination,
@@ -199,7 +271,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     duration: `${t.durationDays} days`,
     cost: t.budgetTier,
     imageUrl: t.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
-    isCarousel: (t.days?.length || 0) > 1
+    isCarousel: (t.days?.length || 0) > 1,
+    isCompleted: isTripCompleted(t)
   }));
 
   return (
@@ -236,7 +309,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           className="flex items-center gap-1 cursor-pointer select-none group"
         >
           <span className="font-bold text-base sm:text-lg text-white tracking-tight group-hover:text-zinc-300 transition-colors">
-            {profile.username?.replace('@', '') || 'rohan_pujeri'}
+            {profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0] : 'profile')}
           </span>
           <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
         </div>
@@ -256,15 +329,25 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
       <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
-          {/* Circular Avatar with + Badge (No thought bubble) */}
+          {/* Circular Avatar with + Badge (Uses custom avatar or clean initial) */}
           <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
             <div className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md">
-              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900">
-                <img
-                  src={profile.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
-                  alt={profile.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900 flex items-center justify-center">
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-2xl sm:text-3xl select-none">
+                    {profile.name?.charAt(0).toUpperCase() || 'T'}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -287,7 +370,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 <Award className="w-3 h-3" />
-                <span>Level {profile.stats?.levelNumber || 4}</span>
+                <span>Level {profile.stats?.levelNumber || 1}</span>
               </span>
             </div>
 
@@ -299,10 +382,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 className="cursor-pointer group flex-1"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
-                  {trips.length + userTrails.length}
+                  {displayTrips.length + userTrails.length}
                 </span>
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5">
-                  {trips.length + userTrails.length === 1 ? 'post' : 'posts'}
+                  {displayTrips.length + userTrails.length === 1 ? 'post' : 'posts'}
                 </span>
               </div>
 
@@ -334,14 +417,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line">
             {profile.bio}
           </p>
-          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400 font-medium">
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-emerald-400" />
-              {profile.place || 'Bengaluru, India'}
-            </span>
-            <span>•</span>
+          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400 font-medium flex-wrap">
+            {profile.place && (
+              <>
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-emerald-400" />
+                  {profile.place}
+                </span>
+                <span>•</span>
+              </>
+            )}
             <span className="text-zinc-500 font-mono">
-              {profile.username || '@rohan_pujeri'}
+              {profile.username || getFallbackUsername(user, userMeta)}
             </span>
           </div>
         </div>
@@ -365,19 +452,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </button>
         </div>
 
-        {/* 3. DEDICATED TRAVEL STATS SECTION: TRIPS, COUNTRIES, AND PLACES IN ONE STRAIGHT LINE */}
+        {/* 3. DEDICATED TRAVEL STATS SECTION: ONLY COMPLETED TRIPS COUNT */}
         <div className="mt-4 p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-md">
           <div className="flex items-center justify-around text-center divide-x divide-zinc-800">
-            {/* Trips */}
+            {/* Completed Trips */}
             <div 
               onClick={() => setActiveTab('trips')}
               className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
-              title="View all trips"
+              title="Completed Trips"
             >
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <Compass className="w-4 h-4 text-emerald-400 group-hover:rotate-45 transition-transform" />
                 <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors leading-tight">
-                  {trips.length}
+                  {completedTrips.length}
                 </span>
               </div>
               <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
@@ -385,11 +472,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </span>
             </div>
 
-            {/* Countries */}
+            {/* Countries Visited (Completed Trips Only) */}
             <div 
               onClick={() => setActiveTab('trips')}
               className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
-              title="Countries explored"
+              title="Countries visited on completed trips"
             >
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <MapPin className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
@@ -402,11 +489,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </span>
             </div>
 
-            {/* Places */}
+            {/* Places Visited (Completed Trips Only) */}
             <div 
               onClick={() => setActiveTab('trips')}
               className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
-              title="Places visited"
+              title="Places visited on completed trips"
             >
               <div className="flex items-center justify-center gap-1.5 mb-0.5">
                 <Mountain className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
@@ -515,6 +602,24 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       alt={trip.destination}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
+
+                    {/* Top-Left Completed Badge / Interactive Toggle */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleCompleted(trip.id);
+                      }}
+                      className={`absolute top-1.5 left-1.5 z-10 px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-extrabold flex items-center gap-1 shadow-md transition-all cursor-pointer backdrop-blur-md ${
+                        trip.isCompleted
+                          ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                          : 'bg-black/70 hover:bg-black/90 text-zinc-300 border border-white/20'
+                      }`}
+                      title={trip.isCompleted ? 'Completed trip (Click to unmark)' : 'Click to mark as completed'}
+                    >
+                      <Check className={`w-2.5 h-2.5 ${trip.isCompleted ? 'stroke-[3]' : 'opacity-60'}`} />
+                      <span>{trip.isCompleted ? 'Done' : 'Mark Done'}</span>
+                    </button>
 
                     {/* Top-Right Multi-Photo / Carousel Indicator matching screenshot */}
                     {trip.isCarousel && (

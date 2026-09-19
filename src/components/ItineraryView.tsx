@@ -35,6 +35,7 @@ import { HotelsAndStaysView } from './HotelsAndStaysView';
 import { AddNearbyPlaceModal } from './AddNearbyPlaceModal';
 import { getTravelModeTransitCost } from './CreateTripWizard';
 import { generateHotelBookingUrls } from '../services/aiHotelAdvisor';
+import { isTripCompleted } from '../utils/tripCompletion';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -62,6 +63,7 @@ interface ItineraryViewProps {
   onAddExpense?: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
   onDeleteExpense?: (expenseId: string) => void;
   onAddDay?: () => void;
+  onToggleTripCompleted?: (tripId: string) => void;
 }
 
 export const ItineraryView: React.FC<ItineraryViewProps> = ({
@@ -89,7 +91,8 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   onSaveHotelToTrip,
   onAddExpense,
   onDeleteExpense,
-  onAddDay
+  onAddDay,
+  onToggleTripCompleted
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'hotels'>('itinerary');
   const [showStayForDay, setShowStayForDay] = useState<Record<number, boolean>>({});
@@ -348,16 +351,34 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             )}
           </div>
 
-          <button
-            id="enter-trip-mode-btn"
-            onClick={onEnterTripMode}
-            className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-[#10b981] hover:bg-emerald-400 text-white font-black text-xs flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95 cursor-pointer shrink-0"
-          >
-            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white/20 flex items-center justify-center">
-              <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-white text-white ml-0.5" />
-            </div>
-            <span>Enter Trip Mode</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {onToggleTripCompleted && (
+              <button
+                type="button"
+                onClick={() => onToggleTripCompleted(trip.id)}
+                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isTripCompleted(trip)
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-black hover:bg-zinc-900 text-zinc-300 border border-zinc-800'
+                }`}
+                title={isTripCompleted(trip) ? 'Trip Completed (Click to mark as planned)' : 'Click to mark trip as completed'}
+              >
+                <CheckCircle2 className={`w-3.5 h-3.5 ${isTripCompleted(trip) ? 'text-emerald-400' : 'text-zinc-500'}`} />
+                <span>{isTripCompleted(trip) ? 'Completed' : 'Mark Completed'}</span>
+              </button>
+            )}
+
+            <button
+              id="enter-trip-mode-btn"
+              onClick={onEnterTripMode}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-[#10b981] hover:bg-emerald-400 text-white font-black text-xs flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95 cursor-pointer shrink-0"
+            >
+              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white/20 flex items-center justify-center">
+                <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-white text-white ml-0.5" />
+              </div>
+              <span>Enter Trip Mode</span>
+            </button>
+          </div>
         </div>
 
         {/* Hero Header: Title & Route Summary */}

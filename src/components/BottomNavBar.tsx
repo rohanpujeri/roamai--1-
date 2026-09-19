@@ -19,8 +19,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   session
 }) => {
   const cachedProfile = getCachedUserProfile(session?.user?.id);
-  const userAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
-  const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || 'Traveler';
+  const userAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+  const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'Traveler';
 
   return (
     <div className="fixed bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px]">
