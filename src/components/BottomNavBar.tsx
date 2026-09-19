@@ -128,12 +128,6 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
               <span>{userName.charAt(0).toUpperCase()}</span>
             )}
           </div>
-
-          {/* Red status / notification dot matching the screenshot */}
-          <span 
-            className="absolute bottom-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#141419] shadow-xs"
-            title="Profile notifications" 
-          />
         </button>
       </nav>
     </div>

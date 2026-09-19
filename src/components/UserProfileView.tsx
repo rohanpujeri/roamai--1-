@@ -19,7 +19,6 @@ import {
   Bookmark,
   LayoutGrid,
   Film,
-  Lock,
   ChevronDown,
   UserPlus,
   Menu,
@@ -232,17 +231,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <Plus className="w-6 h-6 stroke-[2.2]" />
         </button>
 
-        {/* Center: Lock icon, username with dropdown, red notification dot */}
+        {/* Center: Username with dropdown */}
         <div 
           onClick={() => setIsEditModalOpen(true)}
-          className="flex items-center gap-1.5 cursor-pointer select-none group"
+          className="flex items-center gap-1 cursor-pointer select-none group"
         >
-          <Lock className="w-3.5 h-3.5 text-zinc-300 stroke-[2.5]" />
           <span className="font-bold text-base sm:text-lg text-white tracking-tight group-hover:text-zinc-300 transition-colors">
             {profile.username?.replace('@', '') || 'rohan_pujeri'}
           </span>
           <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
-          <span className="w-2 h-2 rounded-full bg-red-500 shadow-xs ml-0.5" />
         </div>
 
         {/* Right: Hamburger menu */}
