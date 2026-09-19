@@ -1064,6 +1064,12 @@ export default function App() {
               <TravellerSearchView
                 currentTheme={currentTheme}
                 onSelectTraveller={() => setCurrentView('profile')}
+                onOpenTrail={() => setCurrentView('trails')}
+                onStartPlanning={(destination) => {
+                  setWizardDestId(destination || '');
+                  setWizardEditingTrip(null);
+                  setCurrentView('wizard');
+                }}
                 onBack={() => setCurrentView('landing')}
               />
             )}
