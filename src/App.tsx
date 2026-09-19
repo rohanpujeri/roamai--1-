@@ -1288,6 +1288,19 @@ export default function App() {
                   }}
                   onToggleTripCompleted={handleToggleTripCompleted}
                   onBack={() => scrollToTab(0)}
+                  onRequireAuth={() => {
+                    setIntendedView('profile');
+                    setCurrentView('auth');
+                  }}
+                  onNavigate={(view) => {
+                    const idx = BOTTOM_NAV_ORDER.indexOf(view as any);
+                    if (idx !== -1) {
+                      scrollToTab(idx);
+                    } else {
+                      setCurrentView(view);
+                    }
+                  }}
+                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
                 />
                 <div className="h-28" />
               </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Play, Plus, Search } from 'lucide-react';
+import { Home, Play, Plus, Search, User } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile } from '../services/supabaseClient';
 
@@ -114,7 +114,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           }`}
         >
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center text-white font-bold text-xs sm:text-sm ring-1 ring-white/25">
-            {userAvatar ? (
+            {session && userAvatar ? (
               <img
                 src={userAvatar}
                 alt={userName}
@@ -124,8 +124,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
-            ) : (
+            ) : session ? (
               <span>{userName.charAt(0).toUpperCase()}</span>
+            ) : (
+              <User className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-300" />
             )}
           </div>
         </button>

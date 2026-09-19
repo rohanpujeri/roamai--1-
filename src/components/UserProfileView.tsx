@@ -28,13 +28,15 @@ import {
   Volume2,
   VolumeX,
   Loader2,
-  AtSign
+  AtSign,
+  LogIn
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
 import { getCachedUserProfile, updateUserProfileData } from '../services/supabaseClient';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
+import { NavigationDrawer } from './NavigationDrawer';
 
 interface UserProfileViewProps {
   session: Session | null;
@@ -44,6 +46,9 @@ interface UserProfileViewProps {
   onStartPlanning: (destination?: string) => void;
   onToggleTripCompleted?: (tripId: string) => void;
   onBack: () => void;
+  onRequireAuth?: () => void;
+  onNavigate?: (view: any) => void;
+  onOpenThemeModal?: () => void;
 }
 
 export interface UserTrailItem {
@@ -64,7 +69,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   onOpenTrip,
   onStartPlanning,
   onToggleTripCompleted,
-  onBack
+  onBack,
+  onRequireAuth,
+  onNavigate,
+  onOpenThemeModal
 }) => {
   const user = session?.user;
   const userMeta = (user?.user_metadata || {}) as Record<string, any>;
@@ -72,6 +80,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   // Tabs: trips (grid), trails (reels), dna (travel personality), saved (bookmarks)
   const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna' | 'saved'>('trips');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [shareToast, setShareToast] = useState(false);
 
@@ -343,31 +352,104 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <Plus className="w-6 h-6 stroke-[2.2]" />
         </button>
 
-        {/* Center: Username with dropdown */}
+        {/* Center: Username with dropdown (or Profile when signed out) */}
         <div 
-          onClick={() => setIsEditModalOpen(true)}
+          onClick={() => {
+            if (session) {
+              setIsEditModalOpen(true);
+            } else {
+              onRequireAuth?.();
+            }
+          }}
           className="flex items-center gap-1 cursor-pointer select-none group"
         >
           <span className="font-bold text-base sm:text-lg text-white tracking-tight group-hover:text-zinc-300 transition-colors">
-            {profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0] : 'profile')}
+            {session ? (profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0] : 'profile')) : 'Profile'}
           </span>
-          <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+          {session && <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />}
         </div>
 
-        {/* Right: Hamburger menu */}
+        {/* Right: Hamburger menu - opens same 3-lines slider as home page */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsEditModalOpen(true)}
+            onClick={() => setIsDrawerOpen(true)}
             className="p-1 text-white hover:text-zinc-300 transition-colors cursor-pointer"
-            title="Menu & Settings"
+            aria-label="Open Navigation Drawer"
+            title="Menu & Navigation"
           >
             <Menu className="w-6 h-6 stroke-[2]" />
           </button>
         </div>
       </header>
 
-      {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
-      <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
+      {!session ? (
+        /* Signed-Out State with prominent Login Button */
+        <div className="px-4 sm:px-6 pt-12 pb-24 max-w-md mx-auto flex flex-col items-center text-center animate-fade-in">
+          {/* Glowing Avatar Ring */}
+          <div className="relative mb-6">
+            <div 
+              className="absolute inset-0 rounded-full blur-2xl opacity-40 scale-125 pointer-events-none"
+              style={{ backgroundColor: currentTheme.primaryColor }}
+            />
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-zinc-900 border-2 border-zinc-800 p-1 flex items-center justify-center shadow-2xl">
+              <div 
+                className="w-full h-full rounded-full flex items-center justify-center"
+                style={{ backgroundColor: `${currentTheme.primaryColor}22` }}
+              >
+                <User className="w-12 h-12 stroke-[1.8]" style={{ color: currentTheme.primaryColor }} />
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2.5">
+            Sign in to TripWise
+          </h2>
+          <p className="text-sm text-zinc-400 font-medium max-w-sm leading-relaxed mb-8">
+            Log in to access your personal profile, view your saved itineraries, track visited countries, and share your travel trails.
+          </p>
+
+          {/* Action Buttons */}
+          <div className="w-full space-y-3">
+            <button
+              onClick={() => onRequireAuth?.()}
+              className="w-full py-3.5 px-6 rounded-2xl text-white font-bold shadow-xl flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-sm sm:text-base"
+              style={{ backgroundColor: currentTheme.primaryColor }}
+            >
+              <LogIn className="w-5 h-5 stroke-[2.2]" />
+              <span>Sign In / Log In</span>
+            </button>
+
+            <button
+              onClick={() => onRequireAuth?.()}
+              className="w-full py-3 px-6 rounded-2xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 hover:text-white border border-zinc-800 font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+            >
+              Don't have an account? Sign Up
+            </button>
+          </div>
+
+          {/* Highlights */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full mt-10 text-left">
+            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-850">
+              <Bookmark className="w-4 h-4 mb-1.5" style={{ color: currentTheme.primaryColor }} />
+              <p className="text-xs font-bold text-white leading-snug">Saved Trips</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">Keep plans synced</p>
+            </div>
+            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-850">
+              <MapPin className="w-4 h-4 mb-1.5" style={{ color: currentTheme.primaryColor }} />
+              <p className="text-xs font-bold text-white leading-snug">World Map</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">Track countries</p>
+            </div>
+            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-850">
+              <Film className="w-4 h-4 mb-1.5" style={{ color: currentTheme.primaryColor }} />
+              <p className="text-xs font-bold text-white leading-snug">Travel Reels</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">Post travel trails</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
+          <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
           {/* Circular Avatar with + Badge (Uses custom avatar or clean initial) */}
           <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
@@ -902,7 +984,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       )}
-
+      </>
+      )}
 
       {/* --- EDIT PROFILE MODAL --- */}
       {isEditModalOpen && (
@@ -1006,6 +1089,33 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Slide-In Navigation Drawer from Right (Same as home page 3 lines slider) */}
+      <NavigationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        currentView="profile"
+        onNavigate={(view) => {
+          setIsDrawerOpen(false);
+          if (onNavigate) {
+            onNavigate(view);
+          } else if (view === 'landing') {
+            onBack();
+          }
+        }}
+        savedTripsCount={trips.length}
+        currentTheme={currentTheme}
+        onOpenThemeModal={onOpenThemeModal}
+        session={session}
+        onRequireAuth={() => {
+          setIsDrawerOpen(false);
+          onRequireAuth?.();
+        }}
+        onPlanTrip={() => {
+          setIsDrawerOpen(false);
+          onStartPlanning();
+        }}
+      />
     </div>
   );
 };
