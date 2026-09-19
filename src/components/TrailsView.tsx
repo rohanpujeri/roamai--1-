@@ -169,6 +169,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
 
   // Upload modal form state
   const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
@@ -415,6 +416,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           className="w-full h-full object-cover"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onTimeUpdate={() => {
+            if (videoRef.current && videoRef.current.duration) {
+              setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+            }
+          }}
         />
 
         {/* Play/Pause Center Overlay Animation */}
@@ -430,48 +436,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div className="absolute inset-0 bg-linear-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
         {/* Right Action Sidebar */}
-        <div className="absolute right-3 bottom-24 sm:bottom-20 z-20 flex flex-col items-center gap-4 pointer-events-auto">
-          {/* Creator Avatar with Follow button */}
-          <div className="relative flex flex-col items-center">
-            <div className="w-11 h-11 rounded-full ring-2 ring-white/80 overflow-hidden shadow-lg bg-neutral-800">
-              <img 
-                src={activeReel.creator.avatarUrl} 
-                alt={activeReel.creator.name} 
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            {!activeReel.creator.isFollowed && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setTrails((prev) =>
-                    prev.map((t, idx) => {
-                      if (idx === currentIndex) {
-                        return {
-                          ...t,
-                          creator: { ...t.creator, isFollowed: true }
-                        };
-                      }
-                      return t;
-                    })
-                  );
-                }}
-                className="absolute -bottom-1.5 w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110"
-              >
-                <Plus className="w-3 h-3 stroke-[3]" />
-              </button>
-            )}
-          </div>
-
+        <div className="absolute right-3 bottom-20 sm:bottom-16 z-20 flex flex-col items-center gap-3.5 pointer-events-auto">
           {/* Like Button */}
           <button
             type="button"
             onClick={handleLike}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 ${
+            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 ${
               activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/40 hover:bg-black/60 text-white'
             }`}>
               <Heart className={`w-6 h-6 transition-transform group-active/btn:scale-75 ${
@@ -492,7 +464,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
               <MessageCircle className="w-6 h-6" />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">
@@ -506,7 +478,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleSave}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
+            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
               activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/40 hover:bg-black/60 text-white'
             }`}>
               <Bookmark className={`w-6 h-6 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
@@ -522,7 +494,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleShare}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
               <Share2 className="w-5 h-5" />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">
@@ -534,18 +506,83 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={toggleMute}
-            className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer"
+            title={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
           </button>
+
+          {/* Audio Album Thumbnail (Matches Instagram Reels screenshot at bottom right) */}
+          <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform">
+            <img 
+              src={activeReel.creator.avatarUrl} 
+              alt="Sound cover"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </div>
         </div>
 
         {/* Bottom Left Info & Caption Overlay */}
         <div className="absolute left-4 right-16 bottom-16 sm:bottom-12 z-20 space-y-2 pointer-events-none">
+          {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
+          <div className="flex items-center gap-2.5 pointer-events-auto">
+            {/* Circular Photo with Gradient Ring */}
+            <div className="p-[2px] rounded-full bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md shrink-0">
+              <img
+                src={activeReel.creator.avatarUrl}
+                alt={activeReel.creator.username}
+                className="w-9 h-9 rounded-full object-cover border-2 border-black"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+
+            {/* Username only (no full name) */}
+            <span className="text-xs sm:text-sm font-bold text-white tracking-wide drop-shadow-md">
+              {activeReel.creator.username.replace(/^@/, '')}
+            </span>
+
+            {/* Verified Badge */}
+            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-black shrink-0 shadow-xs">
+              ✓
+            </span>
+
+            {/* Follow / Following Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTrails((prev) =>
+                  prev.map((t, idx) => {
+                    if (idx === currentIndex) {
+                      return {
+                        ...t,
+                        creator: { ...t.creator, isFollowed: !t.creator.isFollowed }
+                      };
+                    }
+                    return t;
+                  })
+                );
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                activeReel.creator.isFollowed
+                  ? 'bg-white/20 border-white/30 text-white'
+                  : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
+              }`}
+            >
+              {activeReel.creator.isFollowed ? 'Following' : 'Follow'}
+            </button>
+          </div>
+
+          {/* Caption */}
+          <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm font-medium">
+            {activeReel.caption}
+          </p>
+
           {/* Destination Badge & Plan Trip CTA */}
-          <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold shadow-sm">
+              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
               <span>{activeReel.destination}</span>
             </span>
 
@@ -555,45 +592,26 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 e.stopPropagation();
                 onStartPlanning(activeReel.destination);
               }}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-md cursor-pointer transition-transform hover:scale-105"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black shadow-md cursor-pointer transition-transform hover:scale-105"
             >
               <Sparkles className="w-3 h-3" />
-              <span>Plan This Trip</span>
+              <span>Plan Trip</span>
             </button>
-          </div>
 
-          {/* Creator handle & level */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold text-white drop-shadow-md">
-              {activeReel.creator.name}
-            </p>
-            <span className="text-[10px] font-extrabold text-amber-300 bg-black/60 backdrop-blur-md border border-amber-500/40 px-1.5 py-0.5 rounded-md shadow-xs">
-              Lvl 4 Explorer
-            </span>
-            <span className="text-xs text-neutral-300 font-medium">
-              {activeReel.creator.username}
-            </span>
+            {/* Audio Soundtrack Banner */}
+            <div className="inline-flex items-center gap-1.5 text-neutral-300 text-[11px] font-medium px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
+              <Music className="w-3 h-3 text-white animate-pulse" />
+              <span className="truncate max-w-[150px]">{activeReel.audioTitle}</span>
+            </div>
           </div>
+        </div>
 
-          {/* Caption */}
-          <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm">
-            {activeReel.caption}
-          </p>
-
-          {/* Tags */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {activeReel.tags.map((tag, i) => (
-              <span key={i} className="text-[11px] font-semibold text-emerald-300/90">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Audio Soundtrack Banner */}
-          <div className="flex items-center gap-2 text-neutral-300 text-xs font-medium pt-1">
-            <Music className="w-3.5 h-3.5 text-white animate-pulse" />
-            <span className="truncate max-w-[200px]">{activeReel.audioTitle}</span>
-          </div>
+        {/* Video Progress Bar (Thin white line across the bottom) */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-white/20 z-30 pointer-events-none">
+          <div
+            className="h-full bg-white transition-all duration-75"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
 
