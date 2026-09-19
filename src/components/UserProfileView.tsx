@@ -8,6 +8,7 @@ import {
   Compass,
   Mountain,
   Heart,
+  User,
   Users,
   Check,
   Save,
