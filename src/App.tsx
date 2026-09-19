@@ -863,8 +863,12 @@ export default function App() {
       {/* Main App Layout */}
       {!isGenerating && (
         <>
-          {/* Top Global Navigation */}
-          {currentView !== 'trip_mode' && currentView !== 'auth' && (
+          {/* Top Global Navigation (Hidden on trails, travellers_search, and profile per user request) */}
+          {currentView !== 'trip_mode' && 
+           currentView !== 'auth' && 
+           currentView !== 'trails' && 
+           currentView !== 'travellers_search' && 
+           currentView !== 'profile' && (
             <Navbar
               currentView={currentView}
               onNavigate={(view) => setCurrentView(view)}
@@ -874,8 +878,7 @@ export default function App() {
               onOpenThemeModal={() => setIsThemeModalOpen(true)}
               session={session}
               onRequireAuth={() => {
-                setInitialAuthMode('signin');
-                setIntendedView('landing');
+                setIntendedView(currentView);
                 setCurrentView('auth');
               }}
               onPlanTrip={() => handleStartPlanning()}

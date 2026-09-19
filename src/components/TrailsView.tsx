@@ -361,7 +361,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] bg-black overflow-hidden flex items-center justify-center select-none">
+    <div className="relative w-full h-screen bg-black overflow-hidden flex items-center justify-center select-none">
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
         className="absolute inset-0 bg-cover bg-center blur-3xl opacity-25 scale-110 pointer-events-none transition-all duration-700"
