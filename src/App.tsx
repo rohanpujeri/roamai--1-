@@ -25,6 +25,7 @@ import { SnowfallEffect } from './components/SnowfallAtmosphere';
 import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
 import { WhyTripWisePage } from './components/WhyRoamAIPage';
 import { AuthPage } from './components/AuthPage';
+import { UserProfileView } from './components/UserProfileView';
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -95,7 +96,7 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile'>('landing');
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
   const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
@@ -1005,6 +1006,26 @@ export default function App() {
                   setIntendedView(null);
                   setInitialAuthMode('signin'); // reset for future
                 }}
+              />
+            )}
+
+            {/* VIEW 9: USER TRAVEL PROFILE */}
+            {currentView === 'profile' && (
+              <UserProfileView
+                session={session}
+                currentTheme={currentTheme}
+                trips={trips}
+                onOpenTrip={(tripId) => {
+                  setActiveTripId(tripId);
+                  setActiveDayNumber(1);
+                  setCurrentView('itinerary');
+                }}
+                onStartPlanning={(dest) => {
+                  setWizardDestId(dest || '');
+                  setWizardEditingTrip(null);
+                  setCurrentView('wizard');
+                }}
+                onBack={() => setCurrentView('landing')}
               />
             )}
           </main>

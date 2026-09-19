@@ -308,8 +308,13 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
         data: {
           full_name: profile.name,
           name: profile.name,
+          username: profile.username,
+          bio: profile.bio,
+          avatarUrl: profile.avatarUrl,
           dob: profile.dob,
-          place: profile.place
+          place: profile.place,
+          travelDNA: profile.travelDNA,
+          travelPreferences: profile.travelPreferences
         }
       });
       if (error) return { error: error.message };

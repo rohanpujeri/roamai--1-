@@ -22,8 +22,8 @@ import { getSupabaseClient, getCachedUserProfile } from '../services/supabaseCli
 import { UserProfileModal } from './UserProfileModal';
 
 interface NavbarProps {
-  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai';
-  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai') => void;
+  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile';
+  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile') => void;
   activeTrip: Trip | null;
   savedTripsCount: number;
   currentTheme: ThemeConfig;
@@ -84,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isWhiteBg = isHovered || isScrolled;
   const isDarkText = isWhiteBg || currentTheme.id === 'snow' || !currentTheme.isDark;
 
-  const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai') => {
+  const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile') => {
     onNavigate(view);
     setIsDrawerOpen(false);
   };
@@ -238,13 +238,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Profile Pill (When Logged In) */}
               {session && (
                 <button
-                  onClick={() => setIsProfileModalOpen(true)}
+                  onClick={() => onNavigate('profile')}
                   className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
                     isDarkText
                       ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
                       : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
                   }`}
-                  title="View Profile (Name, DOB, Place)"
+                  title="View Profile (Overview, DNA, Trips, Saved, Crew)"
                 >
                   <div 
                     className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-2xs shrink-0"
@@ -505,10 +505,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {session ? (
                 <div 
-                  onClick={() => {
-                    setIsDrawerOpen(false);
-                    setIsProfileModalOpen(true);
-                  }}
+                  onClick={() => handleDrawerNavigate('profile')}
                   className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2.5 shadow-md cursor-pointer transition-all hover:bg-neutral-850 group"
                   title="Click to view and edit profile"
                 >
@@ -539,8 +536,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsDrawerOpen(false);
-                        setIsProfileModalOpen(true);
+                        handleDrawerNavigate('profile');
                       }}
                       className="flex-1 py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[10px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                     >

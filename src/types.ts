@@ -363,7 +363,38 @@ export interface RealTripBudgetResult {
 
 export interface UserProfileData {
   name: string;
+  username?: string;
+  bio?: string;
+  avatarUrl?: string;
   dob?: string;
   place?: string;
   email?: string;
+  travelDNA?: {
+    adventure: number;
+    nature: number;
+    food: number;
+    photography: number;
+    nightlife: number;
+    luxury: number;
+  };
+  travelPreferences?: {
+    transport?: string;
+    pace?: string;
+    budget?: string;
+    accommodation?: string;
+    food?: string;
+  };
+  stats?: {
+    tripsCount?: number;
+    placesCount?: number;
+    countriesCount?: number;
+    level?: string;
+    levelNumber?: number;
+  };
+  wishlist?: Array<{
+    id: string;
+    name: string;
+    country?: string;
+    imageUrl: string;
+  }>;
 }
