@@ -248,45 +248,49 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline">Plan My Trip</span>
               </button>
 
-              {/* Three Lines Hamburger Menu Button (Top Right Corner) */}
-              <button
-                onClick={() => setIsDrawerOpen(true)}
-                className={`flex items-center justify-center p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
-                  isDarkText
-                    ? 'text-slate-900 bg-white/90 hover:bg-white border-slate-300 shadow-sm'
-                    : 'text-white bg-black/30 hover:bg-black/45 border-white/30'
-                }`}
-                aria-label="Open Navigation Drawer"
-                title="Menu"
-              >
-                <Menu className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
-              </button>
+              {/* Three Lines Hamburger Menu Button (Top Right Corner) - Hidden on Home Page */}
+              {currentView !== 'landing' && (
+                <button
+                  onClick={() => setIsDrawerOpen(true)}
+                  className={`flex items-center justify-center p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border transition-all duration-200 shadow-xs hover:scale-105 active:scale-95 cursor-pointer ${
+                    isDarkText
+                      ? 'text-slate-900 bg-white/90 hover:bg-white border-slate-300 shadow-sm'
+                      : 'text-white bg-black/30 hover:bg-black/45 border-white/30'
+                  }`}
+                  aria-label="Open Navigation Drawer"
+                  title="Menu"
+                >
+                  <Menu className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
+                </button>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Slide-In Navigation Drawer from Right */}
-      <NavigationDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        currentView={currentView}
-        onNavigate={handleDrawerNavigate}
-        activeTrip={activeTrip}
-        savedTripsCount={savedTripsCount}
-        currentTheme={currentTheme}
-        onOpenThemeModal={onOpenThemeModal}
-        session={session}
-        onRequireAuth={() => {
-          setIsDrawerOpen(false);
-          onRequireAuth();
-        }}
-        onPlanTrip={() => {
-          setIsDrawerOpen(false);
-          onPlanTrip();
-        }}
-        onSignOut={handleSignOut}
-      />
+      {/* Slide-In Navigation Drawer from Right - Hidden on Home Page */}
+      {currentView !== 'landing' && (
+        <NavigationDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          currentView={currentView}
+          onNavigate={handleDrawerNavigate}
+          activeTrip={activeTrip}
+          savedTripsCount={savedTripsCount}
+          currentTheme={currentTheme}
+          onOpenThemeModal={onOpenThemeModal}
+          session={session}
+          onRequireAuth={() => {
+            setIsDrawerOpen(false);
+            onRequireAuth();
+          }}
+          onPlanTrip={() => {
+            setIsDrawerOpen(false);
+            onPlanTrip();
+          }}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       {/* User Profile Modal */}
       <UserProfileModal
