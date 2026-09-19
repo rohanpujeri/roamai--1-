@@ -1190,7 +1190,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     {/* Search / Filter departure city */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5" style={{ color: '#ffffff' }}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                           <Navigation className="w-3.5 h-3.5 text-emerald-600" />
                           Select or Search Departure Hub
                         </label>
@@ -1213,7 +1213,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
                       {/* Simple Origin City Input */}
                       <div className="mt-2">
-                        <label className="text-xs font-bold text-white block mb-2" style={{ color: '#ffffff' }}>
+                        <label className="text-xs font-bold text-slate-800 dark:text-slate-100 block mb-2">
                           Enter Departure City
                         </label>
                         <input
@@ -1693,10 +1693,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-white">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                           Select AI Trip Budget Tier
                         </label>
-                        <span className="text-[10px] text-slate-300">({durationDays} Days / {travellersCount} {travellersCount === 1 ? 'Person' : 'People'})</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">({durationDays} Days / {travellersCount} {travellersCount === 1 ? 'Person' : 'People'})</span>
                       </div>
                       <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                         Min Baseline: ₹{minNeededBudget.toLocaleString()}
@@ -1953,9 +1953,9 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   {/* 1. Travel Style */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                         <span>1. Travel Style</span>
-                        <span className="text-[10px] font-normal text-slate-300 lowercase">(select any vibes)</span>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 lowercase">(select any vibes)</span>
                       </label>
                       {selectedStyles.length > 0 && (
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -1995,14 +1995,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   {/* 2. Food Preference */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                         2. Food Preference
                       </label>
                       {foodPreference && (
                         <button
                           type="button"
                           onClick={() => setFoodPreference(null)}
-                          className="text-[10px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white cursor-pointer"
                         >
                           Reset
                         </button>
@@ -2033,14 +2033,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   {/* 3. Alcohol Question */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                         3. Do you drink alcohol?
                       </label>
                       {alcoholPreference && (
                         <button
                           type="button"
                           onClick={() => setAlcoholPreference(null)}
-                          className="text-[10px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white cursor-pointer"
                         >
                           Reset
                         </button>
@@ -2069,15 +2069,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   {/* 4. Any Other Preferences / Special Requests */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                         <span>4. Any other preferences?</span>
-                        <span className="text-[10px] font-normal text-slate-300 lowercase">(optional special requests or interests)</span>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 lowercase">(optional special requests or interests)</span>
                       </label>
                       {customNotes && (
                         <button
                           type="button"
                           onClick={() => setCustomNotes('')}
-                          className="text-[10px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white cursor-pointer"
                         >
                           Clear
                         </button>
