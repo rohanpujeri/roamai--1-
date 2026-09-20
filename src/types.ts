@@ -375,9 +375,12 @@ export interface UserProfileData {
     adventure: number;
     nature: number;
     food: number;
+    culture?: number;
     photography: number;
     nightlife: number;
+    relaxation?: number;
     luxury: number;
+    [key: string]: number | undefined;
   };
   travelPreferences?: {
     transport?: string;

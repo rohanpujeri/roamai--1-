@@ -58,6 +58,7 @@ import {
   deleteGlobalTrail
 } from '../services/sharedTrailsService';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
+import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
 import { FollowListModal } from './FollowListModal';
@@ -414,6 +415,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return countries.size;
   }, [completedTrips]);
 
+  // Dynamically compute Travel DNA and Archetype based on completed trips
+  const travelDNAAnalysis = React.useMemo(() => {
+    return calculateTravelDNA(completedTrips);
+  }, [completedTrips]);
+
   const getFallbackUsername = (u?: typeof user, meta?: Record<string, any>) => {
     if (meta?.username?.trim()) return meta.username.trim();
     if (u?.email) {
@@ -443,21 +449,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || '',
       email: user?.email || '',
-      travelDNA: cached?.travelDNA || {
-        adventure: 85,
-        nature: 80,
-        food: 75,
-        photography: 80,
-        nightlife: 60,
-        luxury: 40
-      },
-      travelPreferences: cached?.travelPreferences || {
+      travelDNA: travelDNAAnalysis.hasCompletedTrips ? travelDNAAnalysis.scores : (cached?.travelDNA || undefined),
+      travelPreferences: travelDNAAnalysis.hasCompletedTrips ? {
+        transport: travelDNAAnalysis.preferences.transport,
+        pace: travelDNAAnalysis.preferences.pace,
+        budget: travelDNAAnalysis.preferences.budget,
+        accommodation: travelDNAAnalysis.preferences.accommodation,
+        food: cached?.travelPreferences?.food || 'Open to local food'
+      } : (cached?.travelPreferences || {
         transport: 'Road trips (Car/Bike)',
         pace: 'Balanced',
         budget: 'Flexible',
         accommodation: 'Homestays & Boutique Stays',
         food: 'Open to local food'
-      },
+      }),
       stats: {
         tripsCount: completedTrips.length,
         placesCount: calculatedPlacesCount,
@@ -503,8 +508,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       bio,
       dob,
       email: user?.email || '',
-      travelDNA: cached?.travelDNA || profile.travelDNA,
-      travelPreferences: cached?.travelPreferences || profile.travelPreferences,
+      travelDNA: travelDNAAnalysis.hasCompletedTrips ? travelDNAAnalysis.scores : undefined,
+      travelPreferences: travelDNAAnalysis.hasCompletedTrips ? {
+        transport: travelDNAAnalysis.preferences.transport,
+        pace: travelDNAAnalysis.preferences.pace,
+        budget: travelDNAAnalysis.preferences.budget,
+        accommodation: travelDNAAnalysis.preferences.accommodation,
+        food: cached?.travelPreferences?.food || profile.travelPreferences?.food || 'Open to local food'
+      } : (cached?.travelPreferences || profile.travelPreferences),
       stats: {
         tripsCount: completedTrips.length,
         placesCount: calculatedPlacesCount,
@@ -530,7 +541,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     userMeta?.place,
     completedTrips.length,
     calculatedPlacesCount,
-    calculatedCountriesCount
+    calculatedCountriesCount,
+    travelDNAAnalysis
   ]);
 
   // Listen to real-time follow/unfollow actions across the app
@@ -1349,71 +1361,121 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         {/* --- TAB 3: TRAVEL DNA (PERSONALITY, RADAR & PREFERENCES) --- */}
         {activeTab === 'dna' && (
           <div className="p-4 sm:p-6 space-y-4">
-            {/* Travel Archetype Hero Card */}
-            <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Travel DNA Profile
-                </span>
-                <span className="text-xs text-zinc-400 font-semibold">
-                  Level {profile.stats?.levelNumber || 1} Explorer
-                </span>
-              </div>
-              <h3 className="text-xl font-black text-white">
-                Mountain & Coast Explorer
-              </h3>
-              <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
-                You thrive on high-altitude treks, spontaneous coastal highway drives, and offbeat local culinary discoveries.
-              </p>
-            </div>
-
-            {/* Travel DNA Radar Breakdown */}
-            <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl space-y-3.5">
-              <h4 className="text-sm font-bold text-white">
-                Vibe Breakdown
-              </h4>
-
-              {Object.entries(profile.travelDNA || {}).map(([trait, score]) => (
-                <div key={trait} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="capitalize text-zinc-300 font-medium">{trait}</span>
-                    <span className="font-bold text-white">{score}%</span>
+            {travelDNAAnalysis.hasCompletedTrips ? (
+              <>
+                {/* Travel Archetype Hero Card */}
+                <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Travel DNA Profile
+                    </span>
+                    <span className="text-xs text-zinc-400 font-semibold">
+                      Level {profile.stats?.levelNumber || 1} Explorer • {completedTrips.length} {completedTrips.length === 1 ? 'Trip' : 'Trips'} Completed
+                    </span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
-                    <div 
-                      className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                      style={{ width: `${score}%` }}
-                    />
+                  <h3 className="text-xl font-black text-white">
+                    {travelDNAAnalysis.archetype.title}
+                  </h3>
+                  <p className="text-xs text-zinc-300 mt-1.5 leading-relaxed">
+                    {travelDNAAnalysis.archetype.description}
+                  </p>
+                </div>
+
+                {/* Travel DNA Radar Breakdown */}
+                <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-white">
+                      Vibe Breakdown
+                    </h4>
+                    <span className="text-[11px] text-zinc-400">
+                      From {completedTrips.length} completed {completedTrips.length === 1 ? 'trip' : 'trips'}
+                    </span>
+                  </div>
+
+                  {Object.entries(travelDNAAnalysis.scores).map(([trait, score]) => (
+                    <div key={trait} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="capitalize text-zinc-300 font-medium">{trait}</span>
+                        <span className="font-bold text-white">{score}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+                        <div 
+                          className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                          style={{ width: `${score}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Travel Preferences */}
+                <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl space-y-3">
+                  <h4 className="text-sm font-bold text-white">
+                    Learned Preferences & Patterns
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
+                      <span className="text-zinc-400 block text-[11px]">Primary Transport</span>
+                      <span className="font-bold text-white mt-0.5 block">{travelDNAAnalysis.preferences.transport}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
+                      <span className="text-zinc-400 block text-[11px]">Dominant Pace</span>
+                      <span className="font-bold text-white mt-0.5 block">{travelDNAAnalysis.preferences.pace}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
+                      <span className="text-zinc-400 block text-[11px]">Target Budget</span>
+                      <span className="font-bold text-white mt-0.5 block">{travelDNAAnalysis.preferences.budget}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
+                      <span className="text-zinc-400 block text-[11px]">Accommodation</span>
+                      <span className="font-bold text-white mt-0.5 block">{travelDNAAnalysis.preferences.accommodation}</span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Travel Preferences */}
-            <div className="p-5 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl space-y-3">
-              <h4 className="text-sm font-bold text-white">
-                Preferences
-              </h4>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-                  <span className="text-zinc-400 block text-[11px]">Preferred Transport</span>
-                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.transport || 'Road trips'}</span>
+              </>
+            ) : (
+              <div className="py-14 px-6 text-center space-y-4 rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-xl">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+                  <Sparkles className="w-8 h-8" />
                 </div>
-                <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-                  <span className="text-zinc-400 block text-[11px]">Travel Pace</span>
-                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.pace || 'Balanced'}</span>
+                <div className="space-y-1.5 max-w-md mx-auto">
+                  <h3 className="text-lg font-bold text-white">
+                    Travel DNA Profile Unwritten
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Your Travel DNA and Archetype are generated dynamically from your completed trips. Complete your first journey or check off activities in your itinerary to discover your unique travel archetype, vibe breakdown, and travel personality!
+                  </p>
                 </div>
-                <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-                  <span className="text-zinc-400 block text-[11px]">Target Budget</span>
-                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.budget || 'Flexible'}</span>
+                <div className="p-4 rounded-xl bg-zinc-900/80 border border-white/5 max-w-sm mx-auto text-left space-y-2 text-xs text-zinc-300">
+                  <div className="flex items-center gap-2 font-medium text-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Complete trips to unlock:</span>
+                  </div>
+                  <ul className="text-[11px] text-zinc-400 space-y-1 pl-6 list-disc">
+                    <li>Dynamic Travel Archetype based on your real itineraries</li>
+                    <li>Adventure, Nature, Food, Culture & Vibe percentages</li>
+                    <li>Learned travel patterns, pace, and accommodation preferences</li>
+                  </ul>
                 </div>
-                <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-                  <span className="text-zinc-400 block text-[11px]">Accommodation</span>
-                  <span className="font-bold text-white mt-0.5 block">{profile.travelPreferences?.accommodation || 'Homestays'}</span>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                  <button
+                    onClick={() => setActiveTab('trips')}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>View My Trips</span>
+                  </button>
+                  <button
+                    onClick={() => onStartPlanning()}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Plan New Trip</span>
+                  </button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

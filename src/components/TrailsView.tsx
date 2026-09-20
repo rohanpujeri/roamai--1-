@@ -138,7 +138,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
@@ -199,8 +199,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       videoRef.current.currentTime = 0;
       if (isPlaying) {
         videoRef.current.play().catch(() => {
-          // browser autoplay policy may require mute
-          setIsMuted(true);
+          // If browser restricts unmuted autoplay before interaction, fallback to mute and play
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().catch(() => {});
+          }
         });
       }
     }
@@ -216,7 +220,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     } else {
       if (videoRef.current) {
         videoRef.current.play().catch(() => {
-          setIsMuted(true);
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().catch(() => {});
+          }
         });
         setIsPlaying(true);
       }

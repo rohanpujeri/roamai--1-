@@ -35,7 +35,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
   const [savedTrails, setSavedTrails] = useState<TrailReel[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activePlaybackTrail, setActivePlaybackTrail] = useState<TrailReel | null>(null);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
 
   // Load saved trails on mount and listen to changes
