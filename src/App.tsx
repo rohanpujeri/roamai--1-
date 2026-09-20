@@ -860,6 +860,7 @@ export default function App() {
 
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
+  const scrollSettleTimer = useRef<any>(null);
 
   const scrollToTab = (index: number, smooth = true) => {
     const targetView = BOTTOM_NAV_ORDER[index];
@@ -878,42 +879,67 @@ export default function App() {
 
     isProgrammaticScroll.current = true;
     const width = sliderRef.current.clientWidth;
+    const targetLeft = index * width;
+
+    // Temporarily relax scroll-snap during programmatic scroll so physics don't fight smooth animation
+    sliderRef.current.style.scrollSnapType = 'none';
+
     sliderRef.current.scrollTo({
-      left: index * width,
+      left: targetLeft,
       behavior: smooth ? 'smooth' : 'instant',
     });
+
     setCurrentView(targetView);
+
     setTimeout(() => {
+      if (sliderRef.current) {
+        sliderRef.current.style.scrollSnapType = 'x mandatory';
+      }
       isProgrammaticScroll.current = false;
-    }, 450);
+    }, smooth ? 450 : 50);
   };
 
   const handleSliderScroll = () => {
     if (isProgrammaticScroll.current || !sliderRef.current) return;
-    const { scrollLeft, clientWidth } = sliderRef.current;
-    if (!clientWidth) return;
-    const newIndex = Math.round(scrollLeft / clientWidth);
-    if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
-      const targetView = BOTTOM_NAV_ORDER[newIndex];
-      if (targetView !== currentView) {
-        setCurrentView(targetView);
-      }
+
+    // Debounce state updates during touch/swipe so App doesn't re-render mid-animation
+    if (scrollSettleTimer.current) {
+      clearTimeout(scrollSettleTimer.current);
     }
+
+    scrollSettleTimer.current = setTimeout(() => {
+      if (!sliderRef.current || isProgrammaticScroll.current) return;
+      const { scrollLeft, clientWidth } = sliderRef.current;
+      if (!clientWidth) return;
+      const newIndex = Math.round(scrollLeft / clientWidth);
+      if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
+        const targetView = BOTTOM_NAV_ORDER[newIndex];
+        if (targetView !== currentView) {
+          setCurrentView(targetView);
+        }
+      }
+    }, 60);
   };
 
   // Sync slider position if currentView is changed externally
   useEffect(() => {
     if (!isBottomNavView || !sliderRef.current) return;
+    if (isProgrammaticScroll.current) return; // Prevent conflicting second scroll
+
     const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
     if (index !== -1) {
       const targetLeft = index * sliderRef.current.clientWidth;
-      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 10) {
+      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 5) {
         isProgrammaticScroll.current = true;
+        sliderRef.current.style.scrollSnapType = 'none';
         sliderRef.current.scrollTo({
           left: targetLeft,
           behavior: 'smooth',
         });
         setTimeout(() => {
+          if (sliderRef.current) {
+            sliderRef.current.style.scrollSnapType = 'x mandatory';
+          }
           isProgrammaticScroll.current = false;
         }, 450);
       }
@@ -953,34 +979,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentView, isBottomNavView]);
-
-  // Mouse drag support for desktop
-  const isMouseDownRef = useRef(false);
-  const dragStartXRef = useRef(0);
-  const dragScrollLeftRef = useRef(0);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0 || !sliderRef.current) return;
-    const target = e.target as HTMLElement | null;
-    if (target?.closest('input, textarea, select, button, a, [contenteditable="true"], video')) return;
-    isMouseDownRef.current = true;
-    dragStartXRef.current = e.clientX;
-    dragScrollLeftRef.current = sliderRef.current.scrollLeft;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isMouseDownRef.current || !sliderRef.current) return;
-    const dx = e.clientX - dragStartXRef.current;
-    sliderRef.current.scrollLeft = dragScrollLeftRef.current - dx;
-  };
-
-  const handleMouseUp = () => {
-    if (!isMouseDownRef.current || !sliderRef.current) return;
-    isMouseDownRef.current = false;
-    const { scrollLeft, clientWidth } = sliderRef.current;
-    const targetIndex = Math.round(scrollLeft / clientWidth);
-    scrollToTab(targetIndex);
-  };
 
   const isNoThemeBgView = 
     currentView === 'trails' || 
@@ -1163,11 +1161,7 @@ export default function App() {
             <div
               ref={sliderRef}
               onScroll={handleSliderScroll}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory select-none touch-pan-x"
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory touch-pan-x"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
@@ -1176,7 +1170,7 @@ export default function App() {
             >
               {/* SLIDE 0: LANDING PAGE */}
               <div 
-                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
                 {/* Full Dynamic Photographic Scenic Backdrop */}
@@ -1219,7 +1213,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
-              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start bg-[#0a0a0f] relative">
                 <TrailsView
                   currentTheme={currentTheme}
                   session={session}
@@ -1235,7 +1229,7 @@ export default function App() {
 
               {/* SLIDE 2: CREATE TRIP WIZARD (+ Button with Theme Background) */}
               <div 
-                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
                 {/* Full Photographic Scenic Backdrop */}
@@ -1261,7 +1255,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 3: TRAVELLERS SEARCH */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start bg-[#0a0a0f] relative">
                 <TravellerSearchView
                   currentTheme={currentTheme}
                   session={session}
@@ -1279,7 +1273,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 4: USER TRAVEL PROFILE */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-black relative">
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start bg-black relative">
                 <UserProfileView
                   session={session}
                   currentTheme={currentTheme}
