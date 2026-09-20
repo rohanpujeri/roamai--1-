@@ -90,6 +90,7 @@ interface TrailsViewProps {
   onStartPlanning: (destination?: string) => void;
   onBack: () => void;
   onRequireAuth?: () => void;
+  onOpenUploadPage?: (file?: File) => void;
 }
 
 export const TrailsView: React.FC<TrailsViewProps> = ({
@@ -98,7 +99,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   isActive = true,
   onStartPlanning,
   onBack,
-  onRequireAuth
+  onRequireAuth,
+  onOpenUploadPage
 }) => {
   const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
   const currentUsername = useMemo(() => {
@@ -153,6 +155,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       isMounted = false;
       clearInterval(interval);
     };
+  }, []);
+
+  // Listen for newly published trails from the dedicated UploadTrailView page
+  useEffect(() => {
+    const handleUploaded = (e: any) => {
+      const newTrail = e.detail;
+      if (newTrail) {
+        setTrails((prev) => [sanitizeTrail(newTrail), ...prev.filter((p) => p.id !== newTrail.id)]);
+        setCurrentIndex(0);
+      }
+    };
+    window.addEventListener('roamai_trail_uploaded', handleUploaded);
+    return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
   }, []);
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -708,7 +723,17 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Upload Trail '+' Button (Upload Video or Photo) */}
         <button
           type="button"
-          onClick={() => setShowUploadModal(true)}
+          onClick={() => {
+            if (!session) {
+              onRequireAuth?.();
+              return;
+            }
+            if (onOpenUploadPage) {
+              onOpenUploadPage();
+            } else {
+              setShowUploadModal(true);
+            }
+          }}
           className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-linear-to-tr from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-white flex items-center justify-center shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-110 active:scale-95 border border-white/20"
           title="Upload trail (video or photo)"
           aria-label="Upload trail (video or photo)"
@@ -739,7 +764,17 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => {
+              if (!session) {
+                onRequireAuth?.();
+                return;
+              }
+              if (onOpenUploadPage) {
+                onOpenUploadPage();
+              } else {
+                setShowUploadModal(true);
+              }
+            }}
             className="px-8 py-3.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-base flex items-center gap-2.5 shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-105 active:scale-95"
           >
             <Plus className="w-5 h-5 stroke-[3]" />
@@ -883,7 +918,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowUploadModal(true);
+                  if (!session) {
+                    onRequireAuth?.();
+                    return;
+                  }
+                  if (onOpenUploadPage) {
+                    onOpenUploadPage();
+                  } else {
+                    setShowUploadModal(true);
+                  }
                 }}
                 className="relative z-10 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg cursor-pointer transition-all"
               >

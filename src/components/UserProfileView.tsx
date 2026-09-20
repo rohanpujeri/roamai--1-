@@ -81,6 +81,7 @@ interface UserProfileViewProps {
   onRequireAuth?: () => void;
   onNavigate?: (view: any) => void;
   onOpenThemeModal?: () => void;
+  onOpenUploadPage?: () => void;
 }
 
 export interface UserTrailItem {
@@ -92,6 +93,8 @@ export interface UserTrailItem {
   videoUrl: string;
   posterUrl?: string;
   duration?: string;
+  mediaType?: 'image' | 'video';
+  caption?: string;
 }
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
@@ -104,7 +107,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   onBack,
   onRequireAuth,
   onNavigate,
-  onOpenThemeModal
+  onOpenThemeModal,
+  onOpenUploadPage
 }) => {
   const user = session?.user;
   const userMeta = (user?.user_metadata || {}) as Record<string, any>;
@@ -166,6 +170,30 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
     return [];
   });
+
+  // Listen for newly published trails from separate UploadTrailView page
+  useEffect(() => {
+    const handleUploaded = (e: any) => {
+      const newTrail = e.detail;
+      if (newTrail) {
+        const item: UserTrailItem = {
+          id: newTrail.id,
+          title: newTrail.title || newTrail.caption || newTrail.destination || 'Travel Trail',
+          destination: newTrail.destination || 'Travel Destination',
+          viewsCount: '1',
+          likesCount: '1',
+          videoUrl: newTrail.videoUrl,
+          posterUrl: newTrail.posterUrl,
+          duration: '0:30',
+          mediaType: newTrail.mediaType || 'video',
+          caption: newTrail.caption || newTrail.title
+        };
+        setUserTrails((prev) => [item, ...prev.filter((p) => p.id !== item.id)]);
+      }
+    };
+    window.addEventListener('roamai_trail_uploaded', handleUploaded);
+    return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
+  }, []);
 
   // Trail Reel Upload Modal states
   const [isUploadTrailModalOpen, setIsUploadTrailModalOpen] = useState(false);
@@ -298,7 +326,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         id: trailId,
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
-        mediaType: isImg ? 'image' : 'video',
+        mediaType: isImg ? ('image' as const) : ('video' as const),
         title: cleanTitle,
         creator: {
           id: user?.id,
@@ -1352,7 +1380,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => setIsUploadTrailModalOpen(true)}
+                onClick={() => {
+                  if (onOpenUploadPage) {
+                    onOpenUploadPage();
+                  } else if (onNavigate) {
+                    onNavigate('upload_trail');
+                  } else {
+                    setIsUploadTrailModalOpen(true);
+                  }
+                }}
                 className="px-3 py-1 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all shadow-md active:scale-95"
               >
                 <Plus className="w-3 h-3 stroke-[3]" />
@@ -1373,7 +1409,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsUploadTrailModalOpen(true)}
+                  onClick={() => {
+                    if (onOpenUploadPage) {
+                      onOpenUploadPage();
+                    } else if (onNavigate) {
+                      onNavigate('upload_trail');
+                    } else {
+                      setIsUploadTrailModalOpen(true);
+                    }
+                  }}
                   className="px-5 py-2.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 mx-auto shadow-xl shadow-emerald-950/50 cursor-pointer transition-transform hover:scale-105 active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[3]" />

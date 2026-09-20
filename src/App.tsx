@@ -33,6 +33,7 @@ import { TrailsView } from './components/TrailsView';
 import { TravellerSearchModal } from './components/TravellerSearchModal';
 import { TravellerSearchView } from './components/TravellerSearchView';
 import { SavedTrailsView } from './components/SavedTrailsView';
+import { UploadTrailView } from './components/UploadTrailView';
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -103,7 +104,8 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails' | 'upload_trail'>('landing');
+  const [uploadTrailFile, setUploadTrailFile] = useState<File | null>(null);
   const [isTravellerSearchOpen, setIsTravellerSearchOpen] = useState<boolean>(false);
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
@@ -1071,7 +1073,8 @@ export default function App() {
   const isNoThemeBgView = 
     currentView === 'trails' || 
     currentView === 'profile' || 
-    currentView === 'travellers_search';
+    currentView === 'travellers_search' ||
+    currentView === 'upload_trail';
 
   const renderNonBottomNavView = () => {
     switch (currentView) {
@@ -1193,6 +1196,22 @@ export default function App() {
             }}
           />
         );
+      case 'upload_trail':
+        return (
+          <UploadTrailView
+            initialFile={uploadTrailFile}
+            session={session}
+            onBack={() => {
+              setUploadTrailFile(null);
+              scrollToTab(1);
+            }}
+            onSuccess={() => {
+              setUploadTrailFile(null);
+              scrollToTab(1);
+              addToast('ai', 'Trail Shared!', 'Your new trail reel is now live.');
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -1247,7 +1266,8 @@ export default function App() {
           {/* Top Global Navigation for non-bottom-nav pages */}
           {!isBottomNavView && 
            currentView !== 'trip_mode' && 
-           currentView !== 'auth' && (
+           currentView !== 'auth' && 
+           currentView !== 'upload_trail' && (
             <Navbar
               currentView={currentView}
               onNavigate={(view) => setCurrentView(view)}
@@ -1331,6 +1351,10 @@ export default function App() {
                   onRequireAuth={() => {
                     setIntendedView('trails');
                     setCurrentView('auth');
+                  }}
+                  onOpenUploadPage={(file) => {
+                    setUploadTrailFile(file || null);
+                    setCurrentView('upload_trail');
                   }}
                   onStartPlanning={(dest) => {
                     setWizardDestId(dest || '');
@@ -1417,6 +1441,7 @@ export default function App() {
                     }
                   }}
                   onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                  onOpenUploadPage={() => setCurrentView('upload_trail')}
                 />
                 <div className="h-28" />
               </div>
@@ -1427,8 +1452,8 @@ export default function App() {
             </main>
           )}
 
-          {/* Floating Bottom Navigation Bar (Accessible across all separate pages, hidden in trip_mode & auth) */}
-          {currentView !== 'trip_mode' && currentView !== 'auth' && (
+          {/* Floating Bottom Navigation Bar (Accessible across all separate pages, hidden in trip_mode, auth, and upload_trail) */}
+          {currentView !== 'trip_mode' && currentView !== 'auth' && currentView !== 'upload_trail' && (
             <BottomNavBar
               currentView={currentView}
               onNavigate={(v) => {
