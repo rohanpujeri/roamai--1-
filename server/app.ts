@@ -217,17 +217,17 @@ export function createExpressApp() {
   });
 
   // Check username uniqueness & format
-  apiRouter.get('/auth/check-username', (req, res) => {
+  apiRouter.get('/auth/check-username', async (req, res) => {
     const username = (req.query.username as string) || '';
     const userId = (req.query.userId as string) || undefined;
-    const result = isUsernameAvailable(username, userId);
+    const result = await isUsernameAvailable(username, userId);
     res.json(result);
   });
 
   // Claim/register a username
-  apiRouter.post('/auth/register-username', (req, res) => {
+  apiRouter.post('/auth/register-username', async (req, res) => {
     const { username, userId, email } = req.body;
-    const result = registerServerUsername(username, userId, email);
+    const result = await registerServerUsername(username, userId, email);
     if (!result.success) {
       res.status(409).json(result);
       return;

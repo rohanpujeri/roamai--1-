@@ -2936,7 +2936,9 @@ function persistToDisk() {
     console.warn("Could not persist usernames to disk:", err);
   }
 }
-function isUsernameAvailable(rawUsername, currentUserId) {
+var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
+var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+async function isUsernameAvailable(rawUsername, currentUserId) {
   if (!rawUsername) {
     return { available: false, error: "Username is required." };
   }
@@ -2961,10 +2963,30 @@ function isUsernameAvailable(rawUsername, currentUserId) {
     }
     return { available: false, error: `@${clean} is already registered. Please choose another username.` };
   }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const found = data[0];
+        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+          return { available: true };
+        }
+        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+      }
+    }
+  } catch (err) {
+    console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
+  }
   return { available: true };
 }
-function registerServerUsername(rawUsername, userId, email) {
-  const check = isUsernameAvailable(rawUsername, userId);
+async function registerServerUsername(rawUsername, userId, email) {
+  const check = await isUsernameAvailable(rawUsername, userId);
   if (!check.available) {
     return { success: false, error: check.error };
   }
@@ -3291,15 +3313,15 @@ function createExpressApp() {
       res.status(500).json({ error: err.message || "IP location detection failed" });
     }
   });
-  apiRouter.get("/auth/check-username", (req, res) => {
+  apiRouter.get("/auth/check-username", async (req, res) => {
     const username = req.query.username || "";
     const userId = req.query.userId || void 0;
-    const result = isUsernameAvailable(username, userId);
+    const result = await isUsernameAvailable(username, userId);
     res.json(result);
   });
-  apiRouter.post("/auth/register-username", (req, res) => {
+  apiRouter.post("/auth/register-username", async (req, res) => {
     const { username, userId, email } = req.body;
-    const result = registerServerUsername(username, userId, email);
+    const result = await registerServerUsername(username, userId, email);
     if (!result.success) {
       res.status(409).json(result);
       return;

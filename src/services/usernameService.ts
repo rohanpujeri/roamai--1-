@@ -127,17 +127,49 @@ export async function checkUsernameAvailability(
 
   const clean = validation.cleanUsername;
 
-  // 1. Check local cache registry first
-  const localRegistry = getLocalClaimedUsernames();
-  if (localRegistry[clean]) {
-    const record = localRegistry[clean];
-    if (currentUserId && record.userId === currentUserId) {
-      return { available: true };
+  // 1. PRIMARY SOURCE OF TRUTH: Query Supabase public.profiles & public.usernames tables
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const withAt = `@${clean}`;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .or(`username.ilike.${clean},username.ilike.${withAt}`)
+        .limit(1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const existing = data[0];
+        if (currentUserId && (existing.id === currentUserId || existing.id === `supa_${currentUserId}`)) {
+          return { available: true };
+        }
+        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+      }
+    } catch (err) {
+      console.warn('Error querying public.profiles in checkUsernameAvailability:', err);
     }
-    return { available: false, error: `@${clean} is already registered.` };
+
+    try {
+      const withAt = `@${clean}`;
+      const { data: uData, error: uErr } = await supabase
+        .from('usernames')
+        .select('username, user_id')
+        .or(`username.ilike.${clean},username.ilike.${withAt}`)
+        .limit(1);
+
+      if (!uErr && Array.isArray(uData) && uData.length > 0) {
+        const uRow = uData[0];
+        if (currentUserId && (uRow.user_id === currentUserId || uRow.user_id === `supa_${currentUserId}`)) {
+          return { available: true };
+        }
+        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+      }
+    } catch {
+      // Table might not exist yet; gracefully handled
+    }
   }
 
-  // 2. Query backend API server endpoint
+  // 2. Query backend API server endpoint (only reject if backend explicitly flags it as taken)
   try {
     const apiRes = await fetch(`/api/auth/check-username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId || '')}`);
     if (apiRes.ok) {
@@ -145,31 +177,43 @@ export async function checkUsernameAvailability(
       if (!data.available) {
         return { available: false, error: data.error || `@${clean} is already taken.` };
       }
-      return { available: true };
     }
   } catch {
-    // If backend is unreachable or local development, fall through to Supabase/Local check
+    // If backend is unreachable or local development, fall through to local cache check
   }
 
-  // 3. Query Supabase public usernames table if available
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('usernames')
-        .select('username, user_id')
-        .eq('username', clean)
-        .maybeSingle();
-
-      if (!error && data) {
-        if (currentUserId && data.user_id === currentUserId) {
-          return { available: true };
-        }
-        return { available: false, error: `@${clean} is already taken.` };
-      }
-    } catch {
-      // Table might not exist yet; gracefully handled
+  // 3. Check local cache registry
+  const localRegistry = getLocalClaimedUsernames();
+  const withAt = `@${clean}`;
+  const localRecord = localRegistry[clean] || localRegistry[withAt];
+  if (localRecord) {
+    if (currentUserId && localRecord.userId === currentUserId) {
+      return { available: true };
     }
+    return { available: false, error: `@${clean} is already registered.` };
+  }
+
+  // Also check any profiles cached in localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('tripwise_user_profile_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const pUser = (parsed?.username || '').toLowerCase().replace(/^@+/, '');
+            if (pUser === clean) {
+              const pId = parsed?.id || key.replace('tripwise_user_profile_', '');
+              if (currentUserId && pId === currentUserId) {
+                return { available: true };
+              }
+              return { available: false, error: `@${clean} is already registered.` };
+            }
+          }
+        }
+      }
+    } catch {}
   }
 
   return { available: true };

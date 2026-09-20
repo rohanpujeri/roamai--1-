@@ -63,10 +63,13 @@ function persistToDisk(): void {
   }
 }
 
-export function isUsernameAvailable(
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://kfqdlajqarsfdoskeahh.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l';
+
+export async function isUsernameAvailable(
   rawUsername: string,
   currentUserId?: string
-): { available: boolean; error?: string } {
+): Promise<{ available: boolean; error?: string }> {
   if (!rawUsername) {
     return { available: false, error: 'Username is required.' };
   }
@@ -90,6 +93,7 @@ export function isUsernameAvailable(
     return { available: false, error: 'This username is reserved. Please choose another.' };
   }
 
+  // 1. Check in-memory map
   const existing = claimedUsernamesMap.get(clean);
   if (existing) {
     if (currentUserId && existing.userId === currentUserId) {
@@ -98,15 +102,37 @@ export function isUsernameAvailable(
     return { available: false, error: `@${clean} is already registered. Please choose another username.` };
   }
 
+  // 2. Check Supabase profiles table
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const found = data[0];
+        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+          return { available: true };
+        }
+        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+      }
+    }
+  } catch (err) {
+    console.warn('[serverUsernameRegistry] Could not check Supabase profiles:', err);
+  }
+
   return { available: true };
 }
 
-export function registerServerUsername(
+export async function registerServerUsername(
   rawUsername: string,
   userId?: string,
   email?: string
-): { success: boolean; error?: string } {
-  const check = isUsernameAvailable(rawUsername, userId);
+): Promise<{ success: boolean; error?: string }> {
+  const check = await isUsernameAvailable(rawUsername, userId);
   if (!check.available) {
     return { success: false, error: check.error };
   }
