@@ -17,7 +17,6 @@ import {
   ChevronDown, 
   Compass, 
   Send,
-  Sparkles,
   Check,
   Film
 } from 'lucide-react';
@@ -771,24 +770,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             {activeReel.caption}
           </p>
 
-          {/* Destination Badge & Plan Trip CTA */}
+          {/* Destination Badge & Audio Soundtrack */}
           <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
               <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>{activeReel.destination}</span>
             </span>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartPlanning(activeReel.destination);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-md cursor-pointer transition-transform hover:scale-105"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Plan Trip</span>
-            </button>
 
             {/* Audio Soundtrack Banner */}
             <div className="inline-flex items-center gap-1.5 text-neutral-300 text-xs font-medium px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
