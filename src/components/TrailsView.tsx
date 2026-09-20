@@ -610,8 +610,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Gradient Overlays for readable text */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-        {/* Right Action Sidebar (Instagram Reels style - Lifted up above playline & bottom nav) */}
-        <div className="absolute right-4 sm:right-8 bottom-[128px] sm:bottom-[140px] z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
+        {/* Right Action Sidebar (Instagram Reels style - Lifted up well above playline) */}
+        <div className="absolute right-4 sm:right-8 bottom-[145px] sm:bottom-[155px] z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
           {/* Like Button */}
           <button
             type="button"
@@ -705,8 +705,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </div>
         </div>
 
-        {/* Bottom Left Info & Caption Overlay (Lifted up cleanly above playline & bottom nav) */}
-        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[128px] sm:bottom-[140px] z-20 space-y-2.5 pointer-events-none max-w-xl">
+        {/* Bottom Left Info & Caption Overlay (Lifted up well above playline & bottom nav) */}
+        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[145px] sm:bottom-[155px] z-20 space-y-2.5 pointer-events-none max-w-xl">
           {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
           <div className="flex items-center gap-2.5 pointer-events-auto">
             {/* Circular Photo with Gradient Ring */}
@@ -788,10 +788,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Video Playline directly above Bottom Navigation Bar (matches Instagram Reels design) */}
         <div 
           onClick={handlePlaylineClick}
-          className="absolute bottom-[98px] sm:bottom-[110px] left-4 right-4 sm:left-8 sm:right-8 z-30 py-2 cursor-pointer pointer-events-auto group/playline"
+          className="absolute bottom-[86px] sm:bottom-[94px] left-4 right-4 sm:left-8 sm:right-8 z-30 h-4 flex items-center cursor-pointer pointer-events-auto group/playline"
           title="Video playback progress"
         >
-          <div className="w-full h-[3px] bg-white/35 group-hover/playline:h-[4.5px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
+          <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
             <div
               className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
               style={{ width: `${progress}%` }}
