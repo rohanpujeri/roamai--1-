@@ -27,10 +27,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'Traveler';
 
   return (
-    <div className="fixed bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px]">
+    <div className={`fixed ${currentView === 'trails' ? 'bottom-2 sm:bottom-3' : 'bottom-4 sm:bottom-6'} left-1/2 -translate-x-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-all duration-300`}>
       <nav 
         aria-label="Quick Navigation"
-        className="w-full flex items-center justify-between px-5 sm:px-7 py-2.5 sm:py-3.5 bg-[#141419]/92 hover:bg-[#141419]/98 backdrop-blur-2xl border border-white/15 rounded-full shadow-[0_16px_50px_rgba(0,0,0,0.75),0_4px_16px_rgba(0,0,0,0.5)] transition-all duration-300"
+        className={`w-full flex items-center justify-between ${currentView === 'trails' ? 'px-4 sm:px-6 py-1.5 sm:py-2' : 'px-5 sm:px-7 py-2.5 sm:py-3.5'} bg-[#141419]/95 hover:bg-[#141419]/98 backdrop-blur-2xl border border-white/15 rounded-full shadow-[0_16px_50px_rgba(0,0,0,0.75),0_4px_16px_rgba(0,0,0,0.5)] transition-all duration-300`}
       >
         {/* 1. Home Button */}
         <button
@@ -38,13 +38,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onClick={() => onNavigate('landing')}
           aria-label="Home"
           title="Home"
-          className={`relative p-2.5 sm:p-3 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative ${currentView === 'trails' ? 'p-2 sm:p-2.5' : 'p-2.5 sm:p-3'} rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'landing'
               ? 'text-white'
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <Home className={`w-6 h-6 sm:w-7 sm:h-7 transition-transform group-hover:scale-110 ${
+          <Home className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110 ${
             currentView === 'landing' ? 'stroke-[2.5]' : 'stroke-2'
           }`} />
           {currentView === 'landing' && (
@@ -58,7 +58,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onClick={() => onNavigate('trails')}
           aria-label="Trails Video Reels"
           title="Trails (Travel Reels)"
-          className={`relative px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl sm:rounded-3xl transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative ${currentView === 'trails' ? 'px-3.5 py-1.5 sm:px-4 sm:py-2' : 'px-4 py-2 sm:px-5 sm:py-2.5'} rounded-2xl sm:rounded-3xl transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'trails'
               ? 'bg-neutral-800/90 text-white shadow-inner'
               : 'hover:bg-neutral-800/50 text-neutral-400 hover:text-white'
