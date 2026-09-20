@@ -15,7 +15,6 @@ import {
   X, 
   ChevronUp, 
   ChevronDown, 
-  Compass, 
   Send,
   Check,
   Film,
@@ -701,8 +700,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       {/* Top Floating Action Bar */}
       <div className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto">
         <div className="flex items-center gap-2.5">
-          <span className="px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center gap-2 shadow-xl">
-            <Compass className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
+          <span className="px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center shadow-xl">
             TRAILS
           </span>
         </div>
