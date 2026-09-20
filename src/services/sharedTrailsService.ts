@@ -39,6 +39,34 @@ export interface TrailReel {
 
 const LOCAL_STORAGE_KEY = 'roamai_user_trails';
 const LEGACY_STORAGE_KEY = 'tripwise_user_trails';
+const LIKED_TRAILS_KEY = 'roamai_liked_trail_ids';
+
+export function getLikedTrailIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LIKED_TRAILS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isTrailLikedByUser(trailId: string): boolean {
+  if (!trailId) return false;
+  return getLikedTrailIds().includes(trailId);
+}
+
+export function setTrailLikedByUser(trailId: string, liked: boolean): void {
+  if (!trailId || typeof window === 'undefined') return;
+  try {
+    const ids = new Set(getLikedTrailIds());
+    if (liked) ids.add(trailId);
+    else ids.delete(trailId);
+    localStorage.setItem(LIKED_TRAILS_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Convert a File or Blob into base64 Data URL for API transmission
@@ -332,7 +360,35 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
  * Like / unlike a trail globally
  */
 export async function likeGlobalTrail(trailId: string, increment: boolean): Promise<void> {
-  // Update in Supabase
+  // 1. Update user liked state
+  setTrailLikedByUser(trailId, increment);
+
+  // 2. Update local storage cache immediately for zero latency
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw) {
+        const trails: TrailReel[] = JSON.parse(raw);
+        if (Array.isArray(trails)) {
+          const updated = trails.map((t) => {
+            if (t.id === trailId) {
+              const currentLikes = Number(t.likesCount || 0);
+              const nextLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
+              return { ...t, likesCount: nextLikes, isLiked: increment };
+            }
+            return t;
+          });
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment } }));
+      window.dispatchEvent(new Event('storage'));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Update in Supabase
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -348,7 +404,7 @@ export async function likeGlobalTrail(trailId: string, increment: boolean): Prom
     // ignore
   }
 
-  // Update in server
+  // 4. Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
       method: 'POST',
@@ -367,20 +423,51 @@ export async function commentOnGlobalTrail(
   trailId: string,
   comment: { user: string; avatar: string; text: string }
 ): Promise<void> {
-  // Update in Supabase
+  const newCommentObj = {
+    id: `comment-${Date.now()}`,
+    user: comment.user,
+    avatar: comment.avatar,
+    text: comment.text,
+    time: 'Just now'
+  };
+
+  // 1. Update local cache immediately
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw) {
+        const trails: TrailReel[] = JSON.parse(raw);
+        if (Array.isArray(trails)) {
+          const updated = trails.map((t) => {
+            if (t.id === trailId) {
+              const existingComments = Array.isArray(t.comments) ? [...t.comments] : [];
+              const comments = [newCommentObj, ...existingComments];
+              return {
+                ...t,
+                comments,
+                commentsCount: comments.length
+              };
+            }
+            return t;
+          });
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('roamai_trail_commented', { detail: { trailId, comment: newCommentObj } }));
+      window.dispatchEvent(new Event('storage'));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Update in Supabase
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
       const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
       if (data && data.trail_data) {
         const comments = Array.isArray(data.trail_data.comments) ? [...data.trail_data.comments] : [];
-        comments.push({
-          id: `comment-${Date.now()}`,
-          user: comment.user,
-          avatar: comment.avatar,
-          text: comment.text,
-          time: 'Just now'
-        });
+        comments.push(newCommentObj);
         const updatedTrail = { 
           ...data.trail_data, 
           comments,
@@ -393,7 +480,7 @@ export async function commentOnGlobalTrail(
     // ignore
   }
 
-  // Update in server
+  // 3. Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/comment`, {
       method: 'POST',

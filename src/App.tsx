@@ -869,6 +869,12 @@ export default function App() {
     const targetView = BOTTOM_NAV_ORDER[index];
     if (!targetView) return;
 
+    if (targetView === 'trails' && !session) {
+      setIntendedView('trails');
+      setCurrentView('auth');
+      return;
+    }
+
     if (targetView === 'wizard') {
       setWizardDestId('');
       setWizardEditingTrip(null);
@@ -930,6 +936,11 @@ export default function App() {
       const newIndex = Math.round(scrollLeft / clientWidth);
       if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
         const targetView = BOTTOM_NAV_ORDER[newIndex];
+        if (targetView === 'trails' && !session) {
+          setIntendedView('trails');
+          setCurrentView('auth');
+          return;
+        }
         if (targetView !== currentView) {
           setCurrentView(targetView);
         }
@@ -963,6 +974,11 @@ export default function App() {
           const newIndex = Math.round(scrollLeft / clientWidth);
           if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
             const targetView = BOTTOM_NAV_ORDER[newIndex];
+            if (targetView === 'trails' && !session) {
+              setIntendedView('trails');
+              setCurrentView('auth');
+              return;
+            }
             if (targetView !== currentView) {
               setCurrentView(targetView);
             }
@@ -1289,6 +1305,10 @@ export default function App() {
                   currentTheme={currentTheme}
                   session={session}
                   isActive={currentView === 'trails'}
+                  onRequireAuth={() => {
+                    setIntendedView('trails');
+                    setCurrentView('auth');
+                  }}
                   onStartPlanning={(dest) => {
                     setWizardDestId(dest || '');
                     setWizardEditingTrip(null);
@@ -1389,6 +1409,11 @@ export default function App() {
             <BottomNavBar
               currentView={currentView}
               onNavigate={(v) => {
+                if (v === 'trails' && !session) {
+                  setIntendedView('trails');
+                  setCurrentView('auth');
+                  return;
+                }
                 const idx = BOTTOM_NAV_ORDER.indexOf(v);
                 if (idx !== -1) {
                   scrollToTab(idx);
@@ -1400,6 +1425,10 @@ export default function App() {
               onOpenTravellerSearch={() => scrollToTab(3)}
               session={session}
               currentTheme={currentTheme}
+              onRequireAuth={() => {
+                setIntendedView('trails');
+                setCurrentView('auth');
+              }}
             />
           )}
 

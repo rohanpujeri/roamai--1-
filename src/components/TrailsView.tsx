@@ -18,7 +18,8 @@ import {
   Compass, 
   Send,
   Check,
-  Film
+  Film,
+  LogIn
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
@@ -33,7 +34,8 @@ import {
   fetchGlobalTrails,
   publishGlobalTrail,
   likeGlobalTrail,
-  commentOnGlobalTrail
+  commentOnGlobalTrail,
+  isTrailLikedByUser
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
@@ -76,6 +78,7 @@ interface TrailsViewProps {
   isActive?: boolean;
   onStartPlanning: (destination?: string) => void;
   onBack: () => void;
+  onRequireAuth?: () => void;
 }
 
 export const TrailsView: React.FC<TrailsViewProps> = ({
@@ -83,11 +86,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   session,
   isActive = true,
   onStartPlanning,
-  onBack
+  onBack,
+  onRequireAuth
 }) => {
   // Load real user trails exclusively from local and server registry
   const [trails, setTrails] = useState<TrailReel[]>(() => 
-    getLocalTrails().map((t) => ({ ...t, isSaved: isTrailSaved(t.id) }))
+    getLocalTrails().map((t) => ({ 
+      ...t, 
+      isSaved: isTrailSaved(t.id),
+      isLiked: isTrailLikedByUser(t.id)
+    }))
   );
 
   // Periodically sync global trails from server API & Supabase so any profile can see everyone's trails
@@ -98,13 +106,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         const globalList = await fetchGlobalTrails();
         if (isMounted && Array.isArray(globalList)) {
           setTrails((prev) => {
-            const mapped = globalList.map((g) => ({ ...g, isSaved: isTrailSaved(g.id) }));
+            const mapped = globalList.map((g) => ({ 
+              ...g, 
+              isSaved: isTrailSaved(g.id),
+              isLiked: isTrailLikedByUser(g.id)
+            }));
             const prevIds = prev.map((p) => p.id).join(',');
             const nextIds = mapped.map((g) => g.id).join(',');
             if (prevIds !== nextIds || prev.length !== mapped.length) {
               return mapped;
             }
-            return prev.map((p) => ({ ...p, isSaved: isTrailSaved(p.id) }));
+            return prev.map((p) => ({ 
+              ...p, 
+              isSaved: isTrailSaved(p.id),
+              isLiked: isTrailLikedByUser(p.id)
+            }));
           });
         }
       } catch (err) {
@@ -129,6 +145,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
   const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
+  const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
+  const lastTapRef = useRef<number>(0);
 
   // Active media resolution states
   const [activeMediaUrl, setActiveMediaUrl] = useState<string>('');
@@ -462,6 +480,54 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setUploadDestination('');
   };
 
+  // Require login to access Trails page
+  if (!session) {
+    return (
+      <div className="relative w-full h-full min-h-[100dvh] bg-[#0a0a0f] flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden select-none">
+        {/* Ambient Glow */}
+        <div 
+          className="absolute w-80 h-80 rounded-full blur-[140px] opacity-25 pointer-events-none"
+          style={{ backgroundColor: currentTheme.primaryColor }}
+        />
+
+        <div className="relative z-10 max-w-sm w-full space-y-6 bg-zinc-900/90 backdrop-blur-2xl p-7 sm:p-8 rounded-3xl border border-white/10 shadow-2xl">
+          <div 
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-white shadow-xl ring-1 ring-white/20"
+            style={{ backgroundColor: currentTheme.primaryColor }}
+          >
+            <Film className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">Log in to watch Trails</h2>
+            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+              Watch travel reels, like and comment on creator spots, and save reels to your personal collection.
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={() => onRequireAuth?.()}
+              className="w-full py-3 rounded-xl text-white font-bold text-sm shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+              style={{ backgroundColor: currentTheme.primaryColor }}
+            >
+              <LogIn className="w-4 h-4" />
+              Sign in to Continue
+            </button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white font-semibold text-xs border border-white/10 transition-all cursor-pointer"
+            >
+              Back to Discover
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       onWheel={handleWheel}
@@ -554,10 +620,42 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               dragDistanceRef.current = 0;
               return;
             }
+            const now = Date.now();
+            if (now - lastTapRef.current < 320) {
+              // Double tap detected! Like the trail with heart burst animation
+              if (activeReel && !activeReel.isLiked) {
+                likeGlobalTrail(activeReel.id, true);
+                setTrails((prev) =>
+                  prev.map((t, idx) => {
+                    if (idx === currentIndex) {
+                      return {
+                        ...t,
+                        isLiked: true,
+                        likesCount: t.likesCount + 1
+                      };
+                    }
+                    return t;
+                  })
+                );
+              }
+              setShowHeartBurst(true);
+              setTimeout(() => setShowHeartBurst(false), 950);
+              lastTapRef.current = 0;
+              return;
+            }
+            lastTapRef.current = now;
             togglePlay();
           }}
           className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group"
         >
+          {/* Instagram Double-Tap Heart Burst Animation */}
+          {showHeartBurst && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-in fade-in zoom-in duration-150">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center animate-bounce">
+                <Heart className="w-full h-full fill-red-500 text-red-500 drop-shadow-[0_10px_35px_rgba(239,68,68,0.9)]" />
+              </div>
+            </div>
+          )}
           {/* Video or Image Media Player */}
           {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
             <img

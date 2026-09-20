@@ -11,6 +11,7 @@ export interface BottomNavBarProps {
   onOpenTravellerSearch: () => void;
   session: Session | null;
   currentTheme?: ThemeConfig;
+  onRequireAuth?: () => void;
 }
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
@@ -19,7 +20,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onStartPlanning,
   onOpenTravellerSearch,
   session,
-  currentTheme
+  currentTheme,
+  onRequireAuth
 }) => {
   const cachedProfile = getCachedUserProfile(session?.user?.id);
   const rawAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
@@ -55,7 +57,17 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         {/* 2. Trails Button (Reels style video feed) */}
         <button
           type="button"
-          onClick={() => onNavigate('trails')}
+          onClick={() => {
+            if (!session) {
+              if (onRequireAuth) {
+                onRequireAuth();
+              } else {
+                onNavigate('auth');
+              }
+              return;
+            }
+            onNavigate('trails');
+          }}
           aria-label="Trails Video Reels"
           title="Trails (Travel Reels)"
           className={`relative ${currentView === 'trails' ? 'px-3.5 py-1.5 sm:px-4 sm:py-2' : 'px-4 py-2 sm:px-5 sm:py-2.5'} rounded-2xl sm:rounded-3xl transition-all duration-200 cursor-pointer flex items-center justify-center group ${
