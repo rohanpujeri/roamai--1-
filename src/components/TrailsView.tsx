@@ -35,6 +35,8 @@ import {
   likeGlobalTrail,
   commentOnGlobalTrail
 } from '../services/sharedTrailsService';
+import { isUserFollowing, toggleFollowUser } from '../services/followService';
+
 
 export interface TrailReel {
   id: string;
@@ -736,13 +738,33 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
             (session?.user?.id && activeReel.creator?.id && activeReel.creator.id === session.user.id)
           );
+          const isFollowed = isUserFollowing(currentUsername, activeReel.creator.username) || !!activeReel.creator.isFollowed;
+
 
           return (
             <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2.5 pointer-events-auto">
                 {/* Clean Circular Photo (Instagram Reels style - no ring) */}
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center">
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(
+                      new CustomEvent('roamai_view_traveller', {
+                        detail: {
+                          id: activeReel.creator.id,
+                          username: activeReel.creator.username,
+                          name: activeReel.creator.name,
+                          avatarUrl: activeReel.creator.avatarUrl,
+                          location: activeReel.destination,
+                          isFollowing: isFollowed
+                        }
+                      })
+                    );
+                  }}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                  title={`View ${activeReel.creator.username}'s profile`}
+                >
                   {activeReel.creator.avatarUrl ? (
                     <img
                       src={activeReel.creator.avatarUrl}
@@ -761,7 +783,24 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 </div>
 
                 {/* Username only (no full name) */}
-                <span className="text-sm font-bold text-white tracking-wide drop-shadow-md">
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(
+                      new CustomEvent('roamai_view_traveller', {
+                        detail: {
+                          id: activeReel.creator.id,
+                          username: activeReel.creator.username,
+                          name: activeReel.creator.name,
+                          avatarUrl: activeReel.creator.avatarUrl,
+                          location: activeReel.destination,
+                          isFollowing: isFollowed
+                        }
+                      })
+                    );
+                  }}
+                  className="text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline"
+                >
                   {activeReel.creator.username.replace(/^@/, '')}
                 </span>
 
@@ -778,12 +817,26 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      toggleFollowUser(
+                        {
+                          id: session?.user?.id,
+                          username: currentUsername,
+                          name: cachedUser?.name || currentUsername,
+                          avatarUrl: cachedUser?.avatarUrl
+                        },
+                        {
+                          id: activeReel.creator.id,
+                          username: activeReel.creator.username,
+                          name: activeReel.creator.name,
+                          avatarUrl: activeReel.creator.avatarUrl
+                        }
+                      );
                       setTrails((prev) =>
                         prev.map((t, idx) => {
                           if (idx === currentIndex) {
                             return {
                               ...t,
-                              creator: { ...t.creator, isFollowed: !t.creator.isFollowed }
+                              creator: { ...t.creator, isFollowed: !isFollowed }
                             };
                           }
                           return t;
@@ -791,12 +844,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       );
                     }}
                     className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                      activeReel.creator.isFollowed
+                      isFollowed
                         ? 'bg-white/20 border-white/30 text-white'
                         : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
                     }`}
                   >
-                    {activeReel.creator.isFollowed ? 'Following' : 'Follow'}
+                    {isFollowed ? 'Following' : 'Follow'}
                   </button>
                 )}
               </div>

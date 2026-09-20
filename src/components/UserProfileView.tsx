@@ -60,6 +60,9 @@ import {
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
+import { FollowListModal } from './FollowListModal';
+import { getFollowCounts } from '../services/followService';
+
 
 interface UserProfileViewProps {
   session: Session | null;
@@ -460,8 +463,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: cached?.stats?.followersCount ?? 0,
-        followingCount: cached?.stats?.followingCount ?? 0,
+        followersCount: getFollowCounts(user?.id || cached?.username || getFallbackUsername(user, userMeta)).followersCount,
+        followingCount: getFollowCounts(user?.id || cached?.username || getFallbackUsername(user, userMeta)).followingCount,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -474,8 +477,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarToast, setAvatarToast] = useState<string | null>(null);
 
+  // Followers & Following Modal State
+  const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
+
   const headerFileInputRef = useRef<HTMLInputElement | null>(null);
   const modalFileInputRef = useRef<HTMLInputElement | null>(null);
+
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
@@ -502,8 +510,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: cached?.stats?.followersCount ?? profile.stats?.followersCount ?? 0,
-        followingCount: cached?.stats?.followingCount ?? profile.stats?.followingCount ?? 0,
+        followersCount: getFollowCounts(user?.id || username).followersCount,
+        followingCount: getFollowCounts(user?.id || username).followingCount,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -524,6 +532,29 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     calculatedPlacesCount,
     calculatedCountriesCount
   ]);
+
+  // Listen to real-time follow/unfollow actions across the app
+  useEffect(() => {
+    const handleFollowChanged = () => {
+      const counts = getFollowCounts(user?.id || profile.username);
+      setProfile((prev) => ({
+        ...prev,
+        stats: {
+          ...prev.stats,
+          followersCount: counts.followersCount,
+          followingCount: counts.followingCount
+        }
+      }));
+    };
+
+    window.addEventListener('roamai_follow_changed', handleFollowChanged);
+    window.addEventListener('storage', handleFollowChanged);
+    return () => {
+      window.removeEventListener('roamai_follow_changed', handleFollowChanged);
+      window.removeEventListener('storage', handleFollowChanged);
+    };
+  }, [user?.id, profile.username]);
+
 
   // Sync profile-specific trails from global trails (server API & Supabase)
   useEffect(() => {
@@ -955,21 +986,35 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
 
               {/* Followers */}
-              <div className="cursor-pointer group flex-1">
-                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
+              <div 
+                onClick={() => {
+                  setFollowModalTab('followers');
+                  setIsFollowModalOpen(true);
+                }}
+                className="cursor-pointer group flex-1"
+                title="View followers"
+              >
+                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
                   {profile.stats?.followersCount ?? 0}
                 </span>
-                <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
                   followers
                 </span>
               </div>
 
               {/* Following */}
-              <div className="cursor-pointer group flex-1">
-                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
+              <div 
+                onClick={() => {
+                  setFollowModalTab('following');
+                  setIsFollowModalOpen(true);
+                }}
+                className="cursor-pointer group flex-1"
+                title="View following"
+              >
+                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
                   {profile.stats?.followingCount ?? 0}
                 </span>
-                <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
                   following
                 </span>
               </div>
@@ -2081,6 +2126,41 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           if (supabase) {
             await supabase.auth.signOut();
           }
+        }}
+      />
+
+      {/* Followers & Following List Modal */}
+      <FollowListModal
+        isOpen={isFollowModalOpen}
+        onClose={() => setIsFollowModalOpen(false)}
+        initialTab={followModalTab}
+        profileUser={{
+          id: user?.id,
+          username: profile.username || getFallbackUsername(user, userMeta),
+          name: profile.name || getFallbackName(user, userMeta),
+          avatarUrl: profile.avatarUrl
+        }}
+        currentUser={{
+          id: user?.id,
+          username: profile.username || getFallbackUsername(user, userMeta),
+          name: profile.name || getFallbackName(user, userMeta),
+          avatarUrl: profile.avatarUrl
+        }}
+        onSelectUser={(selectedUser) => {
+          setIsFollowModalOpen(false);
+          window.dispatchEvent(
+            new CustomEvent('roamai_view_traveller', {
+              detail: {
+                id: selectedUser.id,
+                username: selectedUser.username,
+                name: selectedUser.name,
+                avatarUrl: selectedUser.avatarUrl,
+                location: selectedUser.location,
+                bio: selectedUser.bio
+              }
+            })
+          );
+          onNavigate?.('search');
         }}
       />
     </div>

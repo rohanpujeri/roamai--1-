@@ -20,6 +20,9 @@ import { ThemeConfig } from '../types';
 import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
 import { fetchGlobalTrails, getLocalTrails } from '../services/sharedTrailsService';
+import { FollowListModal } from './FollowListModal';
+import { getFollowCounts, toggleFollowUser } from '../services/followService';
+
 
 export interface TravellerProfile {
   id: string;
@@ -122,6 +125,37 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [profileTab, setProfileTab] = useState<'trails' | 'places'>('trails');
   const [shareToast, setShareToast] = useState<string | null>(null);
 
+  // Followers & Following Modal State
+  const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
+
+  // Listen for navigation event to open a traveller's profile
+  useEffect(() => {
+    const handleViewTraveller = (e: any) => {
+      if (e.detail) {
+        const d = e.detail;
+        const cleanUname = (d.username || '').replace(/^@+/, '');
+        setViewingProfile({
+          id: d.id || `user_${cleanUname}`,
+          name: d.name || cleanUname,
+          username: d.username?.startsWith('@') ? d.username : `@${cleanUname}`,
+          avatarUrl: d.avatarUrl || '',
+          location: d.location || 'Traveler',
+          bio: d.bio || 'Exploring new places, one trip at a time 🌍',
+          level: d.level || 'Travel Explorer',
+          tripsCount: d.tripsCount || 0,
+          placesCount: d.placesCount || 0,
+          topDNA: d.topDNA || ['Adventure', 'Nature'],
+          recentPlaces: d.recentPlaces || [],
+          isFollowing: !!d.isFollowing
+        });
+        setProfileTab('trails');
+      }
+    };
+    window.addEventListener('roamai_view_traveller', handleViewTraveller);
+    return () => window.removeEventListener('roamai_view_traveller', handleViewTraveller);
+  }, []);
+
   // Collect all identifiers for currently logged-in user to prevent suggesting oneself
   const currentIdentifiers = useMemo(() => {
     const ids = new Set<string>();
@@ -168,6 +202,22 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return { ids, unames };
   }, [session?.user?.id, session?.user?.email, session?.user?.user_metadata]);
 
+  // Current logged in user profile object for follow relationships
+  const currentUserProfile = useMemo(() => {
+    const cached = session?.user?.id ? getCachedUserProfile(session.user.id) : null;
+    const meta = (session?.user?.user_metadata || {}) as Record<string, any>;
+    const uName = cached?.username || meta.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
+    const name = cached?.name || meta.full_name || meta.name || uName.replace(/^@/, '');
+    const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '');
+    return {
+      id: session?.user?.id || `user_${uName.replace(/^@/, '')}`,
+      username: uName.startsWith('@') ? uName : `@${uName}`,
+      name,
+      avatarUrl
+    };
+  }, [session?.user]);
+
+
   // Check if a profile belongs to the currently logged in user
   const isCurrentUser = useCallback((tr: TravellerProfile): boolean => {
     const cleanUname = tr.username.toLowerCase().replace(/^@+/, '');
@@ -213,6 +263,16 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const toggleFollow = useCallback((id: string, username: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const cleanUser = username.replace(/^@+/, '').toLowerCase();
+
+    // Sync with followService
+    const matched = travellers.find((t) => t.id === id || t.username.replace(/^@+/, '').toLowerCase() === cleanUser);
+    toggleFollowUser(currentUserProfile, {
+      id,
+      username: cleanUser,
+      name: matched?.name || cleanUser,
+      avatarUrl: matched?.avatarUrl
+    });
+
     setFollowedSet((prev) => {
       const next = new Set(prev);
       const isAlreadyFollowing = next.has(id) || next.has(cleanUser);
@@ -248,7 +308,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
       return next;
     });
-  }, []);
+  }, [currentUserProfile, travellers]);
 
   // Global user trails list synced across all profiles
   const [globalTrailsList, setGlobalTrailsList] = useState<any[]>(() => getLocalTrails());
@@ -378,6 +438,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   if (viewingProfile) {
     const cleanUser = viewingProfile.username.replace(/^@+/, '').toLowerCase();
     const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || !!viewingProfile.isFollowing;
+    const viewingFollowCounts = getFollowCounts(viewingProfile.id || viewingProfile.username);
 
     return (
       <div className="min-h-screen bg-black text-white pb-32 select-none animate-in fade-in duration-200">
@@ -418,15 +479,15 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         )}
 
         {/* Profile Content Container */}
-        <div className="max-w-md sm:max-w-2xl mx-auto px-4 pt-4 space-y-4">
-          {/* 1. Header: Avatar & Stats */}
-          <div className="flex items-center gap-6 sm:gap-10">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 pt-5">
+          {/* 1. Header (Avatar + Stats) */}
+          <div className="flex items-center gap-6 sm:gap-10 pb-4 border-b border-neutral-900">
             {/* Avatar (NO gradient ring) */}
             {viewingProfile.avatarUrl ? (
               <img
                 src={viewingProfile.avatarUrl}
                 alt={viewingProfile.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shrink-0 ring-1 ring-neutral-700/80 shadow-md"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-neutral-700 shrink-0 shadow-md"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
@@ -447,18 +508,32 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <div className="text-[11px] sm:text-xs text-neutral-400">trails</div>
               </div>
 
-              <div>
-                <div className="font-bold text-base sm:text-lg text-white">
-                  {isFollowing ? 1 : 0}
+              <div
+                onClick={() => {
+                  setFollowModalTab('followers');
+                  setIsFollowModalOpen(true);
+                }}
+                className="cursor-pointer group flex flex-col items-center"
+                title="View followers"
+              >
+                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
+                  {viewingFollowCounts.followersCount}
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400">followers</div>
+                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">followers</div>
               </div>
 
-              <div>
-                <div className="font-bold text-base sm:text-lg text-white">
-                  {viewingProfile.tripsCount || 1}
+              <div
+                onClick={() => {
+                  setFollowModalTab('following');
+                  setIsFollowModalOpen(true);
+                }}
+                className="cursor-pointer group flex flex-col items-center"
+                title="View following"
+              >
+                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
+                  {viewingFollowCounts.followingCount}
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400">following</div>
+                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">following</div>
               </div>
             </div>
           </div>
@@ -701,6 +776,39 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             </div>
           </div>
         )}
+
+        {/* Followers & Following List Modal */}
+        <FollowListModal
+          isOpen={isFollowModalOpen}
+          onClose={() => setIsFollowModalOpen(false)}
+          initialTab={followModalTab}
+          profileUser={{
+            id: viewingProfile.id,
+            username: viewingProfile.username,
+            name: viewingProfile.name,
+            avatarUrl: viewingProfile.avatarUrl
+          }}
+          currentUser={currentUserProfile}
+          onSelectUser={(selectedUser) => {
+            setIsFollowModalOpen(false);
+            const cleanU = selectedUser.username.replace(/^@+/, '');
+            setViewingProfile({
+              id: selectedUser.id,
+              name: selectedUser.name,
+              username: selectedUser.username,
+              avatarUrl: selectedUser.avatarUrl || '',
+              location: selectedUser.location || 'Traveler',
+              bio: selectedUser.bio || 'Exploring new places, one trip at a time 🌍',
+              level: 'Travel Explorer',
+              tripsCount: 0,
+              placesCount: 0,
+              topDNA: ['Adventure', 'Photography'],
+              recentPlaces: [],
+              isFollowing: selectedUser.isFollowing
+            });
+            setProfileTab('trails');
+          }}
+        />
       </div>
     );
   }
