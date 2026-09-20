@@ -869,6 +869,10 @@ export default function App() {
     const targetView = BOTTOM_NAV_ORDER[index];
     if (!targetView) return;
 
+    if (targetView !== 'trails') {
+      window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
+    }
+
     if (targetView === 'trails' && !session) {
       setIntendedView('trails');
       setCurrentView('auth');
@@ -914,7 +918,19 @@ export default function App() {
   };
 
   const handleSliderScroll = () => {
-    if (isProgrammaticScroll.current || !sliderRef.current) return;
+    if (!sliderRef.current) return;
+
+    // Immediately cut off trails audio if user scrolls away from Slide 1 (Trails)
+    const { scrollLeft, clientWidth } = sliderRef.current;
+    if (clientWidth) {
+      const currentScrollRatio = scrollLeft / clientWidth;
+      // If user moved more than 15% away from slide 1, immediately pause trails
+      if (Math.abs(currentScrollRatio - 1) > 0.15) {
+        window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
+      }
+    }
+
+    if (isProgrammaticScroll.current) return;
 
     isUserSwipeRef.current = true;
 
@@ -1026,6 +1042,13 @@ export default function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentView, isBottomNavView]);
+
+  // Pause trails video whenever user leaves the trails view
+  useEffect(() => {
+    if (currentView !== 'trails') {
+      window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
+    }
+  }, [currentView]);
 
   // Keyboard navigation for desktop power users
   useEffect(() => {

@@ -157,7 +157,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   }, []);
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(Boolean(isActive));
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
@@ -238,8 +238,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     };
   }, [activeReel?.id, activeReel?.videoUrl]);
 
-  // Auto-play when active reel changes
+  // Auto-play when active reel changes, but strictly only when on the trails page!
   useEffect(() => {
+    if (!isActive || showUploadModal || showLikesModal) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+      setIsPlaying(false);
+      return;
+    }
+
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       if (isPlaying) {
@@ -253,15 +261,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         });
       }
     }
-  }, [currentIndex]);
+  }, [currentIndex, isActive, showUploadModal, showLikesModal]);
 
-  // Pause video if user slides away from Trails
+  // Pause video whenever user is NOT actively on Trails tab or when an overlay modal is open
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || showUploadModal || showLikesModal) {
       if (videoRef.current) {
         videoRef.current.pause();
-        setIsPlaying(false);
       }
+      setIsPlaying(false);
     } else {
       if (videoRef.current) {
         videoRef.current.play().catch(() => {
@@ -274,7 +282,50 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         setIsPlaying(true);
       }
     }
-  }, [isActive]);
+  }, [isActive, showUploadModal, showLikesModal]);
+
+  // Extra guard: whenever activeMediaUrl updates, ensure paused if not on trails
+  useEffect(() => {
+    if (!isActive && videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [activeMediaUrl, isActive]);
+
+  // Pause when browser tab/app is hidden, resume only if actively on trails
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (videoRef.current) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+      } else if (isActive && !showUploadModal && !showLikesModal) {
+        if (videoRef.current) {
+          videoRef.current.play().catch(() => {});
+          setIsPlaying(true);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isActive, showUploadModal, showLikesModal]);
+
+  // Listen to instant global pause events (e.g. user swiping away from trails)
+  useEffect(() => {
+    const handleGlobalPause = () => {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+    window.addEventListener('roamai_pause_trails', handleGlobalPause);
+    return () => {
+      window.removeEventListener('roamai_pause_trails', handleGlobalPause);
+    };
+  }, []);
 
   const handleNextReel = () => {
     if (currentIndex < trails.length - 1) {
@@ -293,9 +344,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   const togglePlay = () => {
+    if (!isActive) return;
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {});
       setIsPlaying(true);
     } else {
       videoRef.current.pause();
@@ -786,11 +838,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               playsInline
               webkit-playsinline="true"
               loop
-              autoPlay
-              preload="auto"
+              autoPlay={isActive && !showUploadModal && !showLikesModal}
+              preload={isActive ? 'auto' : 'none'}
               muted={isMuted}
               className="w-full h-full object-cover"
-              onPlay={() => setIsPlaying(true)}
+              onPlay={() => {
+                if (!isActive || showUploadModal || showLikesModal) {
+                  videoRef.current?.pause();
+                  setIsPlaying(false);
+                  return;
+                }
+                setIsPlaying(true);
+              }}
               onPause={() => setIsPlaying(false)}
               onError={() => {
                 setActiveMediaError(true);
