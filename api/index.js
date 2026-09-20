@@ -3131,13 +3131,34 @@ function deleteServerTrail(trailId) {
   persistToDisk2();
   return true;
 }
-function toggleLikeServerTrail(trailId, increment) {
+function toggleLikeServerTrail(trailId, increment, liker) {
   const trail = trailsMap.get(trailId);
   if (!trail) return { success: false, likesCount: 0 };
-  trail.likesCount = Math.max(0, trail.likesCount + (increment ? 1 : -1));
+  if (!trail.likedBy) trail.likedBy = [];
+  if (liker && liker.username) {
+    const cleanU = liker.username.toLowerCase().replace(/^@+/, "");
+    if (increment) {
+      if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, "") === cleanU)) {
+        trail.likedBy.unshift({
+          id: liker.id,
+          name: liker.name,
+          username: liker.username.startsWith("@") ? liker.username : `@${liker.username}`,
+          avatarUrl: liker.avatarUrl,
+          likedAt: liker.likedAt || (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+    } else {
+      trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, "") !== cleanU);
+    }
+  }
+  trail.likesCount = Math.max(trail.likedBy ? trail.likedBy.length : 0, trail.likesCount + (increment ? 1 : -1));
   trail.isLiked = increment;
   persistToDisk2();
-  return { success: true, likesCount: trail.likesCount };
+  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
+}
+function getServerTrailLikers(trailId) {
+  const trail = trailsMap.get(trailId);
+  return trail?.likedBy || [];
 }
 function addCommentToServerTrail(trailId, comment) {
   const trail = trailsMap.get(trailId);
@@ -3552,12 +3573,22 @@ function createExpressApp() {
   apiRouter.post("/trails/:id/like", (req, res) => {
     try {
       const { id } = req.params;
-      const { increment } = req.body;
-      const result = toggleLikeServerTrail(id, increment !== false);
+      const { increment, liker } = req.body;
+      const result = toggleLikeServerTrail(id, increment !== false, liker);
       res.json(result);
     } catch (err) {
       console.error("Error liking trail:", err);
       res.status(500).json({ error: "Failed to update like status" });
+    }
+  });
+  apiRouter.get("/trails/:id/likes", (req, res) => {
+    try {
+      const { id } = req.params;
+      const likers = getServerTrailLikers(id);
+      res.json({ likers });
+    } catch (err) {
+      console.error("Error fetching trail likers:", err);
+      res.status(500).json({ error: "Failed to fetch likers" });
     }
   });
   apiRouter.post("/trails/:id/comment", (req, res) => {

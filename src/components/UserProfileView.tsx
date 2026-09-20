@@ -169,7 +169,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailCaption, setTrailCaption] = useState<string>('');
   const [trailTags, setTrailTags] = useState<string>('');
   const [isPublishingTrail, setIsPublishingTrail] = useState<boolean>(false);
+  const [isDraggingOverTrail, setIsDraggingOverTrail] = useState<boolean>(false);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Automatically detect hashtags typed inside the combined caption & hashtags input box
+  const detectedTrailHashtags = trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) 
+    ? Array.from(new Set((trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim())))
+    : [];
+
+  const handleResetTrailUpload = () => {
+    setTrailFile(null);
+    setTrailPreviewUrl('');
+    setTrailPosterUrl('');
+    setTrailDestination('');
+    setTrailCaption('');
+    setTrailTags('');
+    setIsDraggingOverTrail(false);
+    if (trailUploadInputRef.current) {
+      trailUploadInputRef.current.value = '';
+    }
+  };
 
   const handleTrailFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -188,6 +207,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
     } else {
       setTrailPosterUrl(objUrl);
+    }
+  };
+
+  const handleDropTrailMedia = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOverTrail(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.type.startsWith('video/') || file.type.startsWith('image/'))) {
+      setTrailFile(file);
+      const objUrl = URL.createObjectURL(file);
+      setTrailPreviewUrl(objUrl);
+      if (file.type.startsWith('video/')) {
+        try {
+          const poster = await generateVideoPoster(file);
+          setTrailPosterUrl(poster);
+        } catch {
+          setTrailPosterUrl('');
+        }
+      } else {
+        setTrailPosterUrl(objUrl);
+      }
     }
   };
 
@@ -214,12 +254,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       const isImg = trailFile ? trailFile.type.startsWith('image/') : false;
       const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
-      const destinationVal = trailDestination.trim() || profile.place || 'Travel Destination';
+      const destinationVal = trailDestination.trim() || 'Travel Destination';
       const captionVal = trailCaption.trim() || 'Exploring new places with RoamAI 🌍✈️';
+      const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || 'Travel Reel';
+      const extractedTags = (trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
 
       const newTrailItem: UserTrailItem = {
         id: trailId,
-        title: captionVal,
+        title: cleanTitle,
         destination: destinationVal,
         viewsCount: '1',
         likesCount: '1',
@@ -234,7 +276,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
         mediaType: isImg ? 'image' : 'video',
-        title: captionVal,
+        title: cleanTitle,
         creator: {
           id: user?.id,
           name: profile.name,
@@ -245,7 +287,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         },
         caption: captionVal,
         destination: destinationVal,
-        tags: trailTags.split(' ').filter(Boolean),
+        tags: extractedTags.length > 0 ? extractedTags : (trailTags ? trailTags.split(' ').filter(Boolean) : ['#travel']),
         audioTitle: 'Original Audio',
         likesCount: 1,
         commentsCount: 0,
@@ -261,11 +303,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       setUserTrails((prev) => [newTrailItem, ...prev]);
       setIsUploadTrailModalOpen(false);
-      setTrailFile(null);
-      setTrailPreviewUrl('');
-      setTrailPosterUrl('');
-      setTrailDestination('');
-      setTrailCaption('');
+      handleResetTrailUpload();
       setActiveTab('trails');
       setAvatarToast('Trail uploaded to your profile!');
       setTimeout(() => setAvatarToast(null), 3500);
@@ -1040,15 +1078,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             {profile.bio}
           </p>
           <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400 font-medium flex-wrap">
-            {profile.place && (
-              <>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-emerald-400" />
-                  {profile.place}
-                </span>
-                <span>•</span>
-              </>
-            )}
             <span className="text-zinc-500 font-mono">
               {profile.username || getFallbackUsername(user, userMeta)}
             </span>
@@ -1691,163 +1720,261 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       )}
 
-      {/* --- UPLOAD TRAIL REEL MODAL --- */}
+      {/* --- UPLOAD TRAIL REEL MODAL (Instagram Reels Style) --- */}
       {isUploadTrailModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-zinc-950 rounded-3xl border border-white/15 max-h-[92vh] overflow-y-auto text-left shadow-2xl space-y-4">
-            {/* Header */}
-            <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-md px-5 py-4 border-b border-zinc-800 flex items-center justify-between z-10">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                  <Film className="w-4 h-4" />
+        <div 
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isPublishingTrail) {
+              setIsUploadTrailModalOpen(false);
+              handleResetTrailUpload();
+            }
+          }}
+        >
+          <div 
+            className={`w-full bg-[#1c1c1e] sm:bg-[#18181b] border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col text-white transition-all duration-300 ${
+              !trailPreviewUrl ? 'max-w-md' : 'max-w-4xl max-h-[92vh]'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Hidden native file input */}
+            <input
+              ref={trailUploadInputRef}
+              type="file"
+              accept="video/*,image/*"
+              className="hidden"
+              onChange={handleTrailFileSelected}
+            />
+
+            {/* STEP 1: Select from device screen */}
+            {!trailPreviewUrl ? (
+              <div className="flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
+                  <div className="w-8" />
+                  <h3 className="text-sm sm:text-base font-bold text-white text-center">Create new reel</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUploadTrailModalOpen(false);
+                      handleResetTrailUpload();
+                    }}
+                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-zinc-300 flex items-center justify-center cursor-pointer transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-white">Upload Travel Trail</h3>
-                  <p className="text-[11px] text-zinc-400">Add a travel video or photo trail to your profile</p>
+
+                {/* Body: Drag & drop + Select from device */}
+                <div 
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingOverTrail(true);
+                  }}
+                  onDragLeave={() => setIsDraggingOverTrail(false)}
+                  onDrop={handleDropTrailMedia}
+                  className={`p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 transition-colors ${
+                    isDraggingOverTrail ? 'bg-emerald-500/10 border-2 border-dashed border-emerald-500' : 'bg-transparent'
+                  }`}
+                >
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
+                    <Film className="w-10 h-10 sm:w-12 sm:h-12" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h4 className="text-base sm:text-lg font-bold text-white">
+                      Drag photos and videos here
+                    </h4>
+                    <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+                      Upload your travel clips or photos to share on your profile and discover feed
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => trailUploadInputRef.current?.click()}
+                    className="px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/50 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Select from device
+                  </button>
+
+                  <p className="text-[11px] text-zinc-500">
+                    Supports MP4, MOV, WebM, JPG, PNG up to 100MB
+                  </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUploadTrailModalOpen(false);
-                  setTrailFile(null);
-                  setTrailPreviewUrl('');
-                  setTrailPosterUrl('');
-                }}
-                className="w-8 h-8 rounded-full bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            ) : (
+              /* STEP 2: Selected media preview + Reel details */
+              <form id="profile-upload-reel-form" onSubmit={handlePublishTrail} className="flex flex-col h-full max-h-[92vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10 shrink-0 bg-[#1c1c1e] sm:bg-[#18181b]">
+                  <button
+                    type="button"
+                    onClick={handleResetTrailUpload}
+                    disabled={isPublishingTrail}
+                    className="p-1.5 -ml-1.5 rounded-full hover:bg-white/10 text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden sm:inline">Choose different file</span>
+                  </button>
 
-            <form onSubmit={handlePublishTrail} className="p-5 pt-0 space-y-4 text-xs sm:text-sm">
-              {/* Media Picker / Preview Box */}
-              <div>
-                <input
-                  ref={trailUploadInputRef}
-                  type="file"
-                  accept="video/*,image/*"
-                  className="hidden"
-                  onChange={handleTrailFileSelected}
-                />
+                  <h3 className="text-sm sm:text-base font-bold text-white">Create new reel</h3>
 
-                {trailPreviewUrl ? (
-                  <div className="relative aspect-[9/16] max-h-72 w-full mx-auto rounded-2xl overflow-hidden bg-black border border-white/15 flex items-center justify-center group">
+                  <button
+                    type="submit"
+                    disabled={isPublishingTrail}
+                    className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-emerald-950/50 cursor-pointer active:scale-95 transition-all"
+                  >
+                    {isPublishingTrail ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sharing...</span>
+                      </>
+                    ) : (
+                      <span>Share</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden min-h-0">
+                  {/* Left Column: Media Preview */}
+                  <div className="w-full md:w-[46%] lg:w-[48%] bg-black flex items-center justify-center relative shrink-0 min-h-[300px] md:min-h-full border-b md:border-b-0 md:border-r border-white/10">
                     {trailFile?.type.startsWith('image/') ? (
-                      <img src={trailPreviewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <img
+                        src={trailPreviewUrl}
+                        alt="Reel preview"
+                        className="w-full h-full max-h-[550px] object-contain"
+                      />
                     ) : (
                       <video
                         src={trailPreviewUrl}
                         poster={trailPosterUrl}
+                        controls
                         playsInline
                         loop
                         autoPlay
                         muted
-                        className="w-full h-full object-cover"
+                        className="w-full h-full max-h-[550px] object-contain"
                       />
                     )}
+
                     <button
                       type="button"
                       onClick={() => trailUploadInputRef.current?.click()}
-                      className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white text-xs font-bold backdrop-blur-md cursor-pointer flex items-center gap-1.5 transition-all shadow-md"
+                      className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer flex items-center gap-1.5 transition-all shadow-lg hover:scale-105"
                     >
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>Change Media</span>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Replace</span>
                     </button>
                   </div>
-                ) : (
-                  <div
-                    onClick={() => trailUploadInputRef.current?.click()}
-                    className="border-2 border-dashed border-zinc-800 hover:border-emerald-500/60 rounded-2xl p-8 text-center cursor-pointer transition-colors bg-zinc-900/40 hover:bg-zinc-900/80 group"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
-                      <Upload className="w-7 h-7" />
+
+                  {/* Right Column: Reel Details */}
+                  <div className="w-full md:w-[54%] lg:w-[52%] flex flex-col justify-between p-4 sm:p-6 overflow-y-auto space-y-4 bg-zinc-900/60">
+                    <div className="space-y-4">
+                      {/* User Info Strip */}
+                      <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
+                        {profile.avatarUrl ? (
+                          <img
+                            src={profile.avatarUrl}
+                            alt={profile.name}
+                            className="w-8 h-8 rounded-full object-cover border border-white/20"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/30">
+                            {profile.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{profile.name}</p>
+                          <p className="text-[11px] text-zinc-400 truncate">{profile.username || getFallbackUsername(user, userMeta)}</p>
+                        </div>
+                      </div>
+
+                      {/* Combined Caption & Hashtags Box */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-zinc-300">
+                          Caption & Hashtags
+                        </label>
+                        <div className="rounded-2xl bg-zinc-950/80 border border-white/10 focus-within:border-emerald-500 p-3 transition-colors">
+                          <textarea
+                            rows={4}
+                            value={trailCaption}
+                            onChange={(e) => setTrailCaption(e.target.value)}
+                            placeholder="Write a caption and add #hashtags (e.g. Exploring hidden viewpoints! #wanderlust #alps #adventure)..."
+                            className="w-full bg-transparent text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden resize-none leading-relaxed"
+                          />
+
+                          {/* Live Detected Hashtags Badges */}
+                          {detectedTrailHashtags.length > 0 && (
+                            <div className="pt-2 border-t border-white/10 flex flex-wrap gap-1.5 items-center">
+                              <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
+                                Tags:
+                              </span>
+                              {detectedTrailHashtags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Location Input */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-zinc-300">
+                          Add Location
+                        </label>
+                        <div className="relative">
+                          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                          <input
+                            type="text"
+                            value={trailDestination}
+                            onChange={(e) => setTrailDestination(e.target.value)}
+                            placeholder="e.g. Manali, Himachal Pradesh or Amalfi Coast, Italy"
+                            className="w-full bg-zinc-950/80 border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs sm:text-sm font-bold text-white mb-1">
-                      Choose Video or Photo Trail
-                    </p>
-                    <p className="text-[11px] text-zinc-400">
-                      Select MP4, MOV, WebM or travel photos
-                    </p>
+
+                    {/* Bottom Action for Mobile / Tablet */}
+                    <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleResetTrailUpload}
+                        disabled={isPublishingTrail}
+                        className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isPublishingTrail}
+                        className="px-5 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/50 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-40"
+                      >
+                        {isPublishingTrail ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Publishing Reel...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Publish Reel</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Destination / Location */}
-              <div>
-                <label className="block text-zinc-400 font-semibold mb-1">Destination / Location</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Manali, Himachal Pradesh"
-                    value={trailDestination}
-                    onChange={(e) => setTrailDestination(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500"
-                  />
                 </div>
-              </div>
-
-              {/* Caption */}
-              <div>
-                <label className="block text-zinc-400 font-semibold mb-1">Caption / Story</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Share what makes this spot breathtaking..."
-                  value={trailCaption}
-                  onChange={(e) => setTrailCaption(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500 resize-none"
-                />
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-zinc-400 font-semibold mb-1">Tags</label>
-                <input
-                  type="text"
-                  placeholder="e.g. #adventure #nature #sunset (optional)"
-                  value={trailTags}
-                  onChange={(e) => setTrailTags(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-3 border-t border-zinc-850">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsUploadTrailModalOpen(false);
-                    setTrailFile(null);
-                    setTrailPreviewUrl('');
-                    setTrailPosterUrl('');
-                  }}
-                  disabled={isPublishingTrail}
-                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPublishingTrail || !trailPreviewUrl}
-                  className="px-5 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-950/60 active:scale-95"
-                >
-                  {isPublishingTrail ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Publishing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Film className="w-4 h-4" />
-                      <span>Publish Trail</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -1982,16 +2109,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   value={editForm.bio}
                   onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 font-semibold mb-1">Location</label>
-                <input
-                  type="text"
-                  value={editForm.place}
-                  onChange={(e) => setEditForm({ ...editForm, place: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white"
                 />
               </div>
 
