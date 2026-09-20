@@ -472,11 +472,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <Compass className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
             TRAILS
           </span>
-          {trails.length > 0 && (
-            <span className="text-xs font-bold text-neutral-300 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
-              {currentIndex + 1} / {trails.length}
-            </span>
-          )}
         </div>
 
         {/* Upload Trail '+' Button (Upload Video or Photo) */}
