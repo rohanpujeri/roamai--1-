@@ -307,7 +307,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
       const destinationVal = trailDestination.trim() || 'Travel Destination';
       const captionVal = trailCaption.trim() || 'Exploring new places with RoamAI 🌍✈️';
-      const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || 'Travel Reel';
+      const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || 'Travel Trail';
       const extractedTags = (trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
 
       const newTrailItem: UserTrailItem = {
@@ -1910,7 +1910,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
                   <div className="w-8" />
-                  <h3 className="text-sm sm:text-base font-bold text-white text-center">Create new reel</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white text-center">Create new trail</h3>
                   <button
                     type="button"
                     onClick={() => {
@@ -1931,7 +1931,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Upload Travel Reel
+                      Upload Travel Trail
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
                       Select a video or photo from your device to share on your profile and discover feed
@@ -1966,7 +1966,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
-                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New reel</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New trail</h2>
                 </div>
 
                 {/* Scrollable Form Body */}
@@ -1976,7 +1976,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     {trailFile?.type.startsWith('image/') ? (
                       <img
                         src={trailPosterUrl || trailPreviewUrl}
-                        alt="Reel preview"
+                        alt="Trail preview"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -2069,7 +2069,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   {/* Hashtag Suggestions Palette when active */}
                   {showHashtagSuggestionsTrail && (
                     <div className="p-2.5 rounded-2xl bg-[#1c1c1e] border border-white/10 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
-                      {['#travel', '#wanderlust', '#reels', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
+                      {['#travel', '#wanderlust', '#trails', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
                         <button
                           key={tag}
                           type="button"

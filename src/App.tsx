@@ -1208,7 +1208,7 @@ export default function App() {
             onSuccess={() => {
               setUploadTrailFile(null);
               scrollToTab(1);
-              addToast('ai', 'Trail Shared!', 'Your new trail reel is now live.');
+              addToast('ai', 'Trail Shared!', 'Your new trail is now live.');
             }}
           />
         );

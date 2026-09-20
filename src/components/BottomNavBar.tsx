@@ -68,8 +68,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
             }
             onNavigate('trails');
           }}
-          aria-label="Trails Video Reels"
-          title="Trails (Travel Reels)"
+          aria-label="Trails Video Feed"
+          title="Trails"
           className={`relative ${currentView === 'trails' ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'} rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'trails'
               ? 'text-white'

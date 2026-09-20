@@ -709,7 +709,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                   Unfollow {unfollowConfirmUser.username}?
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                  Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
+                  Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
                 </p>
               </div>
 

@@ -8,7 +8,6 @@ import {
   Hash, 
   Camera, 
   MapPin, 
-  Music, 
   Loader2, 
   ChevronRight,
   Check
@@ -37,7 +36,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [caption, setCaption] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [taggedPeople, setTaggedPeople] = useState<string>('');
-  const [audioTitle, setAudioTitle] = useState<string>('Original Travel Sound');
   const [showTagInput, setShowTagInput] = useState<boolean>(false);
   const [showLocationInput, setShowLocationInput] = useState<boolean>(false);
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState<boolean>(false);
@@ -64,13 +62,12 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   useEffect(() => {
     if (!initialFile) {
       try {
-        const rawDraft = localStorage.getItem('roamai_reel_draft');
+        const rawDraft = localStorage.getItem('roamai_trail_draft') || localStorage.getItem('roamai_reel_draft');
         if (rawDraft) {
           const draft = JSON.parse(rawDraft);
           if (draft.caption) setCaption(draft.caption);
           if (draft.destination) setDestination(draft.destination);
           if (draft.taggedPeople) setTaggedPeople(draft.taggedPeople);
-          if (draft.audio) setAudioTitle(draft.audio);
         }
       } catch {}
     }
@@ -121,11 +118,10 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   // Save draft
   const handleSaveDraft = () => {
     try {
-      localStorage.setItem('roamai_reel_draft', JSON.stringify({
+      localStorage.setItem('roamai_trail_draft', JSON.stringify({
         caption,
         destination,
         taggedPeople,
-        audio: audioTitle,
         date: new Date().toISOString()
       }));
       setToastMessage('Draft saved successfully');
@@ -162,7 +158,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
       const extractedHashtags = (caption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
       const finalCaption = caption.trim() || 'Exploring this breathtaking destination! 🌍✈️';
-      const cleanTitle = caption.replace(/#\S+/g, '').trim() || destination.trim() || 'Travel Reel';
+      const cleanTitle = caption.replace(/#\S+/g, '').trim() || destination.trim() || 'Travel Trail';
 
       const newTrail: TrailReel = {
         id: trailId,
@@ -181,7 +177,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         caption: finalCaption,
         destination: destination.trim() || 'Travel Destination',
         tags: extractedHashtags.length > 0 ? extractedHashtags : ['#travel'],
-        audioTitle: audioTitle.trim() || 'Original Travel Sound',
+        audioTitle: '',
         likesCount: 1,
         commentsCount: 0,
         isLiked: true,
@@ -193,6 +189,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
       // Clear draft after publishing
       try {
+        localStorage.removeItem('roamai_trail_draft');
         localStorage.removeItem('roamai_reel_draft');
       } catch {}
 
@@ -256,7 +253,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         </button>
 
         <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
-          {videoPreview ? 'New reel' : 'Upload Trail'}
+          {videoPreview ? 'New trail' : 'Upload Trail'}
         </h1>
 
         <div className="w-10" />
@@ -271,7 +268,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
           <div className="space-y-2">
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Create New Reel
+              Create New Trail
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 max-w-xs mx-auto leading-relaxed">
               Select a travel video or photo from your device to share with explorers across the world.
@@ -292,15 +289,15 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
           </p>
         </main>
       ) : (
-        /* STEP 2: Dedicated Instagram "New reel" Details Collection Page */
+        /* STEP 2: Dedicated "New trail" Details Collection Page */
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full pb-8">
           <div className="px-4 sm:px-6 py-4 space-y-5">
-            {/* Centered Preview Card with "Preview" and "Edit cover" (Matching Instagram UI) */}
+            {/* Centered Preview Card with "Preview" and "Edit cover" */}
             <div className="relative w-44 sm:w-48 aspect-[9/16] max-h-72 mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/15 shadow-2xl flex items-center justify-center group">
               {videoFile?.type.startsWith('image/') ? (
                 <img
                   src={posterPreview || videoPreview}
-                  alt="Reel preview"
+                  alt="Trail preview"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -389,7 +386,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
               {/* Hashtag Suggestions Palette */}
               {showHashtagSuggestions && (
                 <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
-                  {['#travel', '#wanderlust', '#reels', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
+                  {['#travel', '#wanderlust', '#trails', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
                     <button
                       key={tag}
                       type="button"
@@ -435,23 +432,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                   />
                 </div>
               )}
-            </div>
-
-            {/* Row: Audio soundtrack */}
-            <div className="bg-[#141419] border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <Music className="w-5 h-5 text-emerald-400 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-sm font-semibold text-white block">Audio</span>
-                  <input
-                    type="text"
-                    value={audioTitle}
-                    onChange={(e) => setAudioTitle(e.target.value)}
-                    placeholder="Audio name..."
-                    className="text-xs text-zinc-400 bg-transparent border-none p-0 focus:outline-hidden focus:text-white"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Row: Add location */}

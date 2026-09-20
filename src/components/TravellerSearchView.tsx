@@ -724,7 +724,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   </div>
                   <h3 className="text-sm font-bold text-white">No Trails Uploaded Yet</h3>
                   <p className="text-xs text-neutral-400 max-w-xs mx-auto">
-                    When {viewingProfile.name} uploads reels or travel moments, they will appear here.
+                    When {viewingProfile.name} uploads trails or travel moments, they will appear here.
                   </p>
                 </div>
               )
@@ -1399,7 +1399,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 Unfollow @{unfollowConfirmUser.username.replace(/^@/, '')}?
               </h3>
               <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
+                Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
               </p>
             </div>
 

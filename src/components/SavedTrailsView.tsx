@@ -115,7 +115,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
               </span>
             </div>
             <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-              Your bookmarked travel reels & creator spots
+              Your bookmarked travel trails & creator spots
             </p>
           </div>
         </div>
@@ -144,7 +144,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-white">No Saved Trails Yet</h2>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-            When you browse travel reels in Trails, tap the bookmark button to save your favorite reels here for trip inspiration.
+            When you browse travel trails in Trails, tap the bookmark button to save your favorite trails here for trip inspiration.
           </p>
           <button
             onClick={onOpenTrailsTab}

@@ -266,7 +266,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">Bookmarked travel reels</span>
+                  <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">Bookmarked travel trails</span>
                 </div>
               </div>
               <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${

@@ -10,7 +10,6 @@ import {
   Pause, 
   Plus, 
   MapPin, 
-  Music, 
   Upload, 
   X, 
   ChevronUp, 
@@ -613,7 +612,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     // Extract hashtags automatically from the combined caption & hashtags box
     const extractedHashtags = (uploadCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
     const finalCaption = uploadCaption.trim() || 'Exploring this breathtaking destination! 🌍✈️';
-    const cleanTitle = uploadCaption.replace(/#\S+/g, '').trim() || uploadDestination.trim() || 'Travel Reel';
+    const cleanTitle = uploadCaption.replace(/#\S+/g, '').trim() || uploadDestination.trim() || 'Travel Trail';
 
     const newTrail: TrailReel = {
       id: trailId,
@@ -674,7 +673,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <div className="space-y-2">
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">Log in to watch Trails</h2>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Watch travel reels, like and comment on creator spots, and save reels to your personal collection.
+              Watch travel trails, like and comment on creator spots, and save trails to your personal collection.
             </p>
           </div>
 
@@ -1034,23 +1033,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           >
             {isMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
           </button>
-
-          {/* Audio Album Thumbnail */}
-          <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center">
-            {activeReel?.creator?.avatarUrl ? (
-              <img 
-                src={activeReel?.creator?.avatarUrl} 
-                alt="Sound cover"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <span className="text-xs">🎵</span>
-            )}
-          </div>
         </div>
 
         {/* Bottom Left Info & Caption Overlay (Above playline & low bottom nav) */}
@@ -1188,18 +1170,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {activeReel?.caption || ''}
               </p>
 
-              {/* Destination Badge & Audio Soundtrack */}
+              {/* Destination Badge */}
               <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>{activeReel.destination}</span>
                 </span>
-
-                {/* Audio Soundtrack Banner */}
-                <div className="inline-flex items-center gap-1.5 text-neutral-300 text-xs font-medium px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
-                  <Music className="w-3.5 h-3.5 text-white animate-pulse" />
-                  <span className="truncate max-w-[180px]">{activeReel.audioTitle}</span>
-                </div>
               </div>
             </div>
           );
@@ -1366,7 +1342,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
                   <div className="w-8" />
-                  <h3 className="text-sm sm:text-base font-bold text-white text-center">Create new reel</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white text-center">Create new trail</h3>
                   <button
                     type="button"
                     onClick={() => {
@@ -1387,7 +1363,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Upload Travel Reel
+                      Upload Travel Trail
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
                       Select a travel video or photo from your device to share with the community
@@ -1432,7 +1408,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     {uploadVideoFile?.type.startsWith('image/') ? (
                       <img
                         src={uploadPosterPreview || uploadVideoPreview}
-                        alt="Reel preview"
+                        alt="Trail preview"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -1525,7 +1501,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   {/* Hashtag Suggestions Palette when active */}
                   {showHashtagSuggestions && (
                     <div className="p-2.5 rounded-2xl bg-[#1c1c1e] border border-white/10 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
-                      {['#travel', '#wanderlust', '#reels', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
+                      {['#travel', '#wanderlust', '#trails', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
                         <button
                           key={tag}
                           type="button"
@@ -1686,7 +1662,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 Unfollow {(unfollowConfirmCreator?.username || '@traveler').startsWith('@') ? unfollowConfirmCreator?.username : `@${unfollowConfirmCreator?.username || 'traveler'}`}?
               </h3>
               <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
+                Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
               </p>
             </div>
 
