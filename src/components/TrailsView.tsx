@@ -24,11 +24,18 @@ import {
 import { ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
+import {
+  saveTrailMedia,
+  resolveTrailMediaUrl,
+  generateVideoPoster
+} from '../services/trailMediaStorage';
 
 export interface TrailReel {
   id: string;
   videoUrl: string;
   posterUrl?: string;
+  mediaType?: 'video' | 'image';
+  title?: string;
   creator: {
     name: string;
     username: string;
@@ -60,6 +67,56 @@ interface TrailsViewProps {
   onBack: () => void;
 }
 
+const DEFAULT_TRAILS: TrailReel[] = [
+  {
+    id: 'sample-trail-1',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-beach-with-turquoise-water-41221-large.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+    mediaType: 'video',
+    title: 'Tropical Coastal Escape',
+    creator: {
+      name: 'Elena Rostova',
+      username: '@elena_voyages',
+      avatarUrl: '',
+      isFollowed: false
+    },
+    caption: 'Crystal clear turquoise lagoons and untouched coral reefs. Truly paradise on Earth 🌊🏝️',
+    destination: 'Havelock Island, Andaman',
+    tags: ['#BeachVibes', '#IslandLife', '#CoastalRoads'],
+    audioTitle: 'Ocean Breeze • Ambient Waves',
+    likesCount: 1420,
+    commentsCount: 38,
+    isLiked: false,
+    comments: [
+      { id: 'c1', user: 'Arjun M.', avatar: '', text: 'Water looks unreal! Which month is best to visit?', time: '2h ago' },
+      { id: 'c2', user: 'Sarah K.', avatar: '', text: 'Adding this to my bucket list right now! ✈️', time: '5h ago' }
+    ]
+  },
+  {
+    id: 'sample-trail-2',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4',
+    posterUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
+    mediaType: 'video',
+    title: 'Misty Western Ghats Stream',
+    creator: {
+      name: 'Rohan Deshmukh',
+      username: '@rohan_treks',
+      avatarUrl: '',
+      isFollowed: false
+    },
+    caption: 'Secret mountain waterfall hidden deep inside the monsoon valley trek 🌿⛰️',
+    destination: 'Coorg & Western Ghats',
+    tags: ['#MonsoonTrek', '#HiddenGems', '#NatureLovers'],
+    audioTitle: 'Rainforest Stream • Forest Chills',
+    likesCount: 980,
+    commentsCount: 24,
+    isLiked: false,
+    comments: [
+      { id: 'c3', user: 'Pooja V.', avatar: '', text: 'The mist is magic! Was the trail slippery?', time: '1d ago' }
+    ]
+  }
+];
+
 export const TrailsView: React.FC<TrailsViewProps> = ({
   currentTheme,
   session,
@@ -67,18 +124,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onStartPlanning,
   onBack
 }) => {
-  // Load saved user trails
+  // Load saved user trails + defaults
   const [trails, setTrails] = useState<TrailReel[]>(() => {
     try {
       const stored = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return [...parsed, ...DEFAULT_TRAILS];
+        }
       }
     } catch {
       // fallback
     }
-    return [];
+    return DEFAULT_TRAILS;
   });
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -90,9 +149,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
 
+  // Active media resolution states
+  const [activeMediaUrl, setActiveMediaUrl] = useState<string>('');
+  const [activeMediaError, setActiveMediaError] = useState<boolean>(false);
+  const [isMediaLoading, setIsMediaLoading] = useState<boolean>(false);
+
   // Upload modal form state
   const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
   const [uploadVideoPreview, setUploadVideoPreview] = useState<string>('');
+  const [uploadPosterPreview, setUploadPosterPreview] = useState<string>('');
   const [uploadCaption, setUploadCaption] = useState<string>('');
   const [uploadDestination, setUploadDestination] = useState<string>('');
   const [uploadTags, setUploadTags] = useState<string>('#Travel #RoamAI');
@@ -105,6 +170,29 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const dragDistanceRef = useRef<number>(0);
 
   const activeReel = trails[currentIndex] || trails[0];
+
+  // Resolve active media URL whenever active reel changes
+  useEffect(() => {
+    if (!activeReel) {
+      setActiveMediaUrl('');
+      setActiveMediaError(false);
+      return;
+    }
+    let isMounted = true;
+    setActiveMediaError(false);
+    setIsMediaLoading(true);
+
+    resolveTrailMediaUrl(activeReel.id, activeReel.videoUrl).then((resolved) => {
+      if (isMounted) {
+        setActiveMediaUrl(resolved);
+        setIsMediaLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeReel?.id, activeReel?.videoUrl]);
 
   // Auto-play when active reel changes
   useEffect(() => {
@@ -242,22 +330,44 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setNewCommentText('');
   };
 
-  // Video File Selection Handler
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Video / Photo File Selection Handler
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setUploadVideoFile(file);
       const previewUrl = URL.createObjectURL(file);
       setUploadVideoPreview(previewUrl);
+
+      // Generate instant video thumbnail
+      try {
+        const poster = await generateVideoPoster(file);
+        setUploadPosterPreview(poster);
+      } catch (err) {
+        console.warn('Could not generate poster:', err);
+      }
     }
   };
 
   // Submit User Trail
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadVideoPreview) return;
+    if (!uploadVideoFile && !uploadVideoPreview) return;
 
     setIsSubmitting(true);
+    const trailId = `user-trail-${Date.now()}`;
+
+    // 1. Save binary file to IndexedDB for persistent reloadable playback
+    if (uploadVideoFile) {
+      await saveTrailMedia(trailId, uploadVideoFile);
+    }
+
+    // 2. Poster frame
+    let poster = uploadPosterPreview;
+    if (!poster && uploadVideoFile) {
+      poster = await generateVideoPoster(uploadVideoFile);
+    }
+
+    const isImg = uploadVideoFile?.type.startsWith('image/');
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
     const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
     const username = cached?.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
@@ -265,8 +375,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
     const newTrail: TrailReel = {
-      id: `user-trail-${Date.now()}`,
+      id: trailId,
       videoUrl: uploadVideoPreview,
+      posterUrl: poster || undefined,
+      mediaType: isImg ? 'image' : 'video',
+      title: uploadCaption || uploadDestination || 'Travel Reel',
       creator: {
         name: creatorName,
         username: username,
@@ -283,7 +396,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       comments: []
     };
 
-    // Save to user trails in local storage
+    // 3. Save to user trails in local storage
     try {
       const stored = localStorage.getItem('roamai_user_trails');
       const existing = stored ? JSON.parse(stored) : [];
@@ -298,6 +411,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setShowUploadModal(false);
     setUploadVideoFile(null);
     setUploadVideoPreview('');
+    setUploadPosterPreview('');
     setUploadCaption('');
     setUploadDestination('');
   };
@@ -386,33 +500,79 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           }}
           className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
         >
-          {/* Video Player */}
-          <video
-            ref={videoRef}
-            src={activeReel.videoUrl}
-            poster={activeReel.posterUrl}
-          playsInline
-          loop
-          autoPlay
-          muted={isMuted}
-          className="w-full h-full object-cover"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onTimeUpdate={() => {
-            if (videoRef.current && videoRef.current.duration) {
-              setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-            }
-          }}
-        />
+          {/* Video or Image Media Player */}
+          {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
+            <img
+              src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
+              alt={activeReel.caption}
+              className="w-full h-full object-cover select-none"
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              key={activeMediaUrl}
+              src={activeMediaUrl}
+              poster={activeReel.posterUrl}
+              playsInline
+              webkit-playsinline="true"
+              loop
+              autoPlay
+              preload="auto"
+              muted={isMuted}
+              className="w-full h-full object-cover"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onError={() => {
+                setActiveMediaError(true);
+              }}
+              onTimeUpdate={() => {
+                if (videoRef.current && videoRef.current.duration) {
+                  setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                }
+              }}
+            />
+          )}
 
-        {/* Play/Pause Center Overlay Animation */}
-        {!isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none transition-all">
-            <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
-              <Play className="w-8 h-8 fill-white ml-1" />
+          {/* Recovery overlay if old session clip expired */}
+          {activeMediaError && (
+            <div className="absolute inset-0 bg-neutral-950/95 flex flex-col items-center justify-center p-6 text-center space-y-4 z-20">
+              {activeReel.posterUrl && (
+                <img
+                  src={activeReel.posterUrl}
+                  alt="Poster frame"
+                  className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs pointer-events-none"
+                />
+              )}
+              <div className="relative z-10 w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400">
+                <Film className="w-7 h-7" />
+              </div>
+              <div className="relative z-10 space-y-1">
+                <h4 className="text-sm font-bold text-white">Clip Stream Unavailable</h4>
+                <p className="text-xs text-neutral-300 max-w-xs leading-relaxed">
+                  This video was saved in temporary session memory and expired on reload.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowUploadModal(true);
+                }}
+                className="relative z-10 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg cursor-pointer transition-all"
+              >
+                Upload Clip to Replace
+              </button>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Play/Pause Center Overlay Animation */}
+          {!isPlaying && !activeMediaError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none transition-all">
+              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
+                <Play className="w-8 h-8 fill-white ml-1" />
+              </div>
+            </div>
+          )}
 
         {/* Gradient Overlays for readable text */}
         <div className="absolute inset-0 bg-linear-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
@@ -738,29 +898,40 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               {/* Video File Picker */}
               <div>
                 <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">
-                  Select Travel Video (MP4 / WebM / MOV)
+                  Select Travel Video or Photo (MP4 / MOV / WebM / JPG / PNG)
                 </label>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="video/*"
+                  accept="video/*,image/*"
                   onChange={handleFileChange}
                   className="hidden"
                 />
 
                 {uploadVideoPreview ? (
                   <div className="relative rounded-2xl overflow-hidden border border-emerald-500/50 bg-black h-48 flex items-center justify-center">
-                    <video
-                      src={uploadVideoPreview}
-                      controls
-                      className="w-full h-full object-cover"
-                    />
+                    {uploadVideoFile?.type.startsWith('image/') ? (
+                      <img
+                        src={uploadVideoPreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={uploadVideoPreview}
+                        poster={uploadPosterPreview}
+                        controls
+                        playsInline
+                        webkit-playsinline="true"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="absolute top-2 right-2 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-xs font-bold backdrop-blur-md cursor-pointer"
                     >
-                      Change Video
+                      Change Media
                     </button>
                   </div>
                 ) : (
@@ -769,8 +940,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     className="border-2 border-dashed border-neutral-700 hover:border-emerald-500/80 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-neutral-950/60 hover:bg-neutral-950"
                   >
                     <Upload className="w-8 h-8 text-neutral-500 mb-2" />
-                    <p className="text-xs font-bold text-neutral-200">Click to upload your travel clip</p>
-                    <p className="text-[11px] text-neutral-500 mt-1">Supports vertical reel videos or regular clips up to 200MB</p>
+                    <p className="text-xs font-bold text-neutral-200">Click to upload your travel clip or photo</p>
+                    <p className="text-[11px] text-neutral-500 mt-1">Supports vertical video reels and travel photos</p>
                   </div>
                 )}
               </div>

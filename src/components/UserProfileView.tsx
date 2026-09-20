@@ -45,6 +45,12 @@ import {
   sanitizeAvatarUrl,
   processAvatarImageFile
 } from '../services/supabaseClient';
+import {
+  resolveTrailMediaUrl,
+  saveTrailMedia,
+  generateVideoPoster,
+  deleteTrailMedia
+} from '../services/trailMediaStorage';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
@@ -98,6 +104,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   // Active trail for modal playback
   const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
   const [isModalMuted, setIsModalMuted] = useState(true);
+  const [modalMediaUrl, setModalMediaUrl] = useState<string>('');
+  const [modalMediaError, setModalMediaError] = useState<boolean>(false);
+  const [isModalMediaLoading, setIsModalMediaLoading] = useState<boolean>(false);
+  const [isModalPlaying, setIsModalPlaying] = useState<boolean>(true);
+  const modalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // User uploaded trails from local storage
   const [userTrails, setUserTrails] = useState<UserTrailItem[]>(() => {
@@ -105,13 +117,118 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map((t: any) => ({
+            id: t.id,
+            title: t.title || t.caption || t.destination || 'Travel Trail',
+            destination: t.destination || 'Travel Destination',
+            viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+            likesCount: t.likesCount ? String(t.likesCount) : '1',
+            videoUrl: t.videoUrl,
+            posterUrl: t.posterUrl,
+            duration: t.duration,
+            mediaType: t.mediaType || 'video',
+            caption: t.caption || t.title
+          }));
+        }
       }
     } catch {
       // ignore
     }
     return [];
   });
+
+  // Resolve active media URL when previewing a trail
+  useEffect(() => {
+    if (!selectedTrail) {
+      setModalMediaUrl('');
+      setModalMediaError(false);
+      setIsModalMediaLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsModalMediaLoading(true);
+    setModalMediaError(false);
+    setIsModalPlaying(true);
+
+    resolveTrailMediaUrl(selectedTrail.id, selectedTrail.videoUrl).then((resolved) => {
+      if (isMounted) {
+        setModalMediaUrl(resolved);
+        setIsModalMediaLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedTrail?.id, selectedTrail?.videoUrl]);
+
+  const handleReplaceTrailMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTrail) return;
+
+    try {
+      setIsModalMediaLoading(true);
+      setModalMediaError(false);
+
+      await saveTrailMedia(selectedTrail.id, file);
+      const poster = await generateVideoPoster(file);
+      const newMediaUrl = URL.createObjectURL(file);
+      const isImg = file.type.startsWith('image/');
+
+      const updatedTrail: UserTrailItem = {
+        ...selectedTrail,
+        videoUrl: newMediaUrl,
+        posterUrl: poster || selectedTrail.posterUrl,
+        mediaType: isImg ? 'image' : 'video'
+      };
+
+      setSelectedTrail(updatedTrail);
+      setModalMediaUrl(newMediaUrl);
+      setUserTrails((prev) =>
+        prev.map((t) => (t.id === selectedTrail.id ? updatedTrail : t))
+      );
+
+      try {
+        const raw = localStorage.getItem('roamai_user_trails');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const updatedList = list.map((t: any) =>
+              t.id === selectedTrail.id ? { ...t, ...updatedTrail } : t
+            );
+            localStorage.setItem('roamai_user_trails', JSON.stringify(updatedList));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to update trail in localStorage:', err);
+      }
+    } catch (err) {
+      console.error('Failed to replace trail media:', err);
+    } finally {
+      setIsModalMediaLoading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleDeleteTrail = async (trailId: string) => {
+    await deleteTrailMedia(trailId);
+    setSelectedTrail(null);
+    setUserTrails((prev) => prev.filter((t) => t.id !== trailId));
+    try {
+      const raw = localStorage.getItem('roamai_user_trails');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const filtered = list.filter((t: any) => t.id !== trailId);
+          localStorage.setItem('roamai_user_trails', JSON.stringify(filtered));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Filter ONLY completed trips for travel footprint counters (trips, countries, places)
   const completedTrips = React.useMemo(() => {
@@ -891,19 +1008,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     onClick={() => setSelectedTrail(trail)}
                     className="relative aspect-[9/16] overflow-hidden group cursor-pointer bg-zinc-900"
                   >
-                    <img
-                      src={trail.posterUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80'}
-                      alt={trail.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    {trail.posterUrl ? (
+                      <img
+                        src={trail.posterUrl}
+                        alt={trail.title || trail.destination}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-linear-to-b from-zinc-850 to-zinc-950 text-center select-none">
+                        <Film className="w-7 h-7 text-emerald-400 mb-1.5 opacity-90" />
+                        <p className="text-[11px] font-bold text-white line-clamp-1">{trail.destination}</p>
+                        <p className="text-[9px] text-zinc-400 line-clamp-1">{trail.title || 'Travel Trail'}</p>
+                      </div>
+                    )}
 
                     {/* Dark Vignette */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
                     {/* Bottom-left: Play Icon + Views Count (Instagram Reels style) */}
                     <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-bold drop-shadow-md">
                       <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>{trail.viewsCount || '0'}</span>
+                      <span>{trail.viewsCount || '1'}</span>
                     </div>
 
                     {/* Duration in top right */}
@@ -1036,34 +1161,147 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       {/* --- TRAIL VIDEO REEL PREVIEW MODAL --- */}
       {selectedTrail && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-sm aspect-[9/16] rounded-3xl overflow-hidden bg-black border border-white/15 shadow-2xl">
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-sm aspect-[9/16] rounded-3xl overflow-hidden bg-black border border-white/15 shadow-2xl flex items-center justify-center">
             {/* Close button */}
             <button
+              type="button"
               onClick={() => setSelectedTrail(null)}
-              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors cursor-pointer"
+              className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-md"
+              title="Close Trail Preview"
+              aria-label="Close Trail Preview"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Mute button */}
-            <button
-              onClick={() => setIsModalMuted(!isModalMuted)}
-              className="absolute top-4 left-4 z-20 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors cursor-pointer"
-            >
-              {isModalMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </button>
+            {/* Mute button (only for video) */}
+            {selectedTrail.mediaType !== 'image' && (
+              <button
+                type="button"
+                onClick={() => setIsModalMuted(!isModalMuted)}
+                className="absolute top-4 left-4 z-30 w-9 h-9 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-md"
+                title={isModalMuted ? 'Unmute audio' : 'Mute audio'}
+                aria-label={isModalMuted ? 'Unmute audio' : 'Mute audio'}
+              >
+                {isModalMuted ? <VolumeX className="w-4 h-4 text-neutral-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+              </button>
+            )}
 
-            {/* Video */}
-            <video
-              src={selectedTrail.videoUrl}
-              poster={selectedTrail.posterUrl}
-              autoPlay
-              loop
-              playsInline
-              muted={isModalMuted}
-              className="w-full h-full object-cover"
-            />
+            {/* Loading Indicator */}
+            {isModalMediaLoading && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs text-white space-y-2">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+                <span className="text-xs font-semibold text-neutral-300">Loading trail clip...</span>
+              </div>
+            )}
+
+            {/* Media Content: Video or Image */}
+            {selectedTrail.mediaType === 'image' || modalMediaUrl.startsWith('data:image') ? (
+              <img
+                src={modalMediaUrl || selectedTrail.posterUrl || selectedTrail.videoUrl}
+                alt={selectedTrail.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <video
+                ref={modalVideoRef}
+                key={modalMediaUrl}
+                src={modalMediaUrl}
+                poster={selectedTrail.posterUrl}
+                autoPlay
+                loop
+                playsInline
+                webkit-playsinline="true"
+                muted={isModalMuted}
+                preload="auto"
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => {
+                  if (!modalVideoRef.current) return;
+                  if (modalVideoRef.current.paused) {
+                    modalVideoRef.current.play();
+                    setIsModalPlaying(true);
+                  } else {
+                    modalVideoRef.current.pause();
+                    setIsModalPlaying(false);
+                  }
+                }}
+                onPlay={() => setIsModalPlaying(true)}
+                onPause={() => setIsModalPlaying(false)}
+                onLoadedData={() => setIsModalMediaLoading(false)}
+                onPlaying={() => setIsModalMediaLoading(false)}
+                onError={() => {
+                  setModalMediaError(true);
+                  setIsModalMediaLoading(false);
+                }}
+              />
+            )}
+
+            {/* Tap to Play overlay when paused */}
+            {!isModalPlaying && !modalMediaError && (
+              <div
+                onClick={() => {
+                  if (modalVideoRef.current) {
+                    modalVideoRef.current.play();
+                    setIsModalPlaying(true);
+                  }
+                }}
+                className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 cursor-pointer"
+              >
+                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
+                  <Play className="w-8 h-8 fill-white ml-1" />
+                </div>
+              </div>
+            )}
+
+            {/* Error & Recovery Overlay if media URL was dead/expired */}
+            {modalMediaError && (
+              <div className="absolute inset-0 z-25 bg-neutral-950/95 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                {selectedTrail.posterUrl && (
+                  <img
+                    src={selectedTrail.posterUrl}
+                    alt="Poster frame"
+                    className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs pointer-events-none"
+                  />
+                )}
+                <div className="relative z-10 w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-emerald-400">
+                  <Film className="w-7 h-7" />
+                </div>
+                <div className="relative z-10 space-y-1">
+                  <h4 className="text-sm font-bold text-white">Clip Stream Unavailable</h4>
+                  <p className="text-xs text-neutral-300 max-w-xs leading-relaxed">
+                    This video was saved in temporary session memory and expired on page reload.
+                  </p>
+                </div>
+                <div className="relative z-10 flex items-center gap-2 pt-2">
+                  <input
+                    ref={replaceFileInputRef}
+                    type="file"
+                    accept="video/*,image/*"
+                    className="hidden"
+                    onChange={handleReplaceTrailMedia}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => replaceFileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg cursor-pointer active:scale-95"
+                  >
+                    <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Re-upload Clip</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTrail(selectedTrail.id)}
+                    className="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Gradient Overlays for readable text */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30 pointer-events-none z-10" />
 
             {/* Bottom info */}
             <div className="absolute bottom-4 left-4 right-4 z-20 space-y-1.5 text-left pointer-events-auto">
@@ -1071,8 +1309,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <MapPin className="w-3.5 h-3.5" />
                 <span>{selectedTrail.destination}</span>
               </div>
-              <p className="text-xs text-white font-medium leading-snug line-clamp-2">
-                {selectedTrail.title}
+              <p className="text-xs text-white font-medium leading-snug line-clamp-2 drop-shadow-sm">
+                {selectedTrail.title || selectedTrail.caption}
               </p>
               <div className="flex items-center gap-4 text-xs text-zinc-300 pt-1">
                 <span className="flex items-center gap-1">
