@@ -219,6 +219,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
+  const handlePlaylineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (!videoRef.current || !videoRef.current.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const newProgress = Math.max(0, Math.min(1, clickX / rect.width));
+    videoRef.current.currentTime = newProgress * videoRef.current.duration;
+    setProgress(newProgress * 100);
+  };
+
   // Mouse wheel scroll to change trails (with throttle)
   const lastWheelTimeRef = useRef<number>(0);
   const handleWheel = (e: React.WheelEvent) => {
@@ -601,8 +611,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Gradient Overlays for readable text */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-        {/* Right Action Sidebar (Instagram Reels style) */}
-        <div className="absolute right-4 sm:right-8 bottom-24 sm:bottom-20 z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
+        {/* Right Action Sidebar (Instagram Reels style - Lifted up above playline & bottom nav) */}
+        <div className="absolute right-4 sm:right-8 bottom-[116px] sm:bottom-[128px] z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
           {/* Like Button */}
           <button
             type="button"
@@ -696,8 +706,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </div>
         </div>
 
-        {/* Bottom Left Info & Caption Overlay */}
-        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-24 sm:bottom-20 z-20 space-y-2.5 pointer-events-none max-w-xl">
+        {/* Bottom Left Info & Caption Overlay (Lifted up cleanly above playline & bottom nav) */}
+        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[116px] sm:bottom-[128px] z-20 space-y-2.5 pointer-events-none max-w-xl">
           {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
           <div className="flex items-center gap-2.5 pointer-events-auto">
             {/* Circular Photo with Gradient Ring */}
@@ -788,12 +798,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </div>
         </div>
 
-        {/* Video Progress Bar (Thin white line across the bottom) */}
-        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20 z-30 pointer-events-none">
-          <div
-            className="h-full bg-white transition-all duration-75"
-            style={{ width: `${progress}%` }}
-          />
+        {/* Video Playline directly above Bottom Navigation Bar (matches Instagram Reels design) */}
+        <div 
+          onClick={handlePlaylineClick}
+          className="absolute bottom-[80px] sm:bottom-[92px] left-4 right-4 sm:left-8 sm:right-8 z-30 py-2 cursor-pointer pointer-events-auto group/playline"
+          title="Video playback progress"
+        >
+          <div className="w-full h-[3px] bg-white/30 group-hover/playline:h-[4.5px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
+            <div
+              className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
       </div>
       )}
