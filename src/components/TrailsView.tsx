@@ -43,10 +43,12 @@ export interface TrailReel {
   mediaType?: 'video' | 'image';
   title?: string;
   creator: {
+    id?: string;
     name: string;
     username: string;
     avatarUrl: string;
     isFollowed?: boolean;
+    isVerified?: boolean;
   };
   caption: string;
   destination: string;
@@ -414,10 +416,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       mediaType: isImg ? 'image' : 'video',
       title: uploadCaption || uploadDestination || 'Travel Reel',
       creator: {
+        id: session?.user?.id,
         name: creatorName,
         username: username,
         avatarUrl: avatarUrl,
-        isFollowed: true
+        isFollowed: false,
+        isVerified: false
       },
       caption: uploadCaption || 'Exploring this breathtaking destination! 🌍✈️',
       destination: uploadDestination || 'Travel Destination',
@@ -721,84 +725,103 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </div>
 
         {/* Bottom Left Info & Caption Overlay (Above playline & low bottom nav) */}
-        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
-          {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
-          <div className="flex items-center gap-2.5 pointer-events-auto">
-            {/* Clean Circular Photo (Instagram Reels style - no ring) */}
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center">
-              {activeReel.creator.avatarUrl ? (
-                <img
-                  src={activeReel.creator.avatarUrl}
-                  alt={activeReel.creator.username}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs select-none">
-                  {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+        {(() => {
+          const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
+          const currentUsername = (
+            cachedUser?.username ||
+            (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '')
+          ).toLowerCase().replace(/^@/, '');
+          const creatorUsername = (activeReel.creator.username || '').toLowerCase().replace(/^@/, '');
+          const isOwnTrail = Boolean(
+            (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
+            (session?.user?.id && activeReel.creator?.id && activeReel.creator.id === session.user.id)
+          );
+
+          return (
+            <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
+              {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
+              <div className="flex items-center gap-2.5 pointer-events-auto">
+                {/* Clean Circular Photo (Instagram Reels style - no ring) */}
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center">
+                  {activeReel.creator.avatarUrl ? (
+                    <img
+                      src={activeReel.creator.avatarUrl}
+                      alt={activeReel.creator.username}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs select-none">
+                      {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Username only (no full name) */}
+                <span className="text-sm font-bold text-white tracking-wide drop-shadow-md">
+                  {activeReel.creator.username.replace(/^@/, '')}
+                </span>
+
+                {/* Verified Badge (only if creator is verified) */}
+                {activeReel.creator.isVerified && (
+                  <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs" title="Verified Creator">
+                    ✓
+                  </span>
+                )}
+
+                {/* Follow / Following Button (hidden for own profile) */}
+                {!isOwnTrail && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTrails((prev) =>
+                        prev.map((t, idx) => {
+                          if (idx === currentIndex) {
+                            return {
+                              ...t,
+                              creator: { ...t.creator, isFollowed: !t.creator.isFollowed }
+                            };
+                          }
+                          return t;
+                        })
+                      );
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                      activeReel.creator.isFollowed
+                        ? 'bg-white/20 border-white/30 text-white'
+                        : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
+                    }`}
+                  >
+                    {activeReel.creator.isFollowed ? 'Following' : 'Follow'}
+                  </button>
+                )}
+              </div>
+
+              {/* Caption */}
+              <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm font-medium">
+                {activeReel.caption}
+              </p>
+
+              {/* Destination Badge & Audio Soundtrack */}
+              <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{activeReel.destination}</span>
+                </span>
+
+                {/* Audio Soundtrack Banner */}
+                <div className="inline-flex items-center gap-1.5 text-neutral-300 text-xs font-medium px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
+                  <Music className="w-3.5 h-3.5 text-white animate-pulse" />
+                  <span className="truncate max-w-[180px]">{activeReel.audioTitle}</span>
+                </div>
+              </div>
             </div>
-
-            {/* Username only (no full name) */}
-            <span className="text-sm font-bold text-white tracking-wide drop-shadow-md">
-              {activeReel.creator.username.replace(/^@/, '')}
-            </span>
-
-            {/* Verified Badge */}
-            <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs">
-              ✓
-            </span>
-
-            {/* Follow / Following Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setTrails((prev) =>
-                  prev.map((t, idx) => {
-                    if (idx === currentIndex) {
-                      return {
-                        ...t,
-                        creator: { ...t.creator, isFollowed: !t.creator.isFollowed }
-                      };
-                    }
-                    return t;
-                  })
-                );
-              }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                activeReel.creator.isFollowed
-                  ? 'bg-white/20 border-white/30 text-white'
-                  : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
-              }`}
-            >
-              {activeReel.creator.isFollowed ? 'Following' : 'Follow'}
-            </button>
-          </div>
-
-          {/* Caption */}
-          <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm font-medium">
-            {activeReel.caption}
-          </p>
-
-          {/* Destination Badge & Audio Soundtrack */}
-          <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>{activeReel.destination}</span>
-            </span>
-
-            {/* Audio Soundtrack Banner */}
-            <div className="inline-flex items-center gap-1.5 text-neutral-300 text-xs font-medium px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
-              <Music className="w-3.5 h-3.5 text-white animate-pulse" />
-              <span className="truncate max-w-[180px]">{activeReel.audioTitle}</span>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Video Playline directly above low Bottom Navigation Bar (matches Instagram Reels design) */}
         <div 

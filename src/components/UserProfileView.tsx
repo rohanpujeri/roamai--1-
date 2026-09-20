@@ -232,10 +232,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         mediaType: isImg ? 'image' : 'video',
         title: captionVal,
         creator: {
+          id: user?.id,
           name: profile.name,
           username: cleanUsername,
           avatarUrl: profile.avatarUrl,
-          isFollowed: true
+          isFollowed: false,
+          isVerified: false
         },
         caption: captionVal,
         destination: destinationVal,
