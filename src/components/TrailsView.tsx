@@ -120,7 +120,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [uploadPosterPreview, setUploadPosterPreview] = useState<string>('');
   const [uploadCaption, setUploadCaption] = useState<string>('');
   const [uploadDestination, setUploadDestination] = useState<string>('');
-  const [uploadTags, setUploadTags] = useState<string>('#Travel #RoamAI');
+  const [uploadTags, setUploadTags] = useState<string>('');
   const [uploadAudio, setUploadAudio] = useState<string>('Original Travel Sound');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -398,14 +398,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           )}
         </div>
 
-        {/* Upload Trail Button */}
+        {/* Upload Trail '+' Button (Upload Video or Photo) */}
         <button
           type="button"
           onClick={() => setShowUploadModal(true)}
-          className="px-3 py-1.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/50 cursor-pointer transition-all hover:scale-105 active:scale-95"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-950/50 cursor-pointer transition-all hover:scale-110 active:scale-95"
+          title="Upload trail (video or photo)"
+          aria-label="Upload trail (video or photo)"
         >
-          <Upload className="w-3.5 h-3.5" />
-          <span>Upload Trail</span>
+          <Plus className="w-5 h-5 stroke-[2.5]" />
         </button>
       </div>
 
@@ -426,7 +427,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <div className="space-y-2">
             <h3 className="text-xl font-bold text-white tracking-tight">No Trails Yet</h3>
             <p className="text-xs sm:text-sm text-neutral-400 max-w-xs leading-relaxed">
-              Be the first explorer to upload a travel reel and inspire the community with your adventures.
+              Be the first explorer to upload a travel trail and inspire the community with your adventures.
             </p>
           </div>
           <button
@@ -434,7 +435,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={() => setShowUploadModal(true)}
             className="px-6 py-3 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm flex items-center gap-2 shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-105 active:scale-95"
           >
-            <Upload className="w-4 h-4" />
+            <Plus className="w-4 h-4 stroke-[3]" />
             <span>Upload First Trail</span>
           </button>
         </div>
@@ -842,7 +843,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">Upload Travel Trail</h3>
-                  <p className="text-[11px] text-neutral-400">Share your travel reel with other travellers</p>
+                  <p className="text-[11px] text-neutral-400">Share your travel trail with other travellers</p>
                 </div>
               </div>
               <button
@@ -901,7 +902,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   >
                     <Upload className="w-8 h-8 text-neutral-500 mb-2" />
                     <p className="text-xs font-bold text-neutral-200">Click to upload your travel clip or photo</p>
-                    <p className="text-[11px] text-neutral-500 mt-1">Supports vertical video reels and travel photos</p>
+                    <p className="text-[11px] text-neutral-500 mt-1">Supports travel videos and photos</p>
                   </div>
                 )}
               </div>
@@ -947,7 +948,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   type="text"
                   value={uploadTags}
                   onChange={(e) => setUploadTags(e.target.value)}
-                  placeholder="#Beach #Trek #SoloTravel"
+                  placeholder="e.g. #beach #trek #nature (optional)"
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
                 />
               </div>

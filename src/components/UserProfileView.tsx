@@ -153,7 +153,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailPosterUrl, setTrailPosterUrl] = useState<string>('');
   const [trailDestination, setTrailDestination] = useState<string>('');
   const [trailCaption, setTrailCaption] = useState<string>('');
-  const [trailTags, setTrailTags] = useState<string>('#Travel #RoamAI');
+  const [trailTags, setTrailTags] = useState<string>('');
   const [isPublishingTrail, setIsPublishingTrail] = useState<boolean>(false);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -253,7 +253,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setTrailDestination('');
       setTrailCaption('');
       setActiveTab('trails');
-      setAvatarToast('Trail reel uploaded to your profile!');
+      setAvatarToast('Trail uploaded to your profile!');
       setTimeout(() => setAvatarToast(null), 3500);
     } catch (err: any) {
       console.error('Error publishing trail:', err);
@@ -754,9 +754,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <p className="text-xs font-bold text-white leading-snug">World Map</p>
               <p className="text-[10px] text-zinc-500 mt-0.5">Track countries</p>
             </div>
-            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-850">
+            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-855">
               <Film className="w-4 h-4 mb-1.5" style={{ color: currentTheme.primaryColor }} />
-              <p className="text-xs font-bold text-white leading-snug">Travel Reels</p>
+              <p className="text-xs font-bold text-white leading-snug">Travel Trails</p>
               <p className="text-[10px] text-zinc-500 mt-0.5">Post travel trails</p>
             </div>
           </div>
@@ -903,7 +903,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Edit profile | Share profile | + Reel | Sign Out */}
+        {/* Action Buttons: Edit profile | Share profile | Sign Out */}
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={() => {
@@ -921,21 +921,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             Share profile
           </button>
           <button
-            onClick={() => setIsUploadTrailModalOpen(true)}
-            className="py-1.5 sm:py-2 px-3 rounded-lg bg-linear-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 active:from-emerald-700 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer text-center flex items-center gap-1.5 shrink-0 shadow-md active:scale-95"
-            title="Upload Reel to Profile"
-          >
-            <Film className="w-3.5 h-3.5 text-white" />
-            <span>+ Reel</span>
-          </button>
-          <button
             onClick={async () => {
               const supabase = getSupabaseClient();
               if (supabase) {
                 await supabase.auth.signOut();
               }
             }}
-            className="py-1.5 sm:py-2 px-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+            className="py-1.5 sm:py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
             title="Sign Out"
             aria-label="Sign Out"
           >
@@ -1024,7 +1016,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
               activeTab === 'trails' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
             }`}
-            title="Trails (User Uploaded Reels)"
+            title="Trails (User Uploaded Trails)"
           >
             <Film className="w-5 h-5 sm:w-6 sm:h-6" />
             {activeTab === 'trails' && (
@@ -1132,13 +1124,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         )}
 
-        {/* --- TAB 2: TRAILS (3-COLUMN REELS VIDEO GRID) --- */}
+        {/* --- TAB 2: TRAILS (3-COLUMN VIDEO GRID) --- */}
         {activeTab === 'trails' && (
           <div>
             <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-850 mb-1">
               <span className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
                 <Film className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Reels & Video Trails ({userTrails.length})</span>
+                <span>Travel Trails ({userTrails.length})</span>
               </span>
               <button
                 type="button"
@@ -1146,7 +1138,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 className="px-3 py-1 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all shadow-md active:scale-95"
               >
                 <Plus className="w-3 h-3 stroke-[3]" />
-                <span>Upload Reel</span>
+                <span>Upload Trail</span>
               </button>
             </div>
 
@@ -1158,7 +1150,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <div className="space-y-1">
                   <h4 className="text-sm sm:text-base font-bold text-white">No Trails Uploaded Yet</h4>
                   <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                    Share your travel moments and vertical video reels with the RoamAI community.
+                    Share your travel moments, video clips, and photo trails with the RoamAI community.
                   </p>
                 </div>
                 <button
@@ -1166,8 +1158,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   onClick={() => setIsUploadTrailModalOpen(true)}
                   className="px-5 py-2.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 mx-auto shadow-xl shadow-emerald-950/50 cursor-pointer transition-transform hover:scale-105 active:scale-95"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload First Reel</span>
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Upload First Trail</span>
                 </button>
               </div>
             ) : (
@@ -1508,8 +1500,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   <Film className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-white">Upload Trail Reel</h3>
-                  <p className="text-[11px] text-zinc-400">Add a vertical video or photo reel to your profile</p>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Upload Travel Trail</h3>
+                  <p className="text-[11px] text-zinc-400">Add a travel video or photo trail to your profile</p>
                 </div>
               </div>
               <button
@@ -1570,10 +1562,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       <Upload className="w-7 h-7" />
                     </div>
                     <p className="text-xs sm:text-sm font-bold text-white mb-1">
-                      Choose Video or Photo Reel
+                      Choose Video or Photo Trail
                     </p>
                     <p className="text-[11px] text-zinc-400">
-                      Select MP4, MOV, WebM or travel photos (9:16 vertical recommended)
+                      Select MP4, MOV, WebM or travel photos
                     </p>
                   </div>
                 )}
@@ -1613,7 +1605,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <label className="block text-zinc-400 font-semibold mb-1">Tags</label>
                 <input
                   type="text"
-                  placeholder="#Travel #Adventure #Nature"
+                  placeholder="e.g. #adventure #nature #sunset (optional)"
                   value={trailTags}
                   onChange={(e) => setTrailTags(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500"
@@ -1648,7 +1640,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   ) : (
                     <>
                       <Film className="w-4 h-4" />
-                      <span>Publish Reel</span>
+                      <span>Publish Trail</span>
                     </>
                   )}
                 </button>
