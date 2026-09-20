@@ -289,6 +289,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     };
   }, [selectedTrail?.id, selectedTrail?.videoUrl]);
 
+  // Keyboard navigation for selectedTrail modal (Escape to close, Space to pause/play)
+  useEffect(() => {
+    if (!selectedTrail) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedTrail(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTrail]);
+
   const handleReplaceTrailMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedTrail) return;
@@ -1321,19 +1333,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         )}
       </div>
 
-      {/* --- TRAIL VIDEO REEL PREVIEW MODAL --- */}
+      {/* --- TRAIL VIDEO REEL PREVIEW MODAL (FULL SCREEN) --- */}
       {selectedTrail && (
-        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="relative w-full max-w-sm aspect-[9/16] rounded-3xl overflow-hidden bg-black border border-white/15 shadow-2xl flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] bg-black w-full h-full flex items-center justify-center animate-fade-in select-none">
+          <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
             {/* Close button */}
             <button
               type="button"
               onClick={() => setSelectedTrail(null)}
-              className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-md"
-              title="Close Trail Preview"
-              aria-label="Close Trail Preview"
+              className="absolute top-5 right-6 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-110 active:scale-95"
+              title="Close Trail Preview (Esc)"
+              aria-label="Close Trail Preview (Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
 
             {/* Mute button (only for video) */}
@@ -1341,11 +1353,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsModalMuted(!isModalMuted)}
-                className="absolute top-4 left-4 z-30 w-9 h-9 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-md"
+                className="absolute top-5 left-6 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-110 active:scale-95"
                 title={isModalMuted ? 'Unmute audio' : 'Mute audio'}
                 aria-label={isModalMuted ? 'Unmute audio' : 'Mute audio'}
               >
-                {isModalMuted ? <VolumeX className="w-4 h-4 text-neutral-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                {isModalMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
               </button>
             )}
 
@@ -1362,7 +1374,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <img
                 src={modalMediaUrl || selectedTrail.posterUrl || selectedTrail.videoUrl}
                 alt={selectedTrail.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover select-none"
               />
             ) : (
               <video
@@ -1465,22 +1477,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             {/* Gradient Overlays for readable text */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30 pointer-events-none z-10" />
 
-            {/* Bottom info */}
-            <div className="absolute bottom-4 left-4 right-4 z-20 space-y-1.5 text-left pointer-events-auto">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                <MapPin className="w-3.5 h-3.5" />
+            {/* Bottom info (Full-screen overlay) */}
+            <div className="absolute bottom-8 sm:bottom-10 left-6 sm:left-10 right-6 sm:right-10 z-20 space-y-2 text-left pointer-events-auto max-w-2xl">
+              <div className="flex items-center gap-2 text-sm font-bold text-emerald-400">
+                <MapPin className="w-4 h-4" />
                 <span>{selectedTrail.destination}</span>
               </div>
-              <p className="text-xs text-white font-medium leading-snug line-clamp-2 drop-shadow-sm">
+              <p className="text-sm sm:text-base text-white font-medium leading-snug line-clamp-3 drop-shadow-md">
                 {selectedTrail.title || selectedTrail.caption}
               </p>
-              <div className="flex items-center gap-4 text-xs text-zinc-300 pt-1">
-                <span className="flex items-center gap-1">
-                  <Play className="w-3.5 h-3.5 fill-white" />
+              <div className="flex items-center gap-5 text-xs sm:text-sm text-zinc-300 pt-1">
+                <span className="flex items-center gap-1.5">
+                  <Play className="w-4 h-4 fill-white" />
                   {selectedTrail.viewsCount} views
                 </span>
-                <span className="flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                <span className="flex items-center gap-1.5">
+                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
                   {selectedTrail.likesCount}
                 </span>
               </div>

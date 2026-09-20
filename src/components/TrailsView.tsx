@@ -219,6 +219,53 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
+  // Mouse wheel scroll to change trails (with throttle)
+  const lastWheelTimeRef = useRef<number>(0);
+  const handleWheel = (e: React.WheelEvent) => {
+    if (showComments || showUploadModal) return;
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 450) return;
+
+    if (e.deltaY > 40) {
+      lastWheelTimeRef.current = now;
+      handleNextReel();
+    } else if (e.deltaY < -40) {
+      lastWheelTimeRef.current = now;
+      handlePrevReel();
+    }
+  };
+
+  // Keyboard navigation for full screen reels (ArrowDown/Up, J/K, Space, M)
+  useEffect(() => {
+    if (!isActive || showComments || showUploadModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        handleNextReel();
+      } else if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        handlePrevReel();
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        if (videoRef.current) {
+          videoRef.current.muted = !isMuted;
+          setIsMuted(!isMuted);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isActive, showComments, showUploadModal, currentIndex, trails.length, isMuted, isPlaying]);
+
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     setTrails((prev) =>
@@ -377,7 +424,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex items-center justify-center select-none">
+    <div 
+      onWheel={handleWheel}
+      className="relative w-full h-full min-h-screen bg-black overflow-hidden flex items-center justify-center select-none"
+    >
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
         className="absolute inset-0 bg-cover bg-center blur-3xl opacity-25 scale-110 pointer-events-none transition-all duration-700"
@@ -385,14 +435,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       />
 
       {/* Top Floating Action Bar */}
-      <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between max-w-md mx-auto pointer-events-auto">
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center gap-1.5 shadow-lg">
-            <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
+      <div className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto">
+        <div className="flex items-center gap-2.5">
+          <span className="px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center gap-2 shadow-xl">
+            <Compass className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
             TRAILS
           </span>
           {trails.length > 0 && (
-            <span className="text-[11px] font-bold text-neutral-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+            <span className="text-xs font-bold text-neutral-300 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
               {currentIndex + 1} / {trails.length}
             </span>
           )}
@@ -402,11 +452,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <button
           type="button"
           onClick={() => setShowUploadModal(true)}
-          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-950/50 cursor-pointer transition-all hover:scale-110 active:scale-95"
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-linear-to-tr from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-white flex items-center justify-center shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-110 active:scale-95 border border-white/20"
           title="Upload trail (video or photo)"
           aria-label="Upload trail (video or photo)"
         >
-          <Plus className="w-5 h-5 stroke-[2.5]" />
+          <Plus className="w-6 h-6 stroke-[2.5]" />
         </button>
       </div>
 
@@ -418,24 +468,24 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </div>
       )}
 
-      {/* Main Reel Container (9:16 mobile aspect ratio on desktop) */}
+      {/* Main Reel Full Screen Container */}
       {!activeReel ? (
-        <div className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex flex-col items-center justify-center p-8 text-center space-y-5">
-          <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner">
-            <Film className="w-10 h-10" />
+        <div className="relative w-full h-full overflow-hidden bg-black flex flex-col items-center justify-center p-8 text-center space-y-6">
+          <div className="w-24 h-24 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner">
+            <Film className="w-12 h-12" />
           </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-bold text-white tracking-tight">No Trails Yet</h3>
-            <p className="text-xs sm:text-sm text-neutral-400 max-w-xs leading-relaxed">
+          <div className="space-y-2 max-w-md">
+            <h3 className="text-2xl font-bold text-white tracking-tight">No Trails Yet</h3>
+            <p className="text-sm text-neutral-400 leading-relaxed">
               Be the first explorer to upload a travel trail and inspire the community with your adventures.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowUploadModal(true)}
-            className="px-6 py-3 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm flex items-center gap-2 shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-105 active:scale-95"
+            className="px-8 py-3.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-base flex items-center gap-2.5 shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-105 active:scale-95"
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
+            <Plus className="w-5 h-5 stroke-[3]" />
             <span>Upload First Trail</span>
           </button>
         </div>
@@ -452,6 +502,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               dragDistanceRef.current = Math.hypot(dx, dy);
             }
           }}
+          onTouchEnd={(e) => {
+            if (touchStartRef.current) {
+              const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+              if (dy < -60) {
+                // Swiped up -> next trail
+                handleNextReel();
+              } else if (dy > 60) {
+                // Swiped down -> previous trail
+                handlePrevReel();
+              }
+              touchStartRef.current = null;
+            }
+          }}
           onClick={() => {
             if (dragDistanceRef.current > 15) {
               dragDistanceRef.current = 0;
@@ -459,7 +522,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }
             togglePlay();
           }}
-          className="relative w-full h-full max-w-[420px] sm:h-[92%] sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-white/10 flex items-center justify-center cursor-pointer group"
+          className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group"
         >
           {/* Video or Image Media Player */}
           {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
@@ -536,24 +599,24 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           )}
 
         {/* Gradient Overlays for readable text */}
-        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-        {/* Right Action Sidebar */}
-        <div className="absolute right-3 bottom-20 sm:bottom-16 z-20 flex flex-col items-center gap-3.5 pointer-events-auto">
+        {/* Right Action Sidebar (Instagram Reels style) */}
+        <div className="absolute right-4 sm:right-8 bottom-24 sm:bottom-20 z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
           {/* Like Button */}
           <button
             type="button"
             onClick={handleLike}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 ${
-              activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/40 hover:bg-black/60 text-white'
+            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
+              activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/50 hover:bg-black/70 text-white'
             }`}>
               <Heart className={`w-6 h-6 transition-transform group-active/btn:scale-75 ${
                 activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white'
               }`} />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs font-bold text-white drop-shadow-md">
               {activeReel.likesCount}
             </span>
           </button>
@@ -567,10 +630,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
               <MessageCircle className="w-6 h-6" />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs font-bold text-white drop-shadow-md">
               {activeReel.commentsCount}
             </span>
           </button>
@@ -581,12 +644,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleSave}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
-              activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/40 hover:bg-black/60 text-white'
+            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl ${
+              activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/50 hover:bg-black/70 text-white'
             }`}>
               <Bookmark className={`w-6 h-6 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs font-bold text-white drop-shadow-md">
               Save
             </span>
           </button>
@@ -597,10 +660,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleShare}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
               <Share2 className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs font-bold text-white drop-shadow-md">
               Share
             </span>
           </button>
@@ -609,14 +672,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={toggleMute}
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
           </button>
 
-          {/* Audio Album Thumbnail (Matches Instagram Reels screenshot at bottom right) */}
-          <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center">
+          {/* Audio Album Thumbnail */}
+          <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center">
             {activeReel.creator.avatarUrl ? (
               <img 
                 src={activeReel.creator.avatarUrl} 
@@ -634,35 +697,35 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </div>
 
         {/* Bottom Left Info & Caption Overlay */}
-        <div className="absolute left-4 right-16 bottom-16 sm:bottom-12 z-20 space-y-2 pointer-events-none">
+        <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-24 sm:bottom-20 z-20 space-y-2.5 pointer-events-none max-w-xl">
           {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
           <div className="flex items-center gap-2.5 pointer-events-auto">
             {/* Circular Photo with Gradient Ring */}
-            <div className="p-[2px] rounded-full bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md shrink-0">
+            <div className="p-[2px] rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md shrink-0">
               {activeReel.creator.avatarUrl ? (
                 <img
                   src={activeReel.creator.avatarUrl}
                   alt={activeReel.creator.username}
-                  className="w-9 h-9 rounded-full object-cover border-2 border-black"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-black"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs border-2 border-black select-none">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs border-2 border-black select-none">
                   {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
                 </div>
               )}
             </div>
 
             {/* Username only (no full name) */}
-            <span className="text-xs sm:text-sm font-bold text-white tracking-wide drop-shadow-md">
+            <span className="text-sm font-bold text-white tracking-wide drop-shadow-md">
               {activeReel.creator.username.replace(/^@/, '')}
             </span>
 
             {/* Verified Badge */}
-            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-black shrink-0 shadow-xs">
+            <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs">
               ✓
             </span>
 
@@ -700,8 +763,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           {/* Destination Badge & Plan Trip CTA */}
           <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold shadow-sm">
-              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>{activeReel.destination}</span>
             </span>
 
@@ -711,22 +774,22 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 e.stopPropagation();
                 onStartPlanning(activeReel.destination);
               }}
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black shadow-md cursor-pointer transition-transform hover:scale-105"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-md cursor-pointer transition-transform hover:scale-105"
             >
-              <Sparkles className="w-3 h-3" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Plan Trip</span>
             </button>
 
             {/* Audio Soundtrack Banner */}
-            <div className="inline-flex items-center gap-1.5 text-neutral-300 text-[11px] font-medium px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
-              <Music className="w-3 h-3 text-white animate-pulse" />
-              <span className="truncate max-w-[150px]">{activeReel.audioTitle}</span>
+            <div className="inline-flex items-center gap-1.5 text-neutral-300 text-xs font-medium px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
+              <Music className="w-3.5 h-3.5 text-white animate-pulse" />
+              <span className="truncate max-w-[180px]">{activeReel.audioTitle}</span>
             </div>
           </div>
         </div>
 
         {/* Video Progress Bar (Thin white line across the bottom) */}
-        <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-white/20 z-30 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20 z-30 pointer-events-none">
           <div
             className="h-full bg-white transition-all duration-75"
             style={{ width: `${progress}%` }}
@@ -736,22 +799,22 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       )}
 
       {/* Up / Down Navigation Chevrons for Desktop / Tablet */}
-      <div className="hidden sm:flex flex-col gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-30">
+      <div className="hidden sm:flex flex-col gap-3 absolute right-6 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
         <button
           type="button"
           onClick={handlePrevReel}
-          className="w-10 h-10 rounded-full bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg cursor-pointer"
-          title="Previous Trail"
+          className="w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all hover:scale-110 shadow-xl cursor-pointer active:scale-95"
+          title="Previous Trail (Up Arrow)"
         >
-          <ChevronUp className="w-5 h-5" />
+          <ChevronUp className="w-6 h-6" />
         </button>
         <button
           type="button"
           onClick={handleNextReel}
-          className="w-10 h-10 rounded-full bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg cursor-pointer"
-          title="Next Trail"
+          className="w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all hover:scale-110 shadow-xl cursor-pointer active:scale-95"
+          title="Next Trail (Down Arrow)"
         >
-          <ChevronDown className="w-5 h-5" />
+          <ChevronDown className="w-6 h-6" />
         </button>
       </div>
 
