@@ -169,7 +169,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailCaption, setTrailCaption] = useState<string>('');
   const [trailTags, setTrailTags] = useState<string>('');
   const [isPublishingTrail, setIsPublishingTrail] = useState<boolean>(false);
-  const [isDraggingOverTrail, setIsDraggingOverTrail] = useState<boolean>(false);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
@@ -184,7 +183,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTrailDestination('');
     setTrailCaption('');
     setTrailTags('');
-    setIsDraggingOverTrail(false);
     if (trailUploadInputRef.current) {
       trailUploadInputRef.current.value = '';
     }
@@ -210,26 +208,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   };
 
-  const handleDropTrailMedia = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOverTrail(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('video/') || file.type.startsWith('image/'))) {
-      setTrailFile(file);
-      const objUrl = URL.createObjectURL(file);
-      setTrailPreviewUrl(objUrl);
-      if (file.type.startsWith('video/')) {
-        try {
-          const poster = await generateVideoPoster(file);
-          setTrailPosterUrl(poster);
-        } catch {
-          setTrailPosterUrl('');
-        }
-      } else {
-        setTrailPosterUrl(objUrl);
-      }
-    }
-  };
 
   const handlePublishTrail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1765,28 +1743,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* Body: Drag & drop + Select from device */}
-                <div 
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDraggingOverTrail(true);
-                  }}
-                  onDragLeave={() => setIsDraggingOverTrail(false)}
-                  onDrop={handleDropTrailMedia}
-                  className={`p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 transition-colors ${
-                    isDraggingOverTrail ? 'bg-emerald-500/10 border-2 border-dashed border-emerald-500' : 'bg-transparent'
-                  }`}
-                >
+                {/* Body: Select from device */}
+                <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 bg-transparent">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
                     <Film className="w-10 h-10 sm:w-12 sm:h-12" />
                   </div>
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Drag photos and videos here
+                      Upload Travel Reel
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                      Upload your travel clips or photos to share on your profile and discover feed
+                      Select a video or photo from your device to share on your profile and discover feed
                     </p>
                   </div>
 

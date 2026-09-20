@@ -180,7 +180,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [uploadTags, setUploadTags] = useState<string>('');
   const [uploadAudio, setUploadAudio] = useState<string>('Original Travel Sound');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
   const detectedHashtags = useMemo(() => {
@@ -452,23 +451,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
-  const handleDropMedia = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('video/') || file.type.startsWith('image/'))) {
-      setUploadVideoFile(file);
-      const previewUrl = URL.createObjectURL(file);
-      setUploadVideoPreview(previewUrl);
-      try {
-        const poster = await generateVideoPoster(file);
-        setUploadPosterPreview(poster);
-      } catch (err) {
-        console.warn('Could not generate poster:', err);
-      }
-    }
-  };
-
   const handleResetUpload = () => {
     setUploadVideoFile(null);
     setUploadVideoPreview('');
@@ -477,7 +459,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setUploadDestination('');
     setUploadTags('');
     setUploadAudio('Original Travel Sound');
-    setIsDraggingOver(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1248,28 +1229,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   </button>
                 </div>
 
-                {/* Body: Drag & drop + Select from device */}
-                <div 
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDraggingOver(true);
-                  }}
-                  onDragLeave={() => setIsDraggingOver(false)}
-                  onDrop={handleDropMedia}
-                  className={`p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 transition-colors ${
-                    isDraggingOver ? 'bg-emerald-500/10 border-2 border-dashed border-emerald-500' : 'bg-transparent'
-                  }`}
-                >
+                {/* Body: Select from device */}
+                <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 bg-transparent">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
                     <Film className="w-10 h-10 sm:w-12 sm:h-12" />
                   </div>
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Drag photos and videos here
+                      Upload Travel Reel
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                      Share your travel moments as high-energy reels for travelers worldwide
+                      Select a travel video or photo from your device to share with the community
                     </p>
                   </div>
 
