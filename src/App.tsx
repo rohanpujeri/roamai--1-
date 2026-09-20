@@ -1264,7 +1264,7 @@ export default function App() {
               <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
                 <TravellerSearchView
                   currentTheme={currentTheme}
-                  onSelectTraveller={() => scrollToTab(4)}
+                  onSelectTraveller={() => {}}
                   onOpenTrail={() => scrollToTab(1)}
                   onStartPlanning={(destination) => {
                     setWizardDestId(destination || '');

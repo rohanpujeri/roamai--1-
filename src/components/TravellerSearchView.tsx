@@ -11,7 +11,10 @@ import {
   Video,
   Users,
   Flame,
-  Sparkles
+  Sparkles,
+  ArrowLeft,
+  Share2,
+  Check
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseClient';
@@ -43,6 +46,7 @@ export interface ExploreTile {
   viewsCount: string;
   likesCount: string;
   creator: {
+    id?: string;
     name: string;
     username: string;
     avatarUrl: string;
@@ -109,6 +113,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [selectedTile, setSelectedTile] = useState<ExploreTile | null>(null);
   const [followedSet, setFollowedSet] = useState<Set<string>>(() => getFollowedUserIds());
 
+  // Instagram-style active viewing profile (opens profile in the same page)
+  const [viewingProfile, setViewingProfile] = useState<TravellerProfile | null>(null);
+  const [profileTab, setProfileTab] = useState<'trails' | 'places'>('trails');
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
   // Current logged in user's username to avoid suggesting themselves
   const currentUsername = useMemo(() => {
     try {
@@ -152,8 +161,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   }, []);
 
   // Toggle follow/following status for a user
-  const toggleFollow = useCallback((id: string, username: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleFollow = useCallback((id: string, username: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const cleanUser = username.replace(/^@+/, '').toLowerCase();
     setFollowedSet((prev) => {
       const next = new Set(prev);
@@ -177,6 +186,16 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           return t;
         })
       );
+
+      // If currently viewing this profile, update its state too
+      setViewingProfile((cur) => {
+        if (!cur) return null;
+        const curClean = cur.username.replace(/^@+/, '').toLowerCase();
+        if (cur.id === id || curClean === cleanUser) {
+          return { ...cur, isFollowing: !isAlreadyFollowing };
+        }
+        return cur;
+      });
 
       return next;
     });
@@ -216,6 +235,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
       likesCount: t.likesCount ? String(t.likesCount) : '0',
       creator: {
+        id: t.creator?.id,
         name: t.creator?.name || 'Traveler',
         username: t.creator?.username || '@traveler',
         avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
@@ -223,6 +243,24 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       spanTwoRows: idx % 6 === 0
     }));
   }, [globalTrailsList]);
+
+  // Trails uploaded by currently viewed user profile
+  const viewingProfileTrails = useMemo(() => {
+    if (!viewingProfile) return [];
+    const vUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+    const vName = viewingProfile.name.toLowerCase();
+    const vId = viewingProfile.id;
+
+    return exploreTiles.filter((tile) => {
+      const creatorUname = tile.creator.username.toLowerCase().replace(/^@+/, '');
+      const creatorName = (tile.creator.name || '').toLowerCase();
+      return (
+        creatorUname === vUname ||
+        creatorName === vName ||
+        tile.creator.id === vId
+      );
+    });
+  }, [viewingProfile, exploreTiles]);
 
   // Suggested profiles for discover people section (exclude current user)
   const suggestedProfiles = useMemo(() => {
@@ -261,6 +299,359 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
   const isSearching = searchQuery.trim().length > 0;
 
+  // Open a profile in the same page like Instagram
+  const handleOpenProfile = (tr: TravellerProfile) => {
+    setViewingProfile(tr);
+    setProfileTab('trails');
+    onSelectTraveller?.(tr);
+  };
+
+  const handleShareProfile = (tr: TravellerProfile) => {
+    const link = `${window.location.origin}/#search?user=${tr.username.replace(/^@+/, '')}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => {
+        setShareToast(`Link to ${tr.username}'s profile copied!`);
+        setTimeout(() => setShareToast(null), 2500);
+      });
+    }
+  };
+
+  // =========================================================================
+  // VIEW A: INSTAGRAM OTHER USER'S PROFILE (Rendered in same page)
+  // =========================================================================
+  if (viewingProfile) {
+    const cleanUser = viewingProfile.username.replace(/^@+/, '').toLowerCase();
+    const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || !!viewingProfile.isFollowing;
+
+    return (
+      <div className="min-h-screen bg-black text-white pb-32 select-none animate-in fade-in duration-200">
+        {/* Top Sticky Profile Header Bar */}
+        <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-neutral-900 px-3 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setViewingProfile(null)}
+            className="flex items-center gap-1.5 text-neutral-300 hover:text-white cursor-pointer px-2 py-1 -ml-2 rounded-lg hover:bg-neutral-800 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-xs font-semibold text-neutral-400">Search</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 font-bold text-sm text-white">
+            <span>{viewingProfile.username}</span>
+            <span className="text-[10px] text-amber-400 bg-amber-950/70 border border-amber-800/60 px-1.5 py-0.2 rounded-md font-semibold">
+              {viewingProfile.level.split('—')[0].trim()}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleShareProfile(viewingProfile)}
+            className="p-1.5 text-neutral-400 hover:text-white cursor-pointer rounded-full hover:bg-neutral-800 transition-colors"
+            title="Share Profile"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Share Toast */}
+        {shareToast && (
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-[#1e1e1e] border border-neutral-700 text-white text-xs px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in duration-200">
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{shareToast}</span>
+          </div>
+        )}
+
+        {/* Profile Content Container */}
+        <div className="max-w-md sm:max-w-2xl mx-auto px-4 pt-4 space-y-4">
+          {/* 1. Header: Avatar & Stats */}
+          <div className="flex items-center gap-6 sm:gap-10">
+            {/* Avatar (NO gradient ring) */}
+            {viewingProfile.avatarUrl ? (
+              <img
+                src={viewingProfile.avatarUrl}
+                alt={viewingProfile.name}
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shrink-0 ring-1 ring-neutral-700/80 shadow-md"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-2xl shrink-0 select-none shadow-md">
+                {viewingProfile.name?.charAt(0).toUpperCase() || viewingProfile.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+              </div>
+            )}
+
+            {/* Stats (Trails | Followers | Following) */}
+            <div className="flex-1 flex items-center justify-around text-center">
+              <div>
+                <div className="font-bold text-base sm:text-lg text-white">
+                  {viewingProfileTrails.length}
+                </div>
+                <div className="text-[11px] sm:text-xs text-neutral-400">trails</div>
+              </div>
+
+              <div>
+                <div className="font-bold text-base sm:text-lg text-white">
+                  {isFollowing ? 1 : 0}
+                </div>
+                <div className="text-[11px] sm:text-xs text-neutral-400">followers</div>
+              </div>
+
+              <div>
+                <div className="font-bold text-base sm:text-lg text-white">
+                  {viewingProfile.tripsCount || 1}
+                </div>
+                <div className="text-[11px] sm:text-xs text-neutral-400">following</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Name, Bio, Location */}
+          <div className="space-y-1">
+            <h2 className="text-sm sm:text-base font-bold text-white">
+              {viewingProfile.name}
+            </h2>
+            <p className="text-xs text-neutral-400 font-medium flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>{viewingProfile.location || 'Roam Explorer'}</span>
+            </p>
+            <p className="text-xs text-neutral-200 pt-1 leading-relaxed whitespace-pre-line">
+              {viewingProfile.bio || 'Exploring new places, one trip at a time 🌍'}
+            </p>
+
+            {/* Travel DNA tags */}
+            {viewingProfile.topDNA && viewingProfile.topDNA.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-2">
+                {viewingProfile.topDNA.map((dna, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-0.5 rounded-md bg-white/5 border border-white/5 text-neutral-300 text-[10px] font-semibold"
+                  >
+                    {dna}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Action Buttons (Follow / Following & Plan Trip) */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={(e) => toggleFollow(viewingProfile.id, viewingProfile.username, e)}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm text-center ${
+                isFollowing
+                  ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
+                  : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
+              }`}
+            >
+              {isFollowing ? 'Following' : 'Follow'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onStartPlanning && viewingProfile.location) {
+                  onStartPlanning(viewingProfile.location);
+                }
+              }}
+              className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#262626] hover:bg-[#333333] text-white border border-neutral-800 transition-colors cursor-pointer text-center"
+            >
+              Plan Trip to {viewingProfile.location || 'Destination'}
+            </button>
+          </div>
+
+          {/* 4. Instagram Profile Tabs: Trails | Places */}
+          <div className="border-t border-neutral-800/80 pt-2">
+            <div className="flex items-center justify-around border-b border-neutral-800/80 pb-2">
+              <button
+                type="button"
+                onClick={() => setProfileTab('trails')}
+                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                  profileTab === 'trails' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <Video className="w-4 h-4" />
+                <span>TRAILS ({viewingProfileTrails.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProfileTab('places')}
+                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                  profileTab === 'places' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                <span>PLACES ({viewingProfile.placesCount || viewingProfile.recentPlaces?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Tab 1: Trails Grid */}
+            {profileTab === 'trails' && (
+              viewingProfileTrails.length > 0 ? (
+                <div className="grid grid-cols-3 gap-0.5 sm:gap-1.5 pt-2">
+                  {viewingProfileTrails.map((trail) => (
+                    <div
+                      key={trail.id}
+                      onClick={() => setSelectedTile(trail)}
+                      className="relative aspect-square overflow-hidden cursor-pointer group bg-neutral-900 rounded-xs"
+                    >
+                      {trail.imageUrl ? (
+                        <img
+                          src={trail.imageUrl}
+                          alt={trail.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-neutral-900 flex flex-col items-center justify-center p-2 text-center">
+                          <Video className="w-5 h-5 text-neutral-600 mb-1" />
+                          <span className="text-[10px] text-neutral-400 truncate">{trail.destination}</span>
+                        </div>
+                      )}
+                      <div className="absolute top-1.5 right-1.5 text-white drop-shadow">
+                        <Video className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] font-bold text-white drop-shadow">
+                        <Eye className="w-3 h-3" />
+                        <span>{trail.viewsCount}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-16 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto text-neutral-500">
+                    <Video className="w-5 h-5 text-neutral-400" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">No Trails Uploaded Yet</h3>
+                  <p className="text-xs text-neutral-400 max-w-xs mx-auto">
+                    When {viewingProfile.name} uploads reels or travel moments, they will appear here.
+                  </p>
+                </div>
+              )
+            )}
+
+            {/* Tab 2: Places List */}
+            {profileTab === 'places' && (
+              <div className="pt-3 space-y-2">
+                {viewingProfile.recentPlaces && viewingProfile.recentPlaces.length > 0 ? (
+                  viewingProfile.recentPlaces.map((place, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-[#121212] border border-neutral-800/80 rounded-xl p-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-semibold text-white">{place}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onStartPlanning?.(place)}
+                        className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 cursor-pointer"
+                      >
+                        Plan Trip
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-12 text-center text-xs text-neutral-400">
+                    No travel destinations added yet.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Trail Preview Modal */}
+        {selectedTile && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm sm:max-w-md bg-[#161616] border border-neutral-800 rounded-3xl overflow-hidden shadow-2xl space-y-3">
+              <div className="relative aspect-4/3 sm:aspect-video w-full overflow-hidden bg-black">
+                {selectedTile.imageUrl ? (
+                  <img
+                    src={selectedTile.imageUrl}
+                    alt={selectedTile.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-neutral-900 text-neutral-500">
+                    <Video className="w-10 h-10" />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTile(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center cursor-pointer hover:bg-black/80 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
+                    <Eye className="w-3.5 h-3.5 text-blue-400" />
+                    {selectedTile.viewsCount} views
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
+                    <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
+                    {selectedTile.likesCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 pt-1 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-white">
+                    @{selectedTile.creator.username}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2.5 py-1 rounded-full">
+                    <MapPin className="w-3 h-3" />
+                    {selectedTile.destination}
+                  </span>
+                </div>
+
+                <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed font-medium">
+                  {selectedTile.title}
+                </p>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-neutral-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTile(null);
+                      onOpenTrail?.(selectedTile.id);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Watch in Trails</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTile(null);
+                      onStartPlanning?.(selectedTile.destination);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-[#0095f6] hover:bg-[#1877f2] text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-md"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Plan Trip</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW B: MAIN SEARCH & EXPLORE FEED (When no profile is actively opened)
+  // =========================================================================
   return (
     <div className="min-h-screen bg-black text-white pb-32 select-none">
       {/* 1. Sleek Instagram Search Bar (Sticky Top) */}
@@ -315,7 +706,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     return (
                       <div
                         key={tr.id}
-                        onClick={() => onSelectTraveller?.(tr)}
+                        onClick={() => handleOpenProfile(tr)}
                         className="flex items-center justify-between gap-3 p-3 hover:bg-[#1a1a1a] transition-colors cursor-pointer group"
                       >
                         {/* Avatar & User Info */}
@@ -401,18 +792,15 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                         </div>
                       )}
 
-                      {/* Top Right Video / Reel Indicator */}
                       <div className="absolute top-2 right-2 text-white drop-shadow-md">
                         <Video className="w-3.5 h-3.5" />
                       </div>
 
-                      {/* Bottom Left View Count */}
                       <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] font-bold text-white drop-shadow-md">
                         <Eye className="w-3 h-3" />
                         <span>{tile.viewsCount}</span>
                       </div>
 
-                      {/* Hover Overlay */}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
                         <span className="text-[11px] font-semibold text-white truncate">
                           {tile.creator.username}
@@ -472,7 +860,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     return (
                       <div
                         key={tr.id}
-                        onClick={() => onSelectTraveller?.(tr)}
+                        onClick={() => handleOpenProfile(tr)}
                         className="w-[145px] sm:w-[160px] shrink-0 bg-[#121212] border border-neutral-800/90 rounded-2xl p-3 flex flex-col items-center text-center group cursor-pointer hover:border-neutral-700 transition-all shadow-sm"
                       >
                         {/* Profile Avatar (Clean, NO gradient ring) */}
