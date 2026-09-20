@@ -19,6 +19,17 @@ import {
   toggleLikeServerTrail, 
   addCommentToServerTrail 
 } from './services/serverTrailsRegistry';
+import {
+  getAllServerFollows,
+  getServerFollowCounts,
+  isServerUserFollowing,
+  getServerFollowers,
+  getServerFollowing,
+  followServerUser,
+  unfollowServerUser,
+  toggleServerFollow,
+  removeServerFollower
+} from './services/serverFollowsRegistry';
 
 dotenv.config();
 
@@ -308,6 +319,109 @@ export function createExpressApp() {
     } catch (err: any) {
       console.error('Error adding comment:', err);
       res.status(500).json({ error: 'Failed to add comment' });
+    }
+  });
+
+  // Get all follow relationships
+  apiRouter.get('/follows', (_req, res) => {
+    try {
+      const follows = getAllServerFollows();
+      res.json({ follows });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch follows' });
+    }
+  });
+
+  // Get followers and following counts
+  apiRouter.get('/follows/counts', (req, res) => {
+    try {
+      const identifier = (req.query.identifier as string) || '';
+      const counts = getServerFollowCounts(identifier);
+      res.json(counts);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch follow counts' });
+    }
+  });
+
+  // Get list of followers
+  apiRouter.get('/follows/followers', (req, res) => {
+    try {
+      const identifier = (req.query.identifier as string) || '';
+      const followers = getServerFollowers(identifier);
+      res.json({ followers });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch followers' });
+    }
+  });
+
+  // Get list of following
+  apiRouter.get('/follows/following', (req, res) => {
+    try {
+      const identifier = (req.query.identifier as string) || '';
+      const following = getServerFollowing(identifier);
+      res.json({ following });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch following' });
+    }
+  });
+
+  // Follow a user
+  apiRouter.post('/follows/follow', (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: 'follower and target objects are required' });
+        return;
+      }
+      const record = followServerUser(follower, target);
+      res.json({ success: !!record, record });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to follow user' });
+    }
+  });
+
+  // Unfollow a user
+  apiRouter.post('/follows/unfollow', (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: 'follower and target objects are required' });
+        return;
+      }
+      const success = unfollowServerUser(follower, target);
+      res.json({ success });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to unfollow user' });
+    }
+  });
+
+  // Toggle follow status
+  apiRouter.post('/follows/toggle', (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: 'follower and target objects are required' });
+        return;
+      }
+      const result = toggleServerFollow(follower, target);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to toggle follow' });
+    }
+  });
+
+  // Remove a follower
+  apiRouter.post('/follows/remove-follower', (req, res) => {
+    try {
+      const { currentUser, targetFollower } = req.body;
+      if (!currentUser || !targetFollower) {
+        res.status(400).json({ error: 'currentUser and targetFollower are required' });
+        return;
+      }
+      const success = removeServerFollower(currentUser, targetFollower);
+      res.json({ success });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to remove follower' });
     }
   });
 

@@ -9,6 +9,7 @@ export interface FollowUserProfile {
   bio?: string;
   location?: string;
   isFollowing?: boolean;
+  followsYou?: boolean;
 }
 
 export interface FollowRelationship {
@@ -27,8 +28,12 @@ export interface FollowRelationship {
 const STORAGE_KEY_RELATIONSHIPS = 'roamai_follow_relationships_v1';
 const STORAGE_KEY_LEGACY_FOLLOWING = 'roamai_following_users';
 
-function cleanHandle(u: string): string {
+export function cleanHandle(u: string): string {
   return (u || '').replace(/^@+/, '').trim().toLowerCase();
+}
+
+function makeRelKey(followerU: string, followingU: string): string {
+  return `${cleanHandle(followerU)}->${cleanHandle(followingU)}`;
 }
 
 export const SEED_COMMUNITY_USERS = [
@@ -43,7 +48,7 @@ export const SEED_COMMUNITY_USERS = [
 ];
 
 /**
- * Load locally cached follow relationships
+ * Load locally cached follow relationships synchronously
  */
 export function getLocalFollowRelationships(): FollowRelationship[] {
   if (typeof window === 'undefined') return [];
@@ -54,13 +59,11 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
 
-    // Check if legacy following users exist
-    const legacyRaw = localStorage.getItem(STORAGE_KEY_LEGACY_FOLLOWING);
+    // Seed default relationships on initial startup
     const initialRels: FollowRelationship[] = [];
-
-    // Find current user handle if cached
     let currentUname = 'rohan_pujeri';
     let currentId = 'user_default';
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('tripwise_user_profile_')) {
@@ -75,10 +78,9 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
       }
     }
 
-    // Seed default community members so following and followers look rich like Instagram
     SEED_COMMUNITY_USERS.forEach((user, idx) => {
       const uClean = cleanHandle(user.username);
-      // User is following these community members
+      // User is following community members
       initialRels.push({
         id: `rel_init_${idx}`,
         followerId: currentId,
@@ -91,7 +93,7 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
         createdAt: new Date(Date.now() - idx * 3600000).toISOString()
       });
 
-      // Some community members also follow the user
+      // Some community members also follow back
       if (idx % 2 === 0) {
         initialRels.push({
           id: `rel_follower_${idx}`,
@@ -115,14 +117,14 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
 }
 
 /**
- * Save relationships locally and sync with legacy storage key
+ * Save relationships locally, sync legacy key, and broadcast events
  */
 function saveLocalFollowRelationships(relationships: FollowRelationship[], currentUserId?: string, currentUsername?: string) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY_RELATIONSHIPS, JSON.stringify(relationships));
 
-    // Update legacy following users set for backwards-compatibility
+    // Update legacy following users set
     const cUname = currentUsername ? cleanHandle(currentUsername) : '';
     const legacySet = new Set<string>();
 
@@ -136,24 +138,26 @@ function saveLocalFollowRelationships(relationships: FollowRelationship[], curre
 
     localStorage.setItem(STORAGE_KEY_LEGACY_FOLLOWING, JSON.stringify(Array.from(legacySet)));
 
-    // Update local profile stats followingCount if cached
+    // Update local profile stats followingCount & followersCount if cached
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('tripwise_user_profile_')) {
         const raw = localStorage.getItem(key);
         if (raw) {
-          const profile = JSON.parse(raw);
-          if (profile && profile.stats) {
-            const counts = getFollowCounts(profile.id || profile.username);
-            profile.stats.followingCount = counts.followingCount;
-            profile.stats.followersCount = counts.followersCount;
-            localStorage.setItem(key, JSON.stringify(profile));
-          }
+          try {
+            const profile = JSON.parse(raw);
+            if (profile && profile.stats) {
+              const counts = getFollowCounts(profile.id || profile.username);
+              profile.stats.followingCount = counts.followingCount;
+              profile.stats.followersCount = counts.followersCount;
+              localStorage.setItem(key, JSON.stringify(profile));
+            }
+          } catch {}
         }
       }
     }
 
-    // Dispatch global events for instant reactivity across all tabs and components
+    // Broadcast global events for instant reactivity across all views
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('roamai_follow_changed', { 
       detail: { 
@@ -163,6 +167,98 @@ function saveLocalFollowRelationships(relationships: FollowRelationship[], curre
   } catch (e) {
     console.warn('Failed to save follow relationships:', e);
   }
+}
+
+/**
+ * Sync follows from backend server API and Supabase database, merging with local storage
+ */
+export async function syncFollowsFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const localRels = getLocalFollowRelationships();
+    const relsMap = new Map<string, FollowRelationship>();
+
+    localRels.forEach((r) => {
+      const key = makeRelKey(r.followerUsername, r.followingUsername);
+      if (key && key !== '->') relsMap.set(key, r);
+    });
+
+    // 1. Fetch from server API /api/follows
+    try {
+      const res = await fetch('/api/follows');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.follows)) {
+          data.follows.forEach((serverRec: any) => {
+            const key = makeRelKey(serverRec.followerUsername, serverRec.followingUsername);
+            if (key && key !== '->') {
+              const existing = relsMap.get(key);
+              relsMap.set(key, {
+                id: serverRec.id || existing?.id,
+                followerId: serverRec.followerId || existing?.followerId,
+                followerUsername: serverRec.followerUsername || existing?.followerUsername,
+                followerName: serverRec.followerName || existing?.followerName,
+                followerAvatar: serverRec.followerAvatar || existing?.followerAvatar,
+                followingId: serverRec.followingId || existing?.followingId,
+                followingUsername: serverRec.followingUsername || existing?.followingUsername,
+                followingName: serverRec.followingName || existing?.followingName,
+                followingAvatar: serverRec.followingAvatar || existing?.followingAvatar,
+                createdAt: serverRec.createdAt || existing?.createdAt || new Date().toISOString()
+              });
+            }
+          });
+        }
+      }
+    } catch {
+      // Backend offline or local fallback
+    }
+
+    // 2. Fetch from Supabase follows table if configured
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('follows').select('*').limit(300);
+        if (!error && Array.isArray(data)) {
+          data.forEach((row: any) => {
+            const fClean = cleanHandle(row.follower_id);
+            const tClean = cleanHandle(row.following_id);
+            if (fClean && tClean) {
+              const key = `${fClean}->${tClean}`;
+              if (!relsMap.has(key)) {
+                relsMap.set(key, {
+                  id: row.id,
+                  followerId: row.follower_id,
+                  followerUsername: `@${fClean}`,
+                  followerName: fClean.charAt(0).toUpperCase() + fClean.slice(1),
+                  followingId: row.following_id,
+                  followingUsername: `@${tClean}`,
+                  followingName: tClean.charAt(0).toUpperCase() + tClean.slice(1),
+                  createdAt: row.created_at || new Date().toISOString()
+                });
+              }
+            }
+          });
+        }
+      } catch {
+        // Supabase table not created or network failure
+      }
+    }
+
+    const merged = Array.from(relsMap.values());
+    if (merged.length !== localRels.length) {
+      saveLocalFollowRelationships(merged);
+    }
+  } catch (err) {
+    console.warn('Sync follows error:', err);
+  }
+}
+
+// Initial sync and listener for tab focus
+if (typeof window !== 'undefined') {
+  syncFollowsFromServer();
+  window.addEventListener('focus', () => {
+    syncFollowsFromServer();
+  });
 }
 
 /**
@@ -195,12 +291,14 @@ export function getFollowCounts(identifier: string): { followersCount: number; f
 }
 
 /**
- * Check whether follower is currently following target
+ * Check whether followerIdentifier is currently following targetIdentifier
  */
 export function isUserFollowing(followerIdentifier: string, targetIdentifier: string): boolean {
   if (!followerIdentifier || !targetIdentifier) return false;
   const fClean = cleanHandle(followerIdentifier);
   const tClean = cleanHandle(targetIdentifier);
+  if (!fClean || !tClean || fClean === tClean) return false;
+
   const rels = getLocalFollowRelationships();
 
   return rels.some((rel) => {
@@ -212,6 +310,44 @@ export function isUserFollowing(followerIdentifier: string, targetIdentifier: st
 
     return matchesFollower && matchesTarget;
   });
+}
+
+/**
+ * Check whether targetIdentifier is following userIdentifier ("Follows you" / "Follow back")
+ */
+export function isFollowedBy(userIdentifier: string, targetIdentifier: string): boolean {
+  return isUserFollowing(targetIdentifier, userIdentifier);
+}
+
+/**
+ * Get mutual followers between viewer and target
+ */
+export function getMutualFollowers(currentViewer: string, targetIdentifier: string): string[] {
+  if (!currentViewer || !targetIdentifier) return [];
+  const vClean = cleanHandle(currentViewer);
+  const tClean = cleanHandle(targetIdentifier);
+  if (!vClean || !tClean || vClean === tClean) return [];
+
+  const rels = getLocalFollowRelationships();
+  // People who viewer follows
+  const viewerFollowing = new Set<string>();
+  rels.forEach((r) => {
+    if (cleanHandle(r.followerUsername) === vClean || r.followerId === currentViewer) {
+      viewerFollowing.add(cleanHandle(r.followingUsername));
+    }
+  });
+
+  // People who also follow target
+  const mutuals: string[] = [];
+  rels.forEach((r) => {
+    const folU = cleanHandle(r.followerUsername);
+    const tgtU = cleanHandle(r.followingUsername);
+    if ((tgtU === tClean || r.followingId === targetIdentifier) && folU !== vClean && viewerFollowing.has(folU)) {
+      if (!mutuals.includes(folU)) mutuals.push(folU);
+    }
+  });
+
+  return mutuals;
 }
 
 /**
@@ -249,6 +385,7 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
 
     const enriched = (fUname && profilesMap.get(fUname)) || profilesMap.get(rel.followerId);
     const isF = currentViewerIdentifier ? isUserFollowing(currentViewerIdentifier, rel.followerId || fUname) : false;
+    const followsViewer = currentViewerIdentifier ? isUserFollowing(rel.followerId || fUname, currentViewerIdentifier) : false;
 
     results.push({
       id: rel.followerId || enriched?.id || `user_${fUname}`,
@@ -257,7 +394,8 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followerAvatar || ''),
       bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
       location: enriched?.location || 'Traveler',
-      isFollowing: isF
+      isFollowing: isF,
+      followsYou: followsViewer
     });
   });
 
@@ -298,6 +436,7 @@ export async function getFollowing(userIdentifier: string, currentViewerIdentifi
 
     const enriched = (tUname && profilesMap.get(tUname)) || profilesMap.get(rel.followingId);
     const isF = currentViewerIdentifier ? isUserFollowing(currentViewerIdentifier, rel.followingId || tUname) : true;
+    const followsViewer = currentViewerIdentifier ? isUserFollowing(rel.followingId || tUname, currentViewerIdentifier) : false;
 
     results.push({
       id: rel.followingId || enriched?.id || `user_${tUname}`,
@@ -306,11 +445,121 @@ export async function getFollowing(userIdentifier: string, currentViewerIdentifi
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followingAvatar || ''),
       bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
       location: enriched?.location || 'Traveler',
-      isFollowing: isF
+      isFollowing: isF,
+      followsYou: followsViewer
     });
   });
 
   return results;
+}
+
+/**
+ * Explicitly follow a user
+ */
+export async function followUser(
+  currentUser: { id?: string; username: string; name?: string; avatarUrl?: string },
+  targetUser: { id?: string; username: string; name?: string; avatarUrl?: string }
+): Promise<boolean> {
+  const fUname = cleanHandle(currentUser.username);
+  const tUname = cleanHandle(targetUser.username);
+  if (!fUname || !tUname || fUname === tUname) return false;
+
+  const fId = currentUser.id || `user_${fUname}`;
+  const tId = targetUser.id || `user_${tUname}`;
+
+  const currentRels = getLocalFollowRelationships();
+  const exists = currentRels.some((rel) => {
+    const rFollowerU = cleanHandle(rel.followerUsername);
+    const rTargetU = cleanHandle(rel.followingUsername);
+    return (rel.followerId === fId || rFollowerU === fUname) && (rel.followingId === tId || rTargetU === tUname);
+  });
+
+  if (!exists) {
+    const newRel: FollowRelationship = {
+      id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      followerId: fId,
+      followerUsername: `@${fUname}`,
+      followerName: currentUser.name || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
+      followerAvatar: currentUser.avatarUrl || '',
+      followingId: tId,
+      followingUsername: `@${tUname}`,
+      followingName: targetUser.name || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
+      followingAvatar: targetUser.avatarUrl || '',
+      createdAt: new Date().toISOString()
+    };
+    currentRels.push(newRel);
+    saveLocalFollowRelationships(currentRels, fId, fUname);
+  }
+
+  // Server API async sync
+  try {
+    fetch('/api/follows/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ follower: currentUser, target: targetUser })
+    }).catch(() => {});
+  } catch {}
+
+  // Supabase async sync
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('follows').insert({
+        follower_id: fId,
+        following_id: tId
+      });
+    } catch {}
+  }
+
+  return true;
+}
+
+/**
+ * Explicitly unfollow a user
+ */
+export async function unfollowUser(
+  currentUser: { id?: string; username: string },
+  targetUser: { id?: string; username: string }
+): Promise<boolean> {
+  const fUname = cleanHandle(currentUser.username);
+  const tUname = cleanHandle(targetUser.username);
+  if (!fUname || !tUname) return false;
+
+  const fId = currentUser.id || `user_${fUname}`;
+  const tId = targetUser.id || `user_${tUname}`;
+
+  const currentRels = getLocalFollowRelationships();
+  const nextRels = currentRels.filter((rel) => {
+    const rFollowerU = cleanHandle(rel.followerUsername);
+    const rTargetU = cleanHandle(rel.followingUsername);
+    const matchF = rel.followerId === fId || rFollowerU === fUname;
+    const matchT = rel.followingId === tId || rTargetU === tUname;
+    return !(matchF && matchT);
+  });
+
+  saveLocalFollowRelationships(nextRels, fId, fUname);
+
+  // Server API async sync
+  try {
+    fetch('/api/follows/unfollow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ follower: currentUser, target: targetUser })
+    }).catch(() => {});
+  } catch {}
+
+  // Supabase async sync
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('follows').delete().match({
+        follower_id: fId,
+        following_id: tId
+      });
+    } catch {}
+  }
+
+  return true;
 }
 
 /**
@@ -325,68 +574,14 @@ export async function toggleFollowUser(
   const tUname = cleanHandle(targetUser.username);
   if (!fUname || !tUname || fUname === tUname) return false;
 
-  const fId = currentUser.id || `user_${fUname}`;
-  const tId = targetUser.id || `user_${tUname}`;
-
-  const currentRels = getLocalFollowRelationships();
-  const existingIdx = currentRels.findIndex((rel) => {
-    const rFollowerU = cleanHandle(rel.followerUsername);
-    const rTargetU = cleanHandle(rel.followingUsername);
-    const matchF = rel.followerId === fId || rFollowerU === fUname;
-    const matchT = rel.followingId === tId || rTargetU === tUname;
-    return matchF && matchT;
-  });
-
-  let nowFollowing = false;
-  let nextRels = [...currentRels];
-
-  if (existingIdx !== -1) {
-    // Unfollow
-    nextRels.splice(existingIdx, 1);
-    nowFollowing = false;
+  const currentlyFollowing = isUserFollowing(currentUser.username, targetUser.username);
+  if (currentlyFollowing) {
+    await unfollowUser(currentUser, targetUser);
+    return false;
   } else {
-    // Follow
-    const newRel: FollowRelationship = {
-      id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      followerId: fId,
-      followerUsername: `@${fUname}`,
-      followerName: currentUser.name || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
-      followerAvatar: currentUser.avatarUrl || '',
-      followingId: tId,
-      followingUsername: `@${tUname}`,
-      followingName: targetUser.name || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
-      followingAvatar: targetUser.avatarUrl || '',
-      createdAt: new Date().toISOString()
-    };
-    nextRels.push(newRel);
-    nowFollowing = true;
+    await followUser(currentUser, targetUser);
+    return true;
   }
-
-  // Save locally and notify immediately
-  saveLocalFollowRelationships(nextRels, fId, fUname);
-
-  // Sync with Supabase follows table asynchronously in background
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      if (nowFollowing) {
-        await supabase.from('follows').insert({
-          follower_id: fId,
-          following_id: tId
-        });
-      } else {
-        await supabase.from('follows').delete().match({
-          follower_id: fId,
-          following_id: tId
-        });
-      }
-    } catch (e) {
-      // Supabase table might not exist yet or offline, handled gracefully
-      console.warn('Supabase follow sync:', e);
-    }
-  }
-
-  return nowFollowing;
 }
 
 /**
@@ -400,29 +595,17 @@ export async function removeFollowerUser(
   const fUname = cleanHandle(targetFollower.username);
   if (!cUname || !fUname) return false;
 
-  const currentRels = getLocalFollowRelationships();
-  const nextRels = currentRels.filter((rel) => {
-    const relFollowerU = cleanHandle(rel.followerUsername);
-    const relFollowingU = cleanHandle(rel.followingUsername);
-    const isTargetFollower = (targetFollower.id && rel.followerId === targetFollower.id) || (fUname && relFollowerU === fUname);
-    const isCurrentUser = (currentUser.id && rel.followingId === currentUser.id) || (cUname && relFollowingU === cUname);
-    return !(isTargetFollower && isCurrentUser);
-  });
+  // targetFollower was following currentUser -> unfollow
+  await unfollowUser(targetFollower, currentUser);
 
-  saveLocalFollowRelationships(nextRels, currentUser.id, cUname);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('follows').delete().match({
-        follower_id: targetFollower.id || `user_${fUname}`,
-        following_id: currentUser.id || `user_${cUname}`
-      });
-    } catch (e) {
-      console.warn('Supabase remove follower sync:', e);
-    }
-  }
+  // Server API async sync
+  try {
+    fetch('/api/follows/remove-follower', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentUser, targetFollower })
+    }).catch(() => {});
+  } catch {}
 
   return true;
 }
-

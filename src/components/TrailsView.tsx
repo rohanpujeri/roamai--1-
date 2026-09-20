@@ -35,7 +35,7 @@ import {
   likeGlobalTrail,
   commentOnGlobalTrail
 } from '../services/sharedTrailsService';
-import { isUserFollowing, toggleFollowUser } from '../services/followService';
+import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
 
 
 export interface TrailReel {
@@ -124,6 +124,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
+  const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
 
   // Active media resolution states
   const [activeMediaUrl, setActiveMediaUrl] = useState<string>('');
@@ -817,39 +818,45 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleFollowUser(
-                        {
-                          id: session?.user?.id,
-                          username: currentUsername,
-                          name: cachedUser?.name || currentUsername,
-                          avatarUrl: cachedUser?.avatarUrl
-                        },
-                        {
-                          id: activeReel.creator.id,
-                          username: activeReel.creator.username,
-                          name: activeReel.creator.name,
-                          avatarUrl: activeReel.creator.avatarUrl
-                        }
-                      );
-                      setTrails((prev) =>
-                        prev.map((t, idx) => {
-                          if (idx === currentIndex) {
-                            return {
-                              ...t,
-                              creator: { ...t.creator, isFollowed: !isFollowed }
-                            };
+                      if (isFollowed) {
+                        setUnfollowConfirmCreator(activeReel.creator);
+                      } else {
+                        followUser(
+                          {
+                            id: session?.user?.id,
+                            username: currentUsername,
+                            name: cachedUser?.name || currentUsername,
+                            avatarUrl: cachedUser?.avatarUrl
+                          },
+                          {
+                            id: activeReel.creator.id,
+                            username: activeReel.creator.username,
+                            name: activeReel.creator.name,
+                            avatarUrl: activeReel.creator.avatarUrl
                           }
-                          return t;
-                        })
-                      );
+                        );
+                        setTrails((prev) =>
+                          prev.map((t, idx) => {
+                            if (idx === currentIndex) {
+                              return {
+                                ...t,
+                                creator: { ...t.creator, isFollowed: true }
+                              };
+                            }
+                            return t;
+                          })
+                        );
+                      }
                     }}
                     className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                       isFollowed
                         ? 'bg-white/20 border-white/30 text-white'
+                        : isFollowedBy(currentUsername, activeReel.creator.username)
+                        ? 'bg-[#0095f6] border-transparent text-white'
                         : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
                     }`}
                   >
-                    {isFollowed ? 'Following' : 'Follow'}
+                    {isFollowed ? 'Following' : (isFollowedBy(currentUsername, activeReel.creator.username) ? 'Follow Back' : 'Follow')}
                   </button>
                 )}
               </div>
@@ -1146,6 +1153,81 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Instagram Unfollow Confirmation Dialog for Trail Creator */}
+      {unfollowConfirmCreator && (
+        <div 
+          className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setUnfollowConfirmCreator(null)}
+        >
+          <div 
+            className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              {unfollowConfirmCreator.avatarUrl ? (
+                <img
+                  src={unfollowConfirmCreator.avatarUrl}
+                  alt={unfollowConfirmCreator.username}
+                  className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                  {unfollowConfirmCreator.name?.charAt(0).toUpperCase() || unfollowConfirmCreator.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
+              <h3 className="text-base font-bold text-white leading-tight">
+                Unfollow {unfollowConfirmCreator.username.startsWith('@') ? unfollowConfirmCreator.username : `@${unfollowConfirmCreator.username}`}?
+              </h3>
+              <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+                Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (unfollowConfirmCreator) {
+                  await unfollowUser(
+                    {
+                      id: session?.user?.id,
+                      username: currentUsername
+                    },
+                    {
+                      id: unfollowConfirmCreator.id,
+                      username: unfollowConfirmCreator.username
+                    }
+                  );
+                  setTrails((prev) =>
+                    prev.map((t, idx) => {
+                      if (idx === currentIndex) {
+                        return {
+                          ...t,
+                          creator: { ...t.creator, isFollowed: false }
+                        };
+                      }
+                      return t;
+                    })
+                  );
+                  setUnfollowConfirmCreator(null);
+                }
+              }}
+              className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
+            >
+              Unfollow
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUnfollowConfirmCreator(null)}
+              className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

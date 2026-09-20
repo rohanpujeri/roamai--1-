@@ -14,11 +14,13 @@ import {
   Users
 } from 'lucide-react';
 import { 
-  FollowUserProfile, 
   getFollowers, 
   getFollowing, 
+  followUser,
+  unfollowUser,
   toggleFollowUser,
-  removeFollowerUser 
+  removeFollowerUser,
+  FollowUserProfile 
 } from '../services/followService';
 
 interface FollowListModalProps {
@@ -231,7 +233,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
       );
     }
 
-    await toggleFollowUser(currentUser, target);
+    await unfollowUser(currentUser, target);
     showToast(`Unfollowed ${target.username}`);
   };
 
@@ -247,7 +249,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
       prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: true } : u))
     );
 
-    await toggleFollowUser(currentUser, target);
+    await followUser(currentUser, target);
     showToast(`Following ${target.username}`);
   };
 
@@ -440,8 +442,11 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                         {user.name || user.username.replace(/^@/, '')}
                       </div>
 
-                      {/* Line 3: Activity Status with Blue Dot */}
+                      {/* Line 3: Activity Status or Follows you with Blue Dot */}
                       <div className="text-[11px] text-neutral-400 flex items-center gap-1.5 font-normal mt-0.5">
+                        {user.followsYou && !self && (
+                          <span className="text-neutral-300 text-[11px] font-medium">Follows you •</span>
+                        )}
                         <span>{user.activityText || '1 new post'}</span>
                         <span className="w-1.5 h-1.5 rounded-full bg-[#3797f0] shrink-0 inline-block" />
                       </div>
@@ -473,7 +478,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                               : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
                           }`}
                         >
-                          {user.isFollowing !== false ? 'Following' : 'Follow'}
+                          {user.isFollowing !== false ? 'Following' : (user.followsYou ? 'Follow Back' : 'Follow')}
                         </button>
 
                         {/* Message Button */}
@@ -505,6 +510,17 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                       </>
                     ) : activeTab === 'followers' && isOwnProfile ? (
                       <>
+                        {/* If current user doesn't follow this follower back, show Follow Back */}
+                        {!user.isFollowing && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleFollowUser(user, e)}
+                            className="bg-[#0095f6] hover:bg-[#1877f2] text-white text-[13px] font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
+                          >
+                            Follow Back
+                          </button>
+                        )}
+
                         {/* Remove Follower Button */}
                         <button
                           type="button"
@@ -512,7 +528,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                             e.stopPropagation();
                             setRemoveFollowerConfirmUser(user);
                           }}
-                          className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
+                          className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
                         >
                           Remove
                         </button>
@@ -549,7 +565,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                               : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
                           }`}
                         >
-                          {user.isFollowing ? 'Following' : 'Follow'}
+                          {user.isFollowing ? 'Following' : (user.followsYou ? 'Follow Back' : 'Follow')}
                         </button>
 
                         <button

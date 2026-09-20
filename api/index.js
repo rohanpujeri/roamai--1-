@@ -1,6 +1,6 @@
 // server/app.ts
 import express from "express";
-import path3 from "path";
+import path4 from "path";
 import dotenv from "dotenv";
 
 // server/services/serverPlanner.ts
@@ -3155,6 +3155,221 @@ function addCommentToServerTrail(trailId, comment) {
   return true;
 }
 
+// server/services/serverFollowsRegistry.ts
+import fs3 from "fs";
+import path3 from "path";
+function cleanHandle(u) {
+  return (u || "").replace(/^@+/, "").trim().toLowerCase();
+}
+function makeKey(followerUsername, followingUsername) {
+  return `${cleanHandle(followerUsername)}->${cleanHandle(followingUsername)}`;
+}
+var followsMap = /* @__PURE__ */ new Map();
+var dataDir3 = process.env.VERCEL ? "/tmp/roamai_data" : path3.join(process.cwd(), "data");
+var dataFile3 = path3.join(dataDir3, "follows.json");
+var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
+var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+var SEED_COMMUNITY = [
+  { username: "samruddhi.kadam", name: "~samruddhi!", avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" },
+  { username: "pics.dibs", name: "pics.dibs", avatarUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&auto=format&fit=crop&q=80" },
+  { username: "shivapavan44", name: "Kp shiva Pavan", avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80" },
+  { username: "naveen_goudar1", name: "NAVEEN", avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80" },
+  { username: "siddhant_bhosale", name: "SIDDHANT BHOSALE", avatarUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80" },
+  { username: "idkwhereismyguitar", name: "parker", avatarUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80" },
+  { username: "fatahdalive", name: "Fatah \u{1F9C3}", avatarUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80" },
+  { username: "mohan_k_1402", name: "Mohan", avatarUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80" }
+];
+function seedDefaultFollows() {
+  const defaultUser = "rohan_pujeri";
+  SEED_COMMUNITY.forEach((c, idx) => {
+    const key1 = makeKey(defaultUser, c.username);
+    if (!followsMap.has(key1)) {
+      followsMap.set(key1, {
+        id: `seed_${idx}_1`,
+        followerId: `user_${defaultUser}`,
+        followerUsername: `@${defaultUser}`,
+        followerName: "Rohan Pujeri",
+        followingId: `user_${c.username}`,
+        followingUsername: `@${c.username}`,
+        followingName: c.name,
+        followingAvatar: c.avatarUrl,
+        createdAt: new Date(Date.now() - (idx + 1) * 36e5).toISOString()
+      });
+    }
+    if (idx % 2 === 0) {
+      const key2 = makeKey(c.username, defaultUser);
+      if (!followsMap.has(key2)) {
+        followsMap.set(key2, {
+          id: `seed_${idx}_2`,
+          followerId: `user_${c.username}`,
+          followerUsername: `@${c.username}`,
+          followerName: c.name,
+          followerAvatar: c.avatarUrl,
+          followingId: `user_${defaultUser}`,
+          followingUsername: `@${defaultUser}`,
+          followingName: "Rohan Pujeri",
+          createdAt: new Date(Date.now() - (idx + 2) * 72e5).toISOString()
+        });
+      }
+    }
+  });
+}
+try {
+  if (fs3.existsSync(dataFile3)) {
+    const raw = fs3.readFileSync(dataFile3, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec && rec.followerUsername && rec.followingUsername) {
+          const key = makeKey(rec.followerUsername, rec.followingUsername);
+          followsMap.set(key, rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("[serverFollowsRegistry] Could not read follows.json:", err);
+}
+if (followsMap.size === 0) {
+  seedDefaultFollows();
+  persistToDisk3();
+}
+function persistToDisk3() {
+  try {
+    if (!fs3.existsSync(dataDir3)) {
+      fs3.mkdirSync(dataDir3, { recursive: true });
+    }
+    const array = Array.from(followsMap.values());
+    fs3.writeFileSync(dataFile3, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[serverFollowsRegistry] Could not persist follows to disk:", err);
+  }
+}
+function getAllServerFollows() {
+  return Array.from(followsMap.values());
+}
+function getServerFollowCounts(identifier) {
+  const clean = cleanHandle(identifier);
+  if (!clean) return { followersCount: 0, followingCount: 0 };
+  let followersCount = 0;
+  let followingCount = 0;
+  followsMap.forEach((rec) => {
+    const fFollower = cleanHandle(rec.followerUsername);
+    const fFollowing = cleanHandle(rec.followingUsername);
+    if (fFollowing === clean || rec.followingId === identifier) {
+      followersCount++;
+    }
+    if (fFollower === clean || rec.followerId === identifier) {
+      followingCount++;
+    }
+  });
+  return { followersCount, followingCount };
+}
+function getServerFollowers(targetIdentifier) {
+  const tClean = cleanHandle(targetIdentifier);
+  if (!tClean) return [];
+  const results = [];
+  followsMap.forEach((rec) => {
+    const fFollowing = cleanHandle(rec.followingUsername);
+    if (fFollowing === tClean || rec.followingId === targetIdentifier) {
+      results.push(rec);
+    }
+  });
+  return results;
+}
+function getServerFollowing(userIdentifier) {
+  const uClean = cleanHandle(userIdentifier);
+  if (!uClean) return [];
+  const results = [];
+  followsMap.forEach((rec) => {
+    const fFollower = cleanHandle(rec.followerUsername);
+    if (fFollower === uClean || rec.followerId === userIdentifier) {
+      results.push(rec);
+    }
+  });
+  return results;
+}
+function followServerUser(follower, target) {
+  const fClean = cleanHandle(follower.username);
+  const tClean = cleanHandle(target.username);
+  if (!fClean || !tClean || fClean === tClean) return null;
+  const key = makeKey(fClean, tClean);
+  const existing = followsMap.get(key);
+  if (existing) return existing;
+  const rec = {
+    id: `fol_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    followerId: follower.id || `user_${fClean}`,
+    followerUsername: `@${fClean}`,
+    followerName: follower.name || fClean.charAt(0).toUpperCase() + fClean.slice(1),
+    followerAvatar: follower.avatarUrl || "",
+    followingId: target.id || `user_${tClean}`,
+    followingUsername: `@${tClean}`,
+    followingName: target.name || tClean.charAt(0).toUpperCase() + tClean.slice(1),
+    followingAvatar: target.avatarUrl || "",
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  followsMap.set(key, rec);
+  persistToDisk3();
+  try {
+    fetch(`${SUPABASE_URL2}/rest/v1/follows`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY2,
+        "Authorization": `Bearer ${SUPABASE_KEY2}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        follower_id: rec.followerId,
+        following_id: rec.followingId
+      })
+    }).catch(() => {
+    });
+  } catch {
+  }
+  return rec;
+}
+function unfollowServerUser(follower, target) {
+  const fClean = cleanHandle(follower.username);
+  const tClean = cleanHandle(target.username);
+  if (!fClean || !tClean) return false;
+  const key = makeKey(fClean, tClean);
+  const existed = followsMap.delete(key);
+  if (existed) {
+    persistToDisk3();
+    try {
+      const fId = follower.id || `user_${fClean}`;
+      const tId = target.id || `user_${tClean}`;
+      fetch(`${SUPABASE_URL2}/rest/v1/follows?follower_id=eq.${encodeURIComponent(fId)}&following_id=eq.${encodeURIComponent(tId)}`, {
+        method: "DELETE",
+        headers: {
+          "apikey": SUPABASE_KEY2,
+          "Authorization": `Bearer ${SUPABASE_KEY2}`
+        }
+      }).catch(() => {
+      });
+    } catch {
+    }
+  }
+  return existed;
+}
+function toggleServerFollow(follower, target) {
+  const fClean = cleanHandle(follower.username);
+  const tClean = cleanHandle(target.username);
+  if (!fClean || !tClean || fClean === tClean) return { following: false };
+  const key = makeKey(fClean, tClean);
+  if (followsMap.has(key)) {
+    unfollowServerUser(follower, target);
+    return { following: false };
+  } else {
+    const rec = followServerUser(follower, target);
+    return { following: true, record: rec || void 0 };
+  }
+}
+function removeServerFollower(currentUser, targetFollower) {
+  return unfollowServerUser(targetFollower, currentUser);
+}
+
 // server/app.ts
 dotenv.config();
 function createExpressApp() {
@@ -3170,10 +3385,10 @@ function createExpressApp() {
   });
   app2.use(express.json({ limit: "50mb" }));
   app2.use(express.urlencoded({ limit: "50mb", extended: true }));
-  app2.use("/Images", express.static(path3.join(process.cwd(), "public/images")));
-  app2.use("/images", express.static(path3.join(process.cwd(), "public/images")));
-  app2.use("/uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails")));
-  app2.use("/Uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails")));
+  app2.use("/Images", express.static(path4.join(process.cwd(), "public/images")));
+  app2.use("/images", express.static(path4.join(process.cwd(), "public/images")));
+  app2.use("/uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails")));
+  app2.use("/Uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails")));
   app2.use("/uploads/trails", express.static("/tmp/roamai_uploads"));
   const apiRouter = express.Router();
   apiRouter.get("/health", (req, res) => {
@@ -3390,6 +3605,93 @@ function createExpressApp() {
     } catch (err) {
       console.error("Error adding comment:", err);
       res.status(500).json({ error: "Failed to add comment" });
+    }
+  });
+  apiRouter.get("/follows", (_req, res) => {
+    try {
+      const follows = getAllServerFollows();
+      res.json({ follows });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch follows" });
+    }
+  });
+  apiRouter.get("/follows/counts", (req, res) => {
+    try {
+      const identifier = req.query.identifier || "";
+      const counts = getServerFollowCounts(identifier);
+      res.json(counts);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch follow counts" });
+    }
+  });
+  apiRouter.get("/follows/followers", (req, res) => {
+    try {
+      const identifier = req.query.identifier || "";
+      const followers = getServerFollowers(identifier);
+      res.json({ followers });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch followers" });
+    }
+  });
+  apiRouter.get("/follows/following", (req, res) => {
+    try {
+      const identifier = req.query.identifier || "";
+      const following = getServerFollowing(identifier);
+      res.json({ following });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch following" });
+    }
+  });
+  apiRouter.post("/follows/follow", (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: "follower and target objects are required" });
+        return;
+      }
+      const record = followServerUser(follower, target);
+      res.json({ success: !!record, record });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to follow user" });
+    }
+  });
+  apiRouter.post("/follows/unfollow", (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: "follower and target objects are required" });
+        return;
+      }
+      const success = unfollowServerUser(follower, target);
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to unfollow user" });
+    }
+  });
+  apiRouter.post("/follows/toggle", (req, res) => {
+    try {
+      const { follower, target } = req.body;
+      if (!follower || !target) {
+        res.status(400).json({ error: "follower and target objects are required" });
+        return;
+      }
+      const result = toggleServerFollow(follower, target);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to toggle follow" });
+    }
+  });
+  apiRouter.post("/follows/remove-follower", (req, res) => {
+    try {
+      const { currentUser, targetFollower } = req.body;
+      if (!currentUser || !targetFollower) {
+        res.status(400).json({ error: "currentUser and targetFollower are required" });
+        return;
+      }
+      const success = removeServerFollower(currentUser, targetFollower);
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to remove follower" });
     }
   });
   app2.use("/api", apiRouter);
