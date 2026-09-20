@@ -12,6 +12,13 @@ import { fetchNearbyPlaces } from './services/serverNearbyPlaces';
 import { reverseGeocodeCoordinates, detectLocationFromIp } from './services/serverLocationDetector';
 import { fetchAiThemePreviewTrip } from './services/serverDestinationInspiration';
 import { isUsernameAvailable, registerServerUsername, searchServerUsers } from './services/serverUsernameRegistry';
+import { 
+  getAllServerTrails, 
+  saveServerTrail, 
+  deleteServerTrail, 
+  toggleLikeServerTrail, 
+  addCommentToServerTrail 
+} from './services/serverTrailsRegistry';
 
 dotenv.config();
 
@@ -29,11 +36,17 @@ export function createExpressApp() {
     next();
   });
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Static alias for case-insensitive image access
   app.use('/Images', express.static(path.join(process.cwd(), 'public/images')));
   app.use('/images', express.static(path.join(process.cwd(), 'public/images')));
+
+  // Static uploads for user trail videos and photos
+  app.use('/uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails')));
+  app.use('/Uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails')));
+  app.use('/uploads/trails', express.static('/tmp/roamai_uploads'));
 
   // Create modular API Router
   const apiRouter = express.Router();
@@ -227,6 +240,75 @@ export function createExpressApp() {
     const q = (req.query.q as string) || '';
     const users = searchServerUsers(q);
     res.json({ users });
+  });
+
+  // Get all global shared trails across all profiles
+  apiRouter.get('/trails', (req, res) => {
+    try {
+      const trails = getAllServerTrails();
+      res.json({ trails });
+    } catch (err: any) {
+      console.error('Error fetching trails:', err);
+      res.status(500).json({ error: 'Failed to fetch trails' });
+    }
+  });
+
+  // Upload and publish a shared trail
+  apiRouter.post('/trails', (req, res) => {
+    try {
+      const { trail, mediaDataUrl, posterDataUrl } = req.body;
+      if (!trail || !trail.id) {
+        res.status(400).json({ error: 'Trail data with an id is required' });
+        return;
+      }
+      const saved = saveServerTrail(trail, mediaDataUrl, posterDataUrl);
+      res.json({ success: true, trail: saved });
+    } catch (err: any) {
+      console.error('Error saving trail:', err);
+      res.status(500).json({ error: 'Failed to save trail' });
+    }
+  });
+
+  // Delete a shared trail
+  apiRouter.delete('/trails/:id', (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = deleteServerTrail(id);
+      res.json({ success });
+    } catch (err: any) {
+      console.error('Error deleting trail:', err);
+      res.status(500).json({ error: 'Failed to delete trail' });
+    }
+  });
+
+  // Like or unlike a trail
+  apiRouter.post('/trails/:id/like', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { increment } = req.body;
+      const result = toggleLikeServerTrail(id, increment !== false);
+      res.json(result);
+    } catch (err: any) {
+      console.error('Error liking trail:', err);
+      res.status(500).json({ error: 'Failed to update like status' });
+    }
+  });
+
+  // Add comment to a trail
+  apiRouter.post('/trails/:id/comment', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { user, avatar, text } = req.body;
+      if (!text) {
+        res.status(400).json({ error: 'Comment text is required' });
+        return;
+      }
+      const success = addCommentToServerTrail(id, { user: user || 'Traveler', avatar: avatar || '', text });
+      res.json({ success });
+    } catch (err: any) {
+      console.error('Error adding comment:', err);
+      res.status(500).json({ error: 'Failed to add comment' });
+    }
   });
 
   // Mount router at both /api and / to ensure compatibility with Vercel rewrites and standalone Node server

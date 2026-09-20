@@ -18,6 +18,7 @@ import {
 import { ThemeConfig } from '../types';
 import { sanitizeAvatarUrl } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
+import { fetchGlobalTrails, getLocalTrails } from '../services/sharedTrailsService';
 
 export interface TravellerProfile {
   id: string;
@@ -82,43 +83,47 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     };
   }, [searchQuery]);
 
-  // Dynamic explore tiles from real user uploaded trails only
-  const exploreTiles = useMemo<ExploreTile[]>(() => {
-    try {
-      const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .filter(
-              (t: any) =>
-                t &&
-                !t.id?.startsWith('sample-trail-') &&
-                t.creator?.username !== '@elena_voyages' &&
-                t.creator?.username !== '@rohan_treks'
-            )
-            .map((t: any, idx: number) => ({
-              id: t.id || `trail-${idx}`,
-              type: 'trail' as const,
-              title: t.title || t.caption || 'Travel Trail',
-              destination: t.destination || 'Explore Destination',
-              imageUrl: t.posterUrl || '',
-              videoUrl: t.videoUrl,
-              viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
-              likesCount: t.likesCount ? String(t.likesCount) : '0',
-              creator: {
-                username: t.creator?.username || '@traveler',
-                avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
-              },
-              spanTwoRows: idx % 6 === 0
-            }));
-        }
+  // Global user trails list synced across all profiles
+  const [globalTrailsList, setGlobalTrailsList] = useState<any[]>(() => getLocalTrails());
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchGlobalTrails().then((trails) => {
+      if (isMounted && Array.isArray(trails)) {
+        setGlobalTrailsList(trails);
       }
-    } catch {
-      // ignore
-    }
-    return [];
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  // Dynamic explore tiles from real user uploaded trails across all profiles
+  const exploreTiles = useMemo<ExploreTile[]>(() => {
+    return globalTrailsList
+      .filter(
+        (t: any) =>
+          t &&
+          !t.id?.startsWith('sample-trail-') &&
+          t.creator?.username !== '@elena_voyages' &&
+          t.creator?.username !== '@rohan_treks'
+      )
+      .map((t: any, idx: number) => ({
+        id: t.id || `trail-${idx}`,
+        type: 'trail' as const,
+        title: t.title || t.caption || 'Travel Trail',
+        destination: t.destination || 'Explore Destination',
+        imageUrl: t.posterUrl || '',
+        videoUrl: t.videoUrl,
+        viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+        likesCount: t.likesCount ? String(t.likesCount) : '0',
+        creator: {
+          username: t.creator?.username || '@traveler',
+          avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
+        },
+        spanTwoRows: idx % 6 === 0
+      }));
+  }, [globalTrailsList]);
 
   // Filtered Travellers
   const filteredTravellers = useMemo(() => {

@@ -51,6 +51,11 @@ import {
   generateVideoPoster,
   deleteTrailMedia
 } from '../services/trailMediaStorage';
+import {
+  fetchGlobalTrails,
+  publishGlobalTrail,
+  deleteGlobalTrail
+} from '../services/sharedTrailsService';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
@@ -238,11 +243,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       };
 
       try {
-        const stored = localStorage.getItem('roamai_user_trails');
-        const existing = stored ? JSON.parse(stored) : [];
-        localStorage.setItem('roamai_user_trails', JSON.stringify([newReelForStorage, ...existing]));
+        await publishGlobalTrail(newReelForStorage, trailFile || undefined);
       } catch (err) {
-        console.warn('Failed to save trail to localStorage', err);
+        console.warn('Failed to publish trail globally from profile:', err);
       }
 
       setUserTrails((prev) => [newTrailItem, ...prev]);
@@ -350,21 +353,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   };
 
   const handleDeleteTrail = async (trailId: string) => {
-    await deleteTrailMedia(trailId);
-    setSelectedTrail(null);
-    setUserTrails((prev) => prev.filter((t) => t.id !== trailId));
     try {
-      const raw = localStorage.getItem('roamai_user_trails');
-      if (raw) {
-        const list = JSON.parse(raw);
-        if (Array.isArray(list)) {
-          const filtered = list.filter((t: any) => t.id !== trailId);
-          localStorage.setItem('roamai_user_trails', JSON.stringify(filtered));
-        }
-      }
+      await deleteTrailMedia(trailId);
     } catch {
       // ignore
     }
+    try {
+      await deleteGlobalTrail(trailId);
+    } catch (err) {
+      console.warn('Failed to delete global trail:', err);
+    }
+    setSelectedTrail(null);
+    setUserTrails((prev) => prev.filter((t) => t.id !== trailId));
   };
 
   // Filter ONLY completed trips for travel footprint counters (trips, countries, places)
@@ -517,6 +517,53 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     calculatedPlacesCount,
     calculatedCountriesCount
   ]);
+
+  // Sync profile-specific trails from global trails (server API & Supabase)
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfileTrails = async () => {
+      try {
+        const allTrails = await fetchGlobalTrails();
+        if (!isMounted) return;
+        const targetUsername = (profile.username || getFallbackUsername(user, userMeta)).toLowerCase().replace(/^@/, '');
+        const targetName = (profile.name || '').toLowerCase().trim();
+
+        const filtered = allTrails
+          .filter((t: any) => {
+            if (!t || t.id?.startsWith('sample-trail-')) return false;
+            const creatorUsername = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
+            const creatorName = (t.creator?.name || '').toLowerCase().trim();
+            return (
+              (targetUsername && creatorUsername === targetUsername) ||
+              (targetName && creatorName === targetName) ||
+              (!creatorUsername && !targetUsername)
+            );
+          })
+          .map((t: any) => ({
+            id: t.id,
+            title: t.title || t.caption || t.destination || 'Travel Trail',
+            destination: t.destination || 'Travel Destination',
+            viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+            likesCount: t.likesCount ? String(t.likesCount) : '1',
+            videoUrl: t.videoUrl,
+            posterUrl: t.posterUrl,
+            duration: t.duration,
+            mediaType: t.mediaType || 'video',
+            caption: t.caption || t.title
+          }));
+
+        setUserTrails((prev) => {
+          const prevIds = prev.map((p) => p.id).join(',');
+          const nextIds = filtered.map((f) => f.id).join(',');
+          return prevIds !== nextIds ? filtered : prev;
+        });
+      } catch (err) {
+        console.warn('Could not sync user profile trails:', err);
+      }
+    };
+
+    loadProfileTrails();
+  }, [profile.username, profile.name, user?.id]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();

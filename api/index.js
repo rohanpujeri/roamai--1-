@@ -1,6 +1,6 @@
 // server/app.ts
 import express from "express";
-import path2 from "path";
+import path3 from "path";
 import dotenv from "dotenv";
 
 // server/services/serverPlanner.ts
@@ -2986,6 +2986,153 @@ function searchServerUsers(query) {
   return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
 }
 
+// server/services/serverTrailsRegistry.ts
+import fs2 from "fs";
+import path2 from "path";
+var trailsMap = /* @__PURE__ */ new Map();
+var dataDir2 = process.env.VERCEL ? "/tmp/roamai_data" : path2.join(process.cwd(), "data");
+var dataFile2 = path2.join(dataDir2, "trails.json");
+var publicUploadsDir = path2.join(process.cwd(), "public/uploads/trails");
+var tmpUploadsDir = "/tmp/roamai_uploads";
+var uploadsDir = process.env.VERCEL ? tmpUploadsDir : publicUploadsDir;
+try {
+  if (fs2.existsSync(dataFile2)) {
+    const raw = fs2.readFileSync(dataFile2, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec && rec.id) {
+          trailsMap.set(rec.id, rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("[serverTrailsRegistry] Could not read trails.json from disk:", err);
+}
+function persistToDisk2() {
+  try {
+    if (!fs2.existsSync(dataDir2)) {
+      fs2.mkdirSync(dataDir2, { recursive: true });
+    }
+    const array = Array.from(trailsMap.values());
+    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
+  }
+}
+function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
+  try {
+    if (!base64Data || !base64Data.startsWith("data:")) return null;
+    const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) return null;
+    const mimeType = matches[1];
+    const dataBuffer = Buffer.from(matches[2], "base64");
+    let ext = "bin";
+    if (mimeType.includes("video/mp4")) ext = "mp4";
+    else if (mimeType.includes("video/webm")) ext = "webm";
+    else if (mimeType.includes("video/quicktime") || mimeType.includes("video/mov")) ext = "mov";
+    else if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
+    else if (mimeType.includes("image/png")) ext = "png";
+    else if (mimeType.includes("image/webp")) ext = "webp";
+    if (!fs2.existsSync(uploadsDir)) {
+      fs2.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const fileName = `${trailId}_${prefix}.${ext}`;
+    const targetPath = path2.join(uploadsDir, fileName);
+    fs2.writeFileSync(targetPath, dataBuffer);
+    return `/uploads/trails/${fileName}`;
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Could not write media file to disk:", err);
+    return null;
+  }
+}
+function getAllServerTrails() {
+  const records = Array.from(trailsMap.values());
+  return records.sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+}
+function saveServerTrail(trailData, mediaBase64, posterBase64) {
+  let videoUrl = trailData.videoUrl || "";
+  let posterUrl = trailData.posterUrl || "";
+  if (mediaBase64 && mediaBase64.startsWith("data:")) {
+    const diskMediaUrl = saveMediaFileToDisk(trailData.id, mediaBase64, "media");
+    if (diskMediaUrl) {
+      videoUrl = diskMediaUrl;
+    } else {
+      videoUrl = mediaBase64;
+    }
+  }
+  if (posterBase64 && posterBase64.startsWith("data:")) {
+    const diskPosterUrl = saveMediaFileToDisk(trailData.id, posterBase64, "poster");
+    if (diskPosterUrl) {
+      posterUrl = diskPosterUrl;
+    } else {
+      posterUrl = posterBase64;
+    }
+  }
+  const existing = trailsMap.get(trailData.id);
+  const cleanRecord = {
+    id: trailData.id,
+    videoUrl: videoUrl || existing?.videoUrl || "",
+    posterUrl: posterUrl || existing?.posterUrl || void 0,
+    mediaType: trailData.mediaType || existing?.mediaType || (videoUrl.includes("image") ? "image" : "video"),
+    title: trailData.title || existing?.title || "Travel Trail",
+    creator: {
+      id: trailData.creator?.id || existing?.creator?.id || void 0,
+      name: trailData.creator?.name || existing?.creator?.name || "Explorer",
+      username: trailData.creator?.username || existing?.creator?.username || "@traveler",
+      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || "",
+      isFollowed: trailData.creator?.isFollowed ?? existing?.creator?.isFollowed ?? false
+    },
+    caption: trailData.caption || existing?.caption || "",
+    destination: trailData.destination || existing?.destination || "Everywhere",
+    tags: Array.isArray(trailData.tags) ? trailData.tags : existing?.tags || [],
+    audioTitle: trailData.audioTitle || existing?.audioTitle || "Original Travel Sound",
+    likesCount: trailData.likesCount ?? existing?.likesCount ?? 0,
+    commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
+    isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
+    isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
+    comments: trailData.comments || existing?.comments || [],
+    createdAt: trailData.createdAt || existing?.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+  };
+  trailsMap.set(cleanRecord.id, cleanRecord);
+  persistToDisk2();
+  return cleanRecord;
+}
+function deleteServerTrail(trailId) {
+  if (!trailsMap.has(trailId)) return false;
+  trailsMap.delete(trailId);
+  persistToDisk2();
+  return true;
+}
+function toggleLikeServerTrail(trailId, increment) {
+  const trail = trailsMap.get(trailId);
+  if (!trail) return { success: false, likesCount: 0 };
+  trail.likesCount = Math.max(0, trail.likesCount + (increment ? 1 : -1));
+  trail.isLiked = increment;
+  persistToDisk2();
+  return { success: true, likesCount: trail.likesCount };
+}
+function addCommentToServerTrail(trailId, comment) {
+  const trail = trailsMap.get(trailId);
+  if (!trail) return false;
+  const newComment = {
+    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    user: comment.user,
+    avatar: comment.avatar,
+    text: comment.text,
+    time: "Just now"
+  };
+  trail.comments = [newComment, ...trail.comments || []];
+  trail.commentsCount = (trail.commentsCount || 0) + 1;
+  persistToDisk2();
+  return true;
+}
+
 // server/app.ts
 dotenv.config();
 function createExpressApp() {
@@ -2999,9 +3146,13 @@ function createExpressApp() {
     }
     next();
   });
-  app2.use(express.json({ limit: "10mb" }));
-  app2.use("/Images", express.static(path2.join(process.cwd(), "public/images")));
-  app2.use("/images", express.static(path2.join(process.cwd(), "public/images")));
+  app2.use(express.json({ limit: "50mb" }));
+  app2.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app2.use("/Images", express.static(path3.join(process.cwd(), "public/images")));
+  app2.use("/images", express.static(path3.join(process.cwd(), "public/images")));
+  app2.use("/uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails")));
+  app2.use("/Uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails")));
+  app2.use("/uploads/trails", express.static("/tmp/roamai_uploads"));
   const apiRouter = express.Router();
   apiRouter.get("/health", (req, res) => {
     res.json({
@@ -3159,6 +3310,65 @@ function createExpressApp() {
     const q = req.query.q || "";
     const users = searchServerUsers(q);
     res.json({ users });
+  });
+  apiRouter.get("/trails", (req, res) => {
+    try {
+      const trails = getAllServerTrails();
+      res.json({ trails });
+    } catch (err) {
+      console.error("Error fetching trails:", err);
+      res.status(500).json({ error: "Failed to fetch trails" });
+    }
+  });
+  apiRouter.post("/trails", (req, res) => {
+    try {
+      const { trail, mediaDataUrl, posterDataUrl } = req.body;
+      if (!trail || !trail.id) {
+        res.status(400).json({ error: "Trail data with an id is required" });
+        return;
+      }
+      const saved = saveServerTrail(trail, mediaDataUrl, posterDataUrl);
+      res.json({ success: true, trail: saved });
+    } catch (err) {
+      console.error("Error saving trail:", err);
+      res.status(500).json({ error: "Failed to save trail" });
+    }
+  });
+  apiRouter.delete("/trails/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = deleteServerTrail(id);
+      res.json({ success });
+    } catch (err) {
+      console.error("Error deleting trail:", err);
+      res.status(500).json({ error: "Failed to delete trail" });
+    }
+  });
+  apiRouter.post("/trails/:id/like", (req, res) => {
+    try {
+      const { id } = req.params;
+      const { increment } = req.body;
+      const result = toggleLikeServerTrail(id, increment !== false);
+      res.json(result);
+    } catch (err) {
+      console.error("Error liking trail:", err);
+      res.status(500).json({ error: "Failed to update like status" });
+    }
+  });
+  apiRouter.post("/trails/:id/comment", (req, res) => {
+    try {
+      const { id } = req.params;
+      const { user, avatar, text } = req.body;
+      if (!text) {
+        res.status(400).json({ error: "Comment text is required" });
+        return;
+      }
+      const success = addCommentToServerTrail(id, { user: user || "Traveler", avatar: avatar || "", text });
+      res.json({ success });
+    } catch (err) {
+      console.error("Error adding comment:", err);
+      res.status(500).json({ error: "Failed to add comment" });
+    }
   });
   app2.use("/api", apiRouter);
   app2.use("/", apiRouter);

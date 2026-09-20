@@ -28,6 +28,13 @@ import {
   resolveTrailMediaUrl,
   generateVideoPoster
 } from '../services/trailMediaStorage';
+import {
+  getLocalTrails,
+  fetchGlobalTrails,
+  publishGlobalTrail,
+  likeGlobalTrail,
+  commentOnGlobalTrail
+} from '../services/sharedTrailsService';
 
 export interface TrailReel {
   id: string;
@@ -73,31 +80,37 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onStartPlanning,
   onBack
 }) => {
-  // Load real user trails exclusively - no mock or predefined trails
-  const [trails, setTrails] = useState<TrailReel[]>(() => {
-    try {
-      const stored = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const realTrails = parsed.filter(
-            (t: any) =>
-              t &&
-              !t.id?.startsWith('sample-trail-') &&
-              t.creator?.username !== '@elena_voyages' &&
-              t.creator?.username !== '@rohan_treks'
-          );
-          if (realTrails.length !== parsed.length) {
-            localStorage.setItem('roamai_user_trails', JSON.stringify(realTrails));
-          }
-          return realTrails;
+  // Load real user trails exclusively from local and server registry
+  const [trails, setTrails] = useState<TrailReel[]>(() => getLocalTrails());
+
+  // Periodically sync global trails from server API & Supabase so any profile can see everyone's trails
+  useEffect(() => {
+    let isMounted = true;
+    const syncTrails = async () => {
+      try {
+        const globalList = await fetchGlobalTrails();
+        if (isMounted && Array.isArray(globalList)) {
+          setTrails((prev) => {
+            const prevIds = prev.map((p) => p.id).join(',');
+            const nextIds = globalList.map((g) => g.id).join(',');
+            if (prevIds !== nextIds || prev.length !== globalList.length) {
+              return globalList;
+            }
+            return prev;
+          });
         }
+      } catch (err) {
+        console.warn('Could not sync global trails:', err);
       }
-    } catch {
-      // fallback
-    }
-    return [];
-  });
+    };
+
+    syncTrails();
+    const interval = setInterval(syncTrails, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -277,14 +290,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!activeReel) return;
+    const isLiked = !activeReel.isLiked;
+    likeGlobalTrail(activeReel.id, isLiked);
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
-          const isLiked = !t.isLiked;
           return {
             ...t,
             isLiked,
-            likesCount: isLiked ? t.likesCount + 1 : t.likesCount - 1
+            likesCount: isLiked ? t.likesCount + 1 : Math.max(0, t.likesCount - 1)
           };
         }
         return t;
@@ -315,7 +330,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCommentText.trim()) return;
+    if (!newCommentText.trim() || !activeReel) return;
 
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
     const userDisplayName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
@@ -329,6 +344,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       text: newCommentText.trim(),
       time: 'Just now'
     };
+
+    commentOnGlobalTrail(activeReel.id, newComment);
 
     setTrails((prev) =>
       prev.map((t, idx) => {
@@ -412,16 +429,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       comments: []
     };
 
-    // 3. Save to user trails in local storage
+    // 3. Publish to global server and Supabase so anyone / other profiles can view it immediately
     try {
-      const stored = localStorage.getItem('roamai_user_trails');
-      const existing = stored ? JSON.parse(stored) : [];
-      localStorage.setItem('roamai_user_trails', JSON.stringify([newTrail, ...existing]));
-    } catch {
-      // ignore
+      await publishGlobalTrail(newTrail, uploadVideoFile || undefined);
+    } catch (err) {
+      console.warn('Failed to publish trail globally:', err);
     }
 
-    setTrails((prev) => [newTrail, ...prev]);
+    setTrails((prev) => [newTrail, ...prev.filter((p) => p.id !== newTrail.id)]);
     setCurrentIndex(0);
     setIsSubmitting(false);
     setShowUploadModal(false);
