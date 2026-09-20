@@ -2,8 +2,6 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Search, 
   MapPin, 
-  UserCheck, 
-  UserPlus, 
   Play, 
   Eye, 
   X, 
@@ -14,8 +12,10 @@ import {
   Sparkles,
   ArrowLeft,
   Share2,
-  Check
+  Check,
+  User
 } from 'lucide-react';
+import { Session } from '@supabase/supabase-js';
 import { ThemeConfig } from '../types';
 import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
@@ -57,7 +57,9 @@ export interface ExploreTile {
 
 interface TravellerSearchViewProps {
   currentTheme?: ThemeConfig;
+  session?: Session | null;
   onSelectTraveller?: (traveller: TravellerProfile) => void;
+  onOpenOwnProfile?: () => void;
   onOpenTrail?: (trailId?: string) => void;
   onStartPlanning?: (destination?: string) => void;
   onBack?: () => void;
@@ -104,7 +106,9 @@ function saveFollowedUserIds(followed: Set<string>) {
 }
 
 export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
+  session,
   onSelectTraveller,
+  onOpenOwnProfile,
   onOpenTrail,
   onStartPlanning
 }) => {
@@ -118,15 +122,60 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [profileTab, setProfileTab] = useState<'trails' | 'places'>('trails');
   const [shareToast, setShareToast] = useState<string | null>(null);
 
-  // Current logged in user's username to avoid suggesting themselves
-  const currentUsername = useMemo(() => {
-    try {
-      const cached = getCachedUserProfile();
-      return (cached?.username || '').toLowerCase().replace(/^@+/, '');
-    } catch {
-      return '';
+  // Collect all identifiers for currently logged-in user to prevent suggesting oneself
+  const currentIdentifiers = useMemo(() => {
+    const ids = new Set<string>();
+    const unames = new Set<string>();
+
+    if (session?.user) {
+      if (session.user.id) ids.add(session.user.id);
+      if (session.user.email) {
+        const emUname = session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (emUname) unames.add(emUname);
+      }
+      const meta = (session.user.user_metadata || {}) as Record<string, any>;
+      if (meta.username) {
+        unames.add(meta.username.toLowerCase().replace(/^@+/, ''));
+      }
+      const cached = getCachedUserProfile(session.user.id);
+      if (cached?.username) {
+        unames.add(cached.username.toLowerCase().replace(/^@+/, ''));
+      }
     }
-  }, []);
+
+    if (typeof window !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('tripwise_user_profile_')) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const data = JSON.parse(raw);
+              if (data.id) ids.add(data.id);
+              if (data.username) unames.add(data.username.toLowerCase().replace(/^@+/, ''));
+              if (data.email) {
+                const em = data.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+                if (em) unames.add(em);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading local user profile identifiers:', err);
+      }
+    }
+
+    return { ids, unames };
+  }, [session?.user?.id, session?.user?.email, session?.user?.user_metadata]);
+
+  // Check if a profile belongs to the currently logged in user
+  const isCurrentUser = useCallback((tr: TravellerProfile): boolean => {
+    const cleanUname = tr.username.toLowerCase().replace(/^@+/, '');
+    if (currentIdentifiers.unames.has(cleanUname)) return true;
+    if (currentIdentifiers.ids.has(tr.id)) return true;
+    if (tr.id.startsWith('supa_') && currentIdentifiers.ids.has(tr.id.replace('supa_', ''))) return true;
+    return false;
+  }, [currentIdentifiers]);
 
   // Fetch real registered profiles dynamically across Supabase, server registry, and local profiles
   useEffect(() => {
@@ -262,13 +311,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     });
   }, [viewingProfile, exploreTiles]);
 
-  // Suggested profiles for discover people section (exclude current user)
+  // Suggested profiles for discover people section: EXCLUDES the currently logged in user!
   const suggestedProfiles = useMemo(() => {
-    return travellers.filter((t) => {
-      const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
-      return !currentUsername || cleanUser !== currentUsername;
-    });
-  }, [travellers, currentUsername]);
+    return travellers.filter((t) => !isCurrentUser(t));
+  }, [travellers, isCurrentUser]);
 
   // Filtered Travellers during active search
   const filteredTravellers = useMemo(() => {
@@ -299,8 +345,18 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
   const isSearching = searchQuery.trim().length > 0;
 
-  // Open a profile in the same page like Instagram
-  const handleOpenProfile = (tr: TravellerProfile) => {
+  // Handle clicking on any profile:
+  // - If it's the user's OWN account, redirect to their profile page!
+  // - If it's another user, open their Instagram profile view in the same page.
+  const handleProfileClick = (tr: TravellerProfile) => {
+    if (isCurrentUser(tr)) {
+      if (onOpenOwnProfile) {
+        onOpenOwnProfile();
+      } else {
+        onSelectTraveller?.(tr);
+      }
+      return;
+    }
     setViewingProfile(tr);
     setProfileTab('trails');
     onSelectTraveller?.(tr);
@@ -702,11 +758,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   {filteredTravellers.map((tr) => {
                     const cleanUser = tr.username.replace(/^@+/, '').toLowerCase();
                     const isFollowing = followedSet.has(tr.id) || followedSet.has(cleanUser) || !!tr.isFollowing;
+                    const isOwn = isCurrentUser(tr);
 
                     return (
                       <div
                         key={tr.id}
-                        onClick={() => handleOpenProfile(tr)}
+                        onClick={() => handleProfileClick(tr)}
                         className="flex items-center justify-between gap-3 p-3 hover:bg-[#1a1a1a] transition-colors cursor-pointer group"
                       >
                         {/* Avatar & User Info */}
@@ -732,6 +789,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                               <span className="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors truncate">
                                 {tr.username}
                               </span>
+                              {isOwn && (
+                                <span className="text-[10px] font-bold text-neutral-300 bg-white/10 px-1.5 py-0.2 rounded shrink-0">
+                                  You
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-neutral-400 truncate">
                               {tr.name} • {tr.location || 'Traveler'}
@@ -744,18 +806,32 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Follow / Following Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => toggleFollow(tr.id, tr.username, e)}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                            isFollowing
-                              ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
-                              : 'bg-[#0095f6] hover:bg-[#1877f2] text-white shadow-sm'
-                          }`}
-                        >
-                          {isFollowing ? 'Following' : 'Follow'}
-                        </button>
+                        {/* Action Button: If own account, "Your Profile" / else "Follow/Following" */}
+                        {isOwn ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleProfileClick(tr);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700 transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                          >
+                            <User className="w-3 h-3 text-neutral-400" />
+                            <span>Your Profile</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleFollow(tr.id, tr.username, e)}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+                              isFollowing
+                                ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
+                                : 'bg-[#0095f6] hover:bg-[#1877f2] text-white shadow-sm'
+                            }`}
+                          >
+                            {isFollowing ? 'Following' : 'Follow'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -839,7 +915,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           /* B. DEFAULT INSTAGRAM EXPLORE FEED (!isSearching)            */
           /* ============================================================ */
           <div className="space-y-5">
-            {/* 1. "Suggested for you" / "Discover People" Carousel */}
+            {/* 1. "Suggested for you" / "Discover People" Carousel (Excludes Current User) */}
             {suggestedProfiles.length > 0 && (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between px-1">
@@ -860,7 +936,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     return (
                       <div
                         key={tr.id}
-                        onClick={() => handleOpenProfile(tr)}
+                        onClick={() => handleProfileClick(tr)}
                         className="w-[145px] sm:w-[160px] shrink-0 bg-[#121212] border border-neutral-800/90 rounded-2xl p-3 flex flex-col items-center text-center group cursor-pointer hover:border-neutral-700 transition-all shadow-sm"
                       >
                         {/* Profile Avatar (Clean, NO gradient ring) */}
