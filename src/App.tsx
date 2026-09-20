@@ -879,7 +879,7 @@ export default function App() {
       return;
     }
 
-    // Mark programmatic scroll so user scroll handlers and useEffect do not fight it
+    // Mark programmatic scroll so scroll listeners know this is intentional
     isProgrammaticScroll.current = true;
     isUserSwipeRef.current = false;
 
@@ -893,11 +893,7 @@ export default function App() {
     const width = sliderRef.current.clientWidth;
     const targetLeft = index * width;
 
-    // Temporarily relax scroll-snap during programmatic smooth scroll so physics don't fight smooth animation
-    if (smooth) {
-      sliderRef.current.style.scrollSnapType = 'none';
-    }
-
+    // Smoothly or instantly scroll directly to the target slide (native snap-always allows programmatic scrollTo to pass)
     sliderRef.current.scrollTo({
       left: targetLeft,
       behavior: smooth ? 'smooth' : 'instant',
@@ -906,9 +902,6 @@ export default function App() {
     setCurrentView(targetView);
 
     programmaticScrollTimer.current = setTimeout(() => {
-      if (sliderRef.current) {
-        sliderRef.current.style.scrollSnapType = 'x mandatory';
-      }
       isProgrammaticScroll.current = false;
     }, smooth ? 450 : 50);
   };
@@ -916,14 +909,13 @@ export default function App() {
   const handleSliderScroll = () => {
     if (isProgrammaticScroll.current || !sliderRef.current) return;
 
-    // Flag that user is actively scrolling / swiping so useEffect will never call scrollTo
     isUserSwipeRef.current = true;
 
     if (scrollSettleTimer.current) {
       clearTimeout(scrollSettleTimer.current);
     }
 
-    // Debounce state updates during touch/swipe so App doesn't re-render mid-gesture
+    // Debounce state updates so App doesn't re-render mid-gesture
     scrollSettleTimer.current = setTimeout(() => {
       if (!sliderRef.current || isProgrammaticScroll.current) {
         isUserSwipeRef.current = false;
@@ -954,7 +946,6 @@ export default function App() {
 
     const handleScrollEnd = () => {
       if (isProgrammaticScroll.current) {
-        slider.style.scrollSnapType = 'x mandatory';
         isProgrammaticScroll.current = false;
         if (programmaticScrollTimer.current) {
           clearTimeout(programmaticScrollTimer.current);
@@ -988,20 +979,20 @@ export default function App() {
     };
   }, [currentView]);
 
-  // Sync slider position ONLY if currentView is changed externally (NOT from user swipe or internal scroll)
+  // Only sync slider position when mounting into bottom-nav view from a non-bottom-nav view (e.g. returning from itinerary/auth to profile)
+  const prevIsBottomNavView = useRef(isBottomNavView);
   useEffect(() => {
-    if (!isBottomNavView || !sliderRef.current) return;
-    if (isProgrammaticScroll.current) return;
-    if (isUserSwipeRef.current) return; // Never fight the user's active or recent swipe
-
-    const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
-    if (index !== -1) {
-      const targetLeft = index * sliderRef.current.clientWidth;
-      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 10) {
-        scrollToTab(index, true);
+    if (!prevIsBottomNavView.current && isBottomNavView && sliderRef.current) {
+      const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+      if (index > 0) {
+        sliderRef.current.scrollTo({
+          left: index * sliderRef.current.clientWidth,
+          behavior: 'instant',
+        });
       }
     }
-  }, [currentView, isBottomNavView]);
+    prevIsBottomNavView.current = isBottomNavView;
+  }, [isBottomNavView, currentView]);
 
   // Adjust scroll on window resize (e.g. rotation)
   useEffect(() => {
@@ -1236,7 +1227,7 @@ export default function App() {
             >
               {/* SLIDE 0: LANDING PAGE */}
               <div 
-                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
                 {/* Full Dynamic Photographic Scenic Backdrop - Moves smoothly with slide */}
@@ -1279,7 +1270,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
-              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start bg-[#0a0a0f] relative">
+              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
                 <TrailsView
                   currentTheme={currentTheme}
                   session={session}
@@ -1295,7 +1286,7 @@ export default function App() {
 
               {/* SLIDE 2: CREATE TRIP WIZARD (+ Button with Theme Background) */}
               <div 
-                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
+                className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
                 {/* Full Photographic Scenic Backdrop - Moves smoothly with slide */}
@@ -1321,7 +1312,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 3: TRAVELLERS SEARCH */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start bg-[#0a0a0f] relative">
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
                 <TravellerSearchView
                   currentTheme={currentTheme}
                   session={session}
@@ -1339,7 +1330,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 4: USER TRAVEL PROFILE */}
-              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start bg-black relative">
+              <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-black relative">
                 <UserProfileView
                   session={session}
                   currentTheme={currentTheme}
