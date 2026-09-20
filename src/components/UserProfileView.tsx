@@ -35,7 +35,12 @@ import {
   LogOut,
   Upload,
   Trash2,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  Hash,
+  UserPlus,
+  Pause
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
@@ -171,12 +176,42 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailCaption, setTrailCaption] = useState<string>('');
   const [trailTags, setTrailTags] = useState<string>('');
   const [isPublishingTrail, setIsPublishingTrail] = useState<boolean>(false);
+  const [taggedPeopleTrail, setTaggedPeopleTrail] = useState<string>('');
+  const [showTagInputTrail, setShowTagInputTrail] = useState<boolean>(false);
+  const [showLocationInputTrail, setShowLocationInputTrail] = useState<boolean>(false);
+  const [showHashtagSuggestionsTrail, setShowHashtagSuggestionsTrail] = useState<boolean>(false);
+  const [isPreviewPlayingTrail, setIsPreviewPlayingTrail] = useState<boolean>(false);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const trailCoverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
   const detectedTrailHashtags = trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) 
     ? Array.from(new Set((trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim())))
     : [];
+
+  const handleTrailCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setTrailPosterUrl(url);
+    }
+  };
+
+  const handleSaveTrailDraft = () => {
+    try {
+      localStorage.setItem('roamai_reel_draft', JSON.stringify({
+        caption: trailCaption,
+        destination: trailDestination,
+        taggedPeople: taggedPeopleTrail,
+        tags: trailTags,
+        date: new Date().toISOString()
+      }));
+    } catch {}
+    setAvatarToast('Draft saved successfully');
+    setTimeout(() => setAvatarToast(null), 3000);
+    setIsUploadTrailModalOpen(false);
+    handleResetTrailUpload();
+  };
 
   const handleResetTrailUpload = () => {
     setTrailFile(null);
@@ -185,8 +220,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTrailDestination('');
     setTrailCaption('');
     setTrailTags('');
+    setTaggedPeopleTrail('');
+    setShowTagInputTrail(false);
+    setShowLocationInputTrail(false);
+    setShowHashtagSuggestionsTrail(false);
+    setIsPreviewPlayingTrail(false);
     if (trailUploadInputRef.current) {
       trailUploadInputRef.current.value = '';
+    }
+    if (trailCoverInputRef.current) {
+      trailCoverInputRef.current.value = '';
     }
   };
 
@@ -1866,173 +1909,249 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </div>
               </div>
             ) : (
-              /* STEP 2: Selected media preview + Reel details */
-              <form id="profile-upload-reel-form" onSubmit={handlePublishTrail} className="flex flex-col h-full max-h-[92vh]">
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10 shrink-0 bg-[#1c1c1e] sm:bg-[#18181b]">
+              /* STEP 2: Instagram "New reel" layout (matching attached design) */
+              <form id="profile-upload-reel-form" onSubmit={handlePublishTrail} className="flex flex-col h-full max-h-[92vh] sm:max-h-[850px] bg-black text-white">
+                {/* Header: Circle Back Button & Centered "New reel" */}
+                <div className="relative flex items-center justify-center px-4 py-3.5 border-b border-zinc-900 shrink-0">
                   <button
                     type="button"
                     onClick={handleResetTrailUpload}
                     disabled={isPublishingTrail}
-                    className="p-1.5 -ml-1.5 rounded-full hover:bg-white/10 text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors"
+                    className="absolute left-4 w-10 h-10 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] text-white flex items-center justify-center transition-colors cursor-pointer active:scale-95 disabled:opacity-40"
+                    title="Back"
                   >
-                    <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="hidden sm:inline">Choose different file</span>
+                    <ChevronLeft className="w-6 h-6" />
                   </button>
-
-                  <h3 className="text-sm sm:text-base font-bold text-white">Create new reel</h3>
-
-                  <button
-                    type="submit"
-                    disabled={isPublishingTrail}
-                    className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-emerald-950/50 cursor-pointer active:scale-95 transition-all"
-                  >
-                    {isPublishingTrail ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Sharing...</span>
-                      </>
-                    ) : (
-                      <span>Share</span>
-                    )}
-                  </button>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New reel</h2>
                 </div>
 
-                {/* Main Content Area */}
-                <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden min-h-0">
-                  {/* Left Column: Media Preview */}
-                  <div className="w-full md:w-[46%] lg:w-[48%] bg-black flex items-center justify-center relative shrink-0 min-h-[300px] md:min-h-full border-b md:border-b-0 md:border-r border-white/10">
+                {/* Scrollable Form Body */}
+                <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
+                  {/* Centered Preview Card with "Preview" and "Edit cover" */}
+                  <div className="relative w-44 sm:w-48 aspect-[9/16] max-h-72 mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 shadow-2xl flex items-center justify-center group">
                     {trailFile?.type.startsWith('image/') ? (
                       <img
-                        src={trailPreviewUrl}
+                        src={trailPosterUrl || trailPreviewUrl}
                         alt="Reel preview"
-                        className="w-full h-full max-h-[550px] object-contain"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <video
                         src={trailPreviewUrl}
                         poster={trailPosterUrl}
-                        controls
                         playsInline
                         loop
-                        autoPlay
+                        autoPlay={isPreviewPlayingTrail}
                         muted
-                        className="w-full h-full max-h-[550px] object-contain"
+                        className="w-full h-full object-cover"
                       />
                     )}
 
+                    {/* "Preview" Pill on Top */}
                     <button
                       type="button"
-                      onClick={() => trailUploadInputRef.current?.click()}
-                      className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer flex items-center gap-1.5 transition-all shadow-lg hover:scale-105"
+                      onClick={() => setIsPreviewPlayingTrail(!isPreviewPlayingTrail)}
+                      className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5"
                     >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Replace</span>
+                      {isPreviewPlayingTrail ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
+                      <span>Preview</span>
+                    </button>
+
+                    {/* "Edit cover" Pill on Bottom */}
+                    <input
+                      ref={trailCoverInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleTrailCoverChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => trailCoverInputRef.current?.click()}
+                      className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95"
+                    >
+                      Edit cover
                     </button>
                   </div>
 
-                  {/* Right Column: Reel Details */}
-                  <div className="w-full md:w-[54%] lg:w-[52%] flex flex-col justify-between p-4 sm:p-6 overflow-y-auto space-y-4 bg-zinc-900/60">
-                    <div className="space-y-4">
-                      {/* User Info Strip */}
-                      <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
-                        {profile.avatarUrl ? (
-                          <img
-                            src={profile.avatarUrl}
-                            alt={profile.name}
-                            className="w-8 h-8 rounded-full object-cover border border-white/20"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/30">
-                            {profile.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-white truncate">{profile.name}</p>
-                          <p className="text-[11px] text-zinc-400 truncate">{profile.username || getFallbackUsername(user, userMeta)}</p>
-                        </div>
+                  {/* Caption Input: "Add a caption..." */}
+                  <div className="pt-2">
+                    <textarea
+                      rows={3}
+                      value={trailCaption}
+                      onChange={(e) => setTrailCaption(e.target.value)}
+                      placeholder="Add a caption..."
+                      className="w-full bg-transparent text-sm sm:text-base text-white placeholder:text-zinc-500 focus:outline-hidden resize-none leading-relaxed border-none p-0"
+                    />
+
+                    {/* Detected Hashtags Display if any */}
+                    {detectedTrailHashtags.length > 0 && (
+                      <div className="pt-1.5 flex flex-wrap gap-1.5 items-center">
+                        {detectedTrailHashtags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
-
-                      {/* Combined Caption & Hashtags Box */}
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-zinc-300">
-                          Caption & Hashtags
-                        </label>
-                        <div className="rounded-2xl bg-zinc-950/80 border border-white/10 focus-within:border-emerald-500 p-3 transition-colors">
-                          <textarea
-                            rows={4}
-                            value={trailCaption}
-                            onChange={(e) => setTrailCaption(e.target.value)}
-                            placeholder="Write a caption and add #hashtags (e.g. Exploring hidden viewpoints! #wanderlust #alps #adventure)..."
-                            className="w-full bg-transparent text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden resize-none leading-relaxed"
-                          />
-
-                          {/* Live Detected Hashtags Badges */}
-                          {detectedTrailHashtags.length > 0 && (
-                            <div className="pt-2 border-t border-white/10 flex flex-wrap gap-1.5 items-center">
-                              <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-                                Tags:
-                              </span>
-                              {detectedTrailHashtags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Location Input */}
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-zinc-300">
-                          Add Location
-                        </label>
-                        <div className="relative">
-                          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-                          <input
-                            type="text"
-                            value={trailDestination}
-                            onChange={(e) => setTrailDestination(e.target.value)}
-                            placeholder="e.g. Manali, Himachal Pradesh or Amalfi Coast, Italy"
-                            className="w-full bg-zinc-950/80 border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-emerald-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Action for Mobile / Tablet */}
-                    <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
-                      <button
-                        type="button"
-                        onClick={handleResetTrailUpload}
-                        disabled={isPublishingTrail}
-                        className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isPublishingTrail}
-                        className="px-5 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/50 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-40"
-                      >
-                        {isPublishingTrail ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Publishing Reel...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Publish Reel</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    )}
                   </div>
+
+                  {/* Quick Button Row: [# Hashtags] (no poll, no prompt) */}
+                  <div className="flex items-center gap-2 pt-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowHashtagSuggestionsTrail(!showHashtagSuggestionsTrail);
+                        if (!trailCaption.endsWith(' ') && trailCaption.length > 0) {
+                          setTrailCaption((prev) => prev + ' #');
+                        } else if (trailCaption.length === 0) {
+                          setTrailCaption('#');
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                        showHashtagSuggestionsTrail 
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-md' 
+                          : 'bg-[#262626] hover:bg-zinc-800 text-white border-white/5'
+                      }`}
+                    >
+                      <Hash className="w-3.5 h-3.5" />
+                      <span>Hashtags</span>
+                    </button>
+                  </div>
+
+                  {/* Hashtag Suggestions Palette when active */}
+                  {showHashtagSuggestionsTrail && (
+                    <div className="p-2.5 rounded-2xl bg-[#1c1c1e] border border-white/10 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
+                      {['#travel', '#wanderlust', '#reels', '#nature', '#adventure', '#explore', '#sunset', '#mountains', '#beach'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            if (!trailCaption.includes(tag)) {
+                              setTrailCaption((prev) => prev.trim() ? `${prev.trim()} ${tag} ` : `${tag} `);
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium cursor-pointer transition-colors"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Divider Line */}
+                  <div className="border-t border-zinc-900 pt-1" />
+
+                  {/* Row 1: Tag people > */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTagInputTrail(!showTagInputTrail)}
+                      className="w-full py-3 flex items-center justify-between text-left hover:opacity-80 transition-opacity cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Camera className="w-5 h-5 text-white" />
+                        <span className="text-sm sm:text-base font-semibold text-white">Tag people</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        {taggedPeopleTrail && <span className="text-xs text-blue-400 font-medium truncate max-w-[120px]">{taggedPeopleTrail}</span>}
+                        <ChevronRight className="w-4 h-4 text-zinc-500" />
+                      </div>
+                    </button>
+
+                    {showTagInputTrail && (
+                      <div className="pb-3 pl-8">
+                        <input
+                          type="text"
+                          value={taggedPeopleTrail}
+                          onChange={(e) => setTaggedPeopleTrail(e.target.value)}
+                          placeholder="Tag users (e.g. @friend1, @traveler)..."
+                          className="w-full bg-[#1c1c1e] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-blue-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 2: Add location > */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLocationInputTrail(!showLocationInputTrail)}
+                      className="w-full py-2 flex items-center justify-between text-left hover:opacity-80 transition-opacity cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <MapPin className="w-5 h-5 text-white" />
+                        <span className="text-sm sm:text-base font-semibold text-white">Add location</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        {trailDestination && <span className="text-xs text-blue-400 font-medium truncate max-w-[140px]">{trailDestination}</span>}
+                        <ChevronRight className="w-4 h-4 text-zinc-500" />
+                      </div>
+                    </button>
+
+                    {showLocationInputTrail && (
+                      <div className="py-2 pl-8">
+                        <input
+                          type="text"
+                          value={trailDestination}
+                          onChange={(e) => setTrailDestination(e.target.value)}
+                          placeholder="Search location..."
+                          className="w-full bg-[#1c1c1e] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Suggested Location Pills (Matching screenshot: Indian, Banglore, Sarjapur...) */}
+                    <div className="flex items-center gap-2 overflow-x-auto py-2 pl-8 scrollbar-none">
+                      {['Indian', 'Banglore', 'Sarjapur, Karnataka, India', 'Manali', 'Goa', 'Bali'].map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setTrailDestination(loc)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 cursor-pointer transition-colors ${
+                            trailDestination === loc
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'bg-[#262626] hover:bg-zinc-800 text-zinc-200'
+                          }`}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="pl-8 pt-1 text-[11px] text-zinc-500 leading-snug">
+                      People you share this content with can see the location.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Bottom Action Bar: [Save draft] [Next] (Exact screenshot style) */}
+                <div className="px-5 sm:px-6 py-4 border-t border-zinc-900 bg-black shrink-0 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveTrailDraft}
+                    disabled={isPublishingTrail}
+                    className="flex-1 py-3.5 rounded-2xl bg-[#262626] hover:bg-zinc-800 text-white font-bold text-sm text-center cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                  >
+                    Save draft
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPublishingTrail}
+                    className="flex-1 py-3.5 rounded-2xl bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold text-sm text-center cursor-pointer transition-all active:scale-98 shadow-lg shadow-blue-950/40 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isPublishingTrail ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Sharing...</span>
+                      </>
+                    ) : (
+                      <span>Next</span>
+                    )}
+                  </button>
                 </div>
               </form>
             )}
