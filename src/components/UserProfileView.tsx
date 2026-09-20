@@ -1178,15 +1178,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             )}
           </button>
 
-          {/* 4. Saved Tab (Bookmark icon) */}
+          {/* 4. Saved Places Tab (MapPin icon) */}
           <button
             onClick={() => setActiveTab('saved')}
             className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
               activeTab === 'saved' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
             }`}
-            title="Saved & Wishlist"
+            title="Saved Places"
           >
-            <Bookmark className="w-5 h-5 sm:w-6 sm:h-6" />
+            <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
             {activeTab === 'saved' && (
               <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
             )}
@@ -1423,11 +1423,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             {(profile.wishlist || []).length === 0 ? (
               <div className="py-20 px-4 text-center space-y-3">
                 <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
-                  <Bookmark className="w-7 h-7" />
+                  <MapPin className="w-7 h-7" />
                 </div>
                 <h4 className="text-sm sm:text-base font-bold text-white">No Saved Places</h4>
                 <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                  Bookmark dream destinations and itineraries to easily find them later.
+                  Save dream destinations and places to easily find them later.
                 </p>
               </div>
             ) : (
