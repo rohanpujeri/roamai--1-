@@ -1,4 +1,5 @@
 import { getSupabaseClient, sanitizeAvatarUrl } from './supabaseClient';
+import { isFakeMockUser } from './followService';
 
 const RESERVED_USERNAMES = new Set([
   'admin',
@@ -311,7 +312,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
   // Helper to add or merge a real profile record
   const recordProfile = (p: Partial<RealTravellerResult> & { username: string }) => {
     const cleanUser = cleanUsernameInput(p.username);
-    if (!cleanUser) return;
+    if (!cleanUser || isFakeMockUser(cleanUser)) return;
     const existing = profilesMap.get(cleanUser);
     const updated: RealTravellerResult = {
       id: p.id || existing?.id || `user_${cleanUser}`,
