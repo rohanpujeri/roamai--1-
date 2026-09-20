@@ -390,7 +390,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       destination: t.destination || 'Explore Destination',
       imageUrl: t.posterUrl || t.videoUrl || '',
       videoUrl: t.videoUrl,
-      viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+      viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
       likesCount: t.likesCount ? String(t.likesCount) : '0',
       creator: {
         id: t.creator?.id,
