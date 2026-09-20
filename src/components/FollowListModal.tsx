@@ -53,7 +53,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   currentUser,
   onSelectUser
 }) => {
-  const [activeTab, setActiveTab] = useState<'followers' | 'following' | 'subscriptions'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'followers' | 'following'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [followersList, setFollowersList] = useState<EnrichedFollowUser[]>([]);
   const [followingList, setFollowingList] = useState<EnrichedFollowUser[]>([]);
@@ -316,22 +316,6 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
               <div className="absolute bottom-0 left-3 right-3 h-[1.5px] bg-white rounded-full" />
             )}
           </button>
-
-          {/* Subscriptions Tab */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('subscriptions');
-            }}
-            className="relative px-4 py-3 text-[14px] sm:text-[15px] transition-colors cursor-pointer text-center shrink-0"
-          >
-            <span className={`block font-semibold ${activeTab === 'subscriptions' ? 'text-white font-bold' : 'text-neutral-400'}`}>
-              Subscriptions
-            </span>
-            {activeTab === 'subscriptions' && (
-              <div className="absolute bottom-0 left-2 right-2 h-[1.5px] bg-white rounded-full" />
-            )}
-          </button>
         </div>
 
         {/* 3. SEARCH INPUT (Charcoal pill matching screenshot) */}
@@ -383,16 +367,6 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
             <div className="flex flex-col items-center justify-center py-20 text-neutral-400 gap-3">
               <Loader2 className="w-6 h-6 animate-spin text-neutral-500" />
               <p className="text-xs text-neutral-400">Loading...</p>
-            </div>
-          ) : activeTab === 'subscriptions' ? (
-            <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-[#262626] flex items-center justify-center text-neutral-400 mb-3.5">
-                <Bell className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-white">No subscriptions</h3>
-              <p className="text-xs text-neutral-400 mt-1 max-w-xs leading-relaxed">
-                Accounts this profile subscribes to for exclusive travel trails will appear here.
-              </p>
             </div>
           ) : filteredUsers.length > 0 ? (
             filteredUsers.map((user) => {
