@@ -7,6 +7,7 @@ import { SnowfallEffect } from './SnowfallAtmosphere';
 interface ThemeHeroBackdropProps {
   currentTheme?: ThemeConfig;
   isDark?: boolean;
+  isAbsolute?: boolean;
 }
 
 interface ColorGradePreset {
@@ -62,7 +63,8 @@ const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
 
 export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   currentTheme,
-  isDark = false
+  isDark = false,
+  isAbsolute = false,
 }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const themeId = currentTheme?.id || 'waterfall';
@@ -82,7 +84,7 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   }, [themeId]);
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0 select-none" aria-hidden="true">
+    <div className={`${isAbsolute ? 'absolute' : 'fixed'} inset-0 w-full h-full overflow-hidden pointer-events-none z-0 select-none`} aria-hidden="true">
       {/* 1. Theme Scenic Landscape Photographic Background Layer with Smooth Transition */}
       <AnimatePresence mode="wait">
         <motion.div

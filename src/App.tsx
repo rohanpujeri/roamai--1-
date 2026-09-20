@@ -860,6 +860,8 @@ export default function App() {
 
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
+  const programmaticScrollTimer = useRef<any>(null);
+  const isUserSwipeRef = useRef(false);
   const scrollSettleTimer = useRef<any>(null);
 
   const scrollToTab = (index: number, smooth = true) => {
@@ -877,12 +879,24 @@ export default function App() {
       return;
     }
 
+    // Mark programmatic scroll so user scroll handlers and useEffect do not fight it
     isProgrammaticScroll.current = true;
+    isUserSwipeRef.current = false;
+
+    if (programmaticScrollTimer.current) {
+      clearTimeout(programmaticScrollTimer.current);
+    }
+    if (scrollSettleTimer.current) {
+      clearTimeout(scrollSettleTimer.current);
+    }
+
     const width = sliderRef.current.clientWidth;
     const targetLeft = index * width;
 
-    // Temporarily relax scroll-snap during programmatic scroll so physics don't fight smooth animation
-    sliderRef.current.style.scrollSnapType = 'none';
+    // Temporarily relax scroll-snap during programmatic smooth scroll so physics don't fight smooth animation
+    if (smooth) {
+      sliderRef.current.style.scrollSnapType = 'none';
+    }
 
     sliderRef.current.scrollTo({
       left: targetLeft,
@@ -891,7 +905,7 @@ export default function App() {
 
     setCurrentView(targetView);
 
-    setTimeout(() => {
+    programmaticScrollTimer.current = setTimeout(() => {
       if (sliderRef.current) {
         sliderRef.current.style.scrollSnapType = 'x mandatory';
       }
@@ -902,15 +916,24 @@ export default function App() {
   const handleSliderScroll = () => {
     if (isProgrammaticScroll.current || !sliderRef.current) return;
 
-    // Debounce state updates during touch/swipe so App doesn't re-render mid-animation
+    // Flag that user is actively scrolling / swiping so useEffect will never call scrollTo
+    isUserSwipeRef.current = true;
+
     if (scrollSettleTimer.current) {
       clearTimeout(scrollSettleTimer.current);
     }
 
+    // Debounce state updates during touch/swipe so App doesn't re-render mid-gesture
     scrollSettleTimer.current = setTimeout(() => {
-      if (!sliderRef.current || isProgrammaticScroll.current) return;
+      if (!sliderRef.current || isProgrammaticScroll.current) {
+        isUserSwipeRef.current = false;
+        return;
+      }
       const { scrollLeft, clientWidth } = sliderRef.current;
-      if (!clientWidth) return;
+      if (!clientWidth) {
+        isUserSwipeRef.current = false;
+        return;
+      }
       const newIndex = Math.round(scrollLeft / clientWidth);
       if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
         const targetView = BOTTOM_NAV_ORDER[newIndex];
@@ -918,30 +941,64 @@ export default function App() {
           setCurrentView(targetView);
         }
       }
-    }, 60);
+      setTimeout(() => {
+        isUserSwipeRef.current = false;
+      }, 100);
+    }, 120);
   };
 
-  // Sync slider position if currentView is changed externally
+  // Modern scrollend listener for instantaneous and jitter-free settle detection
+  useEffect(() => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const handleScrollEnd = () => {
+      if (isProgrammaticScroll.current) {
+        slider.style.scrollSnapType = 'x mandatory';
+        isProgrammaticScroll.current = false;
+        if (programmaticScrollTimer.current) {
+          clearTimeout(programmaticScrollTimer.current);
+        }
+        return;
+      }
+
+      if (isUserSwipeRef.current) {
+        if (scrollSettleTimer.current) {
+          clearTimeout(scrollSettleTimer.current);
+        }
+        const { scrollLeft, clientWidth } = slider;
+        if (clientWidth) {
+          const newIndex = Math.round(scrollLeft / clientWidth);
+          if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
+            const targetView = BOTTOM_NAV_ORDER[newIndex];
+            if (targetView !== currentView) {
+              setCurrentView(targetView);
+            }
+          }
+        }
+        setTimeout(() => {
+          isUserSwipeRef.current = false;
+        }, 100);
+      }
+    };
+
+    slider.addEventListener('scrollend', handleScrollEnd);
+    return () => {
+      slider.removeEventListener('scrollend', handleScrollEnd);
+    };
+  }, [currentView]);
+
+  // Sync slider position ONLY if currentView is changed externally (NOT from user swipe or internal scroll)
   useEffect(() => {
     if (!isBottomNavView || !sliderRef.current) return;
-    if (isProgrammaticScroll.current) return; // Prevent conflicting second scroll
+    if (isProgrammaticScroll.current) return;
+    if (isUserSwipeRef.current) return; // Never fight the user's active or recent swipe
 
     const index = BOTTOM_NAV_ORDER.indexOf(currentView as any);
     if (index !== -1) {
       const targetLeft = index * sliderRef.current.clientWidth;
-      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 5) {
-        isProgrammaticScroll.current = true;
-        sliderRef.current.style.scrollSnapType = 'none';
-        sliderRef.current.scrollTo({
-          left: targetLeft,
-          behavior: 'smooth',
-        });
-        setTimeout(() => {
-          if (sliderRef.current) {
-            sliderRef.current.style.scrollSnapType = 'x mandatory';
-          }
-          isProgrammaticScroll.current = false;
-        }, 450);
+      if (Math.abs(sliderRef.current.scrollLeft - targetLeft) > 10) {
+        scrollToTab(index, true);
       }
     }
   }, [currentView, isBottomNavView]);
@@ -1099,21 +1156,29 @@ export default function App() {
 
   return (
     <div 
-      className={`font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative ${
+      className={`font-sans antialiased text-slate-900 flex flex-col relative ${
         isBottomNavView ? 'h-[100dvh] h-screen w-full overflow-hidden' : 'min-h-screen'
       }`}
-      style={{ backgroundColor: currentView === 'profile' ? '#09090b' : isNoThemeBgView ? '#0a0a0f' : currentTheme.canvasBg }}
+      style={{
+        backgroundColor: isBottomNavView
+          ? '#09090b'
+          : currentView === 'profile'
+          ? '#09090b'
+          : isNoThemeBgView
+          ? '#0a0a0f'
+          : currentTheme.canvasBg,
+      }}
     >
-      {/* Full-Page Dynamic Photographic Scenic Backdrop - Disabled on separate bottom nav pages */}
-      {!isNoThemeBgView && (
+      {/* Full-Page Dynamic Photographic Scenic Backdrop - ONLY for non-bottom-nav pages */}
+      {!isBottomNavView && !isNoThemeBgView && (
         <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
       )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Global Ambient Snowfall when Snow Theme is active - Disabled on separate bottom nav pages */}
-      {!isNoThemeBgView && themeId === 'snow' && (
+      {/* Global Ambient Snowfall when Snow Theme is active - ONLY for non-bottom-nav pages */}
+      {!isBottomNavView && !isNoThemeBgView && themeId === 'snow' && (
         <SnowfallEffect fullScreen={true} density="gentle" />
       )}
 
@@ -1161,11 +1226,12 @@ export default function App() {
             <div
               ref={sliderRef}
               onScroll={handleSliderScroll}
-              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory touch-pan-x"
+              className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
+                overscrollBehaviorX: 'contain',
               }}
             >
               {/* SLIDE 0: LANDING PAGE */}
@@ -1173,9 +1239,9 @@ export default function App() {
                 className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
-                {/* Full Dynamic Photographic Scenic Backdrop */}
-                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
-                {themeId === 'snow' && <SnowfallEffect fullScreen={true} density="gentle" />}
+                {/* Full Dynamic Photographic Scenic Backdrop - Moves smoothly with slide */}
+                <ThemeHeroBackdrop isAbsolute currentTheme={currentTheme} isDark={currentTheme.isDark} />
+                {themeId === 'snow' && <SnowfallEffect fullScreen={false} density="gentle" />}
 
                 <div className="relative z-10">
                   <Navbar
@@ -1232,9 +1298,9 @@ export default function App() {
                 className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
-                {/* Full Photographic Scenic Backdrop */}
-                <ThemeHeroBackdrop currentTheme={currentTheme} isDark={currentTheme.isDark} />
-                {themeId === 'snow' && <SnowfallEffect fullScreen={true} density="gentle" />}
+                {/* Full Photographic Scenic Backdrop - Moves smoothly with slide */}
+                <ThemeHeroBackdrop isAbsolute currentTheme={currentTheme} isDark={currentTheme.isDark} />
+                {themeId === 'snow' && <SnowfallEffect fullScreen={false} density="gentle" />}
 
                 <div className="relative z-10">
                   <CreateTripWizard
