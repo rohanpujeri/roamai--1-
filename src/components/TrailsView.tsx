@@ -35,10 +35,12 @@ import {
   publishGlobalTrail,
   likeGlobalTrail,
   commentOnGlobalTrail,
-  isTrailLikedByUser
+  isTrailLikedByUser,
+  TrailLiker
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
+import { TrailLikesModal } from './TrailLikesModal';
 
 
 export interface TrailReel {
@@ -63,6 +65,7 @@ export interface TrailReel {
   commentsCount: number;
   isLiked?: boolean;
   isSaved?: boolean;
+  likedBy?: TrailLiker[];
   comments?: Array<{
     id: string;
     user: string;
@@ -140,6 +143,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
+  const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -147,6 +151,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
   const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
   const lastTapRef = useRef<number>(0);
+
+  const getCurrentUserLiker = (): TrailLiker | undefined => {
+    if (!session?.user) return undefined;
+    const cached = getCachedUserProfile(session.user.id);
+    const meta = session.user.user_metadata || {};
+    return {
+      id: session.user.id,
+      name: cached?.name || meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Traveler',
+      username: cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : (session.user.email ? `@${session.user.email.split('@')[0]}` : '@traveler')),
+      avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '')
+    };
+  };
 
   // Active media resolution states
   const [activeMediaUrl, setActiveMediaUrl] = useState<string>('');
@@ -279,7 +295,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   // Mouse wheel scroll to change trails (with throttle)
   const lastWheelTimeRef = useRef<number>(0);
   const handleWheel = (e: React.WheelEvent) => {
-    if (showComments || showUploadModal) return;
+    if (showComments || showUploadModal || showLikesModal) return;
     const now = Date.now();
     if (now - lastWheelTimeRef.current < 450) return;
 
@@ -294,7 +310,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   // Keyboard navigation for full screen reels (ArrowDown/Up, J/K, Space, M)
   useEffect(() => {
-    if (!isActive || showComments || showUploadModal) return;
+    if (!isActive || showComments || showUploadModal || showLikesModal) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
@@ -321,20 +337,27 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, showComments, showUploadModal, currentIndex, trails.length, isMuted, isPlaying]);
+  }, [isActive, showComments, showUploadModal, showLikesModal, currentIndex, trails.length, isMuted, isPlaying]);
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeReel) return;
     const isLiked = !activeReel.isLiked;
-    likeGlobalTrail(activeReel.id, isLiked);
+    const liker = getCurrentUserLiker();
+    likeGlobalTrail(activeReel.id, isLiked, liker);
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
+          const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
+          const updatedLikers = isLiked && liker
+            ? [liker, ...currentLikers.filter((u) => u.username !== liker.username)]
+            : currentLikers.filter((u) => u.username !== liker?.username);
+
           return {
             ...t,
             isLiked,
-            likesCount: isLiked ? t.likesCount + 1 : Math.max(0, t.likesCount - 1)
+            likesCount: isLiked ? t.likesCount + 1 : Math.max(0, t.likesCount - 1),
+            likedBy: updatedLikers
           };
         }
         return t;
@@ -632,14 +655,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             if (now - lastTapRef.current < 320) {
               // Double tap detected! Like the trail with heart burst animation
               if (activeReel && !activeReel.isLiked) {
-                likeGlobalTrail(activeReel.id, true);
+                const liker = getCurrentUserLiker();
+                likeGlobalTrail(activeReel.id, true, liker);
                 setTrails((prev) =>
                   prev.map((t, idx) => {
                     if (idx === currentIndex) {
+                      const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
+                      const updatedLikers = liker
+                        ? [liker, ...currentLikers.filter((u) => u.username !== liker.username)]
+                        : currentLikers;
+
                       return {
                         ...t,
                         isLiked: true,
-                        likesCount: t.likesCount + 1
+                        likesCount: t.likesCount + 1,
+                        likedBy: updatedLikers
                       };
                     }
                     return t;
@@ -743,23 +773,34 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div className="absolute right-4 sm:right-8 bottom-[160px] sm:bottom-[170px] z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
-          {/* Like Button */}
-          <button
-            type="button"
-            onClick={handleLike}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
-          >
-            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
-              activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/50 hover:bg-black/70 text-white'
-            }`}>
-              <Heart className={`w-6 h-6 transition-transform group-active/btn:scale-75 ${
-                activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white'
-              }`} />
-            </div>
-            <span className="text-xs font-bold text-white drop-shadow-md">
+          {/* Like Button & Likes Count */}
+          <div className="flex flex-col items-center gap-1 group/btn">
+            <button
+              type="button"
+              onClick={handleLike}
+              className="flex flex-col items-center cursor-pointer transition-transform active:scale-75"
+              title={activeReel.isLiked ? 'Unlike' : 'Like'}
+            >
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
+                activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/50 hover:bg-black/70 text-white'
+              }`}>
+                <Heart className={`w-6 h-6 transition-transform ${
+                  activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white hover:scale-105'
+                }`} />
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLikesModal(true);
+              }}
+              className="text-xs font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1.5 py-0.5 rounded-md hover:bg-black/40"
+              title="View profiles who liked this trail"
+            >
               {activeReel.likesCount}
-            </span>
-          </button>
+            </button>
+          </div>
 
           {/* Comments Button */}
           <button
@@ -1027,6 +1068,22 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <ChevronDown className="w-6 h-6" />
         </button>
       </div>
+
+      {/* Trail Likes Modal (Instagram Reels Style) */}
+      <TrailLikesModal
+        isOpen={showLikesModal}
+        onClose={() => setShowLikesModal(false)}
+        trailId={activeReel?.id || ''}
+        trailTitle={activeReel?.title || activeReel?.destination}
+        likesCount={activeReel?.likesCount || 0}
+        initialLikers={activeReel?.likedBy}
+        currentUser={getCurrentUserLiker()}
+        onLikeTrail={() => {
+          if (activeReel && !activeReel.isLiked) {
+            handleLike({ stopPropagation: () => {} } as React.MouseEvent);
+          }
+        }}
+      />
 
       {/* Comments Drawer / Sheet */}
       {showComments && (

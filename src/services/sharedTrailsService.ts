@@ -17,6 +17,15 @@ export interface TrailComment {
   time: string;
 }
 
+export interface TrailLiker {
+  id?: string;
+  name: string;
+  username: string;
+  avatarUrl?: string;
+  bio?: string;
+  likedAt?: string;
+}
+
 export interface TrailReel {
   id: string;
   videoUrl: string;
@@ -34,6 +43,7 @@ export interface TrailReel {
   isSaved?: boolean;
   viewsCount?: number;
   comments?: TrailComment[];
+  likedBy?: TrailLiker[];
   createdAt?: string;
 }
 
@@ -66,6 +76,93 @@ export function setTrailLikedByUser(trailId: string, liked: boolean): void {
   } catch {
     // ignore
   }
+}
+
+const TRAIL_LIKERS_PREFIX = 'roamai_trail_likers_';
+
+export function getLocalTrailLikers(trailId: string): TrailLiker[] {
+  if (typeof window === 'undefined' || !trailId) return [];
+  try {
+    const raw = localStorage.getItem(TRAIL_LIKERS_PREFIX + trailId);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+    // Also check inside trail object
+    const trails = getLocalTrails();
+    const trail = trails.find((t) => t.id === trailId);
+    if (trail?.likedBy && Array.isArray(trail.likedBy)) {
+      return trail.likedBy;
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export function setLocalTrailLikers(trailId: string, likers: TrailLiker[]): void {
+  if (typeof window === 'undefined' || !trailId) return;
+  try {
+    localStorage.setItem(TRAIL_LIKERS_PREFIX + trailId, JSON.stringify(likers));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Fetch users who liked a trail globally from server, Supabase, and local cache
+ */
+export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
+  if (!trailId) return [];
+  const likersMap = new Map<string, TrailLiker>();
+
+  // 1. Check local cache
+  getLocalTrailLikers(trailId).forEach((l) => {
+    const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
+    if (cleanU && !likersMap.has(cleanU)) {
+      likersMap.set(cleanU, l);
+    }
+  });
+
+  // 2. Fetch from server API
+  try {
+    const res = await fetch(`/api/trails/${encodeURIComponent(trailId)}/likes`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.likers)) {
+        data.likers.forEach((l: TrailLiker) => {
+          const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
+          if (cleanU && !likersMap.has(cleanU)) {
+            likersMap.set(cleanU, l);
+          }
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. Fetch from Supabase
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
+      if (data?.trail_data?.likedBy && Array.isArray(data.trail_data.likedBy)) {
+        data.trail_data.likedBy.forEach((l: TrailLiker) => {
+          const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
+          if (cleanU && !likersMap.has(cleanU)) {
+            likersMap.set(cleanU, l);
+          }
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const list = Array.from(likersMap.values());
+  setLocalTrailLikers(trailId, list);
+  return list;
 }
 
 /**
@@ -359,11 +456,29 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
 /**
  * Like / unlike a trail globally
  */
-export async function likeGlobalTrail(trailId: string, increment: boolean): Promise<void> {
+export async function likeGlobalTrail(
+  trailId: string, 
+  increment: boolean,
+  liker?: TrailLiker
+): Promise<void> {
   // 1. Update user liked state
   setTrailLikedByUser(trailId, increment);
 
-  // 2. Update local storage cache immediately for zero latency
+  // 2. Update local likers list
+  let currentLikers = getLocalTrailLikers(trailId);
+  if (liker && liker.username) {
+    const cleanU = liker.username.toLowerCase().replace(/^@+/, '');
+    if (increment) {
+      if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
+        currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
+      }
+    } else {
+      currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
+    }
+    setLocalTrailLikers(trailId, currentLikers);
+  }
+
+  // 3. Update local storage cache immediately for zero latency
   if (typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
@@ -374,21 +489,26 @@ export async function likeGlobalTrail(trailId: string, increment: boolean): Prom
             if (t.id === trailId) {
               const currentLikes = Number(t.likesCount || 0);
               const nextLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
-              return { ...t, likesCount: nextLikes, isLiked: increment };
+              return { 
+                ...t, 
+                likesCount: nextLikes, 
+                isLiked: increment,
+                likedBy: currentLikers 
+              };
             }
             return t;
           });
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
         }
       }
-      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment } }));
+      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker } }));
       window.dispatchEvent(new Event('storage'));
     } catch {
       // ignore
     }
   }
 
-  // 3. Update in Supabase
+  // 4. Update in Supabase
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -396,7 +516,11 @@ export async function likeGlobalTrail(trailId: string, increment: boolean): Prom
       if (data && data.trail_data) {
         const currentLikes = Number(data.trail_data.likesCount || 0);
         const updatedLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
-        const updatedTrail = { ...data.trail_data, likesCount: updatedLikes };
+        const updatedTrail = { 
+          ...data.trail_data, 
+          likesCount: updatedLikes,
+          likedBy: currentLikers 
+        };
         await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
       }
     }
@@ -404,12 +528,12 @@ export async function likeGlobalTrail(trailId: string, increment: boolean): Prom
     // ignore
   }
 
-  // 4. Update in server
+  // 5. Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ increment })
+      body: JSON.stringify({ increment, liker })
     });
   } catch {
     // ignore

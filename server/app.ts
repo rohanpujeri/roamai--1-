@@ -17,6 +17,7 @@ import {
   saveServerTrail, 
   deleteServerTrail, 
   toggleLikeServerTrail, 
+  getServerTrailLikers,
   addCommentToServerTrail 
 } from './services/serverTrailsRegistry';
 import {
@@ -296,12 +297,24 @@ export function createExpressApp() {
   apiRouter.post('/trails/:id/like', (req, res) => {
     try {
       const { id } = req.params;
-      const { increment } = req.body;
-      const result = toggleLikeServerTrail(id, increment !== false);
+      const { increment, liker } = req.body;
+      const result = toggleLikeServerTrail(id, increment !== false, liker);
       res.json(result);
     } catch (err: any) {
       console.error('Error liking trail:', err);
       res.status(500).json({ error: 'Failed to update like status' });
+    }
+  });
+
+  // Get users who liked a trail
+  apiRouter.get('/trails/:id/likes', (req, res) => {
+    try {
+      const { id } = req.params;
+      const likers = getServerTrailLikers(id);
+      res.json({ likers });
+    } catch (err: any) {
+      console.error('Error fetching trail likers:', err);
+      res.status(500).json({ error: 'Failed to fetch likers' });
     }
   });
 

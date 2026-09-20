@@ -29,6 +29,13 @@ export interface ServerTrailRecord {
     text: string;
     time: string;
   }>;
+  likedBy?: Array<{
+    id?: string;
+    name: string;
+    username: string;
+    avatarUrl?: string;
+    likedAt?: string;
+  }>;
   createdAt: string;
 }
 
@@ -198,15 +205,45 @@ export function deleteServerTrail(trailId: string): boolean {
 /**
  * Like or unlike a trail globally
  */
-export function toggleLikeServerTrail(trailId: string, increment: boolean): { success: boolean; likesCount: number } {
+export function toggleLikeServerTrail(
+  trailId: string, 
+  increment: boolean,
+  liker?: { id?: string; name: string; username: string; avatarUrl?: string; likedAt?: string }
+): { success: boolean; likesCount: number; likedBy?: any[] } {
   const trail = trailsMap.get(trailId);
   if (!trail) return { success: false, likesCount: 0 };
 
-  trail.likesCount = Math.max(0, trail.likesCount + (increment ? 1 : -1));
+  if (!trail.likedBy) trail.likedBy = [];
+  if (liker && liker.username) {
+    const cleanU = liker.username.toLowerCase().replace(/^@+/, '');
+    if (increment) {
+      if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, '') === cleanU)) {
+        trail.likedBy.unshift({
+          id: liker.id,
+          name: liker.name,
+          username: liker.username.startsWith('@') ? liker.username : `@${liker.username}`,
+          avatarUrl: liker.avatarUrl,
+          likedAt: liker.likedAt || new Date().toISOString()
+        });
+      }
+    } else {
+      trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, '') !== cleanU);
+    }
+  }
+
+  trail.likesCount = Math.max(trail.likedBy ? trail.likedBy.length : 0, trail.likesCount + (increment ? 1 : -1));
   trail.isLiked = increment;
   persistToDisk();
 
-  return { success: true, likesCount: trail.likesCount };
+  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
+}
+
+/**
+ * Get all likers for a specific trail
+ */
+export function getServerTrailLikers(trailId: string): any[] {
+  const trail = trailsMap.get(trailId);
+  return trail?.likedBy || [];
 }
 
 /**
