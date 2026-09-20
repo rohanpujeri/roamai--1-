@@ -11,14 +11,14 @@ import {
   Bell, 
   VolumeX, 
   UserX, 
-  MessageCircle,
   Users
 } from 'lucide-react';
 import { 
   FollowUserProfile, 
   getFollowers, 
   getFollowing, 
-  toggleFollowUser 
+  toggleFollowUser,
+  removeFollowerUser 
 } from '../services/followService';
 
 interface FollowListModalProps {
@@ -59,7 +59,11 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   const [followingList, setFollowingList] = useState<EnrichedFollowUser[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sortOrder, setSortOrder] = useState<'Default' | 'Latest' | 'Earliest'>('Default');
+  
+  // Instagram Dialog States
   const [optionsUser, setOptionsUser] = useState<EnrichedFollowUser | null>(null);
+  const [unfollowConfirmUser, setUnfollowConfirmUser] = useState<EnrichedFollowUser | null>(null);
+  const [removeFollowerConfirmUser, setRemoveFollowerConfirmUser] = useState<EnrichedFollowUser | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Sync tab when opening or initialTab changes
@@ -68,6 +72,8 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
       setActiveTab(initialTab);
       setSearchQuery('');
       setOptionsUser(null);
+      setUnfollowConfirmUser(null);
+      setRemoveFollowerConfirmUser(null);
     }
   }, [isOpen, initialTab]);
 
@@ -141,11 +147,15 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     };
   }, [isOpen, loadData]);
 
-  // Handle ESC key to close modal
+  // Handle ESC key to close modals
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (optionsUser) {
+        if (unfollowConfirmUser) {
+          setUnfollowConfirmUser(null);
+        } else if (removeFollowerConfirmUser) {
+          setRemoveFollowerConfirmUser(null);
+        } else if (optionsUser) {
           setOptionsUser(null);
         } else {
           onClose();
@@ -158,7 +168,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose, optionsUser]);
+  }, [isOpen, onClose, optionsUser, unfollowConfirmUser, removeFollowerConfirmUser]);
 
   // Cycle through sort order: Default -> Latest -> Earliest -> Default
   const toggleSortOrder = () => {
@@ -202,36 +212,55 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     return false;
   };
 
-  // Toggle follow status for a user row
-  const handleToggleFollow = async (target: EnrichedFollowUser, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentUser?.username) return;
+  // Execute Unfollow confirmation
+  const handleConfirmUnfollow = async () => {
+    if (!unfollowConfirmUser || !currentUser?.username) return;
+    const target = unfollowConfirmUser;
+    setUnfollowConfirmUser(null);
+    setOptionsUser(null);
 
-    const nextIsFollowing = !target.isFollowing;
-    const updateInList = (list: EnrichedFollowUser[]) =>
-      list.map((u) => {
-        if (u.username.toLowerCase() === target.username.toLowerCase()) {
-          return { ...u, isFollowing: nextIsFollowing };
-        }
-        return u;
-      });
-
-    setFollowersList((prev) => updateInList(prev));
-    setFollowingList((prev) => updateInList(prev));
+    // If viewing own following tab, remove immediately from list
+    if (activeTab === 'following' && isOwnProfile) {
+      setFollowingList((prev) => prev.filter((u) => u.username.toLowerCase() !== target.username.toLowerCase()));
+    } else {
+      setFollowersList((prev) =>
+        prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: false } : u))
+      );
+      setFollowingList((prev) =>
+        prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: false } : u))
+      );
+    }
 
     await toggleFollowUser(currentUser, target);
-    showToast(nextIsFollowing ? `Following ${target.username}` : `Unfollowed ${target.username}`);
+    showToast(`Unfollowed ${target.username}`);
   };
 
-  // Remove follower handler
-  const handleRemoveFollower = async (target: EnrichedFollowUser, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Follow a user directly
+  const handleFollowUser = async (target: EnrichedFollowUser, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!currentUser?.username) return;
 
-    setFollowersList((prev) => prev.filter((u) => u.username.toLowerCase() !== target.username.toLowerCase()));
-    await toggleFollowUser(target, currentUser);
-    showToast(`Removed ${target.username} from followers`);
+    setFollowersList((prev) =>
+      prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: true } : u))
+    );
+    setFollowingList((prev) =>
+      prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: true } : u))
+    );
+
+    await toggleFollowUser(currentUser, target);
+    showToast(`Following ${target.username}`);
+  };
+
+  // Execute Remove Follower confirmation
+  const handleConfirmRemoveFollower = async () => {
+    if (!removeFollowerConfirmUser || !currentUser?.username) return;
+    const target = removeFollowerConfirmUser;
+    setRemoveFollowerConfirmUser(null);
     setOptionsUser(null);
+
+    setFollowersList((prev) => prev.filter((u) => u.username.toLowerCase() !== target.username.toLowerCase()));
+    await removeFollowerUser(currentUser, target);
+    showToast(`Removed ${target.username} from followers`);
   };
 
   // Message button handler
@@ -247,13 +276,13 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-60 bg-[#262626] border border-neutral-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-70 bg-[#262626] border border-neutral-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
             <Check className="w-3.5 h-3.5 text-emerald-400" />
             <span>{toastMessage}</span>
           </div>
         )}
 
-        {/* 1. TOP APP BAR (Exact match to screenshot) */}
+        {/* 1. TOP APP BAR (Instagram Exact) */}
         <div className="flex items-center justify-between px-3.5 py-3 border-b border-neutral-900 bg-black sticky top-0 z-20">
           <button
             type="button"
@@ -281,7 +310,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
           </button>
         </div>
 
-        {/* 2. TABS BAR: [N] followers | [N] following | Subscriptions (with active underline) */}
+        {/* 2. TABS BAR: [N] followers | [N] following */}
         <div className="flex items-center border-b border-[#262626] bg-black px-2 overflow-x-auto no-scrollbar">
           {/* Followers Tab */}
           <button
@@ -318,7 +347,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
           </button>
         </div>
 
-        {/* 3. SEARCH INPUT (Charcoal pill matching screenshot) */}
+        {/* 3. SEARCH INPUT (Charcoal pill) */}
         <div className="px-4 pt-3 pb-2 bg-black">
           <div className="relative flex items-center bg-[#262626] rounded-xl px-3.5 py-2">
             <Search className="w-4 h-4 text-[#8e8e8e] shrink-0 mr-2.5" />
@@ -341,7 +370,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
           </div>
         </div>
 
-        {/* 4. SORT BY DEFAULT ROW (Matching screenshot) */}
+        {/* 4. SORT BY DEFAULT ROW */}
         <div className="px-4 py-2.5 flex items-center justify-between text-[14px] bg-black">
           <div 
             onClick={toggleSortOrder}
@@ -361,7 +390,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
           </button>
         </div>
 
-        {/* 5. USER LIST (Exact match to Instagram screenshot) */}
+        {/* 5. USER LIST (Instagram exact match) */}
         <div className="flex-1 overflow-y-auto divide-y divide-transparent pb-10">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-neutral-400 gap-3">
@@ -419,54 +448,123 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Right: Action Button & More Options (Three dots) */}
+                  {/* Right: Action Buttons & More Options (Three dots) */}
                   <div className="flex items-center gap-2 shrink-0">
                     {self ? (
                       <span className="text-[12px] font-semibold text-neutral-400 px-3 py-1 rounded-md bg-[#262626]">
                         You
                       </span>
-                    ) : activeTab === 'following' && isOwnProfile ? (
-                      <button
-                        type="button"
-                        onClick={() => handleMessage(user)}
-                        className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
-                      >
-                        Message
-                      </button>
-                    ) : activeTab === 'followers' && isOwnProfile ? (
-                      <button
-                        type="button"
-                        onClick={(e) => handleRemoveFollower(user, e)}
-                        className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleFollow(user, e)}
-                        className={`text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none ${
-                          user.isFollowing
-                            ? 'bg-[#262626] hover:bg-[#333333] text-white'
-                            : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
-                        }`}
-                      >
-                        {user.isFollowing ? 'Following' : 'Follow'}
-                      </button>
-                    )}
+                    ) : activeTab === 'following' ? (
+                      <>
+                        {/* Following / Follow Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (user.isFollowing || activeTab === 'following') {
+                              setUnfollowConfirmUser(user);
+                            } else {
+                              handleFollowUser(user, e);
+                            }
+                          }}
+                          className={`text-[13px] font-semibold px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer select-none ${
+                            user.isFollowing !== false
+                              ? 'bg-[#262626] border border-neutral-700/80 hover:bg-[#333333] text-white'
+                              : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
+                          }`}
+                        >
+                          {user.isFollowing !== false ? 'Following' : 'Follow'}
+                        </button>
 
-                    {/* Three Dots More Options Menu */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOptionsUser(user);
-                      }}
-                      className="p-1 text-neutral-400 hover:text-white cursor-pointer transition-colors"
-                      title="More options"
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                        {/* Message Button */}
+                        {isOwnProfile && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMessage(user);
+                            }}
+                            className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
+                          >
+                            Message
+                          </button>
+                        )}
+
+                        {/* Three Dots More Options */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOptionsUser(user);
+                          }}
+                          className="p-1 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+                          title="More options"
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+                      </>
+                    ) : activeTab === 'followers' && isOwnProfile ? (
+                      <>
+                        {/* Remove Follower Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRemoveFollowerConfirmUser(user);
+                          }}
+                          className="bg-[#262626] hover:bg-[#333333] text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none"
+                        >
+                          Remove
+                        </button>
+
+                        {/* Three Dots */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOptionsUser(user);
+                          }}
+                          className="p-1 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+                          title="More options"
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Other user's follower: Follow / Following toggle */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (user.isFollowing) {
+                              setUnfollowConfirmUser(user);
+                            } else {
+                              handleFollowUser(user, e);
+                            }
+                          }}
+                          className={`text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors cursor-pointer select-none ${
+                            user.isFollowing
+                              ? 'bg-[#262626] hover:bg-[#333333] text-white border border-neutral-700'
+                              : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
+                          }`}
+                        >
+                          {user.isFollowing ? 'Following' : 'Follow'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOptionsUser(user);
+                          }}
+                          className="p-1 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+                          title="More options"
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -495,7 +593,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         </div>
 
         {/* 6. INSTAGRAM ACTION SHEET MODAL (When clicking Three Dots •••) */}
-        {optionsUser && (
+        {optionsUser && !unfollowConfirmUser && !removeFollowerConfirmUser && (
           <div 
             className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center animate-in fade-in duration-150"
             onClick={() => setOptionsUser(null)}
@@ -544,7 +642,11 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
               {activeTab === 'followers' && isOwnProfile ? (
                 <button
                   type="button"
-                  onClick={(e) => handleRemoveFollower(optionsUser, e)}
+                  onClick={() => {
+                    const target = optionsUser;
+                    setOptionsUser(null);
+                    setRemoveFollowerConfirmUser(target);
+                  }}
                   className="w-full px-5 py-3 text-sm text-left text-red-500 font-semibold hover:bg-neutral-700/40 flex items-center gap-3 cursor-pointer"
                 >
                   <UserX className="w-4 h-4 text-red-500" />
@@ -553,11 +655,15 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={(e) => handleToggleFollow(optionsUser, e)}
+                  onClick={() => {
+                    const target = optionsUser;
+                    setOptionsUser(null);
+                    setUnfollowConfirmUser(target);
+                  }}
                   className="w-full px-5 py-3 text-sm text-left text-red-500 font-semibold hover:bg-neutral-700/40 flex items-center gap-3 cursor-pointer"
                 >
                   <UserX className="w-4 h-4 text-red-500" />
-                  <span>{optionsUser.isFollowing ? 'Unfollow' : 'Follow'}</span>
+                  <span>{optionsUser.isFollowing !== false ? 'Unfollow' : 'Follow'}</span>
                 </button>
               )}
 
@@ -565,6 +671,106 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                 type="button"
                 onClick={() => setOptionsUser(null)}
                 className="w-full px-5 py-3 text-sm text-center text-neutral-400 font-medium hover:bg-neutral-700/40 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 7. INSTAGRAM UNFOLLOW CONFIRMATION DIALOG */}
+        {unfollowConfirmUser && (
+          <div 
+            className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setUnfollowConfirmUser(null)}
+          >
+            <div 
+              className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                {unfollowConfirmUser.avatarUrl ? (
+                  <img
+                    src={unfollowConfirmUser.avatarUrl}
+                    alt={unfollowConfirmUser.username}
+                    className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                    {unfollowConfirmUser.name?.charAt(0).toUpperCase() || unfollowConfirmUser.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
+                <h3 className="text-base font-bold text-white leading-tight">
+                  Unfollow {unfollowConfirmUser.username}?
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+                  Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmUnfollow}
+                className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
+              >
+                Unfollow
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUnfollowConfirmUser(null)}
+                className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 8. INSTAGRAM REMOVE FOLLOWER CONFIRMATION DIALOG */}
+        {removeFollowerConfirmUser && (
+          <div 
+            className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setRemoveFollowerConfirmUser(null)}
+          >
+            <div 
+              className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                {removeFollowerConfirmUser.avatarUrl ? (
+                  <img
+                    src={removeFollowerConfirmUser.avatarUrl}
+                    alt={removeFollowerConfirmUser.username}
+                    className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                    {removeFollowerConfirmUser.name?.charAt(0).toUpperCase() || removeFollowerConfirmUser.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
+                <h3 className="text-base font-bold text-white leading-tight">
+                  Remove follower?
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+                  RoamAI won't tell {removeFollowerConfirmUser.username} that they were removed from your followers.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmRemoveFollower}
+                className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
+              >
+                Remove
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRemoveFollowerConfirmUser(null)}
+                className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
               >
                 Cancel
               </button>

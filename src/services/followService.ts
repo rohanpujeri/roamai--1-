@@ -388,3 +388,41 @@ export async function toggleFollowUser(
 
   return nowFollowing;
 }
+
+/**
+ * Remove follower: targetFollower is removed from following currentUser
+ */
+export async function removeFollowerUser(
+  currentUser: { id?: string; username: string },
+  targetFollower: { id?: string; username: string }
+): Promise<boolean> {
+  const cUname = cleanHandle(currentUser.username);
+  const fUname = cleanHandle(targetFollower.username);
+  if (!cUname || !fUname) return false;
+
+  const currentRels = getLocalFollowRelationships();
+  const nextRels = currentRels.filter((rel) => {
+    const relFollowerU = cleanHandle(rel.followerUsername);
+    const relFollowingU = cleanHandle(rel.followingUsername);
+    const isTargetFollower = (targetFollower.id && rel.followerId === targetFollower.id) || (fUname && relFollowerU === fUname);
+    const isCurrentUser = (currentUser.id && rel.followingId === currentUser.id) || (cUname && relFollowingU === cUname);
+    return !(isTargetFollower && isCurrentUser);
+  });
+
+  saveLocalFollowRelationships(nextRels, currentUser.id, cUname);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('follows').delete().match({
+        follower_id: targetFollower.id || `user_${fUname}`,
+        following_id: currentUser.id || `user_${cUname}`
+      });
+    } catch (e) {
+      console.warn('Supabase remove follower sync:', e);
+    }
+  }
+
+  return true;
+}
+

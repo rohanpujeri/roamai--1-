@@ -21,7 +21,8 @@ import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseCli
 import { searchRealTravellers } from '../services/usernameService';
 import { fetchGlobalTrails, getLocalTrails } from '../services/sharedTrailsService';
 import { FollowListModal } from './FollowListModal';
-import { getFollowCounts, toggleFollowUser } from '../services/followService';
+import { getFollowCounts, toggleFollowUser, isUserFollowing } from '../services/followService';
+
 
 
 export interface TravellerProfile {
@@ -266,11 +267,14 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
     // Sync with followService
     const matched = travellers.find((t) => t.id === id || t.username.replace(/^@+/, '').toLowerCase() === cleanUser);
+    const targetName = matched?.name || (viewingProfile && viewingProfile.username.replace(/^@+/, '').toLowerCase() === cleanUser ? viewingProfile.name : cleanUser);
+    const targetAvatar = matched?.avatarUrl || (viewingProfile && viewingProfile.username.replace(/^@+/, '').toLowerCase() === cleanUser ? viewingProfile.avatarUrl : undefined);
+
     toggleFollowUser(currentUserProfile, {
       id,
       username: cleanUser,
-      name: matched?.name || cleanUser,
-      avatarUrl: matched?.avatarUrl
+      name: targetName,
+      avatarUrl: targetAvatar
     });
 
     setFollowedSet((prev) => {
@@ -437,8 +441,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   // =========================================================================
   if (viewingProfile) {
     const cleanUser = viewingProfile.username.replace(/^@+/, '').toLowerCase();
-    const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || !!viewingProfile.isFollowing;
-    const viewingFollowCounts = getFollowCounts(viewingProfile.id || viewingProfile.username);
+    const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || isUserFollowing(currentUserProfile.username, viewingProfile.username) || !!viewingProfile.isFollowing;
+    const viewingFollowCounts = getFollowCounts(viewingProfile.username || viewingProfile.id);
 
     return (
       <div className="min-h-screen bg-black text-white pb-32 select-none animate-in fade-in duration-200">
