@@ -7,6 +7,62 @@ export interface TrailCreator {
   username: string;
   avatarUrl?: string;
   isFollowed?: boolean;
+  isVerified?: boolean;
+}
+
+export const DEFAULT_TRAIL_CREATOR: TrailCreator = {
+  id: '',
+  name: 'Traveler',
+  username: '@traveler',
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  isFollowed: false,
+  isVerified: false,
+};
+
+export function sanitizeTrail(t: any): TrailReel {
+  if (!t || typeof t !== 'object') {
+    return {
+      id: `trail-${Date.now()}`,
+      videoUrl: '',
+      mediaType: 'image',
+      title: 'Trail',
+      caption: '',
+      destination: '',
+      tags: [],
+      audioTitle: 'Original Audio',
+      likesCount: 0,
+      commentsCount: 0,
+      creator: { ...DEFAULT_TRAIL_CREATOR },
+    };
+  }
+
+  const creatorRaw = t.creator || {};
+  const creator: TrailCreator = {
+    id: creatorRaw.id || '',
+    name: creatorRaw.name || 'Traveler',
+    username: creatorRaw.username ? (creatorRaw.username.startsWith('@') ? creatorRaw.username : `@${creatorRaw.username}`) : '@traveler',
+    avatarUrl: creatorRaw.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    isFollowed: Boolean(creatorRaw.isFollowed),
+    isVerified: Boolean(creatorRaw.isVerified),
+  };
+
+  return {
+    ...t,
+    id: String(t.id || `trail-${Date.now()}`),
+    videoUrl: t.videoUrl || '',
+    posterUrl: t.posterUrl || undefined,
+    mediaType: t.mediaType === 'video' ? 'video' : 'image',
+    title: t.title || 'Trail',
+    caption: t.caption || '',
+    destination: t.destination || '',
+    tags: Array.isArray(t.tags) ? t.tags : [],
+    audioTitle: t.audioTitle || 'Original Audio',
+    likesCount: typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0),
+    commentsCount: typeof t.commentsCount === 'number' ? t.commentsCount : (Number(t.commentsCount) || 0),
+    comments: Array.isArray(t.comments) ? t.comments : [],
+    likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
+    creator,
+  };
 }
 
 export interface TrailComment {
@@ -187,13 +243,15 @@ export function getLocalTrails(): TrailReel[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.filter(
-        (t: any) =>
-          t &&
-          !t.id?.startsWith('sample-trail-') &&
-          t.creator?.username !== '@elena_voyages' &&
-          t.creator?.username !== '@rohan_treks'
-      );
+      return parsed
+        .filter(
+          (t: any) =>
+            t &&
+            !t.id?.startsWith('sample-trail-') &&
+            t.creator?.username !== '@elena_voyages' &&
+            t.creator?.username !== '@rohan_treks'
+        )
+        .map((t) => sanitizeTrail(t));
     }
   } catch {
     // ignore
@@ -220,12 +278,13 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
 
       if (!error && Array.isArray(data)) {
         data.forEach((row: any) => {
-          const t: TrailReel = row.trail_data || row;
-          if (t && t.id) {
-            trailMap.set(t.id, {
-              ...t,
-              createdAt: row.created_at || t.createdAt
+          const rawTrail = row.trail_data || row;
+          if (rawTrail && rawTrail.id) {
+            const t = sanitizeTrail({
+              ...rawTrail,
+              createdAt: row.created_at || rawTrail.createdAt,
             });
+            trailMap.set(t.id, t);
           }
         });
       }
@@ -240,9 +299,9 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.trails)) {
-        data.trails.forEach((t: TrailReel) => {
-          if (t && t.id && !trailMap.has(t.id)) {
-            trailMap.set(t.id, t);
+        data.trails.forEach((tRaw: any) => {
+          if (tRaw && tRaw.id && !trailMap.has(tRaw.id)) {
+            trailMap.set(tRaw.id, sanitizeTrail(tRaw));
           }
         });
       }
@@ -254,12 +313,12 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
   // 3. Fallback: Merge local trails so un-synced or offline trails are preserved
   localList.forEach((t) => {
     if (t.id && !trailMap.has(t.id)) {
-      trailMap.set(t.id, t);
+      trailMap.set(t.id, sanitizeTrail(t));
     }
   });
 
   // Convert map to sorted array (newest first)
-  const combined = Array.from(trailMap.values()).sort((a, b) => {
+  const combined = Array.from(trailMap.values()).map(sanitizeTrail).sort((a, b) => {
     const timeA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id.replace(/\D/g, '')) || 0;
     const timeB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id.replace(/\D/g, '')) || 0;
     return timeB - timeA;
@@ -285,7 +344,7 @@ export async function publishGlobalTrail(
   file?: File | Blob | null
 ): Promise<TrailReel> {
   const supabase = getSupabaseClient();
-  let serverSavedTrail: TrailReel = { ...trail };
+  let serverSavedTrail: TrailReel = sanitizeTrail(trail);
 
   // 1. Save binary file to IndexedDB for instant, zero-lag local playback on this device
   if (file) {

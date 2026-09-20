@@ -43,7 +43,9 @@ import {
   likeGlobalTrail,
   commentOnGlobalTrail,
   isTrailLikedByUser,
-  TrailLiker
+  TrailLiker,
+  sanitizeTrail,
+  DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
@@ -99,9 +101,17 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onBack,
   onRequireAuth
 }) => {
+  const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
+  const currentUsername = useMemo(() => {
+    return (
+      cachedUser?.username ||
+      (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '')
+    ).toLowerCase().replace(/^@/, '');
+  }, [cachedUser?.username, session?.user?.email]);
+
   // Load real user trails exclusively from local and server registry
   const [trails, setTrails] = useState<TrailReel[]>(() => 
-    getLocalTrails().map((t) => ({ 
+    getLocalTrails().map((t) => sanitizeTrail({ 
       ...t, 
       isSaved: isTrailSaved(t.id),
       isLiked: isTrailLikedByUser(t.id)
@@ -116,7 +126,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         const globalList = await fetchGlobalTrails();
         if (isMounted && Array.isArray(globalList)) {
           setTrails((prev) => {
-            const mapped = globalList.map((g) => ({ 
+            const mapped = globalList.map((g) => sanitizeTrail({ 
               ...g, 
               isSaved: isTrailSaved(g.id),
               isLiked: isTrailLikedByUser(g.id)
@@ -126,7 +136,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             if (prevIds !== nextIds || prev.length !== mapped.length) {
               return mapped;
             }
-            return prev.map((p) => ({ 
+            return prev.map((p) => sanitizeTrail({ 
               ...p, 
               isSaved: isTrailSaved(p.id),
               isLiked: isTrailLikedByUser(p.id)
@@ -927,9 +937,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           {/* Audio Album Thumbnail */}
           <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shadow-md bg-neutral-900 mt-1 shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center">
-            {activeReel.creator.avatarUrl ? (
+            {activeReel?.creator?.avatarUrl ? (
               <img 
-                src={activeReel.creator.avatarUrl} 
+                src={activeReel?.creator?.avatarUrl} 
                 alt="Sound cover"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -945,18 +955,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Bottom Left Info & Caption Overlay (Above playline & low bottom nav) */}
         {(() => {
-          const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
-          const currentUsername = (
-            cachedUser?.username ||
-            (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '')
-          ).toLowerCase().replace(/^@/, '');
-          const creatorUsername = (activeReel.creator.username || '').toLowerCase().replace(/^@/, '');
+          const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
+          const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
+          const creatorCleanDisplay = (creator.username || '@traveler').replace(/^@/, '');
           const isOwnTrail = Boolean(
             (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
-            (session?.user?.id && activeReel.creator?.id && activeReel.creator.id === session.user.id)
+            (session?.user?.id && creator.id && creator.id === session.user.id)
           );
-          const isFollowed = isUserFollowing(currentUsername, activeReel.creator.username) || !!activeReel.creator.isFollowed;
-
+          const isFollowed = isUserFollowing(currentUsername, creator.username) || !!creator.isFollowed;
 
           return (
             <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
@@ -969,23 +975,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     window.dispatchEvent(
                       new CustomEvent('roamai_view_traveller', {
                         detail: {
-                          id: activeReel.creator.id,
-                          username: activeReel.creator.username,
-                          name: activeReel.creator.name,
-                          avatarUrl: activeReel.creator.avatarUrl,
-                          location: activeReel.destination,
+                          id: creator.id,
+                          username: creator.username,
+                          name: creator.name,
+                          avatarUrl: creator.avatarUrl,
+                          location: activeReel?.destination || '',
                           isFollowing: isFollowed
                         }
                       })
                     );
                   }}
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-                  title={`View ${activeReel.creator.username}'s profile`}
+                  title={`View ${creator.username}'s profile`}
                 >
-                  {activeReel.creator.avatarUrl ? (
+                  {creator.avatarUrl ? (
                     <img
-                      src={activeReel.creator.avatarUrl}
-                      alt={activeReel.creator.username}
+                      src={creator.avatarUrl}
+                      alt={creator.username}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
@@ -994,7 +1000,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs select-none">
-                      {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                      {creatorCleanDisplay.charAt(0).toUpperCase() || 'T'}
                     </div>
                   )}
                 </div>
@@ -1006,11 +1012,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     window.dispatchEvent(
                       new CustomEvent('roamai_view_traveller', {
                         detail: {
-                          id: activeReel.creator.id,
-                          username: activeReel.creator.username,
-                          name: activeReel.creator.name,
-                          avatarUrl: activeReel.creator.avatarUrl,
-                          location: activeReel.destination,
+                          id: creator.id,
+                          username: creator.username,
+                          name: creator.name,
+                          avatarUrl: creator.avatarUrl,
+                          location: activeReel?.destination || '',
                           isFollowing: isFollowed
                         }
                       })
@@ -1018,11 +1024,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   }}
                   className="text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline"
                 >
-                  {activeReel.creator.username.replace(/^@/, '')}
+                  {creatorCleanDisplay}
                 </span>
 
                 {/* Verified Badge (only if creator is verified) */}
-                {activeReel.creator.isVerified && (
+                {creator.isVerified && (
                   <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs" title="Verified Creator">
                     ✓
                   </span>
@@ -1035,7 +1041,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (isFollowed) {
-                        setUnfollowConfirmCreator(activeReel.creator);
+                        setUnfollowConfirmCreator(creator);
                       } else {
                         followUser(
                           {
@@ -1045,10 +1051,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                             avatarUrl: cachedUser?.avatarUrl
                           },
                           {
-                            id: activeReel.creator.id,
-                            username: activeReel.creator.username,
-                            name: activeReel.creator.name,
-                            avatarUrl: activeReel.creator.avatarUrl
+                            id: creator.id,
+                            username: creator.username,
+                            name: creator.name,
+                            avatarUrl: creator.avatarUrl
                           }
                         );
                         setTrails((prev) =>
@@ -1056,7 +1062,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                             if (idx === currentIndex) {
                               return {
                                 ...t,
-                                creator: { ...t.creator, isFollowed: true }
+                                creator: { ...(t.creator || DEFAULT_TRAIL_CREATOR), isFollowed: true }
                               };
                             }
                             return t;
@@ -1067,19 +1073,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                       isFollowed
                         ? 'bg-white/20 border-white/30 text-white'
-                        : isFollowedBy(currentUsername, activeReel.creator.username)
+                        : isFollowedBy(currentUsername, creator.username)
                         ? 'bg-[#0095f6] border-transparent text-white'
                         : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
                     }`}
                   >
-                    {isFollowed ? 'Following' : (isFollowedBy(currentUsername, activeReel.creator.username) ? 'Follow Back' : 'Follow')}
+                    {isFollowed ? 'Following' : (isFollowedBy(currentUsername, creator.username) ? 'Follow Back' : 'Follow')}
                   </button>
                 )}
               </div>
 
               {/* Caption */}
               <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm font-medium">
-                {activeReel.caption}
+                {activeReel?.caption || ''}
               </p>
 
               {/* Destination Badge & Audio Soundtrack */}
@@ -1564,20 +1570,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
-              {unfollowConfirmCreator.avatarUrl ? (
+              {unfollowConfirmCreator?.avatarUrl ? (
                 <img
                   src={unfollowConfirmCreator.avatarUrl}
-                  alt={unfollowConfirmCreator.username}
+                  alt={unfollowConfirmCreator.username || 'Creator'}
                   className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
                   referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-                  {unfollowConfirmCreator.name?.charAt(0).toUpperCase() || unfollowConfirmCreator.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                  {unfollowConfirmCreator?.name?.charAt(0).toUpperCase() || unfollowConfirmCreator?.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
                 </div>
               )}
               <h3 className="text-base font-bold text-white leading-tight">
-                Unfollow {unfollowConfirmCreator.username.startsWith('@') ? unfollowConfirmCreator.username : `@${unfollowConfirmCreator.username}`}?
+                Unfollow {(unfollowConfirmCreator?.username || '@traveler').startsWith('@') ? unfollowConfirmCreator?.username : `@${unfollowConfirmCreator?.username || 'traveler'}`}?
               </h3>
               <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
                 Their posts and reels will no longer appear in your feed. They won't know you unfollowed them.
@@ -1595,7 +1601,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     },
                     {
                       id: unfollowConfirmCreator.id,
-                      username: unfollowConfirmCreator.username
+                      username: unfollowConfirmCreator.username || '@traveler'
                     }
                   );
                   setTrails((prev) =>
@@ -1603,7 +1609,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       if (idx === currentIndex) {
                         return {
                           ...t,
-                          creator: { ...t.creator, isFollowed: false }
+                          creator: { ...(t.creator || DEFAULT_TRAIL_CREATOR), isFollowed: false }
                         };
                       }
                       return t;

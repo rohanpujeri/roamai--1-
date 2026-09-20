@@ -410,12 +410,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     const vId = viewingProfile.id;
 
     return exploreTiles.filter((tile) => {
-      const creatorUname = tile.creator.username.toLowerCase().replace(/^@+/, '');
-      const creatorName = (tile.creator.name || '').toLowerCase();
+      const creatorUname = (tile.creator?.username || '').toLowerCase().replace(/^@+/, '');
+      const creatorName = (tile.creator?.name || '').toLowerCase();
       return (
         creatorUname === vUname ||
         creatorName === vName ||
-        tile.creator.id === vId
+        (tile.creator?.id && tile.creator.id === vId)
       );
     });
   }, [viewingProfile, exploreTiles]);
@@ -446,9 +446,9 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     if (!searchQuery.trim()) return exploreTiles;
     const q = searchQuery.toLowerCase().replace(/^@+/, '');
     return exploreTiles.filter((tile) =>
-      tile.title.toLowerCase().includes(q) ||
-      tile.destination.toLowerCase().includes(q) ||
-      tile.creator.username.toLowerCase().includes(q)
+      (tile.title || '').toLowerCase().includes(q) ||
+      (tile.destination || '').toLowerCase().includes(q) ||
+      (tile.creator?.username || '').toLowerCase().includes(q)
     );
   }, [exploreTiles, searchQuery]);
 
@@ -802,7 +802,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               <div className="p-4 pt-1 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-white">
-                    @{selectedTile.creator.username}
+                    @{selectedTile.creator?.username ? selectedTile.creator.username.replace(/^@/, '') : 'traveler'}
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2.5 py-1 rounded-full">
                     <MapPin className="w-3 h-3" />
@@ -1054,7 +1054,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
                         <span className="text-[11px] font-semibold text-white truncate">
-                          {tile.creator.username}
+                          {tile.creator?.username || '@traveler'}
                         </span>
                         <div>
                           <p className="text-xs font-bold text-white line-clamp-2 leading-tight">
@@ -1216,10 +1216,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                         {/* Hover Overlay with Destination Title & Creator */}
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
                           <div className="flex items-center gap-1.5">
-                            {tile.creator.avatarUrl ? (
+                            {tile.creator?.avatarUrl ? (
                               <img
-                                src={tile.creator.avatarUrl}
-                                alt={tile.creator.username}
+                                src={tile.creator?.avatarUrl}
+                                alt={tile.creator?.username || 'traveler'}
                                 className="w-5 h-5 rounded-full object-cover"
                                 referrerPolicy="no-referrer"
                                 onError={(e) => {
@@ -1228,11 +1228,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                               />
                             ) : (
                               <div className="w-5 h-5 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-[9px] text-white font-bold select-none">
-                                {tile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                                {tile.creator?.username ? tile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() : 'T'}
                               </div>
                             )}
                             <span className="text-[11px] font-bold text-white truncate">
-                              {tile.creator.username}
+                              {tile.creator?.username || '@traveler'}
                             </span>
                           </div>
 
@@ -1308,10 +1308,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             <div className="p-4 pt-1 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  {selectedTile.creator.avatarUrl ? (
+                  {selectedTile.creator?.avatarUrl ? (
                     <img
-                      src={selectedTile.creator.avatarUrl}
-                      alt={selectedTile.creator.username}
+                      src={selectedTile.creator?.avatarUrl}
+                      alt={selectedTile.creator?.username || 'traveler'}
                       className="w-8 h-8 rounded-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
@@ -1320,14 +1320,14 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xs select-none">
-                      {selectedTile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
+                      {selectedTile.creator?.username ? selectedTile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() : 'T'}
                     </div>
                   )}
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-white truncate">
-                      {selectedTile.creator.username}
+                      {selectedTile.creator?.username || '@traveler'}
                     </p>
-                    <p className="text-[10px] text-neutral-400 truncate">{selectedTile.creator.name || 'Travel Creator'}</p>
+                    <p className="text-[10px] text-neutral-400 truncate">{selectedTile.creator?.name || 'Travel Creator'}</p>
                   </div>
                 </div>
 
