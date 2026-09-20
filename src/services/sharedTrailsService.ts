@@ -77,42 +77,14 @@ export function getLocalTrails(): TrailReel[] {
 }
 
 /**
- * Fetch all shared trails globally from the backend API and Supabase,
- * merging with local cache so all profiles see everyone's trails.
+ * Fetch all shared trails globally from Supabase and the backend API,
+ * merging with local cache so all profiles see everyone's trails in real time.
  */
 export async function fetchGlobalTrails(): Promise<TrailReel[]> {
   const localList = getLocalTrails();
   const trailMap = new Map<string, TrailReel>();
 
-  // 1. Seed with local trails
-  localList.forEach((t) => {
-    if (t.id) trailMap.set(t.id, t);
-  });
-
-  // 2. Fetch from backend server API /api/trails
-  try {
-    const res = await fetch('/api/trails');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.trails)) {
-        data.trails.forEach((t: TrailReel) => {
-          if (t && t.id) {
-            const existing = trailMap.get(t.id);
-            trailMap.set(t.id, {
-              ...t,
-              // Preserve local interactions if already liked/saved in this session
-              isLiked: existing?.isLiked ?? t.isLiked,
-              isSaved: existing?.isSaved ?? t.isSaved
-            });
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[sharedTrailsService] Failed to fetch server trails:', err);
-  }
-
-  // 3. Fetch from Supabase trails table if configured
+  // 1. Primary: Fetch from Supabase trails table (ground truth for all devices and accounts)
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -125,19 +97,41 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
         data.forEach((row: any) => {
           const t: TrailReel = row.trail_data || row;
           if (t && t.id) {
-            const existing = trailMap.get(t.id);
             trailMap.set(t.id, {
               ...t,
-              isLiked: existing?.isLiked ?? t.isLiked,
-              isSaved: existing?.isSaved ?? t.isSaved
+              createdAt: row.created_at || t.createdAt
             });
           }
         });
       }
     }
   } catch (err) {
-    // Supabase table might not exist yet, ignore
+    console.warn('[sharedTrailsService] Supabase trails query:', err);
   }
+
+  // 2. Secondary: Fetch from backend server API /api/trails
+  try {
+    const res = await fetch('/api/trails');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.trails)) {
+        data.trails.forEach((t: TrailReel) => {
+          if (t && t.id && !trailMap.has(t.id)) {
+            trailMap.set(t.id, t);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[sharedTrailsService] Failed to fetch server trails:', err);
+  }
+
+  // 3. Fallback: Merge local trails so un-synced or offline trails are preserved
+  localList.forEach((t) => {
+    if (t.id && !trailMap.has(t.id)) {
+      trailMap.set(t.id, t);
+    }
+  });
 
   // Convert map to sorted array (newest first)
   const combined = Array.from(trailMap.values()).sort((a, b) => {
@@ -165,70 +159,127 @@ export async function publishGlobalTrail(
   trail: TrailReel,
   file?: File | Blob | null
 ): Promise<TrailReel> {
-  // 1. Save binary file to IndexedDB for instant, zero-lag local playback
+  const supabase = getSupabaseClient();
+  let serverSavedTrail: TrailReel = { ...trail };
+
+  // 1. Save binary file to IndexedDB for instant, zero-lag local playback on this device
   if (file) {
     await saveTrailMedia(trail.id, file);
   }
 
-  // 2. Save locally immediately for optimistic UI
-  const current = getLocalTrails();
-  const updatedList = [trail, ...current.filter((t) => t.id !== trail.id)];
-  if (typeof window !== 'undefined') {
+  // 2. Upload video/image binary directly to Supabase Storage bucket 'trails'
+  if (file && supabase) {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedList));
-    } catch {
-      // ignore
+      const isImg = file.type?.startsWith('image/') || trail.mediaType === 'image';
+      const ext = isImg
+        ? (file.type?.includes('png') ? 'png' : 'jpg')
+        : (file.type?.includes('webm') ? 'webm' : 'mp4');
+      const filePath = `media/${trail.id}.${ext}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('trails')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || (isImg ? 'image/jpeg' : 'video/mp4')
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: publicUrlObj } = supabase.storage
+          .from('trails')
+          .getPublicUrl(filePath);
+
+        if (publicUrlObj?.publicUrl) {
+          serverSavedTrail.videoUrl = publicUrlObj.publicUrl;
+        }
+      } else if (uploadError) {
+        console.warn('[sharedTrailsService] Supabase storage upload warning:', uploadError.message);
+      }
+    } catch (storageErr) {
+      console.warn('[sharedTrailsService] Direct storage upload error:', storageErr);
     }
   }
 
-  // 3. Prepare media data URL to upload to the server
-  let mediaDataUrl: string | undefined = undefined;
-  if (file && file.size < 40 * 1024 * 1024) { // Under 40MB
+  // 3. If poster is a base64 Data URL, upload poster to Supabase Storage as well
+  if (serverSavedTrail.posterUrl?.startsWith('data:') && supabase) {
     try {
-      mediaDataUrl = await fileToBase64(file);
+      const res = await fetch(serverSavedTrail.posterUrl);
+      const posterBlob = await res.blob();
+      const posterPath = `posters/${trail.id}.jpg`;
+      const { data: pData, error: pErr } = await supabase.storage
+        .from('trails')
+        .upload(posterPath, posterBlob, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'image/jpeg'
+        });
+
+      if (!pErr && pData) {
+        const { data: pUrlObj } = supabase.storage.from('trails').getPublicUrl(posterPath);
+        if (pUrlObj?.publicUrl) {
+          serverSavedTrail.posterUrl = pUrlObj.publicUrl;
+        }
+      }
     } catch (err) {
-      console.warn('[sharedTrailsService] Could not convert file to base64:', err);
+      console.warn('[sharedTrailsService] Poster upload warning:', err);
     }
   }
 
-  // 4. Send to backend API
-  let serverSavedTrail = trail;
+  // 4. Send to backend Express API if running
   try {
+    let mediaDataUrl: string | undefined = undefined;
+    if (file && file.size < 10 * 1024 * 1024 && (!serverSavedTrail.videoUrl || serverSavedTrail.videoUrl.startsWith('blob:'))) {
+      try {
+        mediaDataUrl = await fileToBase64(file);
+      } catch {
+        // ignore
+      }
+    }
+
     const res = await fetch('/api/trails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        trail,
+        trail: serverSavedTrail,
         mediaDataUrl,
-        posterDataUrl: trail.posterUrl?.startsWith('data:') ? trail.posterUrl : undefined
+        posterDataUrl: serverSavedTrail.posterUrl?.startsWith('data:') ? serverSavedTrail.posterUrl : undefined
       })
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data.trail) {
-        serverSavedTrail = data.trail;
+        // Prefer server saved trail if local video was still a blob
+        if (!serverSavedTrail.videoUrl || serverSavedTrail.videoUrl.startsWith('blob:')) {
+          serverSavedTrail = data.trail;
+        }
       }
     }
   } catch (err) {
     console.warn('[sharedTrailsService] Failed to publish trail to server API:', err);
   }
 
-  // 5. Sync to Supabase if available
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      await supabase.from('trails').upsert({
+  // 5. Persist trail record to Supabase public.trails table so all accounts can read it
+  if (supabase) {
+    try {
+      const { error: dbError } = await supabase.from('trails').upsert({
         id: serverSavedTrail.id,
+        user_id: serverSavedTrail.creator?.id || undefined,
         trail_data: serverSavedTrail,
-        created_at: new Date().toISOString()
+        created_at: serverSavedTrail.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
+
+      if (dbError) {
+        console.warn('[sharedTrailsService] Supabase trails table upsert warning:', dbError.message);
+      }
+    } catch (err) {
+      console.warn('[sharedTrailsService] Supabase table sync error:', err);
     }
-  } catch {
-    // ignore
   }
 
-  // 6. Update local storage with final server record
+  // 6. Update local storage with final record
+  const current = getLocalTrails();
   const finalList = [serverSavedTrail, ...current.filter((t) => t.id !== trail.id)];
   if (typeof window !== 'undefined') {
     try {
@@ -281,6 +332,23 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
  * Like / unlike a trail globally
  */
 export async function likeGlobalTrail(trailId: string, increment: boolean): Promise<void> {
+  // Update in Supabase
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
+      if (data && data.trail_data) {
+        const currentLikes = Number(data.trail_data.likesCount || 0);
+        const updatedLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
+        const updatedTrail = { ...data.trail_data, likesCount: updatedLikes };
+        await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
       method: 'POST',
@@ -299,6 +367,33 @@ export async function commentOnGlobalTrail(
   trailId: string,
   comment: { user: string; avatar: string; text: string }
 ): Promise<void> {
+  // Update in Supabase
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
+      if (data && data.trail_data) {
+        const comments = Array.isArray(data.trail_data.comments) ? [...data.trail_data.comments] : [];
+        comments.push({
+          id: `comment-${Date.now()}`,
+          user: comment.user,
+          avatar: comment.avatar,
+          text: comment.text,
+          time: 'Just now'
+        });
+        const updatedTrail = { 
+          ...data.trail_data, 
+          comments,
+          commentsCount: comments.length 
+        };
+        await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/comment`, {
       method: 'POST',
