@@ -34,7 +34,8 @@ import {
   LogIn,
   LogOut,
   Upload,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData } from '../types';
@@ -105,6 +106,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [shareToast, setShareToast] = useState(false);
+
+  // Instagram-style Profile Photo Action Modal & View Picture Modal states
+  const [showPhotoOptionsModal, setShowPhotoOptionsModal] = useState(false);
+  const [showViewPhotoModal, setShowViewPhotoModal] = useState(false);
 
   // Active trail for modal playback
   const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
@@ -647,6 +652,35 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   };
 
+  const handleRemovePhoto = async () => {
+    try {
+      setIsUploadingAvatar(true);
+      setShowPhotoOptionsModal(false);
+      setShowViewPhotoModal(false);
+      const updated: UserProfileData = {
+        ...profile,
+        avatarUrl: ''
+      };
+      setProfile(updated);
+      setEditForm((prev) => ({ ...prev, avatarUrl: '' }));
+      if (user) {
+        await updateUserProfileData(updated);
+      } else {
+        try {
+          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+      }
+      setAvatarToast('Profile photo removed');
+      setTimeout(() => setAvatarToast(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to remove photo:', err);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleModalPhotoSelect = async (file: File) => {
     try {
       setIsUploadingAvatar(true);
@@ -759,16 +793,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       {!session ? (
         /* Signed-Out State with prominent Login Button */
         <div className="px-4 sm:px-6 pt-12 pb-24 max-w-md mx-auto flex flex-col items-center text-center animate-fade-in">
-          {/* Glowing Avatar Ring */}
+          {/* Clean Avatar (no ring) */}
           <div className="relative mb-6">
-            <div 
-              className="absolute inset-0 rounded-full blur-2xl opacity-40 scale-125 pointer-events-none"
-              style={{ backgroundColor: currentTheme.primaryColor }}
-            />
-            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-zinc-900 border-2 border-zinc-800 p-1 flex items-center justify-center shadow-2xl">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center shadow-xl">
               <div 
                 className="w-full h-full rounded-full flex items-center justify-center"
-                style={{ backgroundColor: `${currentTheme.primaryColor}22` }}
+                style={{ backgroundColor: `${currentTheme.primaryColor}18` }}
               >
                 <User className="w-12 h-12 stroke-[1.8]" style={{ color: currentTheme.primaryColor }} />
               </div>
@@ -825,8 +855,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
           <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
-          {/* Circular Avatar with Camera / Upload Badge (Tap to upload photo from device) */}
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 group">
+          {/* Circular Avatar with Instagram '+' Badge & Tap to Open Instagram Photo Menu */}
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
             <input
               ref={headerFileInputRef}
               type="file"
@@ -839,54 +869,58 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               }}
             />
 
+            {/* Clean Avatar without Ring (Instagram profile style) */}
             <div 
-              onClick={() => headerFileInputRef.current?.click()}
-              className="w-full h-full rounded-full p-[2px] bg-linear-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md cursor-pointer relative"
-              title="Click to upload profile photo"
+              onClick={() => {
+                if (profile.avatarUrl) {
+                  setShowPhotoOptionsModal(true);
+                } else {
+                  headerFileInputRef.current?.click();
+                }
+              }}
+              className="w-full h-full rounded-full overflow-hidden border border-white/15 bg-neutral-900 flex items-center justify-center relative cursor-pointer shadow-lg group select-none"
+              title="Profile photo"
             >
-              <div className="w-full h-full rounded-full overflow-hidden border-2 border-black bg-neutral-900 flex items-center justify-center relative">
-                {profile.avatarUrl ? (
-                  <img
-                    src={profile.avatarUrl}
-                    alt={profile.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-2xl sm:text-3xl select-none group-hover:brightness-110 transition-all">
-                    {profile.name?.charAt(0).toUpperCase() || 'T'}
-                  </div>
-                )}
-
-                {/* Upload Hover Overlay */}
-                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
-                  <Camera className="w-5 h-5 drop-shadow" />
-                  <span className="text-[9px] font-bold mt-0.5 tracking-wider uppercase">Upload</span>
+              {profile.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-2xl sm:text-3xl select-none group-hover:brightness-110 transition-all">
+                  {profile.name?.charAt(0).toUpperCase() || 'T'}
                 </div>
+              )}
 
-                {isUploadingAvatar && (
-                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-white">
-                    <Loader2 className="w-6 h-6 animate-spin text-white" />
-                  </div>
-                )}
+              {/* Upload Hover Overlay */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                <Camera className="w-5 h-5 drop-shadow" />
               </div>
+
+              {isUploadingAvatar && (
+                <div className="absolute inset-0 bg-black/75 flex items-center justify-center text-white">
+                  <Loader2 className="w-6 h-6 animate-spin text-white" />
+                </div>
+              )}
             </div>
 
-            {/* Bottom Right Camera Badge Button */}
+            {/* Instagram-style Blue '+' Badge Button at Bottom Right */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                headerFileInputRef.current?.click();
+                setShowPhotoOptionsModal(true);
               }}
-              className="absolute bottom-0 right-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-110 active:scale-95 transition-transform"
-              title="Upload profile photo"
-              aria-label="Upload profile photo"
+              className="absolute bottom-0 right-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0095f6] text-white border-2 border-black flex items-center justify-center font-black shadow-lg cursor-pointer hover:bg-[#1877f2] hover:scale-110 active:scale-95 transition-all"
+              title="Profile photo options"
+              aria-label="Profile photo options"
             >
-              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
             </button>
           </div>
 
@@ -1871,6 +1905,143 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Instagram-style Profile Photo Action Modal */}
+      {showPhotoOptionsModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setShowPhotoOptionsModal(false)}
+        >
+          <div 
+            className="w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl divide-y divide-zinc-800 text-center animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-4 px-6">
+              <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-zinc-800 mb-2 border border-white/10 flex items-center justify-center shadow-md">
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xl font-bold text-white">{profile.name?.charAt(0).toUpperCase() || 'T'}</span>
+                )}
+              </div>
+              <h3 className="text-sm font-bold text-white">Profile Photo</h3>
+              <p className="text-[11px] text-zinc-400 mt-0.5">Manage or change your photo</p>
+            </div>
+
+            {profile.avatarUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPhotoOptionsModal(false);
+                  setShowViewPhotoModal(true);
+                }}
+                className="w-full py-3.5 px-4 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800/80 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-zinc-400" />
+                <span>View Profile Picture</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowPhotoOptionsModal(false);
+                headerFileInputRef.current?.click();
+              }}
+              className="w-full py-3.5 px-4 text-xs sm:text-sm font-bold text-[#0095f6] hover:bg-zinc-800/80 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Camera className="w-4 h-4" />
+              <span>{profile.avatarUrl ? 'Choose New Photo' : 'Upload Photo'}</span>
+            </button>
+
+            {profile.avatarUrl && (
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="w-full py-3.5 px-4 text-xs sm:text-sm font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Remove Current Photo</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowPhotoOptionsModal(false)}
+              className="w-full py-3 px-4 text-xs sm:text-sm font-medium text-zinc-400 hover:bg-zinc-800/80 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Instagram-style Full Screen View Profile Picture Modal */}
+      {showViewPhotoModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in"
+          onClick={() => setShowViewPhotoModal(false)}
+        >
+          {/* Top Bar */}
+          <div className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 flex items-center justify-between text-white z-10">
+            <span className="text-sm sm:text-base font-bold tracking-wide">
+              {profile.username || profile.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowViewPhotoModal(false)}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer text-white"
+              title="Close"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Large Circular Avatar Display (No Ring) */}
+          <div 
+            className="w-64 h-64 sm:w-80 sm:h-80 rounded-full overflow-hidden shadow-2xl border-2 border-white/20 bg-zinc-900 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {profile.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt={profile.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-emerald-600 via-teal-700 to-indigo-800 text-white font-black text-6xl">
+                {profile.name?.charAt(0).toUpperCase() || 'T'}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Actions */}
+          <div className="mt-8 flex items-center gap-3 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowViewPhotoModal(false);
+                headerFileInputRef.current?.click();
+              }}
+              className="px-5 py-2.5 rounded-full bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold text-xs sm:text-sm shadow-lg transition-all cursor-pointer flex items-center gap-2"
+            >
+              <Camera className="w-4 h-4" />
+              <span>Change Photo</span>
+            </button>
+            {profile.avatarUrl && (
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-red-500/20 text-red-400 font-semibold text-xs sm:text-sm border border-red-500/30 transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Remove Photo</span>
+              </button>
+            )}
           </div>
         </div>
       )}

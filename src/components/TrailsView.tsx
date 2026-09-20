@@ -724,20 +724,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[145px] sm:bottom-[155px] z-20 space-y-2.5 pointer-events-none max-w-xl">
           {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
           <div className="flex items-center gap-2.5 pointer-events-auto">
-            {/* Circular Photo with Gradient Ring */}
-            <div className="p-[2px] rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 shadow-md shrink-0">
+            {/* Clean Circular Photo (Instagram Reels style - no ring) */}
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center">
               {activeReel.creator.avatarUrl ? (
                 <img
                   src={activeReel.creator.avatarUrl}
                   alt={activeReel.creator.username}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-black"
+                  className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs border-2 border-black select-none">
+                <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs select-none">
                   {activeReel.creator.username.replace(/^@/, '').charAt(0).toUpperCase() || 'T'}
                 </div>
               )}
