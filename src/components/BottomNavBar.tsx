@@ -70,17 +70,24 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           }}
           aria-label="Trails Video Reels"
           title="Trails (Travel Reels)"
-          className={`relative ${currentView === 'trails' ? 'px-3.5 py-1.5 sm:px-4 sm:py-2' : 'px-4 py-2 sm:px-5 sm:py-2.5'} rounded-2xl sm:rounded-3xl transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative ${currentView === 'trails' ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'} rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'trails'
-              ? 'bg-neutral-800/90 text-white shadow-inner'
-              : 'hover:bg-neutral-800/50 text-neutral-400 hover:text-white'
+              ? 'text-white'
+              : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <div className="flex items-center justify-center">
-            <Play className={`w-5 h-5 sm:w-6 sm:h-6 fill-current transition-transform group-hover:scale-110 ${
-              currentView === 'trails' ? 'text-white' : 'text-neutral-300'
+          <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center transition-all duration-200 ${
+            currentView === 'trails'
+              ? 'border-2 border-white bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.3)] scale-105'
+              : 'border border-white/40 group-hover:border-white/80 text-neutral-300 group-hover:text-white group-hover:scale-105'
+          }`}>
+            <Play className={`w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5 transition-transform ${
+              currentView === 'trails' ? 'text-white' : 'text-neutral-300 group-hover:text-white'
             }`} />
           </div>
+          {currentView === 'trails' && (
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full" />
+          )}
         </button>
 
         {/* 3. + Plan New Trip Button (Center with Theme Background) */}
