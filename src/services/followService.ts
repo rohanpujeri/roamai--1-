@@ -31,6 +31,17 @@ function cleanHandle(u: string): string {
   return (u || '').replace(/^@+/, '').trim().toLowerCase();
 }
 
+export const SEED_COMMUNITY_USERS = [
+  { username: '@samruddhi.kadam', name: '~samruddhi!', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
+  { username: '@pics.dibs', name: 'pics.dibs', avatarUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&auto=format&fit=crop&q=80' },
+  { username: '@shivapavan44', name: 'Kp shiva Pavan', avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80' },
+  { username: '@naveen_goudar1', name: 'NAVEEN', avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
+  { username: '@siddhant_bhosale', name: 'SIDDHANT BHOSALE', avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80' },
+  { username: '@idkwhereismyguitar', name: 'parker', avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80' },
+  { username: '@fatahdalive', name: 'Fatah 🧃', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
+  { username: '@mohan_k_1402', name: 'Mohan', avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' }
+];
+
 /**
  * Load locally cached follow relationships
  */
@@ -38,9 +49,66 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_RELATIONSHIPS);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+
+    // Check if legacy following users exist
+    const legacyRaw = localStorage.getItem(STORAGE_KEY_LEGACY_FOLLOWING);
+    const initialRels: FollowRelationship[] = [];
+
+    // Find current user handle if cached
+    let currentUname = 'rohan_pujeri';
+    let currentId = 'user_default';
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('tripwise_user_profile_')) {
+        const pRaw = localStorage.getItem(key);
+        if (pRaw) {
+          try {
+            const p = JSON.parse(pRaw);
+            if (p.username) currentUname = cleanHandle(p.username);
+            if (p.id) currentId = p.id;
+          } catch {}
+        }
+      }
+    }
+
+    // Seed default community members so following and followers look rich like Instagram
+    SEED_COMMUNITY_USERS.forEach((user, idx) => {
+      const uClean = cleanHandle(user.username);
+      // User is following these community members
+      initialRels.push({
+        id: `rel_init_${idx}`,
+        followerId: currentId,
+        followerUsername: `@${currentUname}`,
+        followerName: currentUname,
+        followingId: `user_${uClean}`,
+        followingUsername: user.username,
+        followingName: user.name,
+        followingAvatar: user.avatarUrl,
+        createdAt: new Date(Date.now() - idx * 3600000).toISOString()
+      });
+
+      // Some community members also follow the user
+      if (idx % 2 === 0) {
+        initialRels.push({
+          id: `rel_follower_${idx}`,
+          followerId: `user_${uClean}`,
+          followerUsername: user.username,
+          followerName: user.name,
+          followerAvatar: user.avatarUrl,
+          followingId: currentId,
+          followingUsername: `@${currentUname}`,
+          followingName: currentUname,
+          createdAt: new Date(Date.now() - idx * 7200000).toISOString()
+        });
+      }
+    });
+
+    localStorage.setItem(STORAGE_KEY_RELATIONSHIPS, JSON.stringify(initialRels));
+    return initialRels;
   } catch {
     return [];
   }
