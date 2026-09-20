@@ -124,6 +124,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isModalPlaying, setIsModalPlaying] = useState<boolean>(true);
   const modalVideoRef = useRef<HTMLVideoElement | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [trailToDelete, setTrailToDelete] = useState<UserTrailItem | null>(null);
+  const [isDeletingTrail, setIsDeletingTrail] = useState<boolean>(false);
 
   // User uploaded trails from local storage
   const [userTrails, setUserTrails] = useState<UserTrailItem[]>(() => {
@@ -381,6 +383,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   const handleDeleteTrail = async (trailId: string) => {
     try {
+      setIsDeletingTrail(true);
       await deleteTrailMedia(trailId);
     } catch {
       // ignore
@@ -391,7 +394,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       console.warn('Failed to delete global trail:', err);
     }
     setSelectedTrail(null);
-    setUserTrails((prev) => prev.filter((t) => t.id !== trailId));
+    setTrailToDelete(null);
+    setUserTrails((prev) => {
+      const updated = prev.filter((t) => t.id !== trailId);
+      try {
+        localStorage.setItem('roamai_user_trails', JSON.stringify(updated));
+        localStorage.setItem('tripwise_user_trails', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+    setIsDeletingTrail(false);
+    setAvatarToast('Trail deleted successfully');
+    setTimeout(() => setAvatarToast(null), 3000);
   };
 
   // Filter ONLY completed trips for travel footprint counters (trips, countries, places)
@@ -1352,12 +1368,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       <span>{trail.viewsCount || '1'}</span>
                     </div>
 
-                    {/* Duration in top right */}
+                    {/* Duration in top left */}
                     {trail.duration && (
-                      <div className="absolute top-2 right-2 text-[10px] font-semibold text-white/80 bg-black/50 px-1.5 py-0.5 rounded-sm">
+                      <div className="absolute top-2 left-2 z-10 text-[10px] font-semibold text-white/80 bg-black/50 px-1.5 py-0.5 rounded-sm">
                         {trail.duration}
                       </div>
                     )}
+
+                    {/* Delete button on grid card (top right) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTrailToDelete(trail);
+                      }}
+                      className="absolute top-2 right-2 z-20 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/65 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all cursor-pointer shadow-lg hover:scale-110 active:scale-95"
+                      title="Delete Trail"
+                      aria-label="Delete Trail"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1545,6 +1575,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <X className="w-6 h-6" />
             </button>
 
+            {/* Delete button in preview modal */}
+            <button
+              type="button"
+              onClick={() => setTrailToDelete(selectedTrail)}
+              className="absolute top-5 right-20 z-30 px-3.5 py-2.5 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-105 active:scale-95 text-xs font-semibold"
+              title="Delete Trail"
+              aria-label="Delete Trail"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400 group-hover:text-white" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+
             {/* Mute button (only for video) */}
             {selectedTrail.mediaType !== 'image' && (
               <button
@@ -1694,6 +1736,57 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- DELETE TRAIL CONFIRMATION MODAL --- */}
+      {trailToDelete && (
+        <div 
+          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!isDeletingTrail) setTrailToDelete(null);
+          }}
+        >
+          <div 
+            className="w-full max-w-[340px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60 text-white border border-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 space-y-2.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-2 border border-rose-500/30">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-white">Delete this trail?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Are you sure you want to delete <span className="font-semibold text-white">"{trailToDelete.destination || trailToDelete.title}"</span>? This will permanently remove it from your profile and community discover feed.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isDeletingTrail}
+              onClick={async () => {
+                const id = trailToDelete.id;
+                await handleDeleteTrail(id);
+              }}
+              className="w-full py-3.5 text-sm font-bold text-rose-500 hover:bg-rose-500/10 active:bg-rose-500/20 transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isDeletingTrail ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <span>Delete Trail</span>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={isDeletingTrail}
+              onClick={() => setTrailToDelete(null)}
+              className="w-full py-3 text-sm font-medium text-zinc-300 hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
