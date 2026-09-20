@@ -193,7 +193,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
           }
         }
       } else if (authMode === 'signin') {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -201,6 +201,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
         if (signInError) {
           setError(getErrorMessage(signInError));
         } else {
+          if (signInData?.user) {
+            const u = signInData.user;
+            const meta = u.user_metadata || {};
+            const uname = meta.username || (meta.name ? `@${meta.name.toLowerCase().replace(/\s+/g, '_')}` : `@${email.split('@')[0]}`);
+            const name = meta.full_name || meta.name || email.split('@')[0];
+            try {
+              await supabase.from('profiles').upsert({
+                id: u.id,
+                username: uname.startsWith('@') ? uname : `@${uname}`,
+                name: name,
+                avatar_url: meta.avatar_url || meta.avatarUrl || '',
+                place: meta.place || '',
+                location: meta.place || 'Traveler',
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'id' });
+            } catch {
+              // ignore
+            }
+          }
           onAuthSuccess();
         }
       } else if (authMode === 'forgot_password') {

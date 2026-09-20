@@ -208,7 +208,7 @@ export async function claimUsername(
     console.warn('Could not register username on backend server API:', e);
   }
 
-  // 3. Save in Supabase usernames table if configured
+  // 3. Save in Supabase usernames & profiles tables if configured
   const supabase = getSupabaseClient();
   if (supabase && userId) {
     try {
@@ -222,6 +222,19 @@ export async function claimUsername(
       );
     } catch (e) {
       console.warn('Could not upsert username into Supabase usernames table:', e);
+    }
+
+    try {
+      await supabase.from('profiles').upsert(
+        {
+          id: userId,
+          username: `@${clean}`,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'id' }
+      );
+    } catch (e) {
+      console.warn('Could not upsert into public.profiles:', e);
     }
   }
 
@@ -353,22 +366,52 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
     // Local / offline fallback handled
   }
 
-  // 3. Query Supabase public usernames table
+  // 3. Query Supabase public profiles table
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      let query = supabase.from('usernames').select('username, user_id, created_at');
+      let query = supabase.from('profiles').select('*');
       if (q) {
-        query = query.ilike('username', `%${q}%`);
+        query = query.or(`username.ilike.%${q}%,name.ilike.%${q}%,location.ilike.%${q}%,place.ilike.%${q}%`);
       }
-      const { data, error } = await query.limit(40);
+      const { data, error } = await query.limit(50);
       if (!error && Array.isArray(data)) {
-        data.forEach((row) => {
-          if (row.username) {
+        data.forEach((row: any) => {
+          if (row.username || row.name) {
+            const rawUname = row.username || `@${(row.name || 'traveler').toLowerCase().replace(/\s+/g, '_')}`;
             recordProfile({
-              id: row.user_id || `supa_${row.username}`,
-              username: row.username,
-              name: row.username.charAt(0).toUpperCase() + row.username.slice(1)
+              id: row.id,
+              username: rawUname.startsWith('@') ? rawUname : `@${rawUname}`,
+              name: row.name || rawUname.replace(/^@/, '') || 'Traveler',
+              avatarUrl: row.avatar_url,
+              bio: row.bio,
+              location: row.location || row.place || 'Traveler',
+              level: row.level || 'Travel Explorer',
+              tripsCount: row.trips_count || 0,
+              placesCount: row.places_count || 0
+            });
+          }
+        });
+      }
+    } catch {
+      // Table may not be active yet; gracefully handled
+    }
+
+    // 4. Also fallback query Supabase public usernames table
+    try {
+      let uQuery = supabase.from('usernames').select('username, user_id, created_at');
+      if (q) {
+        uQuery = uQuery.ilike('username', `%${q}%`);
+      }
+      const { data: uData, error: uErr } = await uQuery.limit(40);
+      if (!uErr && Array.isArray(uData)) {
+        uData.forEach((row) => {
+          if (row.username) {
+            const clean = row.username.replace(/^@+/, '');
+            recordProfile({
+              id: row.user_id || `supa_${clean}`,
+              username: `@${clean}`,
+              name: clean.charAt(0).toUpperCase() + clean.slice(1)
             });
           }
         });

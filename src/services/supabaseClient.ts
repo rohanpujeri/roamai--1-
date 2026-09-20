@@ -394,6 +394,22 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
         }
       });
       if (error) return { error: error.message };
+
+      // Also upsert public.profiles table so other users can search this profile immediately
+      try {
+        await supabase.from('profiles').upsert({
+          id: user.id,
+          username: sanitizedProfile.username,
+          name: sanitizedProfile.name,
+          avatar_url: sanitizedProfile.avatarUrl,
+          bio: sanitizedProfile.bio,
+          place: sanitizedProfile.place,
+          location: sanitizedProfile.place || 'Traveler',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      } catch (upsertErr) {
+        console.warn('Could not sync to public profiles table:', upsertErr);
+      }
     } catch (err: any) {
       return { error: err?.message || 'Failed to update profile' };
     }
