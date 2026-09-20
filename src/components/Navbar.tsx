@@ -22,8 +22,8 @@ import { UserProfileModal } from './UserProfileModal';
 import { NavigationDrawer } from './NavigationDrawer';
 
 interface NavbarProps {
-  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search';
-  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search') => void;
+  currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails';
+  onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails') => void;
   activeTrip: Trip | null;
   savedTripsCount: number;
   currentTheme: ThemeConfig;

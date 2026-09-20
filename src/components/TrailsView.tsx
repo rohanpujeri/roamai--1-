@@ -35,6 +35,7 @@ import {
   likeGlobalTrail,
   commentOnGlobalTrail
 } from '../services/sharedTrailsService';
+import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
 
 
@@ -85,7 +86,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onBack
 }) => {
   // Load real user trails exclusively from local and server registry
-  const [trails, setTrails] = useState<TrailReel[]>(() => getLocalTrails());
+  const [trails, setTrails] = useState<TrailReel[]>(() => 
+    getLocalTrails().map((t) => ({ ...t, isSaved: isTrailSaved(t.id) }))
+  );
 
   // Periodically sync global trails from server API & Supabase so any profile can see everyone's trails
   useEffect(() => {
@@ -95,12 +98,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         const globalList = await fetchGlobalTrails();
         if (isMounted && Array.isArray(globalList)) {
           setTrails((prev) => {
+            const mapped = globalList.map((g) => ({ ...g, isSaved: isTrailSaved(g.id) }));
             const prevIds = prev.map((p) => p.id).join(',');
-            const nextIds = globalList.map((g) => g.id).join(',');
-            if (prevIds !== nextIds || prev.length !== globalList.length) {
-              return globalList;
+            const nextIds = mapped.map((g) => g.id).join(',');
+            if (prevIds !== nextIds || prev.length !== mapped.length) {
+              return mapped;
             }
-            return prev;
+            return prev.map((p) => ({ ...p, isSaved: isTrailSaved(p.id) }));
           });
         }
       } catch (err) {
@@ -314,14 +318,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!activeReel) return;
+    const isNowSaved = toggleSaveTrail(activeReel);
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
-          return { ...t, isSaved: !t.isSaved };
+          return { ...t, isSaved: isNowSaved };
         }
         return t;
       })
     );
+    setShareToast(isNowSaved ? 'Saved to Saved Trails!' : 'Removed from Saved Trails');
+    setTimeout(() => setShareToast(null), 2500);
   };
 
   const handleShare = (e: React.MouseEvent) => {

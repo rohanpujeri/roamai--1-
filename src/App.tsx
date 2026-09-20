@@ -32,6 +32,7 @@ import { BottomNavBar } from './components/BottomNavBar';
 import { TrailsView } from './components/TrailsView';
 import { TravellerSearchModal } from './components/TravellerSearchModal';
 import { TravellerSearchView } from './components/TravellerSearchView';
+import { SavedTrailsView } from './components/SavedTrailsView';
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -102,7 +103,7 @@ export default function App() {
   // User trips state (loaded from Supabase / localStorage)
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string>('');
-  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails'>('landing');
   const [isTravellerSearchOpen, setIsTravellerSearchOpen] = useState<boolean>(false);
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
@@ -1137,6 +1138,19 @@ export default function App() {
               setCurrentView('landing');
               setIntendedView(null);
               setInitialAuthMode('signin');
+            }}
+          />
+        );
+      case 'saved_trails':
+        return (
+          <SavedTrailsView
+            currentTheme={currentTheme}
+            onBack={() => scrollToTab(0)}
+            onOpenTrailsTab={() => scrollToTab(1)}
+            onStartPlanning={(dest) => {
+              setWizardDestId(dest || '');
+              setWizardEditingTrip(null);
+              scrollToTab(2);
             }}
           />
         );

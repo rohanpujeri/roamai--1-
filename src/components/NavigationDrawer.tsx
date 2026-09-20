@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Compass, 
   Bookmark, 
+  Film,
   Plus, 
   User, 
   Palette, 
@@ -14,6 +15,7 @@ import {
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, Trip } from '../types';
 import { getCachedUserProfile, getSupabaseClient } from '../services/supabaseClient';
+import { getSavedTrailsCount } from '../services/savedTrailsService';
 
 export interface NavigationDrawerProps {
   isOpen: boolean;
@@ -46,6 +48,20 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
   const userPlace = cachedProfile?.place || session?.user?.user_metadata?.place || '';
+
+  const [savedTrailsCount, setSavedTrailsCount] = useState<number>(() => getSavedTrailsCount());
+
+  useEffect(() => {
+    const handleCountChange = () => {
+      setSavedTrailsCount(getSavedTrailsCount());
+    };
+    window.addEventListener('roamai_saved_trails_changed', handleCountChange);
+    window.addEventListener('storage', handleCountChange);
+    return () => {
+      window.removeEventListener('roamai_saved_trails_changed', handleCountChange);
+      window.removeEventListener('storage', handleCountChange);
+    };
+  }, []);
 
   // Close on Escape key press and prevent background scroll
   useEffect(() => {
@@ -211,6 +227,46 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               </div>
               <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${
                 currentView === 'my_trips' ? 'text-white' : ''
+              }`} />
+            </button>
+
+            {/* Saved Trails */}
+            <button
+              onClick={() => handleDrawerNavigate('saved_trails')}
+              className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all text-left group cursor-pointer border ${
+                currentView === 'saved_trails'
+                  ? 'bg-neutral-900 text-white font-bold border-neutral-700 shadow-md'
+                  : 'border-transparent text-neutral-300 hover:bg-neutral-900/80 hover:text-white hover:border-neutral-800 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div 
+                  className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shrink-0 ${
+                    currentView === 'saved_trails'
+                      ? 'text-white shadow-md'
+                      : 'bg-neutral-900 text-neutral-300 group-hover:text-white group-hover:bg-neutral-800 border border-neutral-800'
+                  }`}
+                  style={currentView === 'saved_trails' ? { backgroundColor: currentTheme.primaryColor } : undefined}
+                >
+                  <Film className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-bold truncate">Saved Trails</span>
+                    {savedTrailsCount > 0 && (
+                      <span 
+                        className="px-1.5 py-0.2 text-[10px] font-black rounded-full text-slate-950"
+                        style={{ backgroundColor: currentTheme.accentColor || '#34d399' }}
+                      >
+                        {savedTrailsCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-normal truncate hidden sm:block">Bookmarked travel reels</span>
+                </div>
+              </div>
+              <ChevronRight className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-white shrink-0 hidden xs:block ${
+                currentView === 'saved_trails' ? 'text-white' : ''
               }`} />
             </button>
 
