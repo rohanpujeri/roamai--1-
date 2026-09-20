@@ -116,43 +116,47 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
       {/* Slide-Out Drawer Panel - Above bottom navigation bar with full viewport height */}
       <div 
-        className={`fixed top-0 right-0 bottom-0 h-[100dvh] h-screen w-[88vw] max-w-[420px] sm:w-1/2 sm:max-w-[480px] bg-black text-white border-l border-neutral-800 shadow-2xl z-[101] flex flex-col justify-between transition-transform duration-300 ease-out transform ${
+        className={`fixed top-0 right-0 bottom-0 h-full h-[100dvh] max-h-screen w-[88vw] max-w-[420px] sm:w-1/2 sm:max-w-[480px] bg-black text-white border-l border-neutral-800 shadow-2xl z-[101] flex flex-col transition-transform duration-300 ease-out transform ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ backgroundColor: '#000000' }}
       >
-        {/* Main Scrollable Drawer Content - Smooth touch scrolling with bottom clearance */}
-        <div 
-          className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4 sm:space-y-6 flex-1 flex flex-col bg-black pb-40 sm:pb-28"
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-        >
-          {/* Drawer Header */}
-          <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-800">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg shrink-0 ring-1 sm:ring-2 ring-neutral-700">
-                <img
-                  src="/logo.png"
-                  alt="TripWise Logo"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-sm sm:base font-bold tracking-tight text-white truncate flex items-center gap-1">
-                  Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
-                </h2>
-                <p className="text-[10px] sm:text-xs text-neutral-400 font-medium truncate hidden xs:block">Smart AI Travel</p>
-              </div>
+        {/* Pinned Drawer Header */}
+        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-neutral-800 shrink-0 bg-black">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg shrink-0 ring-1 sm:ring-2 ring-neutral-700">
+              <img
+                src="/logo.png"
+                alt="TripWise Logo"
+                className="w-full h-full object-cover"
+              />
             </div>
-
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold tracking-tight text-white truncate flex items-center gap-1">
+                Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
+              </h2>
+              <p className="text-[10px] sm:text-xs text-neutral-400 font-medium truncate hidden xs:block">Smart AI Travel</p>
+            </div>
           </div>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 active:scale-95"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Main Scrollable Drawer Content - Smooth touch scrolling with min-h-0 flex constraint */}
+        <div 
+          className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-4 sm:space-y-6 bg-black"
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain'
+          }}
+        >
 
           {/* Navigation Section */}
           <div className="space-y-1.5 sm:space-y-2">
