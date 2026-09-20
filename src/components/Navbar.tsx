@@ -5,7 +5,6 @@ import {
   Navigation, 
   Bookmark, 
   User, 
-  Plus, 
   Menu, 
   X, 
   ChevronRight, 
@@ -237,16 +236,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
 
-              {/* Primary CTA: Plan My Trip (Optimized for mobile single-line) */}
-              <button
-                onClick={onPlanTrip}
-                className="flex items-center gap-1 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
-                style={{ backgroundColor: currentTheme.primaryColor }}
-              >
-                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="sm:hidden">Plan</span>
-                <span className="hidden sm:inline">Plan My Trip</span>
-              </button>
 
               {/* Three Lines Hamburger Menu Button (Top Right Corner) - Hidden on Home Page */}
               {currentView !== 'landing' && (
