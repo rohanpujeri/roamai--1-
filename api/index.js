@@ -2979,6 +2979,12 @@ function registerServerUsername(rawUsername, userId, email) {
   persistToDisk();
   return { success: true };
 }
+function searchServerUsers(query) {
+  const all = Array.from(claimedUsernamesMap.values());
+  if (!query || !query.trim()) return all;
+  const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
+  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
+}
 
 // server/app.ts
 dotenv.config();
@@ -3148,6 +3154,11 @@ function createExpressApp() {
       return;
     }
     res.json(result);
+  });
+  apiRouter.get("/auth/search-users", (req, res) => {
+    const q = req.query.q || "";
+    const users = searchServerUsers(q);
+    res.json({ users });
   });
   app2.use("/api", apiRouter);
   app2.use("/", apiRouter);

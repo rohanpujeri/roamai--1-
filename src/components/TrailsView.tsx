@@ -67,56 +67,6 @@ interface TrailsViewProps {
   onBack: () => void;
 }
 
-const DEFAULT_TRAILS: TrailReel[] = [
-  {
-    id: 'sample-trail-1',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-beach-with-turquoise-water-41221-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-    mediaType: 'video',
-    title: 'Tropical Coastal Escape',
-    creator: {
-      name: 'Elena Rostova',
-      username: '@elena_voyages',
-      avatarUrl: '',
-      isFollowed: false
-    },
-    caption: 'Crystal clear turquoise lagoons and untouched coral reefs. Truly paradise on Earth 🌊🏝️',
-    destination: 'Havelock Island, Andaman',
-    tags: ['#BeachVibes', '#IslandLife', '#CoastalRoads'],
-    audioTitle: 'Ocean Breeze • Ambient Waves',
-    likesCount: 1420,
-    commentsCount: 38,
-    isLiked: false,
-    comments: [
-      { id: 'c1', user: 'Arjun M.', avatar: '', text: 'Water looks unreal! Which month is best to visit?', time: '2h ago' },
-      { id: 'c2', user: 'Sarah K.', avatar: '', text: 'Adding this to my bucket list right now! ✈️', time: '5h ago' }
-    ]
-  },
-  {
-    id: 'sample-trail-2',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
-    mediaType: 'video',
-    title: 'Misty Western Ghats Stream',
-    creator: {
-      name: 'Rohan Deshmukh',
-      username: '@rohan_treks',
-      avatarUrl: '',
-      isFollowed: false
-    },
-    caption: 'Secret mountain waterfall hidden deep inside the monsoon valley trek 🌿⛰️',
-    destination: 'Coorg & Western Ghats',
-    tags: ['#MonsoonTrek', '#HiddenGems', '#NatureLovers'],
-    audioTitle: 'Rainforest Stream • Forest Chills',
-    likesCount: 980,
-    commentsCount: 24,
-    isLiked: false,
-    comments: [
-      { id: 'c3', user: 'Pooja V.', avatar: '', text: 'The mist is magic! Was the trail slippery?', time: '1d ago' }
-    ]
-  }
-];
-
 export const TrailsView: React.FC<TrailsViewProps> = ({
   currentTheme,
   session,
@@ -124,20 +74,30 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onStartPlanning,
   onBack
 }) => {
-  // Load saved user trails + defaults
+  // Load real user trails exclusively - no mock or predefined trails
   const [trails, setTrails] = useState<TrailReel[]>(() => {
     try {
       const stored = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return [...parsed, ...DEFAULT_TRAILS];
+        if (Array.isArray(parsed)) {
+          const realTrails = parsed.filter(
+            (t: any) =>
+              t &&
+              !t.id?.startsWith('sample-trail-') &&
+              t.creator?.username !== '@elena_voyages' &&
+              t.creator?.username !== '@rohan_treks'
+          );
+          if (realTrails.length !== parsed.length) {
+            localStorage.setItem('roamai_user_trails', JSON.stringify(realTrails));
+          }
+          return realTrails;
         }
       }
     } catch {
       // fallback
     }
-    return DEFAULT_TRAILS;
+    return [];
   });
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);

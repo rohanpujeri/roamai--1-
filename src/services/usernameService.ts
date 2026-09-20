@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import { getSupabaseClient, sanitizeAvatarUrl } from './supabaseClient';
 
 const RESERVED_USERNAMES = new Set([
   'admin',
@@ -227,3 +227,165 @@ export async function claimUsername(
 
   return { success: true };
 }
+
+export interface RealTravellerResult {
+  id: string;
+  name: string;
+  username: string;
+  avatarUrl: string;
+  location: string;
+  bio: string;
+  level: string;
+  tripsCount: number;
+  placesCount: number;
+  topDNA: string[];
+  recentPlaces: string[];
+  isFollowing?: boolean;
+}
+
+/**
+ * Searches real registered users across Supabase database, server username registry, and local profiles.
+ * Eliminates all fake / predefined mock profiles.
+ */
+export async function searchRealTravellers(searchQuery?: string): Promise<RealTravellerResult[]> {
+  const q = (searchQuery || '').trim().toLowerCase().replace(/^@+/, '');
+  const profilesMap = new Map<string, RealTravellerResult>();
+
+  // Helper to add or merge a real profile record
+  const recordProfile = (p: Partial<RealTravellerResult> & { username: string }) => {
+    const cleanUser = cleanUsernameInput(p.username);
+    if (!cleanUser) return;
+    const existing = profilesMap.get(cleanUser);
+    const updated: RealTravellerResult = {
+      id: p.id || existing?.id || `user_${cleanUser}`,
+      name: p.name || existing?.name || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
+      username: `@${cleanUser}`,
+      avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
+      location: p.location || existing?.location || 'Traveler',
+      bio: p.bio || existing?.bio || 'Exploring new places, one trip at a time 🌍',
+      level: p.level || existing?.level || 'Travel Explorer',
+      tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
+      placesCount: p.placesCount ?? existing?.placesCount ?? 0,
+      topDNA: p.topDNA || existing?.topDNA || ['Adventure', 'Nature', 'Photography'],
+      recentPlaces: p.recentPlaces || existing?.recentPlaces || [],
+      isFollowing: p.isFollowing ?? existing?.isFollowing ?? false
+    };
+    profilesMap.set(cleanUser, updated);
+  };
+
+  // 1. Gather all cached real profiles from localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('tripwise_user_profile_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const data = JSON.parse(raw);
+            if (data && (data.username || data.name)) {
+              recordProfile({
+                id: data.id || key.replace('tripwise_user_profile_', ''),
+                name: data.name,
+                username: data.username || data.name?.toLowerCase().replace(/\s+/g, '_') || 'traveler',
+                avatarUrl: data.avatarUrl,
+                location: data.place,
+                bio: data.bio,
+                tripsCount: data.stats?.tripsCount || 0,
+                placesCount: data.stats?.placesCount || 0,
+                level: data.stats?.level || 'Travel Explorer'
+              });
+            }
+          }
+        }
+      }
+
+      // Claimed usernames registry in localStorage
+      const claimed = getLocalClaimedUsernames();
+      Object.entries(claimed).forEach(([username, meta]) => {
+        recordProfile({
+          id: meta.userId || `claimed_${username}`,
+          username: username,
+          name: username.charAt(0).toUpperCase() + username.slice(1)
+        });
+      });
+
+      // User creators from real uploaded trails
+      const rawTrails = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
+      if (rawTrails) {
+        const trails = JSON.parse(rawTrails);
+        if (Array.isArray(trails)) {
+          trails.forEach((t: any) => {
+            if (t.creator && t.creator.username) {
+              recordProfile({
+                username: t.creator.username,
+                name: t.creator.name,
+                avatarUrl: t.creator.avatarUrl,
+                location: t.destination,
+                recentPlaces: t.destination ? [t.destination] : []
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading local profiles:', e);
+    }
+  }
+
+  // 2. Query backend API endpoint /api/auth/search-users
+  try {
+    const res = await fetch(`/api/auth/search-users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.users)) {
+        data.users.forEach((u: any) => {
+          if (u.username) {
+            recordProfile({
+              id: u.userId || `server_${u.username}`,
+              username: u.username,
+              name: u.username.charAt(0).toUpperCase() + u.username.slice(1)
+            });
+          }
+        });
+      }
+    }
+  } catch {
+    // Local / offline fallback handled
+  }
+
+  // 3. Query Supabase public usernames table
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      let query = supabase.from('usernames').select('username, user_id, created_at');
+      if (q) {
+        query = query.ilike('username', `%${q}%`);
+      }
+      const { data, error } = await query.limit(40);
+      if (!error && Array.isArray(data)) {
+        data.forEach((row) => {
+          if (row.username) {
+            recordProfile({
+              id: row.user_id || `supa_${row.username}`,
+              username: row.username,
+              name: row.username.charAt(0).toUpperCase() + row.username.slice(1)
+            });
+          }
+        });
+      }
+    } catch {
+      // Table may not be active; gracefully handled
+    }
+  }
+
+  const all = Array.from(profilesMap.values());
+  if (!q) return all;
+
+  return all.filter((p) => {
+    const uClean = p.username.toLowerCase().replace(/^@+/, '');
+    const nClean = p.name.toLowerCase();
+    const lClean = p.location.toLowerCase();
+    return uClean.includes(q) || nClean.includes(q) || lClean.includes(q);
+  });
+}
+

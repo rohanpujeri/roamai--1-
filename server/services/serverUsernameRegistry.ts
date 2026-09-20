@@ -124,3 +124,12 @@ export function registerServerUsername(
 
   return { success: true };
 }
+
+export function searchServerUsers(query?: string): UsernameRecord[] {
+  const all = Array.from(claimedUsernamesMap.values());
+  if (!query || !query.trim()) return all;
+  const cleanQ = query.trim().toLowerCase().replace(/^@+/, '');
+  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
+}
+
+

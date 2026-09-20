@@ -118,18 +118,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          return parsed.map((t: any) => ({
-            id: t.id,
-            title: t.title || t.caption || t.destination || 'Travel Trail',
-            destination: t.destination || 'Travel Destination',
-            viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
-            likesCount: t.likesCount ? String(t.likesCount) : '1',
-            videoUrl: t.videoUrl,
-            posterUrl: t.posterUrl,
-            duration: t.duration,
-            mediaType: t.mediaType || 'video',
-            caption: t.caption || t.title
-          }));
+          return parsed
+            .filter(
+              (t: any) =>
+                t &&
+                !t.id?.startsWith('sample-trail-') &&
+                t.creator?.username !== '@elena_voyages' &&
+                t.creator?.username !== '@rohan_treks'
+            )
+            .map((t: any) => ({
+              id: t.id,
+              title: t.title || t.caption || t.destination || 'Travel Trail',
+              destination: t.destination || 'Travel Destination',
+              viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+              likesCount: t.likesCount ? String(t.likesCount) : '1',
+              videoUrl: t.videoUrl,
+              posterUrl: t.posterUrl,
+              duration: t.duration,
+              mediaType: t.mediaType || 'video',
+              caption: t.caption || t.title
+            }));
         }
       }
     } catch {
@@ -137,6 +145,123 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
     return [];
   });
+
+  // Trail Reel Upload Modal states
+  const [isUploadTrailModalOpen, setIsUploadTrailModalOpen] = useState(false);
+  const [trailFile, setTrailFile] = useState<File | null>(null);
+  const [trailPreviewUrl, setTrailPreviewUrl] = useState<string>('');
+  const [trailPosterUrl, setTrailPosterUrl] = useState<string>('');
+  const [trailDestination, setTrailDestination] = useState<string>('');
+  const [trailCaption, setTrailCaption] = useState<string>('');
+  const [trailTags, setTrailTags] = useState<string>('#Travel #RoamAI');
+  const [isPublishingTrail, setIsPublishingTrail] = useState<boolean>(false);
+  const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleTrailFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setTrailFile(file);
+    const objUrl = URL.createObjectURL(file);
+    setTrailPreviewUrl(objUrl);
+
+    if (file.type.startsWith('video/')) {
+      try {
+        const poster = await generateVideoPoster(file);
+        setTrailPosterUrl(poster);
+      } catch {
+        setTrailPosterUrl('');
+      }
+    } else {
+      setTrailPosterUrl(objUrl);
+    }
+  };
+
+  const handlePublishTrail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trailFile && !trailPreviewUrl) return;
+
+    try {
+      setIsPublishingTrail(true);
+      const trailId = `user-trail-${Date.now()}`;
+
+      if (trailFile) {
+        await saveTrailMedia(trailId, trailFile);
+      }
+
+      let poster = trailPosterUrl;
+      if (!poster && trailFile && trailFile.type.startsWith('video/')) {
+        try {
+          poster = await generateVideoPoster(trailFile);
+        } catch {
+          // ignore
+        }
+      }
+
+      const isImg = trailFile ? trailFile.type.startsWith('image/') : false;
+      const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
+      const destinationVal = trailDestination.trim() || profile.place || 'Travel Destination';
+      const captionVal = trailCaption.trim() || 'Exploring new places with RoamAI 🌍✈️';
+
+      const newTrailItem: UserTrailItem = {
+        id: trailId,
+        title: captionVal,
+        destination: destinationVal,
+        viewsCount: '1',
+        likesCount: '1',
+        videoUrl: trailPreviewUrl,
+        posterUrl: poster || undefined,
+        mediaType: isImg ? 'image' : 'video',
+        caption: captionVal
+      };
+
+      const newReelForStorage = {
+        id: trailId,
+        videoUrl: trailPreviewUrl,
+        posterUrl: poster || undefined,
+        mediaType: isImg ? 'image' : 'video',
+        title: captionVal,
+        creator: {
+          name: profile.name,
+          username: cleanUsername,
+          avatarUrl: profile.avatarUrl,
+          isFollowed: true
+        },
+        caption: captionVal,
+        destination: destinationVal,
+        tags: trailTags.split(' ').filter(Boolean),
+        audioTitle: 'Original Audio',
+        likesCount: 1,
+        commentsCount: 0,
+        isLiked: true,
+        comments: []
+      };
+
+      try {
+        const stored = localStorage.getItem('roamai_user_trails');
+        const existing = stored ? JSON.parse(stored) : [];
+        localStorage.setItem('roamai_user_trails', JSON.stringify([newReelForStorage, ...existing]));
+      } catch (err) {
+        console.warn('Failed to save trail to localStorage', err);
+      }
+
+      setUserTrails((prev) => [newTrailItem, ...prev]);
+      setIsUploadTrailModalOpen(false);
+      setTrailFile(null);
+      setTrailPreviewUrl('');
+      setTrailPosterUrl('');
+      setTrailDestination('');
+      setTrailCaption('');
+      setActiveTab('trails');
+      setAvatarToast('Trail reel uploaded to your profile!');
+      setTimeout(() => setAvatarToast(null), 3500);
+    } catch (err: any) {
+      console.error('Error publishing trail:', err);
+      alert('Failed to publish trail: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setIsPublishingTrail(false);
+    }
+  };
 
   // Resolve active media URL when previewing a trail
   useEffect(() => {
@@ -425,6 +550,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
     if (user) {
       await updateUserProfileData(updatedData);
+    } else {
+      try {
+        localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updatedData));
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -440,6 +571,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setEditForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
       if (user) {
         await updateUserProfileData(updated);
+      } else {
+        try {
+          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
       }
       setAvatarToast('Profile photo updated!');
       setTimeout(() => setAvatarToast(null), 3000);
@@ -766,7 +903,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Edit profile | Share profile | Sign Out */}
+        {/* Action Buttons: Edit profile | Share profile | + Reel | Sign Out */}
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={() => {
@@ -784,13 +921,21 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             Share profile
           </button>
           <button
+            onClick={() => setIsUploadTrailModalOpen(true)}
+            className="py-1.5 sm:py-2 px-3 rounded-lg bg-linear-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 active:from-emerald-700 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer text-center flex items-center gap-1.5 shrink-0 shadow-md active:scale-95"
+            title="Upload Reel to Profile"
+          >
+            <Film className="w-3.5 h-3.5 text-white" />
+            <span>+ Reel</span>
+          </button>
+          <button
             onClick={async () => {
               const supabase = getSupabaseClient();
               if (supabase) {
                 await supabase.auth.signOut();
               }
             }}
-            className="py-1.5 sm:py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+            className="py-1.5 sm:py-2 px-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
             title="Sign Out"
             aria-label="Sign Out"
           >
@@ -990,15 +1135,40 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         {/* --- TAB 2: TRAILS (3-COLUMN REELS VIDEO GRID) --- */}
         {activeTab === 'trails' && (
           <div>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-850 mb-1">
+              <span className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Reels & Video Trails ({userTrails.length})</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsUploadTrailModalOpen(true)}
+                className="px-3 py-1 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all shadow-md active:scale-95"
+              >
+                <Plus className="w-3 h-3 stroke-[3]" />
+                <span>Upload Reel</span>
+              </button>
+            </div>
+
             {userTrails.length === 0 ? (
-              <div className="py-20 px-4 text-center space-y-3">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
-                  <Film className="w-7 h-7" />
+              <div className="py-16 px-4 text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+                  <Film className="w-8 h-8" />
                 </div>
-                <h4 className="text-sm sm:text-base font-bold text-white">No Trails Uploaded</h4>
-                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                  Share your travel moments and video reels with the RoamAI community.
-                </p>
+                <div className="space-y-1">
+                  <h4 className="text-sm sm:text-base font-bold text-white">No Trails Uploaded Yet</h4>
+                  <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                    Share your travel moments and vertical video reels with the RoamAI community.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadTrailModalOpen(true)}
+                  className="px-5 py-2.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 mx-auto shadow-xl shadow-emerald-950/50 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload First Reel</span>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
@@ -1326,7 +1496,166 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       )}
-      </>
+
+      {/* --- UPLOAD TRAIL REEL MODAL --- */}
+      {isUploadTrailModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-zinc-950 rounded-3xl border border-white/15 max-h-[92vh] overflow-y-auto text-left shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-md px-5 py-4 border-b border-zinc-800 flex items-center justify-between z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Film className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Upload Trail Reel</h3>
+                  <p className="text-[11px] text-zinc-400">Add a vertical video or photo reel to your profile</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUploadTrailModalOpen(false);
+                  setTrailFile(null);
+                  setTrailPreviewUrl('');
+                  setTrailPosterUrl('');
+                }}
+                className="w-8 h-8 rounded-full bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePublishTrail} className="p-5 pt-0 space-y-4 text-xs sm:text-sm">
+              {/* Media Picker / Preview Box */}
+              <div>
+                <input
+                  ref={trailUploadInputRef}
+                  type="file"
+                  accept="video/*,image/*"
+                  className="hidden"
+                  onChange={handleTrailFileSelected}
+                />
+
+                {trailPreviewUrl ? (
+                  <div className="relative aspect-[9/16] max-h-72 w-full mx-auto rounded-2xl overflow-hidden bg-black border border-white/15 flex items-center justify-center group">
+                    {trailFile?.type.startsWith('image/') ? (
+                      <img src={trailPreviewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <video
+                        src={trailPreviewUrl}
+                        poster={trailPosterUrl}
+                        playsInline
+                        loop
+                        autoPlay
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => trailUploadInputRef.current?.click()}
+                      className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white text-xs font-bold backdrop-blur-md cursor-pointer flex items-center gap-1.5 transition-all shadow-md"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Change Media</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => trailUploadInputRef.current?.click()}
+                    className="border-2 border-dashed border-zinc-800 hover:border-emerald-500/60 rounded-2xl p-8 text-center cursor-pointer transition-colors bg-zinc-900/40 hover:bg-zinc-900/80 group"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
+                      <Upload className="w-7 h-7" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold text-white mb-1">
+                      Choose Video or Photo Reel
+                    </p>
+                    <p className="text-[11px] text-zinc-400">
+                      Select MP4, MOV, WebM or travel photos (9:16 vertical recommended)
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Destination / Location */}
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Destination / Location</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Manali, Himachal Pradesh"
+                    value={trailDestination}
+                    onChange={(e) => setTrailDestination(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Caption / Story</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Share what makes this spot breathtaking..."
+                  value={trailCaption}
+                  onChange={(e) => setTrailCaption(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Tags</label>
+                <input
+                  type="text"
+                  placeholder="#Travel #Adventure #Nature"
+                  value={trailTags}
+                  onChange={(e) => setTrailTags(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-zinc-850">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUploadTrailModalOpen(false);
+                    setTrailFile(null);
+                    setTrailPreviewUrl('');
+                    setTrailPosterUrl('');
+                  }}
+                  disabled={isPublishingTrail}
+                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPublishingTrail || !trailPreviewUrl}
+                  className="px-5 py-2 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-950/60 active:scale-95"
+                >
+                  {isPublishingTrail ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Publishing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Film className="w-4 h-4" />
+                      <span>Publish Reel</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* --- EDIT PROFILE MODAL --- */}
@@ -1493,6 +1822,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Slide-In Navigation Drawer from Right (Same as home page 3 lines slider) */}

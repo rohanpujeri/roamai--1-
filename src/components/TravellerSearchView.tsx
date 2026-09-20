@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   MapPin, 
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { sanitizeAvatarUrl } from '../services/supabaseClient';
+import { searchRealTravellers } from '../services/usernameService';
 
 export interface TravellerProfile {
   id: string;
@@ -68,28 +69,49 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [travellers, setTravellers] = useState<TravellerProfile[]>([]);
   const [selectedTile, setSelectedTile] = useState<ExploreTile | null>(null);
 
-  // Dynamic explore tiles from real user uploaded trails
+  // Fetch real registered profiles dynamically across Supabase, server username registry, and local profiles
+  useEffect(() => {
+    let isMounted = true;
+    searchRealTravellers(searchQuery).then((results) => {
+      if (isMounted) {
+        setTravellers(results);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [searchQuery]);
+
+  // Dynamic explore tiles from real user uploaded trails only
   const exploreTiles = useMemo<ExploreTile[]>(() => {
     try {
       const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          return parsed.map((t: any, idx: number) => ({
-            id: t.id || `trail-${idx}`,
-            type: 'trail' as const,
-            title: t.title || t.caption || 'Travel Trail',
-            destination: t.destination || 'Explore Destination',
-            imageUrl: t.posterUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-            videoUrl: t.videoUrl,
-            viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
-            likesCount: t.likesCount ? String(t.likesCount) : '0',
-            creator: {
-              username: t.creator?.username || '@traveler',
-              avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
-            },
-            spanTwoRows: idx % 6 === 0
-          }));
+          return parsed
+            .filter(
+              (t: any) =>
+                t &&
+                !t.id?.startsWith('sample-trail-') &&
+                t.creator?.username !== '@elena_voyages' &&
+                t.creator?.username !== '@rohan_treks'
+            )
+            .map((t: any, idx: number) => ({
+              id: t.id || `trail-${idx}`,
+              type: 'trail' as const,
+              title: t.title || t.caption || 'Travel Trail',
+              destination: t.destination || 'Explore Destination',
+              imageUrl: t.posterUrl || '',
+              videoUrl: t.videoUrl,
+              viewsCount: t.viewsCount ? String(t.viewsCount) : '1',
+              likesCount: t.likesCount ? String(t.likesCount) : '0',
+              creator: {
+                username: t.creator?.username || '@traveler',
+                avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
+              },
+              spanTwoRows: idx % 6 === 0
+            }));
         }
       }
     } catch {
@@ -224,12 +246,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-[#1c1e28] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={tr.avatarUrl}
-                      alt={tr.name}
-                      className="w-10 h-10 rounded-full object-cover ring-1 ring-white/20 shrink-0 group-hover:scale-105 transition-transform"
-                      referrerPolicy="no-referrer"
-                    />
+                    {tr.avatarUrl ? (
+                      <img
+                        src={tr.avatarUrl}
+                        alt={tr.name}
+                        className="w-10 h-10 rounded-full object-cover ring-1 ring-white/20 shrink-0 group-hover:scale-105 transition-transform"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/20 shrink-0 select-none group-hover:scale-105 transition-transform">
+                        {tr.name?.charAt(0).toUpperCase() || tr.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-300 transition-colors truncate">
@@ -279,12 +310,19 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     }`}
                   >
                     {/* Media Thumbnail */}
-                    <img
-                      src={tile.imageUrl}
-                      alt={tile.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
+                    {tile.imageUrl ? (
+                      <img
+                        src={tile.imageUrl}
+                        alt={tile.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-linear-to-br from-neutral-900 via-neutral-950 to-neutral-900 flex flex-col items-center justify-center p-3 text-center select-none group-hover:scale-105 transition-transform duration-300">
+                        <Video className="w-6 h-6 text-emerald-400 mb-1" />
+                        <span className="text-[11px] font-bold text-white line-clamp-1">{tile.destination}</span>
+                      </div>
+                    )}
 
                     {/* Gradient Vignette for readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
@@ -366,12 +404,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={tr.avatarUrl}
-                        alt={tr.name}
-                        className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-500/40 shrink-0 group-hover:scale-105 transition-transform"
-                        referrerPolicy="no-referrer"
-                      />
+                      {tr.avatarUrl ? (
+                        <img
+                          src={tr.avatarUrl}
+                          alt={tr.name}
+                          className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-500/40 shrink-0 group-hover:scale-105 transition-transform"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-linear-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white font-bold text-base ring-2 ring-emerald-500/40 shrink-0 select-none group-hover:scale-105 transition-transform">
+                          {tr.name?.charAt(0).toUpperCase() || tr.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors truncate">

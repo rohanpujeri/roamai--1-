@@ -11,7 +11,7 @@ import { fetchAiHotelSuggestions } from './services/serverHotelAdvisor';
 import { fetchNearbyPlaces } from './services/serverNearbyPlaces';
 import { reverseGeocodeCoordinates, detectLocationFromIp } from './services/serverLocationDetector';
 import { fetchAiThemePreviewTrip } from './services/serverDestinationInspiration';
-import { isUsernameAvailable, registerServerUsername } from './services/serverUsernameRegistry';
+import { isUsernameAvailable, registerServerUsername, searchServerUsers } from './services/serverUsernameRegistry';
 
 dotenv.config();
 
@@ -220,6 +220,13 @@ export function createExpressApp() {
       return;
     }
     res.json(result);
+  });
+
+  // Search real registered users
+  apiRouter.get('/auth/search-users', (req, res) => {
+    const q = (req.query.q as string) || '';
+    const users = searchServerUsers(q);
+    res.json({ users });
   });
 
   // Mount router at both /api and / to ensure compatibility with Vercel rewrites and standalone Node server

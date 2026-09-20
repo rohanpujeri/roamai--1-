@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, MapPin, Compass, Sparkles, UserCheck, UserPlus, Award } from 'lucide-react';
 import { ThemeConfig } from '../types';
+import { searchRealTravellers } from '../services/usernameService';
 
 export interface TravellerSearchResult {
   id: string;
@@ -31,6 +32,20 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTag, setSelectedTag] = useState<string>('All');
   const [travellers, setTravellers] = useState<TravellerSearchResult[]>([]);
+
+  // Fetch real registered profiles dynamically
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    searchRealTravellers(searchQuery).then((results) => {
+      if (isMounted) {
+        setTravellers(results);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, searchQuery]);
 
   const filterTags = ['All', 'Adventure', 'Nature', 'Photography', 'Food', 'Road Trips'];
 
@@ -134,13 +149,22 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
                 onClick={() => onSelectTraveller?.(traveller)}
                 className="pt-3 first:pt-0 flex items-start gap-3 p-2.5 rounded-2xl hover:bg-neutral-850/60 transition-all cursor-pointer group"
               >
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-neutral-800 ring-2 ring-white/10 shrink-0">
-                  <img
-                    src={traveller.avatarUrl}
-                    alt={traveller.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    referrerPolicy="no-referrer"
-                  />
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-neutral-800 ring-2 ring-white/10 shrink-0 flex items-center justify-center">
+                  {traveller.avatarUrl ? (
+                    <img
+                      src={traveller.avatarUrl}
+                      alt={traveller.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-linear-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white font-bold text-base select-none">
+                      {traveller.name?.charAt(0).toUpperCase() || traveller.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
