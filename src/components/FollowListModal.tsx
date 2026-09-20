@@ -112,18 +112,8 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         getFollowing(targetIdentifier, viewerId)
       ]);
 
-      // Assign realistic activity tags (matching screenshot: "1 new post ●", "2 new posts ●")
-      const enrich = (list: FollowUserProfile[]): EnrichedFollowUser[] =>
-        list.map((u, idx) => {
-          const postCount = (idx % 3) + 1;
-          return {
-            ...u,
-            activityText: `${postCount} new ${postCount === 1 ? 'post' : 'posts'}`
-          };
-        });
-
-      setFollowersList(enrich(followers));
-      setFollowingList(enrich(following));
+      setFollowersList(followers);
+      setFollowingList(following);
     } catch (err) {
       console.warn('Failed to load follow lists:', err);
     } finally {
@@ -442,14 +432,12 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                         {user.name || user.username.replace(/^@/, '')}
                       </div>
 
-                      {/* Line 3: Activity Status or Follows you with Blue Dot */}
-                      <div className="text-[11px] text-neutral-400 flex items-center gap-1.5 font-normal mt-0.5">
-                        {user.followsYou && !self && (
-                          <span className="text-neutral-300 text-[11px] font-medium">Follows you •</span>
-                        )}
-                        <span>{user.activityText || '1 new post'}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#3797f0] shrink-0 inline-block" />
-                      </div>
+                      {/* Line 3: Follows you (only if user actually follows viewer) */}
+                      {user.followsYou && !self && (
+                        <div className="text-[11px] text-neutral-400 font-normal mt-0.5">
+                          Follows you
+                        </div>
+                      )}
                     </div>
                   </div>
 

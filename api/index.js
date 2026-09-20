@@ -3169,50 +3169,21 @@ var dataDir3 = process.env.VERCEL ? "/tmp/roamai_data" : path3.join(process.cwd(
 var dataFile3 = path3.join(dataDir3, "follows.json");
 var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
 var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
-var SEED_COMMUNITY = [
-  { username: "samruddhi.kadam", name: "~samruddhi!", avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" },
-  { username: "pics.dibs", name: "pics.dibs", avatarUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&auto=format&fit=crop&q=80" },
-  { username: "shivapavan44", name: "Kp shiva Pavan", avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80" },
-  { username: "naveen_goudar1", name: "NAVEEN", avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80" },
-  { username: "siddhant_bhosale", name: "SIDDHANT BHOSALE", avatarUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80" },
-  { username: "idkwhereismyguitar", name: "parker", avatarUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80" },
-  { username: "fatahdalive", name: "Fatah \u{1F9C3}", avatarUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80" },
-  { username: "mohan_k_1402", name: "Mohan", avatarUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80" }
-];
-function seedDefaultFollows() {
-  const defaultUser = "rohan_pujeri";
-  SEED_COMMUNITY.forEach((c, idx) => {
-    const key1 = makeKey(defaultUser, c.username);
-    if (!followsMap.has(key1)) {
-      followsMap.set(key1, {
-        id: `seed_${idx}_1`,
-        followerId: `user_${defaultUser}`,
-        followerUsername: `@${defaultUser}`,
-        followerName: "Rohan Pujeri",
-        followingId: `user_${c.username}`,
-        followingUsername: `@${c.username}`,
-        followingName: c.name,
-        followingAvatar: c.avatarUrl,
-        createdAt: new Date(Date.now() - (idx + 1) * 36e5).toISOString()
-      });
-    }
-    if (idx % 2 === 0) {
-      const key2 = makeKey(c.username, defaultUser);
-      if (!followsMap.has(key2)) {
-        followsMap.set(key2, {
-          id: `seed_${idx}_2`,
-          followerId: `user_${c.username}`,
-          followerUsername: `@${c.username}`,
-          followerName: c.name,
-          followerAvatar: c.avatarUrl,
-          followingId: `user_${defaultUser}`,
-          followingUsername: `@${defaultUser}`,
-          followingName: "Rohan Pujeri",
-          createdAt: new Date(Date.now() - (idx + 2) * 72e5).toISOString()
-        });
-      }
-    }
-  });
+var FAKE_MOCK_USERNAMES = /* @__PURE__ */ new Set([
+  "samruddhi.kadam",
+  "pics.dibs",
+  "shivapavan44",
+  "naveen_goudar1",
+  "siddhant_bhosale",
+  "idkwhereismyguitar",
+  "fatahdalive",
+  "mohan_k_1402",
+  "elena_voyages",
+  "rohan_treks"
+]);
+function isFakeMockUser(username) {
+  const clean = cleanHandle(username);
+  return FAKE_MOCK_USERNAMES.has(clean);
 }
 try {
   if (fs3.existsSync(dataFile3)) {
@@ -3220,7 +3191,7 @@ try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
-        if (rec && rec.followerUsername && rec.followingUsername) {
+        if (rec && rec.followerUsername && rec.followingUsername && !isFakeMockUser(rec.followerUsername) && !isFakeMockUser(rec.followingUsername) && !rec.id?.startsWith("seed_") && !rec.id?.startsWith("rel_init_") && !rec.id?.startsWith("rel_follower_")) {
           const key = makeKey(rec.followerUsername, rec.followingUsername);
           followsMap.set(key, rec);
         }
@@ -3230,10 +3201,7 @@ try {
 } catch (err) {
   console.warn("[serverFollowsRegistry] Could not read follows.json:", err);
 }
-if (followsMap.size === 0) {
-  seedDefaultFollows();
-  persistToDisk3();
-}
+persistToDisk3();
 function persistToDisk3() {
   try {
     if (!fs3.existsSync(dataDir3)) {
@@ -3292,7 +3260,7 @@ function getServerFollowing(userIdentifier) {
 function followServerUser(follower, target) {
   const fClean = cleanHandle(follower.username);
   const tClean = cleanHandle(target.username);
-  if (!fClean || !tClean || fClean === tClean) return null;
+  if (!fClean || !tClean || fClean === tClean || isFakeMockUser(fClean) || isFakeMockUser(tClean)) return null;
   const key = makeKey(fClean, tClean);
   const existing = followsMap.get(key);
   if (existing) return existing;
