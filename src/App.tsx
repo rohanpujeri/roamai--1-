@@ -25,7 +25,7 @@ import { AlternativePlaceOption } from './services/alternativePlaces';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SnowfallEffect } from './components/SnowfallAtmosphere';
 import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
-import { WhyTripWisePage } from './components/WhyRoamAIPage';
+import { WhyTripWisePage } from './components/WhyTripWise';
 import { AuthPage } from './components/AuthPage';
 import { UserProfileView } from './components/UserProfileView';
 import { BottomNavBar } from './components/BottomNavBar';
