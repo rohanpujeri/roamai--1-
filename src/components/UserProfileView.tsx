@@ -305,7 +305,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const isImg = trailFile ? trailFile.type.startsWith('image/') : false;
       const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
       const destinationVal = trailDestination.trim() || 'Travel Destination';
-      const captionVal = trailCaption.trim() || 'Exploring new places with RoamAI 🌍✈️';
+      const captionVal = trailCaption.trim() || 'Exploring new places with TripWise 🌍✈️';
       const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || 'Travel Trail';
       const extractedTags = (trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
 
@@ -1403,7 +1403,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <div className="space-y-1">
                   <h4 className="text-sm sm:text-base font-bold text-white">No Trails Uploaded Yet</h4>
                   <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                    Share your travel moments, video clips, and photo trails with the RoamAI community.
+                    Share your travel moments, video clips, and photo trails with the TripWise community.
                   </p>
                 </div>
                 <button

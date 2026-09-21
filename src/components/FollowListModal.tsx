@@ -760,7 +760,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                   Remove follower?
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                  RoamAI won't tell {removeFollowerConfirmUser.username} that they were removed from your followers.
+                  TripWise won't tell {removeFollowerConfirmUser.username} that they were removed from your followers.
                 </p>
               </div>
 
