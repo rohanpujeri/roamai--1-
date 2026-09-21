@@ -13,9 +13,9 @@ export interface TrailCreator {
 
 export const DEFAULT_TRAIL_CREATOR: TrailCreator = {
   id: '',
-  name: 'Traveler',
-  username: '@traveler',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  name: 'User',
+  username: '',
+  avatarUrl: '',
   isFollowed: false,
   isVerified: false,
 };
@@ -40,9 +40,9 @@ export function sanitizeTrail(t: any): TrailReel {
   const creatorRaw = t.creator || {};
   const creator: TrailCreator = {
     id: creatorRaw.id || '',
-    name: creatorRaw.name || 'Traveler',
-    username: creatorRaw.username ? (creatorRaw.username.startsWith('@') ? creatorRaw.username : `@${creatorRaw.username}`) : '@traveler',
-    avatarUrl: creatorRaw.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    name: creatorRaw.name || 'User',
+    username: creatorRaw.username ? (creatorRaw.username.startsWith('@') ? creatorRaw.username : `@${creatorRaw.username}`) : '',
+    avatarUrl: creatorRaw.avatarUrl || '',
     isFollowed: Boolean(creatorRaw.isFollowed),
     isVerified: Boolean(creatorRaw.isVerified),
   };
