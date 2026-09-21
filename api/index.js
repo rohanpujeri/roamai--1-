@@ -2904,43 +2904,7 @@ var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(),
 var dataFile = path.join(dataDir, "follows.json");
 var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
 var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
-var FAKE_MOCK_USERNAMES = /* @__PURE__ */ new Set([
-  "samruddhi.kadam",
-  "pics.dibs",
-  "shivapavan44",
-  "naveen_goudar1",
-  "siddhant_bhosale",
-  "idkwhereismyguitar",
-  "fatahdalive",
-  "mohan_k_1402",
-  "elena_voyages",
-  "rohan_treks",
-  "testuser81502",
-  "testuser",
-  "test_user",
-  "tester",
-  "traveler",
-  "traveler1",
-  "traveler_99",
-  "explorer",
-  "roam_explorer",
-  "guest",
-  "guest_user",
-  "admin",
-  "sample",
-  "sample_user",
-  "demo",
-  "demo_user",
-  "you"
-]);
-function isFakeMockUser(username) {
-  if (!username) return true;
-  const clean = cleanHandle(username);
-  if (!clean) return true;
-  if (FAKE_MOCK_USERNAMES.has(clean)) return true;
-  if (clean.includes("test") || clean.includes("sample") || clean.includes("mock") || clean.includes("fake") || clean.includes("dummy") || clean.startsWith("traveler") || clean.startsWith("guest") || clean.startsWith("explorer") || clean.startsWith("admin") || clean === "you") {
-    return true;
-  }
+function isFakeMockUser(_username) {
   return false;
 }
 try {

@@ -31,56 +31,8 @@ const dataFile = path.join(dataDir, 'follows.json');
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://kfqdlajqarsfdoskeahh.supabase.co';
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l';
 
-// Blacklist of mock/seed fake accounts to ensure only 100% real users exist
-export const FAKE_MOCK_USERNAMES = new Set([
-  'samruddhi.kadam',
-  'pics.dibs',
-  'shivapavan44',
-  'naveen_goudar1',
-  'siddhant_bhosale',
-  'idkwhereismyguitar',
-  'fatahdalive',
-  'mohan_k_1402',
-  'elena_voyages',
-  'rohan_treks',
-  'testuser81502',
-  'testuser',
-  'test_user',
-  'tester',
-  'traveler',
-  'traveler1',
-  'traveler_99',
-  'explorer',
-  'roam_explorer',
-  'guest',
-  'guest_user',
-  'admin',
-  'sample',
-  'sample_user',
-  'demo',
-  'demo_user',
-  'you'
-]);
-
-export function isFakeMockUser(username?: string | null): boolean {
-  if (!username) return true;
-  const clean = cleanHandle(username);
-  if (!clean) return true;
-  if (FAKE_MOCK_USERNAMES.has(clean)) return true;
-  if (
-    clean.includes('test') ||
-    clean.includes('sample') ||
-    clean.includes('mock') ||
-    clean.includes('fake') ||
-    clean.includes('dummy') ||
-    clean.startsWith('traveler') ||
-    clean.startsWith('guest') ||
-    clean.startsWith('explorer') ||
-    clean.startsWith('admin') ||
-    clean === 'you'
-  ) {
-    return true;
-  }
+export function isFakeMockUser(_username?: string | null): boolean {
+  // All authenticated or registered users are valid real accounts
   return false;
 }
 
