@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { isFakeMockUser } from './serverFollowsRegistry';
 
 interface UsernameRecord {
   username: string;
@@ -41,7 +42,7 @@ try {
     const parsed: UsernameRecord[] = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
-        if (rec.username) {
+        if (rec.username && !isFakeMockUser(rec.username)) {
           claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
         }
       });
@@ -152,7 +153,7 @@ export async function registerServerUsername(
 }
 
 export function searchServerUsers(query?: string): UsernameRecord[] {
-  const all = Array.from(claimedUsernamesMap.values());
+  const all = Array.from(claimedUsernamesMap.values()).filter((u) => !isFakeMockUser(u.username));
   if (!query || !query.trim()) return all;
   const cleanQ = query.trim().toLowerCase().replace(/^@+/, '');
   return all.filter((u) => u.username.toLowerCase().includes(cleanQ));

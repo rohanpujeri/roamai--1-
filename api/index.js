@@ -2887,298 +2887,12 @@ Return strictly valid JSON with this exact schema:
 }
 
 // server/services/serverUsernameRegistry.ts
-import fs from "fs";
-import path from "path";
-var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
-  "admin",
-  "administrator",
-  "tripwise",
-  "roamai",
-  "support",
-  "official",
-  "help",
-  "root",
-  "system",
-  "moderator",
-  "explore",
-  "trails",
-  "profile",
-  "api",
-  "dev",
-  "guest"
-]);
-var claimedUsernamesMap = /* @__PURE__ */ new Map();
-var dataDir = path.join(process.cwd(), "data");
-var dataFile = path.join(dataDir, "usernames.json");
-try {
-  if (fs.existsSync(dataFile)) {
-    const raw = fs.readFileSync(dataFile, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      parsed.forEach((rec) => {
-        if (rec.username) {
-          claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
-        }
-      });
-    }
-  }
-} catch (err) {
-  console.warn("Could not read usernames.json from disk:", err);
-}
-function persistToDisk() {
-  try {
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    const array = Array.from(claimedUsernamesMap.values());
-    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("Could not persist usernames to disk:", err);
-  }
-}
-var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
-var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
-async function isUsernameAvailable(rawUsername, currentUserId) {
-  if (!rawUsername) {
-    return { available: false, error: "Username is required." };
-  }
-  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
-  if (clean.length < 3) {
-    return { available: false, error: "Username must be at least 3 characters long." };
-  }
-  if (clean.length > 20) {
-    return { available: false, error: "Username cannot exceed 20 characters." };
-  }
-  const validRegex = /^[a-z0-9_]+$/;
-  if (!validRegex.test(clean)) {
-    return { available: false, error: "Only lowercase letters, numbers, and underscores are allowed." };
-  }
-  if (RESERVED_USERNAMES.has(clean)) {
-    return { available: false, error: "This username is reserved. Please choose another." };
-  }
-  const existing = claimedUsernamesMap.get(clean);
-  if (existing) {
-    if (currentUserId && existing.userId === currentUserId) {
-      return { available: true };
-    }
-    return { available: false, error: `@${clean} is already registered. Please choose another username.` };
-  }
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const found = data[0];
-        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
-          return { available: true };
-        }
-        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
-      }
-    }
-  } catch (err) {
-    console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
-  }
-  return { available: true };
-}
-async function registerServerUsername(rawUsername, userId, email) {
-  const check = await isUsernameAvailable(rawUsername, userId);
-  if (!check.available) {
-    return { success: false, error: check.error };
-  }
-  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
-  const record = {
-    username: clean,
-    userId,
-    email,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  claimedUsernamesMap.set(clean, record);
-  persistToDisk();
-  return { success: true };
-}
-function searchServerUsers(query) {
-  const all = Array.from(claimedUsernamesMap.values());
-  if (!query || !query.trim()) return all;
-  const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
-  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
-}
-
-// server/services/serverTrailsRegistry.ts
 import fs2 from "fs";
 import path2 from "path";
-var trailsMap = /* @__PURE__ */ new Map();
-var dataDir2 = process.env.VERCEL ? "/tmp/roamai_data" : path2.join(process.cwd(), "data");
-var dataFile2 = path2.join(dataDir2, "trails.json");
-var publicUploadsDir = path2.join(process.cwd(), "public/uploads/trails");
-var tmpUploadsDir = "/tmp/roamai_uploads";
-var uploadsDir = process.env.VERCEL ? tmpUploadsDir : publicUploadsDir;
-try {
-  if (fs2.existsSync(dataFile2)) {
-    const raw = fs2.readFileSync(dataFile2, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      parsed.forEach((rec) => {
-        if (rec && rec.id) {
-          trailsMap.set(rec.id, rec);
-        }
-      });
-    }
-  }
-} catch (err) {
-  console.warn("[serverTrailsRegistry] Could not read trails.json from disk:", err);
-}
-function persistToDisk2() {
-  try {
-    if (!fs2.existsSync(dataDir2)) {
-      fs2.mkdirSync(dataDir2, { recursive: true });
-    }
-    const array = Array.from(trailsMap.values());
-    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
-  }
-}
-function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
-  try {
-    if (!base64Data || !base64Data.startsWith("data:")) return null;
-    const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
-    if (!matches) return null;
-    const mimeType = matches[1];
-    const dataBuffer = Buffer.from(matches[2], "base64");
-    let ext = "bin";
-    if (mimeType.includes("video/mp4")) ext = "mp4";
-    else if (mimeType.includes("video/webm")) ext = "webm";
-    else if (mimeType.includes("video/quicktime") || mimeType.includes("video/mov")) ext = "mov";
-    else if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
-    else if (mimeType.includes("image/png")) ext = "png";
-    else if (mimeType.includes("image/webp")) ext = "webp";
-    if (!fs2.existsSync(uploadsDir)) {
-      fs2.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const fileName = `${trailId}_${prefix}.${ext}`;
-    const targetPath = path2.join(uploadsDir, fileName);
-    fs2.writeFileSync(targetPath, dataBuffer);
-    return `/uploads/trails/${fileName}`;
-  } catch (err) {
-    console.warn("[serverTrailsRegistry] Could not write media file to disk:", err);
-    return null;
-  }
-}
-function getAllServerTrails() {
-  const records = Array.from(trailsMap.values());
-  return records.sort((a, b) => {
-    const timeA = new Date(a.createdAt || 0).getTime();
-    const timeB = new Date(b.createdAt || 0).getTime();
-    return timeB - timeA;
-  });
-}
-function saveServerTrail(trailData, mediaBase64, posterBase64) {
-  let videoUrl = trailData.videoUrl || "";
-  let posterUrl = trailData.posterUrl || "";
-  if (mediaBase64 && mediaBase64.startsWith("data:")) {
-    const diskMediaUrl = saveMediaFileToDisk(trailData.id, mediaBase64, "media");
-    if (diskMediaUrl) {
-      videoUrl = diskMediaUrl;
-    } else {
-      videoUrl = mediaBase64;
-    }
-  }
-  if (posterBase64 && posterBase64.startsWith("data:")) {
-    const diskPosterUrl = saveMediaFileToDisk(trailData.id, posterBase64, "poster");
-    if (diskPosterUrl) {
-      posterUrl = diskPosterUrl;
-    } else {
-      posterUrl = posterBase64;
-    }
-  }
-  const existing = trailsMap.get(trailData.id);
-  const cleanRecord = {
-    id: trailData.id,
-    videoUrl: videoUrl || existing?.videoUrl || "",
-    posterUrl: posterUrl || existing?.posterUrl || void 0,
-    mediaType: trailData.mediaType || existing?.mediaType || (videoUrl.includes("image") ? "image" : "video"),
-    title: trailData.title || existing?.title || "Travel Trail",
-    creator: {
-      id: trailData.creator?.id || existing?.creator?.id || void 0,
-      name: trailData.creator?.name || existing?.creator?.name || "Explorer",
-      username: trailData.creator?.username || existing?.creator?.username || "@traveler",
-      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || "",
-      isFollowed: trailData.creator?.isFollowed ?? existing?.creator?.isFollowed ?? false
-    },
-    caption: trailData.caption || existing?.caption || "",
-    destination: trailData.destination || existing?.destination || "Everywhere",
-    tags: Array.isArray(trailData.tags) ? trailData.tags : existing?.tags || [],
-    audioTitle: trailData.audioTitle || existing?.audioTitle || "Original Travel Sound",
-    likesCount: trailData.likesCount ?? existing?.likesCount ?? 0,
-    commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
-    isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
-    isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
-    comments: trailData.comments || existing?.comments || [],
-    createdAt: trailData.createdAt || existing?.createdAt || (/* @__PURE__ */ new Date()).toISOString()
-  };
-  trailsMap.set(cleanRecord.id, cleanRecord);
-  persistToDisk2();
-  return cleanRecord;
-}
-function deleteServerTrail(trailId) {
-  if (!trailsMap.has(trailId)) return false;
-  trailsMap.delete(trailId);
-  persistToDisk2();
-  return true;
-}
-function toggleLikeServerTrail(trailId, increment, liker) {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return { success: false, likesCount: 0 };
-  if (!trail.likedBy) trail.likedBy = [];
-  if (liker && liker.username) {
-    const cleanU = liker.username.toLowerCase().replace(/^@+/, "");
-    if (increment) {
-      if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, "") === cleanU)) {
-        trail.likedBy.unshift({
-          id: liker.id,
-          name: liker.name,
-          username: liker.username.startsWith("@") ? liker.username : `@${liker.username}`,
-          avatarUrl: liker.avatarUrl,
-          likedAt: liker.likedAt || (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-    } else {
-      trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, "") !== cleanU);
-    }
-  }
-  trail.likesCount = Math.max(trail.likedBy ? trail.likedBy.length : 0, trail.likesCount + (increment ? 1 : -1));
-  trail.isLiked = increment;
-  persistToDisk2();
-  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
-}
-function getServerTrailLikers(trailId) {
-  const trail = trailsMap.get(trailId);
-  return trail?.likedBy || [];
-}
-function addCommentToServerTrail(trailId, comment) {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return false;
-  const newComment = {
-    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    user: comment.user,
-    avatar: comment.avatar,
-    text: comment.text,
-    time: "Just now"
-  };
-  trail.comments = [newComment, ...trail.comments || []];
-  trail.commentsCount = (trail.commentsCount || 0) + 1;
-  persistToDisk2();
-  return true;
-}
 
 // server/services/serverFollowsRegistry.ts
-import fs3 from "fs";
-import path3 from "path";
+import fs from "fs";
+import path from "path";
 function cleanHandle(u) {
   return (u || "").replace(/^@+/, "").trim().toLowerCase();
 }
@@ -3186,10 +2900,10 @@ function makeKey(followerUsername, followingUsername) {
   return `${cleanHandle(followerUsername)}->${cleanHandle(followingUsername)}`;
 }
 var followsMap = /* @__PURE__ */ new Map();
-var dataDir3 = process.env.VERCEL ? "/tmp/roamai_data" : path3.join(process.cwd(), "data");
-var dataFile3 = path3.join(dataDir3, "follows.json");
-var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
-var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
+var dataFile = path.join(dataDir, "follows.json");
+var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
+var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
 var FAKE_MOCK_USERNAMES = /* @__PURE__ */ new Set([
   "samruddhi.kadam",
   "pics.dibs",
@@ -3200,15 +2914,35 @@ var FAKE_MOCK_USERNAMES = /* @__PURE__ */ new Set([
   "fatahdalive",
   "mohan_k_1402",
   "elena_voyages",
-  "rohan_treks"
+  "rohan_treks",
+  "traveler",
+  "traveler1",
+  "traveler_99",
+  "explorer",
+  "roam_explorer",
+  "guest",
+  "guest_user",
+  "test_user",
+  "admin",
+  "sample",
+  "sample_user",
+  "demo",
+  "demo_user",
+  "you"
 ]);
 function isFakeMockUser(username) {
+  if (!username) return true;
   const clean = cleanHandle(username);
-  return FAKE_MOCK_USERNAMES.has(clean);
+  if (!clean) return true;
+  if (FAKE_MOCK_USERNAMES.has(clean)) return true;
+  if (clean.startsWith("sample") || clean.startsWith("mock_") || clean.startsWith("test_") || clean.startsWith("fake_") || clean === "traveler" || clean === "guest" || clean === "explorer" || clean === "admin" || clean === "you") {
+    return true;
+  }
+  return false;
 }
 try {
-  if (fs3.existsSync(dataFile3)) {
-    const raw = fs3.readFileSync(dataFile3, "utf-8");
+  if (fs.existsSync(dataFile)) {
+    const raw = fs.readFileSync(dataFile, "utf-8");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
@@ -3222,14 +2956,14 @@ try {
 } catch (err) {
   console.warn("[serverFollowsRegistry] Could not read follows.json:", err);
 }
-persistToDisk3();
-function persistToDisk3() {
+persistToDisk();
+function persistToDisk() {
   try {
-    if (!fs3.existsSync(dataDir3)) {
-      fs3.mkdirSync(dataDir3, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
     const array = Array.from(followsMap.values());
-    fs3.writeFileSync(dataFile3, JSON.stringify(array, null, 2), "utf-8");
+    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
   } catch (err) {
     console.warn("[serverFollowsRegistry] Could not persist follows to disk:", err);
   }
@@ -3298,13 +3032,13 @@ function followServerUser(follower, target) {
     createdAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   followsMap.set(key, rec);
-  persistToDisk3();
+  persistToDisk();
   try {
-    fetch(`${SUPABASE_URL2}/rest/v1/follows`, {
+    fetch(`${SUPABASE_URL}/rest/v1/follows`, {
       method: "POST",
       headers: {
-        "apikey": SUPABASE_KEY2,
-        "Authorization": `Bearer ${SUPABASE_KEY2}`,
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
       },
@@ -3325,15 +3059,15 @@ function unfollowServerUser(follower, target) {
   const key = makeKey(fClean, tClean);
   const existed = followsMap.delete(key);
   if (existed) {
-    persistToDisk3();
+    persistToDisk();
     try {
       const fId = follower.id || `user_${fClean}`;
       const tId = target.id || `user_${tClean}`;
-      fetch(`${SUPABASE_URL2}/rest/v1/follows?follower_id=eq.${encodeURIComponent(fId)}&following_id=eq.${encodeURIComponent(tId)}`, {
+      fetch(`${SUPABASE_URL}/rest/v1/follows?follower_id=eq.${encodeURIComponent(fId)}&following_id=eq.${encodeURIComponent(tId)}`, {
         method: "DELETE",
         headers: {
-          "apikey": SUPABASE_KEY2,
-          "Authorization": `Bearer ${SUPABASE_KEY2}`
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
         }
       }).catch(() => {
       });
@@ -3357,6 +3091,296 @@ function toggleServerFollow(follower, target) {
 }
 function removeServerFollower(currentUser, targetFollower) {
   return unfollowServerUser(targetFollower, currentUser);
+}
+
+// server/services/serverUsernameRegistry.ts
+var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
+  "admin",
+  "administrator",
+  "tripwise",
+  "roamai",
+  "support",
+  "official",
+  "help",
+  "root",
+  "system",
+  "moderator",
+  "explore",
+  "trails",
+  "profile",
+  "api",
+  "dev",
+  "guest"
+]);
+var claimedUsernamesMap = /* @__PURE__ */ new Map();
+var dataDir2 = path2.join(process.cwd(), "data");
+var dataFile2 = path2.join(dataDir2, "usernames.json");
+try {
+  if (fs2.existsSync(dataFile2)) {
+    const raw = fs2.readFileSync(dataFile2, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec.username && !isFakeMockUser(rec.username)) {
+          claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("Could not read usernames.json from disk:", err);
+}
+function persistToDisk2() {
+  try {
+    if (!fs2.existsSync(dataDir2)) {
+      fs2.mkdirSync(dataDir2, { recursive: true });
+    }
+    const array = Array.from(claimedUsernamesMap.values());
+    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Could not persist usernames to disk:", err);
+  }
+}
+var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
+var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+async function isUsernameAvailable(rawUsername, currentUserId) {
+  if (!rawUsername) {
+    return { available: false, error: "Username is required." };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  if (clean.length < 3) {
+    return { available: false, error: "Username must be at least 3 characters long." };
+  }
+  if (clean.length > 20) {
+    return { available: false, error: "Username cannot exceed 20 characters." };
+  }
+  const validRegex = /^[a-z0-9_]+$/;
+  if (!validRegex.test(clean)) {
+    return { available: false, error: "Only lowercase letters, numbers, and underscores are allowed." };
+  }
+  if (RESERVED_USERNAMES.has(clean)) {
+    return { available: false, error: "This username is reserved. Please choose another." };
+  }
+  const existing = claimedUsernamesMap.get(clean);
+  if (existing) {
+    if (currentUserId && existing.userId === currentUserId) {
+      return { available: true };
+    }
+    return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL2}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+      headers: {
+        "apikey": SUPABASE_KEY2,
+        "Authorization": `Bearer ${SUPABASE_KEY2}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const found = data[0];
+        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+          return { available: true };
+        }
+        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+      }
+    }
+  } catch (err) {
+    console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
+  }
+  return { available: true };
+}
+async function registerServerUsername(rawUsername, userId, email) {
+  const check = await isUsernameAvailable(rawUsername, userId);
+  if (!check.available) {
+    return { success: false, error: check.error };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  const record = {
+    username: clean,
+    userId,
+    email,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  claimedUsernamesMap.set(clean, record);
+  persistToDisk2();
+  return { success: true };
+}
+function searchServerUsers(query) {
+  const all = Array.from(claimedUsernamesMap.values()).filter((u) => !isFakeMockUser(u.username));
+  if (!query || !query.trim()) return all;
+  const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
+  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
+}
+
+// server/services/serverTrailsRegistry.ts
+import fs3 from "fs";
+import path3 from "path";
+var trailsMap = /* @__PURE__ */ new Map();
+var dataDir3 = process.env.VERCEL ? "/tmp/roamai_data" : path3.join(process.cwd(), "data");
+var dataFile3 = path3.join(dataDir3, "trails.json");
+var publicUploadsDir = path3.join(process.cwd(), "public/uploads/trails");
+var tmpUploadsDir = "/tmp/roamai_uploads";
+var uploadsDir = process.env.VERCEL ? tmpUploadsDir : publicUploadsDir;
+try {
+  if (fs3.existsSync(dataFile3)) {
+    const raw = fs3.readFileSync(dataFile3, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username)) {
+          trailsMap.set(rec.id, rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("[serverTrailsRegistry] Could not read trails.json from disk:", err);
+}
+function persistToDisk3() {
+  try {
+    if (!fs3.existsSync(dataDir3)) {
+      fs3.mkdirSync(dataDir3, { recursive: true });
+    }
+    const array = Array.from(trailsMap.values());
+    fs3.writeFileSync(dataFile3, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
+  }
+}
+function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
+  try {
+    if (!base64Data || !base64Data.startsWith("data:")) return null;
+    const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) return null;
+    const mimeType = matches[1];
+    const dataBuffer = Buffer.from(matches[2], "base64");
+    let ext = "bin";
+    if (mimeType.includes("video/mp4")) ext = "mp4";
+    else if (mimeType.includes("video/webm")) ext = "webm";
+    else if (mimeType.includes("video/quicktime") || mimeType.includes("video/mov")) ext = "mov";
+    else if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
+    else if (mimeType.includes("image/png")) ext = "png";
+    else if (mimeType.includes("image/webp")) ext = "webp";
+    if (!fs3.existsSync(uploadsDir)) {
+      fs3.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const fileName = `${trailId}_${prefix}.${ext}`;
+    const targetPath = path3.join(uploadsDir, fileName);
+    fs3.writeFileSync(targetPath, dataBuffer);
+    return `/uploads/trails/${fileName}`;
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Could not write media file to disk:", err);
+    return null;
+  }
+}
+function getAllServerTrails() {
+  const records = Array.from(trailsMap.values()).filter(
+    (t) => t && !t.id?.startsWith("sample-trail-") && !isFakeMockUser(t.creator?.username)
+  );
+  return records.sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+}
+function saveServerTrail(trailData, mediaBase64, posterBase64) {
+  let videoUrl = trailData.videoUrl || "";
+  let posterUrl = trailData.posterUrl || "";
+  if (mediaBase64 && mediaBase64.startsWith("data:")) {
+    const diskMediaUrl = saveMediaFileToDisk(trailData.id, mediaBase64, "media");
+    if (diskMediaUrl) {
+      videoUrl = diskMediaUrl;
+    } else {
+      videoUrl = mediaBase64;
+    }
+  }
+  if (posterBase64 && posterBase64.startsWith("data:")) {
+    const diskPosterUrl = saveMediaFileToDisk(trailData.id, posterBase64, "poster");
+    if (diskPosterUrl) {
+      posterUrl = diskPosterUrl;
+    } else {
+      posterUrl = posterBase64;
+    }
+  }
+  const existing = trailsMap.get(trailData.id);
+  const cleanRecord = {
+    id: trailData.id,
+    videoUrl: videoUrl || existing?.videoUrl || "",
+    posterUrl: posterUrl || existing?.posterUrl || void 0,
+    mediaType: trailData.mediaType || existing?.mediaType || (videoUrl.includes("image") ? "image" : "video"),
+    title: trailData.title || existing?.title || "Travel Trail",
+    creator: {
+      id: trailData.creator?.id || existing?.creator?.id || void 0,
+      name: trailData.creator?.name || existing?.creator?.name || "Explorer",
+      username: trailData.creator?.username || existing?.creator?.username || "@traveler",
+      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || "",
+      isFollowed: trailData.creator?.isFollowed ?? existing?.creator?.isFollowed ?? false
+    },
+    caption: trailData.caption || existing?.caption || "",
+    destination: trailData.destination || existing?.destination || "Everywhere",
+    tags: Array.isArray(trailData.tags) ? trailData.tags : existing?.tags || [],
+    audioTitle: trailData.audioTitle || existing?.audioTitle || "Original Travel Sound",
+    likesCount: trailData.likesCount ?? existing?.likesCount ?? 0,
+    commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
+    isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
+    isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
+    comments: trailData.comments || existing?.comments || [],
+    createdAt: trailData.createdAt || existing?.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+  };
+  trailsMap.set(cleanRecord.id, cleanRecord);
+  persistToDisk3();
+  return cleanRecord;
+}
+function deleteServerTrail(trailId) {
+  if (!trailsMap.has(trailId)) return false;
+  trailsMap.delete(trailId);
+  persistToDisk3();
+  return true;
+}
+function toggleLikeServerTrail(trailId, increment, liker) {
+  const trail = trailsMap.get(trailId);
+  if (!trail) return { success: false, likesCount: 0 };
+  if (!trail.likedBy) trail.likedBy = [];
+  if (liker && liker.username) {
+    const cleanU = liker.username.toLowerCase().replace(/^@+/, "");
+    if (increment) {
+      if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, "") === cleanU)) {
+        trail.likedBy.unshift({
+          id: liker.id,
+          name: liker.name,
+          username: liker.username.startsWith("@") ? liker.username : `@${liker.username}`,
+          avatarUrl: liker.avatarUrl,
+          likedAt: liker.likedAt || (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+    } else {
+      trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, "") !== cleanU);
+    }
+  }
+  trail.likesCount = Math.max(trail.likedBy ? trail.likedBy.length : 0, trail.likesCount + (increment ? 1 : -1));
+  trail.isLiked = increment;
+  persistToDisk3();
+  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
+}
+function getServerTrailLikers(trailId) {
+  const trail = trailsMap.get(trailId);
+  return trail?.likedBy || [];
+}
+function addCommentToServerTrail(trailId, comment) {
+  const trail = trailsMap.get(trailId);
+  if (!trail) return false;
+  const newComment = {
+    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    user: comment.user,
+    avatar: comment.avatar,
+    text: comment.text,
+    time: "Just now"
+  };
+  trail.comments = [newComment, ...trail.comments || []];
+  trail.commentsCount = (trail.commentsCount || 0) + 1;
+  persistToDisk3();
+  return true;
 }
 
 // server/app.ts

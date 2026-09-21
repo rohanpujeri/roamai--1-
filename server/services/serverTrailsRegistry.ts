@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { isFakeMockUser } from './serverFollowsRegistry';
 
 export interface ServerTrailRecord {
   id: string;
@@ -58,7 +59,12 @@ try {
     const parsed: ServerTrailRecord[] = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
-        if (rec && rec.id) {
+        if (
+          rec &&
+          rec.id &&
+          !rec.id.startsWith('sample-trail-') &&
+          !isFakeMockUser(rec.creator?.username)
+        ) {
           trailsMap.set(rec.id, rec);
         }
       });
@@ -120,7 +126,9 @@ function saveMediaFileToDisk(trailId: string, base64Data: string, prefix: string
  * Get all public trails uploaded by all profiles, sorted newest first
  */
 export function getAllServerTrails(): ServerTrailRecord[] {
-  const records = Array.from(trailsMap.values());
+  const records = Array.from(trailsMap.values()).filter(
+    (t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)
+  );
   return records.sort((a, b) => {
     const timeA = new Date(a.createdAt || 0).getTime();
     const timeB = new Date(b.createdAt || 0).getTime();

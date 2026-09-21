@@ -47,12 +47,142 @@ export const FAKE_MOCK_HANDLES = new Set([
   'fatahdalive',
   'mohan_k_1402',
   'elena_voyages',
-  'rohan_treks'
+  'rohan_treks',
+  'traveler',
+  'traveler1',
+  'traveler_99',
+  'explorer',
+  'roam_explorer',
+  'guest',
+  'guest_user',
+  'test_user',
+  'admin',
+  'sample',
+  'sample_user',
+  'demo',
+  'demo_user',
+  'you'
 ]);
 
-export function isFakeMockUser(username: string): boolean {
+export function isFakeMockUser(username?: string | null): boolean {
+  if (!username) return true;
   const clean = cleanHandle(username);
-  return FAKE_MOCK_HANDLES.has(clean);
+  if (!clean) return true;
+  if (FAKE_MOCK_HANDLES.has(clean)) return true;
+  if (
+    clean.startsWith('sample') ||
+    clean.startsWith('mock_') ||
+    clean.startsWith('test_') ||
+    clean.startsWith('fake_') ||
+    clean === 'traveler' ||
+    clean === 'guest' ||
+    clean === 'explorer' ||
+    clean === 'admin' ||
+    clean === 'you'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Purges any fake/mock user accounts and relationships from localStorage
+ */
+export function purgeFakeProfilesFromLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // 1. Clean roamai_follow_relationships_v1
+    const relRaw = localStorage.getItem(STORAGE_KEY_RELATIONSHIPS);
+    if (relRaw) {
+      const parsed = JSON.parse(relRaw);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((r) => {
+          if (!r || !r.followerUsername || !r.followingUsername) return false;
+          const fol = cleanHandle(r.followerUsername);
+          const fng = cleanHandle(r.followingUsername);
+          if (isFakeMockUser(fol) || isFakeMockUser(fng)) return false;
+          if (r.id?.startsWith('seed_') || r.id?.startsWith('rel_init_') || r.id?.startsWith('rel_follower_')) return false;
+          return true;
+        });
+        localStorage.setItem(STORAGE_KEY_RELATIONSHIPS, JSON.stringify(filtered));
+      }
+    }
+
+    // 2. Clean roamai_following_users
+    const followingRaw = localStorage.getItem(STORAGE_KEY_LEGACY_FOLLOWING);
+    if (followingRaw) {
+      const parsed = JSON.parse(followingRaw);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((u) => {
+          if (!u) return false;
+          const clean = cleanHandle(String(u));
+          return !isFakeMockUser(clean);
+        });
+        localStorage.setItem(STORAGE_KEY_LEGACY_FOLLOWING, JSON.stringify(filtered));
+      }
+    }
+
+    // 3. Clean roamai_claimed_usernames
+    const claimedRaw = localStorage.getItem('roamai_claimed_usernames');
+    if (claimedRaw) {
+      const parsed = JSON.parse(claimedRaw);
+      if (parsed && typeof parsed === 'object') {
+        let changed = false;
+        for (const u of Object.keys(parsed)) {
+          if (isFakeMockUser(u)) {
+            delete parsed[u];
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem('roamai_claimed_usernames', JSON.stringify(parsed));
+        }
+      }
+    }
+
+    // 4. Clean roamai_user_trails and tripwise_user_trails
+    ['roamai_user_trails', 'tripwise_user_trails'].forEach((trailKey) => {
+      const trailsRaw = localStorage.getItem(trailKey);
+      if (trailsRaw) {
+        const parsed = JSON.parse(trailsRaw);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((t: any) => {
+            if (!t) return false;
+            if (t.id?.startsWith('sample-trail-')) return false;
+            const u = t.creator?.username;
+            if (u && isFakeMockUser(u)) return false;
+            return true;
+          });
+          localStorage.setItem(trailKey, JSON.stringify(filtered));
+        }
+      }
+    });
+
+    // 5. Clean any fake tripwise_user_profile_*
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('tripwise_user_profile_')) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw);
+            if (data?.username && isFakeMockUser(data.username)) {
+              localStorage.removeItem(key);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error purging fake profiles from localStorage:', err);
+  }
+}
+
+// Automatically scrub localStorage on startup
+if (typeof window !== 'undefined') {
+  purgeFakeProfilesFromLocalStorage();
 }
 
 /**

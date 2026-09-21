@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './supabaseClient';
 import { saveTrailMedia, deleteTrailMedia } from './trailMediaStorage';
+import { isFakeMockUser } from './followService';
 
 export interface TrailCreator {
   id?: string;
@@ -175,7 +176,7 @@ export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
   // 1. Check local cache
   getLocalTrailLikers(trailId).forEach((l) => {
     const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-    if (cleanU && !likersMap.has(cleanU)) {
+    if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
       likersMap.set(cleanU, l);
     }
   });
@@ -188,7 +189,7 @@ export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
       if (Array.isArray(data.likers)) {
         data.likers.forEach((l: TrailLiker) => {
           const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-          if (cleanU && !likersMap.has(cleanU)) {
+          if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
             likersMap.set(cleanU, l);
           }
         });
@@ -206,7 +207,7 @@ export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
       if (data?.trail_data?.likedBy && Array.isArray(data.trail_data.likedBy)) {
         data.trail_data.likedBy.forEach((l: TrailLiker) => {
           const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-          if (cleanU && !likersMap.has(cleanU)) {
+          if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
             likersMap.set(cleanU, l);
           }
         });
@@ -248,8 +249,7 @@ export function getLocalTrails(): TrailReel[] {
           (t: any) =>
             t &&
             !t.id?.startsWith('sample-trail-') &&
-            t.creator?.username !== '@elena_voyages' &&
-            t.creator?.username !== '@rohan_treks'
+            !isFakeMockUser(t.creator?.username)
         )
         .map((t) => sanitizeTrail(t));
     }
@@ -279,12 +279,14 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
       if (!error && Array.isArray(data)) {
         data.forEach((row: any) => {
           const rawTrail = row.trail_data || row;
-          if (rawTrail && rawTrail.id) {
+          if (rawTrail && rawTrail.id && !rawTrail.id.startsWith('sample-trail-')) {
             const t = sanitizeTrail({
               ...rawTrail,
               createdAt: row.created_at || rawTrail.createdAt,
             });
-            trailMap.set(t.id, t);
+            if (!isFakeMockUser(t.creator?.username)) {
+              trailMap.set(t.id, t);
+            }
           }
         });
       }
@@ -300,8 +302,11 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
       const data = await res.json();
       if (Array.isArray(data.trails)) {
         data.trails.forEach((tRaw: any) => {
-          if (tRaw && tRaw.id && !trailMap.has(tRaw.id)) {
-            trailMap.set(tRaw.id, sanitizeTrail(tRaw));
+          if (tRaw && tRaw.id && !tRaw.id.startsWith('sample-trail-') && !trailMap.has(tRaw.id)) {
+            const t = sanitizeTrail(tRaw);
+            if (!isFakeMockUser(t.creator?.username)) {
+              trailMap.set(t.id, t);
+            }
           }
         });
       }
@@ -312,7 +317,7 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
 
   // 3. Fallback: Merge local trails so un-synced or offline trails are preserved
   localList.forEach((t) => {
-    if (t.id && !trailMap.has(t.id)) {
+    if (t.id && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && !trailMap.has(t.id)) {
       trailMap.set(t.id, sanitizeTrail(t));
     }
   });

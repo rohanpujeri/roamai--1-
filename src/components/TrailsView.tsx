@@ -46,7 +46,7 @@ import {
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
-import { isUserFollowing, followUser, unfollowUser, isFollowedBy } from '../services/followService';
+import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser } from '../services/followService';
 import { TrailLikesModal } from './TrailLikesModal';
 
 
@@ -126,11 +126,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         const globalList = await fetchGlobalTrails();
         if (isMounted && Array.isArray(globalList)) {
           setTrails((prev) => {
-            const mapped = globalList.map((g) => sanitizeTrail({ 
-              ...g, 
-              isSaved: isTrailSaved(g.id),
-              isLiked: isTrailLikedByUser(g.id)
-            }));
+            const mapped = globalList
+              .filter((g) => g && !g.id?.startsWith('sample-trail-') && !isFakeMockUser(g.creator?.username))
+              .map((g) => sanitizeTrail({ 
+                ...g, 
+                isSaved: isTrailSaved(g.id),
+                isLiked: isTrailLikedByUser(g.id)
+              }));
             const prevIds = prev.map((p) => p.id).join(',');
             const nextIds = mapped.map((g) => g.id).join(',');
             if (prevIds !== nextIds || prev.length !== mapped.length) {
@@ -186,10 +188,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (!session?.user) return undefined;
     const cached = getCachedUserProfile(session.user.id);
     const meta = session.user.user_metadata || {};
+    const fallbackU = session.user.email 
+      ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
+      : `user_${session.user.id.slice(0, 8)}`;
     return {
       id: session.user.id,
-      name: cached?.name || meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Traveler',
-      username: cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : (session.user.email ? `@${session.user.email.split('@')[0]}` : '@traveler')),
+      name: cached?.name || meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Traveller',
+      username: cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : `@${fallbackU}`),
       avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '')
     };
   };
@@ -604,8 +609,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
     const isImg = uploadVideoFile?.type.startsWith('image/');
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-    const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
-    const username = cached?.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
+    const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
+    const fallbackUploadU = session?.user?.email 
+      ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
+      : (session?.user?.id ? `user_${session.user.id.slice(0, 8)}` : 'traveller');
+    const username = cached?.username || `@${fallbackUploadU}`;
     const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
     const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
@@ -1039,7 +1047,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {(() => {
           const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
           const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
-          const creatorCleanDisplay = (creator.username || '@traveler').replace(/^@/, '');
+          const creatorCleanDisplay = (creator.username || creator.name || 'creator').replace(/^@/, '');
           const isOwnTrail = Boolean(
             (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
             (session?.user?.id && creator.id && creator.id === session.user.id)
@@ -1648,7 +1656,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <div className="p-6">
               {unfollowConfirmCreator?.avatarUrl ? (
                 <img
-                  src={unfollowConfirmCreator.avatarUrl}
+                  src={sanitizeAvatarUrl(unfollowConfirmCreator.avatarUrl)}
                   alt={unfollowConfirmCreator.username || 'Creator'}
                   className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
                   referrerPolicy="no-referrer"
@@ -1659,7 +1667,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 </div>
               )}
               <h3 className="text-base font-bold text-white leading-tight">
-                Unfollow {(unfollowConfirmCreator?.username || '@traveler').startsWith('@') ? unfollowConfirmCreator?.username : `@${unfollowConfirmCreator?.username || 'traveler'}`}?
+                Unfollow {(unfollowConfirmCreator?.username || 'user').startsWith('@') ? unfollowConfirmCreator?.username : `@${unfollowConfirmCreator?.username || 'user'}`}?
               </h3>
               <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
                 Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
@@ -1677,7 +1685,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     },
                     {
                       id: unfollowConfirmCreator.id,
-                      username: unfollowConfirmCreator.username || '@traveler'
+                      username: unfollowConfirmCreator.username || ''
                     }
                   );
                   setTrails((prev) =>

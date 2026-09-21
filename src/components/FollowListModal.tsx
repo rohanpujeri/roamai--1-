@@ -20,6 +20,7 @@ import {
   unfollowUser,
   toggleFollowUser,
   removeFollowerUser,
+  isFakeMockUser,
   FollowUserProfile 
 } from '../services/followService';
 
@@ -112,8 +113,8 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         getFollowing(targetIdentifier, viewerId)
       ]);
 
-      setFollowersList(followers);
-      setFollowingList(following);
+      setFollowersList(followers.filter((u) => !isFakeMockUser(u.username)));
+      setFollowingList(following.filter((u) => !isFakeMockUser(u.username)));
     } catch (err) {
       console.warn('Failed to load follow lists:', err);
     } finally {
@@ -174,7 +175,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   // Filter and sort active list
   const activeList = activeTab === 'followers' ? followersList : followingList;
   const filteredUsers = useMemo(() => {
-    let list = [...activeList];
+    let list = activeList.filter((u) => !isFakeMockUser(u.username));
 
     const q = searchQuery.trim().toLowerCase().replace(/^@+/, '');
     if (q) {

@@ -14,9 +14,9 @@ import {
   isUserFollowing, 
   followUser, 
   unfollowUser, 
-  cleanHandle 
+  cleanHandle,
+  isFakeMockUser
 } from '../services/followService';
-import { searchRealTravellers } from '../services/usernameService';
 import { sanitizeAvatarUrl } from '../services/supabaseClient';
 
 interface TrailLikesModalProps {
@@ -73,13 +73,13 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
         // Merge initial likers
         initialLikers.forEach((l) => {
           const u = cleanHandle(l.username);
-          if (u) likersMap.set(u, l);
+          if (u && !isFakeMockUser(u)) likersMap.set(u, l);
         });
 
         // Merge fetched likers
         fetched.forEach((l) => {
           const u = cleanHandle(l.username);
-          if (u) likersMap.set(u, l);
+          if (u && !isFakeMockUser(u)) likersMap.set(u, l);
         });
 
         // If current user is recorded as liking the trail, ensure they appear in the list
@@ -88,35 +88,13 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
           const hasLikedLocal = localStorage.getItem('roamai_liked_trail_ids');
           const isLikedByUser = hasLikedLocal ? JSON.parse(hasLikedLocal).includes(trailId) : false;
 
-          if (isLikedByUser && !likersMap.has(cClean)) {
+          if (isLikedByUser && !isFakeMockUser(cClean) && !likersMap.has(cClean)) {
             likersMap.set(cClean, {
               id: currentUser.id,
               name: currentUser.name || 'You',
               username: currentUser.username.startsWith('@') ? currentUser.username : `@${currentUser.username}`,
               avatarUrl: sanitizeAvatarUrl(currentUser.avatarUrl || '')
             });
-          }
-        }
-
-        // If likesCount is greater than the number of recorded likers, fill from real platform travelers
-        const currentList = Array.from(likersMap.values());
-        if (currentList.length < likesCount) {
-          try {
-            const realTravellers = await searchRealTravellers();
-            for (const trav of realTravellers) {
-              const u = cleanHandle(trav.username);
-              if (u && !likersMap.has(u) && u !== curUname) {
-                likersMap.set(u, {
-                  id: trav.id,
-                  name: trav.name,
-                  username: trav.username.startsWith('@') ? trav.username : `@${trav.username}`,
-                  avatarUrl: sanitizeAvatarUrl(trav.avatarUrl || '')
-                });
-                if (likersMap.size >= likesCount) break;
-              }
-            }
-          } catch {
-            // ignore
           }
         }
 

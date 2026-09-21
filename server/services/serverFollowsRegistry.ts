@@ -42,12 +42,42 @@ export const FAKE_MOCK_USERNAMES = new Set([
   'fatahdalive',
   'mohan_k_1402',
   'elena_voyages',
-  'rohan_treks'
+  'rohan_treks',
+  'traveler',
+  'traveler1',
+  'traveler_99',
+  'explorer',
+  'roam_explorer',
+  'guest',
+  'guest_user',
+  'test_user',
+  'admin',
+  'sample',
+  'sample_user',
+  'demo',
+  'demo_user',
+  'you'
 ]);
 
-export function isFakeMockUser(username: string): boolean {
+export function isFakeMockUser(username?: string | null): boolean {
+  if (!username) return true;
   const clean = cleanHandle(username);
-  return FAKE_MOCK_USERNAMES.has(clean);
+  if (!clean) return true;
+  if (FAKE_MOCK_USERNAMES.has(clean)) return true;
+  if (
+    clean.startsWith('sample') ||
+    clean.startsWith('mock_') ||
+    clean.startsWith('test_') ||
+    clean.startsWith('fake_') ||
+    clean === 'traveler' ||
+    clean === 'guest' ||
+    clean === 'explorer' ||
+    clean === 'admin' ||
+    clean === 'you'
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // Initialize from disk and aggressively scrub any fake seed accounts

@@ -340,51 +340,38 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
           const raw = localStorage.getItem(key);
           if (raw) {
             const data = JSON.parse(raw);
-            if (data && (data.username || data.name)) {
-              recordProfile({
-                id: data.id || key.replace('tripwise_user_profile_', ''),
-                name: data.name,
-                username: data.username || data.name?.toLowerCase().replace(/\s+/g, '_') || 'traveler',
-                avatarUrl: data.avatarUrl,
-                location: data.place,
-                bio: data.bio,
-                tripsCount: data.stats?.tripsCount || 0,
-                placesCount: data.stats?.placesCount || 0,
-                level: data.stats?.level || 'Travel Explorer'
-              });
+            if (data && data.username) {
+              const u = cleanUsernameInput(data.username);
+              if (u && !isFakeMockUser(u)) {
+                recordProfile({
+                  id: data.id || key.replace('tripwise_user_profile_', ''),
+                  name: data.name || (u.charAt(0).toUpperCase() + u.slice(1)),
+                  username: `@${u}`,
+                  avatarUrl: data.avatarUrl,
+                  location: data.place,
+                  bio: data.bio,
+                  tripsCount: data.stats?.tripsCount || 0,
+                  placesCount: data.stats?.placesCount || 0,
+                  level: data.stats?.level || 'Travel Explorer'
+                });
+              }
             }
           }
         }
       }
 
-      // Claimed usernames registry in localStorage
+      // Claimed usernames registry in localStorage - only include valid user IDs and non-fake accounts
       const claimed = getLocalClaimedUsernames();
       Object.entries(claimed).forEach(([username, meta]) => {
-        recordProfile({
-          id: meta.userId || `claimed_${username}`,
-          username: username,
-          name: username.charAt(0).toUpperCase() + username.slice(1)
-        });
-      });
-
-      // User creators from real uploaded trails
-      const rawTrails = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
-      if (rawTrails) {
-        const trails = JSON.parse(rawTrails);
-        if (Array.isArray(trails)) {
-          trails.forEach((t: any) => {
-            if (t.creator && t.creator.username) {
-              recordProfile({
-                username: t.creator.username,
-                name: t.creator.name,
-                avatarUrl: t.creator.avatarUrl,
-                location: t.destination,
-                recentPlaces: t.destination ? [t.destination] : []
-              });
-            }
+        const u = cleanUsernameInput(username);
+        if (u && !isFakeMockUser(u) && meta && meta.userId && !meta.userId.startsWith('claimed_')) {
+          recordProfile({
+            id: meta.userId,
+            username: u,
+            name: u.charAt(0).toUpperCase() + u.slice(1)
           });
         }
-      }
+      });
     } catch (e) {
       console.warn('Error reading local profiles:', e);
     }
@@ -398,11 +385,14 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       if (Array.isArray(data.users)) {
         data.users.forEach((u: any) => {
           if (u.username) {
-            recordProfile({
-              id: u.userId || `server_${u.username}`,
-              username: u.username,
-              name: u.username.charAt(0).toUpperCase() + u.username.slice(1)
-            });
+            const clean = cleanUsernameInput(u.username);
+            if (clean && !isFakeMockUser(clean)) {
+              recordProfile({
+                id: u.userId || `server_${clean}`,
+                username: clean,
+                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+              });
+            }
           }
         });
       }
@@ -422,19 +412,21 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       const { data, error } = await query.limit(50);
       if (!error && Array.isArray(data)) {
         data.forEach((row: any) => {
-          if (row.username || row.name) {
-            const rawUname = row.username || `@${(row.name || 'traveler').toLowerCase().replace(/\s+/g, '_')}`;
-            recordProfile({
-              id: row.id,
-              username: rawUname.startsWith('@') ? rawUname : `@${rawUname}`,
-              name: row.name || rawUname.replace(/^@/, '') || 'Traveler',
-              avatarUrl: row.avatar_url,
-              bio: row.bio,
-              location: row.location || row.place || 'Traveler',
-              level: row.level || 'Travel Explorer',
-              tripsCount: row.trips_count || 0,
-              placesCount: row.places_count || 0
-            });
+          if (row.username) {
+            const clean = cleanUsernameInput(row.username);
+            if (clean && !isFakeMockUser(clean)) {
+              recordProfile({
+                id: row.id,
+                username: `@${clean}`,
+                name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
+                avatarUrl: row.avatar_url,
+                bio: row.bio,
+                location: row.location || row.place,
+                level: row.level || 'Travel Explorer',
+                tripsCount: row.trips_count || 0,
+                placesCount: row.places_count || 0
+              });
+            }
           }
         });
       }
@@ -452,12 +444,14 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       if (!uErr && Array.isArray(uData)) {
         uData.forEach((row) => {
           if (row.username) {
-            const clean = row.username.replace(/^@+/, '');
-            recordProfile({
-              id: row.user_id || `supa_${clean}`,
-              username: `@${clean}`,
-              name: clean.charAt(0).toUpperCase() + clean.slice(1)
-            });
+            const clean = cleanUsernameInput(row.username);
+            if (clean && !isFakeMockUser(clean)) {
+              recordProfile({
+                id: row.user_id || `supa_${clean}`,
+                username: `@${clean}`,
+                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+              });
+            }
           }
         });
       }

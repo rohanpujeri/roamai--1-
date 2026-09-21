@@ -151,8 +151,11 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
       const isImg = videoFile?.type.startsWith('image/');
       const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-      const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
-      const username = cached?.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
+      const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
+      const fallbackUname = session?.user?.email 
+        ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
+        : (session?.user?.id ? `user_${session.user.id.slice(0, 8)}` : 'traveller');
+      const username = cached?.username || `@${fallbackUname}`;
       const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
       const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
@@ -427,7 +430,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     type="text"
                     value={taggedPeople}
                     onChange={(e) => setTaggedPeople(e.target.value)}
-                    placeholder="Tag users (e.g. @friend1, @traveler)..."
+                    placeholder="Tag users (e.g. @friend1, @friend2)..."
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-emerald-500"
                   />
                 </div>

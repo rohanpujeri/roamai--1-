@@ -67,7 +67,7 @@ import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
 import { FollowListModal } from './FollowListModal';
-import { getFollowCounts } from '../services/followService';
+import { getFollowCounts, isFakeMockUser } from '../services/followService';
 
 
 interface UserProfileViewProps {
@@ -148,8 +148,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               (t: any) =>
                 t &&
                 !t.id?.startsWith('sample-trail-') &&
-                t.creator?.username !== '@elena_voyages' &&
-                t.creator?.username !== '@rohan_treks'
+                !isFakeMockUser(t.creator?.username)
             )
             .map((t: any) => ({
               id: t.id,
@@ -683,7 +682,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         const filtered = allTrails
           .filter((t: any) => {
-            if (!t || t.id?.startsWith('sample-trail-')) return false;
+            if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
             const creatorUsername = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
             const creatorName = (t.creator?.name || '').toLowerCase().trim();
             return (

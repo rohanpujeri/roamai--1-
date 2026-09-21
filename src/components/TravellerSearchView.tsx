@@ -28,7 +28,8 @@ import {
   isFollowedBy,
   getMutualFollowers,
   followUser,
-  unfollowUser
+  unfollowUser,
+  isFakeMockUser
 } from '../services/followService';
 
 
@@ -242,11 +243,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     searchRealTravellers(searchQuery).then((results) => {
       if (isMounted) {
         const currentFollows = getFollowedUserIds();
-        const mapped = results.map((t) => {
-          const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
-          const isF = currentFollows.has(t.id) || currentFollows.has(cleanUser);
-          return { ...t, isFollowing: isF };
-        });
+        const mapped = results
+          .filter((t) => !isFakeMockUser(t.username))
+          .map((t) => {
+            const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
+            const isF = currentFollows.has(t.id) || currentFollows.has(cleanUser);
+            return { ...t, isFollowing: isF };
+          });
         setTravellers(mapped);
       }
     });
@@ -383,23 +386,25 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const exploreTiles = useMemo<ExploreTile[]>(() => {
     if (!globalTrailsList || globalTrailsList.length === 0) return [];
 
-    return globalTrailsList.map((t: any, idx: number) => ({
-      id: t.id || `trail-${idx}`,
-      type: 'trail' as const,
-      title: t.title || t.caption || 'Travel Reel',
-      destination: t.destination || 'Explore Destination',
-      imageUrl: t.posterUrl || t.videoUrl || '',
-      videoUrl: t.videoUrl,
-      viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-      likesCount: t.likesCount ? String(t.likesCount) : '0',
-      creator: {
-        id: t.creator?.id,
-        name: t.creator?.name || 'Traveler',
-        username: t.creator?.username || '@traveler',
-        avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
-      },
-      spanTwoRows: idx % 6 === 0
-    }));
+    return globalTrailsList
+      .filter((t: any) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username))
+      .map((t: any, idx: number) => ({
+        id: t.id || `trail-${idx}`,
+        type: 'trail' as const,
+        title: t.title || t.caption || 'Travel Reel',
+        destination: t.destination || 'Explore Destination',
+        imageUrl: t.posterUrl || t.videoUrl || '',
+        videoUrl: t.videoUrl,
+        viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
+        likesCount: t.likesCount ? String(t.likesCount) : '0',
+        creator: {
+          id: t.creator?.id,
+          name: t.creator?.name || 'Traveler',
+          username: t.creator?.username || '@traveler',
+          avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
+        },
+        spanTwoRows: idx % 6 === 0
+      }));
   }, [globalTrailsList]);
 
   // Trails uploaded by currently viewed user profile
