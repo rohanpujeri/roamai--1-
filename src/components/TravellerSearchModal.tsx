@@ -54,7 +54,6 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
       const matchesSearch =
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.bio.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
@@ -211,11 +210,6 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
                   </p>
 
                   <div className="flex items-center gap-2 mt-2 flex-wrap text-[10px]">
-                    <span className="flex items-center gap-1 text-neutral-400 font-medium">
-                      <MapPin className="w-3 h-3 text-emerald-400" />
-                      {traveller.location}
-                    </span>
-                    <span className="text-neutral-600">•</span>
                     <span className="flex items-center gap-1 text-amber-400 font-bold">
                       <Award className="w-3 h-3" />
                       {traveller.level}

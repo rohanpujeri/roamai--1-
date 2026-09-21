@@ -47,7 +47,6 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 }) => {
   const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
-  const userPlace = cachedProfile?.place || session?.user?.user_metadata?.place || '';
 
   const [savedTrailsCount, setSavedTrailsCount] = useState<number>(() => getSavedTrailsCount());
 
@@ -391,7 +390,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </span>
                     </div>
                     <p className="text-[10px] text-neutral-400 truncate mt-0.5">
-                      {userPlace ? `${userPlace} • ` : ''}{session.user.email}
+                      {session.user.email}
                     </p>
                   </div>
                 </div>

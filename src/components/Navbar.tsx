@@ -52,7 +52,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
-  const userPlace = cachedProfile?.place || session?.user?.user_metadata?.place || '';
 
   useEffect(() => {
     const handleScroll = () => {

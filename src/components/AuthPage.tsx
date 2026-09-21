@@ -428,7 +428,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
                             : 'border-slate-200'
                       }`}
                       style={{ '--tw-ring-color': currentTheme.primaryColor } as any}
-                      placeholder="traveler_99"
+                      placeholder="alex_travels"
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck="false"

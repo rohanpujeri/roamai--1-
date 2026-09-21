@@ -319,7 +319,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       name: p.name || existing?.name || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
       username: `@${cleanUser}`,
       avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
-      location: p.location || existing?.location || 'Traveler',
+      location: '',
       bio: p.bio || existing?.bio || 'Exploring new places, one trip at a time 🌍',
       level: p.level || existing?.level || 'Travel Explorer',
       tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
@@ -466,8 +466,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
   return all.filter((p) => {
     const uClean = p.username.toLowerCase().replace(/^@+/, '');
     const nClean = p.name.toLowerCase();
-    const lClean = p.location.toLowerCase();
-    return uClean.includes(q) || nClean.includes(q) || lClean.includes(q);
+    return uClean.includes(q) || nClean.includes(q);
   });
 }
 

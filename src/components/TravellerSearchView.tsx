@@ -439,7 +439,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       return (
         t.name.toLowerCase().includes(q) ||
         cleanUser.includes(q) ||
-        t.location.toLowerCase().includes(q) ||
         t.bio.toLowerCase().includes(q) ||
         t.recentPlaces.some((p) => p.toLowerCase().includes(q))
       );
@@ -604,10 +603,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             <h2 className="text-sm sm:text-base font-bold text-white">
               {viewingProfile.name}
             </h2>
-            <p className="text-xs text-neutral-400 font-medium flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>{viewingProfile.location || 'Roam Explorer'}</span>
-            </p>
             <p className="text-xs text-neutral-200 pt-1 leading-relaxed whitespace-pre-line">
               {viewingProfile.bio || 'Exploring new places, one trip at a time 🌍'}
             </p>
@@ -655,13 +650,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (onStartPlanning && viewingProfile.location) {
-                  onStartPlanning(viewingProfile.location);
+                if (onStartPlanning) {
+                  onStartPlanning();
                 }
               }}
               className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#262626] hover:bg-[#333333] text-white border border-neutral-800 transition-colors cursor-pointer text-center"
             >
-              Plan Trip to {viewingProfile.location || 'Destination'}
+              Plan a Trip
             </button>
           </div>
 
@@ -976,7 +971,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                               )}
                             </div>
                             <p className="text-xs text-neutral-400 truncate">
-                              {tr.name} • {tr.location || 'Traveler'}
+                              {tr.name}
                             </p>
                             {tr.bio && (
                               <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
@@ -1141,9 +1136,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                         </h4>
                         <p className="text-[11px] text-neutral-400 truncate w-full mt-0.5">
                           {tr.name}
-                        </p>
-                        <p className="text-[10px] text-neutral-500 truncate w-full mt-0.5">
-                          {tr.location || 'Roam Explorer'}
                         </p>
 
                         {/* Follow / Following Button */}

@@ -251,17 +251,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </p>
                 </div>
 
-                {/* 3. Place / Location */}
-                <div className="p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 space-y-1">
-                  <div className="flex items-center gap-1.5 text-zinc-400 text-[11px] font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-zinc-500" />
-                    <span>Place / Location</span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-bold text-white truncate">
-                    {place || 'Not provided'}
-                  </p>
-                </div>
-
                 {/* 4. Trips & Membership */}
                 <div className="p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 space-y-1">
                   <div className="flex items-center gap-1.5 text-zinc-400 text-[11px] font-semibold">

@@ -48,6 +48,10 @@ export const FAKE_MOCK_HANDLES = new Set([
   'mohan_k_1402',
   'elena_voyages',
   'rohan_treks',
+  'testuser81502',
+  'testuser',
+  'test_user',
+  'tester',
   'traveler',
   'traveler1',
   'traveler_99',
@@ -55,7 +59,6 @@ export const FAKE_MOCK_HANDLES = new Set([
   'roam_explorer',
   'guest',
   'guest_user',
-  'test_user',
   'admin',
   'sample',
   'sample_user',
@@ -70,14 +73,15 @@ export function isFakeMockUser(username?: string | null): boolean {
   if (!clean) return true;
   if (FAKE_MOCK_HANDLES.has(clean)) return true;
   if (
-    clean.startsWith('sample') ||
-    clean.startsWith('mock_') ||
-    clean.startsWith('test_') ||
-    clean.startsWith('fake_') ||
-    clean === 'traveler' ||
-    clean === 'guest' ||
-    clean === 'explorer' ||
-    clean === 'admin' ||
+    clean.includes('test') ||
+    clean.includes('sample') ||
+    clean.includes('mock') ||
+    clean.includes('fake') ||
+    clean.includes('dummy') ||
+    clean.startsWith('traveler') ||
+    clean.startsWith('guest') ||
+    clean.startsWith('explorer') ||
+    clean.startsWith('admin') ||
     clean === 'you'
   ) {
     return true;
@@ -513,7 +517,7 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
       name: enriched?.name || rel.followerName || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followerAvatar || ''),
       bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
-      location: enriched?.location || 'Traveler',
+      location: '',
       isFollowing: isF,
       followsYou: followsViewer
     });
@@ -566,7 +570,7 @@ export async function getFollowing(userIdentifier: string, currentViewerIdentifi
       name: enriched?.name || rel.followingName || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followingAvatar || ''),
       bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
-      location: enriched?.location || 'Traveler',
+      location: '',
       isFollowing: isF,
       followsYou: followsViewer
     });
