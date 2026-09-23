@@ -1331,6 +1331,7 @@ export default function App() {
                   <LandingPage
                     currentTheme={currentTheme}
                     recentTrip={recentPlannedTrip}
+                    trips={trips}
                     onOpenTrip={handleOpenTrip}
                     onStartPlanning={handleStartPlanning}
                     onOpenThemeModal={() => setIsThemeModalOpen(true)}

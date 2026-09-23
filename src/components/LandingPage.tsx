@@ -15,10 +15,12 @@ import { ThemeConfig, Trip } from '../types';
 import { ThemeHeroBackdrop } from './ThemeHeroBackdrop';
 import { fetchAiDynamicPreviewTrip, DynamicPreviewTrip } from '../services/aiInspiration';
 import heroCardImage from '../assets/images/regenerated_image_1787112827232.png';
+import { RotatingTripsCarousel } from './RotatingTripsCarousel';
 
 interface LandingPageProps {
   currentTheme?: ThemeConfig;
   recentTrip?: Trip | null;
+  trips?: Trip[];
   onOpenTrip?: (tripId: string) => void;
   onStartPlanning: (destinationId?: string) => void;
   onOpenThemeModal?: () => void;
@@ -29,6 +31,7 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({
   currentTheme,
   recentTrip,
+  trips = [],
   onOpenTrip,
   onStartPlanning,
   onOpenThemeModal,
@@ -197,125 +200,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </div>
 
-            {/* Right Column: User's Recently Planned or Demo Itinerary Card */}
-            <div className="lg:col-span-5 relative">
-              <motion.div
-                key={currentTheme?.id || 'beach'}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="rounded-3xl p-5 shadow-2xl relative z-10 text-left transition-colors duration-300 bg-white/35 dark:bg-slate-900/40 backdrop-blur-2xl border border-white/50 dark:border-white/15"
-              >
-                {/* Destination Hero Header */}
-                <div className="relative rounded-2xl overflow-hidden mb-4 h-52 group">
-                  <img
-                    src={displayTrip?.heroImage || preview.image || heroCardImage}
-                    alt={displayTrip?.destination || preview.title}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter contrast-[1.08] saturate-[1.16]"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent" />
-                  
-                  {/* Status Badge */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <span 
-                      className="px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md shadow-xs flex items-center gap-1.5"
-                      style={{
-                        backgroundColor: hasUserRecentTrip ? primaryColor : 'rgba(15, 23, 42, 0.85)',
-                        color: '#ffffff',
-                        border: hasUserRecentTrip ? 'none' : '1px solid rgba(255, 255, 255, 0.2)'
-                      }}
-                    >
-                      {hasUserRecentTrip ? (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                          <span>Recently Planned Itinerary</span>
-                        </>
-                      ) : (
-                        <>
-                          <Compass className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-                          <span>AI Curated Journey</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="absolute bottom-3.5 left-3.5 right-3.5 text-white">
-                    <div className="flex items-end justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-slate-300 font-medium truncate mb-0.5">
-                          {displayTrip?.title || preview.title}
-                        </p>
-                        <h3 className="text-2xl sm:text-3xl font-black tracking-tight truncate">
-                          {displayTrip?.destination || (preview as any).destination || 'Scenic Getaway'}
-                        </h3>
-                      </div>
-                      <span className="shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-white/20 backdrop-blur-md border border-white/10 text-white">
-                        {displayTrip?.days?.[0]?.weatherForecast ? `${displayTrip.days[0].weatherForecast.temp} ${displayTrip.days[0].weatherForecast.icon}` : preview.temp}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Trip Metric Badges */}
-                <div className="grid grid-cols-3 gap-2.5 mb-4">
-                  <div 
-                    className="p-3 rounded-2xl border flex flex-col items-center text-center transition-colors bg-white/40 dark:bg-black/30 backdrop-blur-md border-white/40 dark:border-white/10"
-                  >
-                    <div className="flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">
-                      <Calendar className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-                      <span>Duration</span>
-                    </div>
-                    <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                      {displayTrip?.durationDays || 4} Days
-                    </p>
-                  </div>
-
-                  <div 
-                    className="p-3 rounded-2xl border flex flex-col items-center text-center transition-colors bg-white/40 dark:bg-black/30 backdrop-blur-md border-white/40 dark:border-white/10"
-                  >
-                    <div className="flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">
-                      <Users className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-                      <span>Travelers</span>
-                    </div>
-                    <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate max-w-full">
-                      {displayTrip?.companionType || 'Friends'} ({displayTrip?.travellersCount || 2})
-                    </p>
-                  </div>
-
-                  <div 
-                    className="p-3 rounded-2xl border flex flex-col items-center text-center transition-colors bg-white/40 dark:bg-black/30 backdrop-blur-md border-white/40 dark:border-white/10"
-                  >
-                    <div className="flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">
-                      <Zap className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-                      <span>Budget</span>
-                    </div>
-                    <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                      {displayTrip ? `${displayTrip.currency || '₹'}${displayTrip.targetBudget?.toLocaleString() || '30,000'}` : preview.budget}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Primary Action Button */}
-                <button
-                  onClick={() => {
-                    if (hasUserRecentTrip && displayTrip?.id && onOpenTrip) {
-                      onOpenTrip(displayTrip.id);
-                    } else {
-                      onStartPlanning();
-                    }
-                  }}
-                  className="w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 text-white cursor-pointer shadow-md hover:shadow-lg hover:brightness-105 active:scale-[0.99]"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  <span>
-                    {hasUserRecentTrip && displayTrip?.destination 
-                      ? `Open ${displayTrip.destination.split(',')[0]} Itinerary` 
-                      : 'Create Your Itinerary'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </motion.div>
+            {/* Right Column: 3D Rotating Carousel showing 6 Recently Planned Trips (Uiverse.io ilkhoeri style) */}
+            <div className="lg:col-span-5 relative w-full flex items-center justify-center pt-2 sm:pt-0">
+              <RotatingTripsCarousel
+                trips={trips}
+                currentTheme={currentTheme}
+                onOpenTrip={onOpenTrip}
+                onStartPlanning={onStartPlanning}
+              />
             </div>
 
           </div>
