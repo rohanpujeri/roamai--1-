@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Calendar, ArrowRight, Compass, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, Compass } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
 
 interface RotatingTripsCarouselProps {
@@ -381,11 +381,6 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
     }
   };
 
-  // Nudge carousel by 60° (one full card orbit)
-  const nudgeRotation = (direction: -1 | 1) => {
-    velocityRef.current = direction * 150;
-  };
-
   const handleCardClick = (item: DisplayTripItem, e: React.MouseEvent) => {
     e.stopPropagation();
     // Only open if user tapped/clicked rather than dragged/swiped
@@ -535,38 +530,6 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
             );
           })}
         </div>
-      </div>
-
-      {/* Interactive Helper Text & Quick-Rotate Arrows */}
-      <div className="flex items-center gap-2 mt-1">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            nudgeRotation(-1);
-          }}
-          className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 active:scale-90 text-white/90 border border-white/20 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-md"
-          title="Rotate previous card"
-          aria-label="Previous trip"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-[10px] text-white/95 font-medium shadow-sm">
-          <Compass className="w-3 h-3 text-sky-400 animate-spin" style={{ animationDuration: '8s' }} />
-          <span>Swipe or tap arrows to rotate • Tap card to view</span>
-        </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            nudgeRotation(1);
-          }}
-          className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 active:scale-90 text-white/90 border border-white/20 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-md"
-          title="Rotate next card"
-          aria-label="Next trip"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );
