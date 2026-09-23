@@ -1198,7 +1198,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Edit profile | Share profile | Sign Out */}
+        {/* Action Buttons: Edit profile | Share profile */}
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={() => {
@@ -1214,20 +1214,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center"
           >
             Share profile
-          </button>
-          <button
-            onClick={async () => {
-              const supabase = getSupabaseClient();
-              if (supabase) {
-                await supabase.auth.signOut();
-              }
-            }}
-            className="py-1.5 sm:py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 active:bg-red-950/80 text-red-300 hover:text-white text-xs sm:text-sm font-semibold border border-red-800/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
-            title="Sign Out"
-            aria-label="Sign Out"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Sign Out</span>
           </button>
         </div>
 

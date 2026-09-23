@@ -148,29 +148,14 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Quick Header Sign Out Button */}
-            {session && (
-              <button
-                type="button"
-                onClick={handleSignOutInternal}
-                className="px-2.5 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/80 text-red-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-sm"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5 text-red-400" />
-                <span className="text-[11px]">Sign Out</span>
-              </button>
-            )}
-
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 active:scale-95"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 active:scale-95"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Main Scrollable Drawer Content - Smooth touch scrolling with pb-36 and touch-pan-y */}
@@ -420,7 +405,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 pt-2 border-t border-neutral-800/80">
+                <div className="pt-2 border-t border-neutral-800/80">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -431,17 +416,6 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   >
                     <User className="w-3.5 h-3.5 text-neutral-400" />
                     <span>View Profile Info</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSignOutInternal();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
-                  >
-                    <LogOut className="w-4 h-4 text-red-400" />
-                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>
