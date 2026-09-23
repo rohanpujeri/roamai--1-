@@ -88,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header 
-        className="sticky top-0 z-40 transition-colors duration-300 relative bg-transparent"
+        className="sticky top-0 z-40 transition-colors duration-300 relative bg-transparent pt-2.5 sm:pt-1"
       >
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 relative z-10">
           <div className="flex items-center justify-between h-14 sm:h-18">
@@ -99,9 +99,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigate('landing');
                   setIsDrawerOpen(false);
                 }}
-                className="flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer shrink-0"
+                className="flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer shrink-0 px-2.5 py-1.5 rounded-xl sm:rounded-2xl bg-black/35 hover:bg-black/50 backdrop-blur-md border border-white/20 shadow-md transition-all"
               >
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-2 ring-white/30">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-1.5 ring-white/30">
                   <img
                     src="/logo.png"
                     alt="TripWise Logo"
@@ -111,19 +111,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div>
                   <div className="flex items-center gap-1">
                     <span 
-                      className={`text-lg sm:text-xl font-bold tracking-tight font-sans transition-colors duration-300 ${
-                        isDarkText ? 'text-slate-900 font-extrabold' : 'text-white'
-                      }`}
-                      style={!isDarkText ? { textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)' } : undefined}
+                      className="text-base sm:text-xl font-bold tracking-tight font-sans transition-colors duration-300 text-white"
+                      style={{ textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)' }}
                     >
                       Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
                     </span>
                   </div>
                   <p 
-                    className={`text-[11px] -mt-0.5 hidden sm:block font-medium transition-colors duration-300 ${
-                      isDarkText ? 'text-slate-700 font-semibold' : 'text-white/90'
-                    }`}
-                    style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.85)' } : undefined}
+                    className="text-[10px] sm:text-[11px] -mt-0.5 hidden sm:block font-medium transition-colors duration-300 text-white/90"
+                    style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
                   >
                     Plan • Prepare • Travel • Adapt
                   </p>

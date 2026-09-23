@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sparkles, Calendar, ArrowRight, Compass } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
 
@@ -69,7 +69,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     budget: '₹68,000',
     weather: '-2°C ❄️',
     heroImage: '/images/bg_snow.jpg',
-    colorCardRgb: '14, 165, 233', // light sky
+    colorCardRgb: '14, 165, 233', // sky
     isUserTrip: false,
   },
   {
@@ -90,9 +90,25 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   onOpenTrip,
   onStartPlanning,
 }) => {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [rotationAngle, setRotationAngle] = useState(0);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const [hoveredCardIdx, setHoveredCardIdx] = useState<number | null>(null);
 
-  // Convert theme primary hex to RGB if possible
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startAngleRef = useRef(0);
+  const dragDistanceRef = useRef(0);
+  const animFrameIdRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(performance.now());
+  const angleRef = useRef(0);
+
+  // Sync ref
+  useEffect(() => {
+    angleRef.current = rotationAngle;
+  }, [rotationAngle]);
+
+  // Convert theme primary hex to RGB
   const themeHexToRgb = (hex: string): string => {
     const clean = hex.replace('#', '');
     if (clean.length === 6) {
@@ -125,7 +141,72 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   }
   const finalSixTrips = combinedTrips.slice(0, 6);
 
+  // Auto-rotation loop when not dragging or hovering
+  useEffect(() => {
+    let active = true;
+
+    const tick = (time: number) => {
+      if (!active) return;
+      const deltaSec = (time - lastTimeRef.current) / 1000;
+      lastTimeRef.current = time;
+
+      if (!isDraggingRef.current && !isInteracting) {
+        // Rotate ~15 degrees per second
+        const newAngle = (angleRef.current + 15 * deltaSec) % 360;
+        angleRef.current = newAngle;
+        setRotationAngle(newAngle);
+      }
+
+      animFrameIdRef.current = requestAnimationFrame(tick);
+    };
+
+    lastTimeRef.current = performance.now();
+    animFrameIdRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      active = false;
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current);
+      }
+    };
+  }, [isInteracting]);
+
+  // Interactive mouse drag and touch swipe handlers
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    startAngleRef.current = angleRef.current;
+    dragDistanceRef.current = 0;
+    setIsInteracting(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaX = e.clientX - startXRef.current;
+    dragDistanceRef.current += Math.abs(deltaX);
+    // Smooth angle update based on drag distance
+    const newAngle = startAngleRef.current + deltaX * 0.45;
+    angleRef.current = newAngle;
+    setRotationAngle(newAngle);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    isDraggingRef.current = false;
+    setTimeout(() => {
+      setIsInteracting(false);
+    }, 400);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
   const handleCardClick = (item: DisplayTripItem) => {
+    // Only trigger if user wasn't dragging
+    if (dragDistanceRef.current > 8) return;
+
     if (item.isUserTrip && item.id && onOpenTrip) {
       onOpenTrip(item.id);
     } else {
@@ -136,51 +217,69 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   return (
     <div className="w-full flex flex-col items-center justify-center relative select-none">
       {/* Top Header Tag */}
-      <div className="flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-white/20 dark:bg-black/30 backdrop-blur-md border border-white/20 dark:border-white/10 text-white text-[11px] font-bold shadow-sm">
-        <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-pulse" />
+      <div className="flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold shadow-md">
+        <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300 animate-pulse" />
         <span>Recently Planned Journeys • 3D Carousel</span>
       </div>
 
-      {/* 3D Rotating Carousel Container */}
+      {/* 3D Rotating Carousel Container with Pointer Drag and Swipe */}
       <div 
-        className="rotating-carousel-wrapper h-[330px] sm:h-[380px] lg:h-[410px] w-full"
+        ref={containerRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onMouseEnter={() => setIsInteracting(true)}
+        onMouseLeave={() => {
+          if (!isDraggingRef.current) setIsInteracting(false);
+        }}
+        className="rotating-carousel-wrapper"
         style={{
           // @ts-ignore
           '--quantity': 6,
           '--color-card': themeRgb,
         }}
       >
-        <div className="rotating-carousel-inner">
+        <div 
+          className="rotating-carousel-inner"
+          style={{
+            transform: `perspective(var(--perspective)) rotateX(var(--rotateX)) rotateY(${rotationAngle}deg)`,
+          }}
+        >
           {finalSixTrips.map((item, index) => {
-            const isHovered = hoveredIndex === index;
+            const isHovered = hoveredCardIdx === index;
+            // Angle around the circle
+            const cardDegree = (360 / 6) * index;
+
             return (
               <div
                 key={item.id || item.destination + index}
                 onClick={() => handleCardClick(item)}
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
+                onMouseEnter={() => setHoveredCardIdx(index)}
+                onMouseLeave={() => setHoveredCardIdx(null)}
                 className="rotating-carousel-card group"
                 style={{
+                  transform: `rotateY(${cardDegree}deg) translateZ(var(--translateZ))`,
                   // @ts-ignore
-                  '--index': index,
                   '--color-card': item.colorCardRgb || themeRgb,
+                  zIndex: isHovered ? 10 : 2,
                 }}
-                title={`Click to view ${item.destination} itinerary`}
+                title={`Click to open ${item.destination} itinerary`}
               >
                 {/* Background Hero Image */}
                 <img
                   src={item.heroImage}
                   alt={item.destination}
                   referrerPolicy="no-referrer"
-                  className="rotating-carousel-img group-hover:scale-110 transition-transform duration-700"
+                  className="rotating-carousel-img group-hover:scale-110 transition-transform duration-500 pointer-events-none"
                 />
 
-                {/* Atmospheric Dark Gradient Overlay for High Readability */}
+                {/* Dark Gradient Overlay for Maximum Readability */}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/35 to-transparent pointer-events-none" />
 
                 {/* Top Badges */}
-                <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1 pointer-events-none">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center gap-1 shadow-sm">
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-black/65 backdrop-blur-md text-white border border-white/20 flex items-center gap-1 shadow-sm">
                     {item.isUserTrip ? (
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                     ) : (
@@ -189,7 +288,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                     <span>{item.durationDays}D</span>
                   </span>
 
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/60 backdrop-blur-md text-white border border-white/20 shadow-sm">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/65 backdrop-blur-md text-white border border-white/20 shadow-sm">
                     {item.weather}
                   </span>
                 </div>
@@ -224,9 +323,9 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
       </div>
 
       {/* Interactive Helper Text */}
-      <div className="flex items-center gap-2 mt-1 text-[11px] text-white/70 font-medium">
-        <Compass className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '8s' }} />
-        <span>Hover or tap to pause • Click card to open trip</span>
+      <div className="flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-[11px] text-white/80 font-medium">
+        <Compass className="w-3.5 h-3.5 text-sky-400 animate-spin" style={{ animationDuration: '8s' }} />
+        <span>Drag or swipe to rotate • Tap any card to open</span>
       </div>
     </div>
   );
