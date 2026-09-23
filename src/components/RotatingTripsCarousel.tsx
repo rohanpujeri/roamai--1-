@@ -21,87 +21,106 @@ interface DisplayTripItem {
   colorCardRgb: string;
 }
 
-// Destination-specific curated photos so EVERY destination has its own unique, iconic image
-const DESTINATION_PHOTO_MAP: { [key: string]: string } = {
-  ladakh: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80',
-  leh: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80',
-  jaipur: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80',
-  rajasthan: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80',
-  bali: '/images/bg_beach.jpg',
-  beach: '/images/bg_beach.jpg',
-  goa: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=600&q=80',
-  manali: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=600&q=80',
-  kerala: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=600&q=80',
-  paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
-  france: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
-  kyoto: '/images/bg_basic_minimal.jpg',
-  tokyo: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
-  japan: '/images/bg_basic_minimal.jpg',
-  swiss: '/images/bg_mountain.jpg',
-  alps: '/images/bg_mountain.jpg',
-  switzerland: '/images/bg_mountain.jpg',
-  dolomites: '/images/bg_mountain.jpg',
-  iceland: '/images/bg_waterfall.jpg',
-  waterfall: '/images/bg_waterfall.jpg',
-  norway: '/images/bg_waterfall.jpg',
-  hokkaido: '/images/bg_snow.jpg',
-  snow: '/images/bg_snow.jpg',
-  patagonia: '/images/bg_trekking.jpg',
-  trek: '/images/bg_trekking.jpg',
-  rome: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80',
-  italy: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80',
-  santorini: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80',
-  greece: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80',
-  dubai: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=600&q=80',
-  uae: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=600&q=80',
-  london: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=80',
-  uk: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=80',
-  'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=600&q=80',
-  maldives: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=600&q=80',
-};
-
-const DISTINCT_IMAGE_POOL = [
-  'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80', // Ladakh
-  'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80', // Jaipur
-  '/images/bg_beach.jpg', // Bali
-  'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80', // Paris
-  '/images/bg_basic_minimal.jpg', // Kyoto
-  '/images/bg_mountain.jpg', // Swiss Alps
-  '/images/bg_waterfall.jpg', // Iceland
-  '/images/bg_snow.jpg', // Hokkaido
-  '/images/bg_trekking.jpg', // Patagonia
-  'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80', // Rome
-  'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80', // Santorini
-  'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=600&q=80', // Dubai
-];
+const memoryPhotoCache = new Map<string, string>();
 
 function isGenericPlaceholder(url?: string): boolean {
   if (!url) return true;
   return (
     url.includes('1488646953014') || // Generic camera on map placeholder
-    url.includes('regenerated_image') || // Generated placeholder
+    url.includes('regenerated_image') ||
     url.includes('1787112827232') ||
     url.includes('placeholder')
   );
 }
 
-function resolveDestinationPhoto(destination: string, index: number, existingHero?: string): string {
-  const clean = (destination || '').toLowerCase().trim();
+function cleanDestinationName(destination: string): string {
+  return (destination || '')
+    .split(',')[0]
+    .replace(/\(.*?\)/g, '')
+    .replace(/["'’]/g, '')
+    .trim();
+}
 
-  // First: Check if the destination matches a known world/Indian destination
-  for (const [key, url] of Object.entries(DESTINATION_PHOTO_MAP)) {
-    if (clean.includes(key)) {
-      return url;
+export function getInitialPhotoFallback(destination: string): string {
+  const clean = cleanDestinationName(destination);
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(`${clean} travel landmark scenic photograph cinematic 4k`)}?width=600&height=800&nologo=true`;
+}
+
+/**
+ * Dynamically fetches authentic high-res photos for any destination using
+ * Wikipedia REST APIs, Wikimedia Commons, and AI image generation fallback.
+ * Results are cached in memory and localStorage for zero-latency instant display.
+ */
+export async function fetchDestinationPhoto(destination: string): Promise<string> {
+  const clean = cleanDestinationName(destination);
+  if (!clean) return '/images/bg_beach.jpg';
+
+  const cacheKey = `tripwise_ai_photo_${clean.toLowerCase().replace(/\s+/g, '_')}`;
+
+  if (memoryPhotoCache.has(cacheKey)) {
+    return memoryPhotoCache.get(cacheKey)!;
+  }
+
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached && !isGenericPlaceholder(cached)) {
+      memoryPhotoCache.set(cacheKey, cached);
+      return cached;
     }
-  }
+  } catch {}
 
-  // Second: If user provided a custom image that is NOT the generic camera placeholder
-  if (existingHero && !isGenericPlaceholder(existingHero)) {
-    return existingHero;
-  }
+  // 1. Wikipedia Summary REST API (unthrottled, public CORS enabled)
+  try {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean.replace(/\s+/g, '_'))}`);
+    if (res.ok) {
+      const data = await res.json();
+      const img = data.originalimage?.source || data.thumbnail?.source;
+      if (img && typeof img === 'string' && img.startsWith('http') && !img.endsWith('.svg')) {
+        memoryPhotoCache.set(cacheKey, img);
+        try { localStorage.setItem(cacheKey, img); } catch {}
+        return img;
+      }
+    }
+  } catch {}
 
-  // Third: Guarantee unique distinct photo by index so no two cards ever look the same
-  return DISTINCT_IMAGE_POOL[index % DISTINCT_IMAGE_POOL.length];
+  // 2. Wikipedia Search Generator API for multi-word or compound queries
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(clean + ' tourism')}&gsrlimit=2&prop=pageimages&pithumbsize=1000&format=json&origin=*`;
+    const res = await fetch(searchUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const pages = data.query?.pages;
+      if (pages) {
+        for (const page of Object.values(pages) as any[]) {
+          const src = page.thumbnail?.source;
+          if (src && typeof src === 'string' && src.startsWith('http') && !src.endsWith('.svg')) {
+            memoryPhotoCache.set(cacheKey, src);
+            try { localStorage.setItem(cacheKey, src); } catch {}
+            return src;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 3. Backend Real Photo API
+  try {
+    const res = await fetch(`/api/places/real-photo?title=${encodeURIComponent(clean)}&destination=${encodeURIComponent(clean)}&category=landmark`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.photoUrl && !isGenericPlaceholder(data.photoUrl)) {
+        memoryPhotoCache.set(cacheKey, data.photoUrl);
+        try { localStorage.setItem(cacheKey, data.photoUrl); } catch {}
+        return data.photoUrl;
+      }
+    }
+  } catch {}
+
+  // 4. Dynamic AI-Generated Travel Photography (Pollinations AI)
+  const aiImageUrl = getInitialPhotoFallback(clean);
+  memoryPhotoCache.set(cacheKey, aiImageUrl);
+  try { localStorage.setItem(cacheKey, aiImageUrl); } catch {}
+  return aiImageUrl;
 }
 
 const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
@@ -111,7 +130,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 5,
     budget: '₹42,000',
     weather: '30°C ☀️',
-    heroImage: '/images/bg_beach.jpg',
+    heroImage: '',
     colorCardRgb: '2, 132, 199',
     isUserTrip: false,
   },
@@ -121,7 +140,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 6,
     budget: '₹58,000',
     weather: '22°C 🌸',
-    heroImage: '/images/bg_basic_minimal.jpg',
+    heroImage: '',
     colorCardRgb: '13, 148, 136',
     isUserTrip: false,
   },
@@ -131,7 +150,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 7,
     budget: '₹95,000',
     weather: '16°C 🏔️',
-    heroImage: '/images/bg_mountain.jpg',
+    heroImage: '',
     colorCardRgb: '99, 102, 241',
     isUserTrip: false,
   },
@@ -141,7 +160,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 5,
     budget: '₹82,000',
     weather: '12°C 🌊',
-    heroImage: '/images/bg_waterfall.jpg',
+    heroImage: '',
     colorCardRgb: '16, 185, 129',
     isUserTrip: false,
   },
@@ -151,7 +170,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 6,
     budget: '₹68,000',
     weather: '-2°C ❄️',
-    heroImage: '/images/bg_snow.jpg',
+    heroImage: '',
     colorCardRgb: '14, 165, 233',
     isUserTrip: false,
   },
@@ -161,7 +180,7 @@ const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [
     durationDays: 8,
     budget: '₹1,15,000',
     weather: '14°C 🏕️',
-    heroImage: '/images/bg_trekking.jpg',
+    heroImage: '',
     colorCardRgb: '245, 158, 11',
     isUserTrip: false,
   },
@@ -208,9 +227,12 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
 
   const themeRgb = currentTheme?.primaryColor ? themeHexToRgb(currentTheme.primaryColor) : '2, 132, 199';
 
-  // Build the 6 trips with destination-specific unique photos
-  const userDisplayTrips: DisplayTripItem[] = (trips || []).slice(0, 6).map((t, idx) => {
-    const dest = t.destination?.split(',')?.[0]?.trim() || 'My Journey';
+  // Dynamic AI & API photo storage per destination
+  const [dynamicPhotos, setDynamicPhotos] = useState<Record<string, string>>({});
+
+  // Build the 6 trips dynamically
+  const userDisplayTrips: DisplayTripItem[] = (trips || []).slice(0, 6).map((t) => {
+    const dest = cleanDestinationName(t.destination || 'My Journey');
     return {
       id: t.id,
       isUserTrip: true,
@@ -219,7 +241,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
       durationDays: t.durationDays || 4,
       budget: `${t.currency || '₹'}${t.targetBudget?.toLocaleString() || '35,000'}`,
       weather: t.days?.[0]?.weatherForecast ? `${t.days[0].weatherForecast.temp} ${t.days[0].weatherForecast.icon}` : '26°C ☀️',
-      heroImage: resolveDestinationPhoto(dest, idx, t.heroImage),
+      heroImage: t.heroImage && !isGenericPlaceholder(t.heroImage) ? t.heroImage : '',
       colorCardRgb: themeRgb,
     };
   });
@@ -229,10 +251,41 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
     const defaultItem = DEFAULT_SHOWCASE_TRIPS[i % DEFAULT_SHOWCASE_TRIPS.length];
     combinedTrips.push({
       ...defaultItem,
-      heroImage: resolveDestinationPhoto(defaultItem.destination, combinedTrips.length, defaultItem.heroImage),
     });
   }
   const finalSixTrips = combinedTrips.slice(0, 6);
+
+  // Dynamically fetch authentic AI / Wikimedia photos for each destination
+  useEffect(() => {
+    let isCancelled = false;
+
+    finalSixTrips.forEach((item) => {
+      const dest = item.destination;
+      if (!dest) return;
+
+      // If user provided a genuine heroImage, use it directly
+      if (item.heroImage && !isGenericPlaceholder(item.heroImage)) {
+        if (!dynamicPhotos[dest]) {
+          setDynamicPhotos((prev) => ({ ...prev, [dest]: item.heroImage }));
+        }
+        return;
+      }
+
+      // Fetch authentic destination photo
+      fetchDestinationPhoto(dest).then((url) => {
+        if (!isCancelled && url) {
+          setDynamicPhotos((prev) => {
+            if (prev[dest] === url) return prev;
+            return { ...prev, [dest]: url };
+          });
+        }
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [trips]);
 
   // Silky-Smooth GPU Animation Loop with Inertia Physics (Zero React Re-renders!)
   useEffect(() => {
@@ -378,6 +431,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
           {finalSixTrips.map((item, index) => {
             const isHovered = hoveredCardIdx === index;
             const cardDegree = (360 / 6) * index;
+            const cardPhoto = dynamicPhotos[item.destination] || (item.heroImage && !isGenericPlaceholder(item.heroImage) ? item.heroImage : getInitialPhotoFallback(item.destination));
 
             return (
               <div
@@ -404,7 +458,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                 <div className="rotating-carousel-card-face rotating-carousel-card-front">
                   {/* Destination Hero Image */}
                   <img
-                    src={item.heroImage}
+                    src={cardPhoto}
                     alt={item.destination}
                     referrerPolicy="no-referrer"
                     className="rotating-carousel-img group-hover:scale-108 transition-transform duration-500 pointer-events-none"
@@ -457,7 +511,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                 {/* 2. BACK FACE (Facing Inwards - Displays Upright with 180deg so the FULL 360 circle is always visible!) */}
                 <div className="rotating-carousel-card-face rotating-carousel-card-back">
                   <img
-                    src={item.heroImage}
+                    src={cardPhoto}
                     alt={item.destination}
                     referrerPolicy="no-referrer"
                     className="rotating-carousel-img pointer-events-none"
