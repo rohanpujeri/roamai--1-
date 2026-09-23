@@ -18,7 +18,8 @@ import {
   deleteServerTrail, 
   toggleLikeServerTrail, 
   getServerTrailLikers,
-  addCommentToServerTrail 
+  addCommentToServerTrail,
+  recordServerTrailView 
 } from './services/serverTrailsRegistry';
 import {
   getAllServerFollows,
@@ -293,16 +294,37 @@ export function createExpressApp() {
     }
   });
 
-  // Like or unlike a trail
+  // Like or unlike a trail (only signed-up users allowed)
   apiRouter.post('/trails/:id/like', (req, res) => {
     try {
       const { id } = req.params;
       const { increment, liker } = req.body;
+      if (!liker || (!liker.username && !liker.id)) {
+        res.status(401).json({ error: 'Signed up user required to like a trail' });
+        return;
+      }
       const result = toggleLikeServerTrail(id, increment !== false, liker);
       res.json(result);
     } catch (err: any) {
       console.error('Error liking trail:', err);
       res.status(500).json({ error: 'Failed to update like status' });
+    }
+  });
+
+  // Record a trail view (only signed-up users increase view count)
+  apiRouter.post('/trails/:id/view', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { viewer } = req.body;
+      if (!viewer || (!viewer.id && !viewer.username)) {
+        res.status(401).json({ error: 'Signed up user required to record a view' });
+        return;
+      }
+      const result = recordServerTrailView(id, viewer);
+      res.json(result);
+    } catch (err: any) {
+      console.error('Error recording trail view:', err);
+      res.status(500).json({ error: 'Failed to record trail view' });
     }
   });
 

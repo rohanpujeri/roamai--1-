@@ -21,6 +21,12 @@ export interface ServerTrailRecord {
   audioTitle: string;
   likesCount: number;
   commentsCount: number;
+  viewsCount?: number;
+  viewedBy?: Array<{
+    id?: string;
+    username: string;
+    viewedAt?: string;
+  }>;
   isLiked?: boolean;
   isSaved?: boolean;
   comments?: Array<{
@@ -185,8 +191,11 @@ export function saveServerTrail(
     destination: trailData.destination || existing?.destination || 'Everywhere',
     tags: Array.isArray(trailData.tags) ? trailData.tags : (existing?.tags || []),
     audioTitle: trailData.audioTitle || existing?.audioTitle || 'Original Travel Sound',
-    likesCount: trailData.likesCount ?? existing?.likesCount ?? 0,
+    likesCount: trailData.likedBy?.length ?? existing?.likedBy?.length ?? (typeof trailData.likesCount === 'number' ? trailData.likesCount : existing?.likesCount ?? 0),
     commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
+    viewsCount: typeof trailData.viewsCount === 'number' ? trailData.viewsCount : (existing?.viewsCount ?? 0),
+    viewedBy: trailData.viewedBy || existing?.viewedBy || [],
+    likedBy: trailData.likedBy || existing?.likedBy || [],
     isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
     isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
     comments: trailData.comments || existing?.comments || [],
@@ -211,7 +220,8 @@ export function deleteServerTrail(trailId: string): boolean {
 }
 
 /**
- * Like or unlike a trail globally
+ * Like or unlike a trail globally.
+ * ONLY signed up users with a valid username can like a trail.
  */
 export function toggleLikeServerTrail(
   trailId: string, 
@@ -221,29 +231,72 @@ export function toggleLikeServerTrail(
   const trail = trailsMap.get(trailId);
   if (!trail) return { success: false, likesCount: 0 };
 
-  if (!trail.likedBy) trail.likedBy = [];
-  if (liker && liker.username) {
-    const cleanU = liker.username.toLowerCase().replace(/^@+/, '');
-    if (increment) {
-      if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, '') === cleanU)) {
-        trail.likedBy.unshift({
-          id: liker.id,
-          name: liker.name,
-          username: liker.username.startsWith('@') ? liker.username : `@${liker.username}`,
-          avatarUrl: liker.avatarUrl,
-          likedAt: liker.likedAt || new Date().toISOString()
-        });
-      }
-    } else {
-      trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, '') !== cleanU);
-    }
+  // Strict check: only registered/signed up users can like
+  if (!liker || (!liker.username && !liker.id)) {
+    return { success: false, likesCount: trail.likedBy ? trail.likedBy.length : (trail.likesCount || 0), likedBy: trail.likedBy };
   }
 
-  trail.likesCount = Math.max(trail.likedBy ? trail.likedBy.length : 0, trail.likesCount + (increment ? 1 : -1));
+  if (!trail.likedBy) trail.likedBy = [];
+  const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+  if (!cleanU) {
+    return { success: false, likesCount: trail.likedBy.length, likedBy: trail.likedBy };
+  }
+
+  if (increment) {
+    if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, '') === cleanU)) {
+      trail.likedBy.unshift({
+        id: liker.id,
+        name: liker.name || cleanU,
+        username: liker.username.startsWith('@') ? liker.username : `@${liker.username}`,
+        avatarUrl: liker.avatarUrl,
+        likedAt: liker.likedAt || new Date().toISOString()
+      });
+    }
+  } else {
+    trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, '') !== cleanU);
+  }
+
+  trail.likesCount = trail.likedBy.length;
   trail.isLiked = increment;
   persistToDisk();
 
   return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
+}
+
+/**
+ * Record a view for a trail globally.
+ * ONLY signed up users can increase view count.
+ */
+export function recordServerTrailView(
+  trailId: string,
+  viewer?: { id?: string; username: string }
+): { success: boolean; viewsCount: number } {
+  if (!viewer || (!viewer.id && !viewer.username)) {
+    return { success: false, viewsCount: 0 };
+  }
+
+  const trail = trailsMap.get(trailId);
+  if (!trail) return { success: false, viewsCount: 0 };
+
+  if (!trail.viewedBy) trail.viewedBy = [];
+  const cleanU = (viewer.username || '').toLowerCase().replace(/^@+/, '');
+
+  const alreadyViewed = trail.viewedBy.some((v) =>
+    (viewer.id && v.id === viewer.id) ||
+    (cleanU && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
+  );
+
+  if (!alreadyViewed) {
+    trail.viewedBy.push({
+      id: viewer.id,
+      username: viewer.username.startsWith('@') ? viewer.username : `@${viewer.username}`,
+      viewedAt: new Date().toISOString()
+    });
+    trail.viewsCount = (trail.viewsCount || 0) + 1;
+    persistToDisk();
+  }
+
+  return { success: true, viewsCount: trail.viewsCount || 0 };
 }
 
 /**

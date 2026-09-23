@@ -181,9 +181,11 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         destination: destination.trim() || 'Travel Destination',
         tags: extractedHashtags.length > 0 ? extractedHashtags : ['#travel'],
         audioTitle: '',
-        likesCount: 1,
+        likesCount: 0,
         commentsCount: 0,
-        isLiked: true,
+        viewsCount: 0,
+        isLiked: false,
+        likedBy: [],
         comments: []
       };
 

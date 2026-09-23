@@ -1406,6 +1406,10 @@ export default function App() {
                     scrollToTab(2);
                   }}
                   onBack={() => scrollToTab(0)}
+                  onRequireAuth={() => {
+                    setInitialAuthMode('signin');
+                    setCurrentView('auth');
+                  }}
                 />
                 <div className="h-28" />
               </div>

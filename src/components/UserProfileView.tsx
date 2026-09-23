@@ -60,8 +60,11 @@ import {
 import {
   fetchGlobalTrails,
   publishGlobalTrail,
-  deleteGlobalTrail
+  deleteGlobalTrail,
+  TrailReel,
+  sanitizeTrail
 } from '../services/sharedTrailsService';
+import { TrailsView } from './TrailsView';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
@@ -95,6 +98,7 @@ export interface UserTrailItem {
   duration?: string;
   mediaType?: 'image' | 'video';
   caption?: string;
+  rawTrail?: TrailReel;
 }
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
@@ -124,7 +128,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [showPhotoOptionsModal, setShowPhotoOptionsModal] = useState(false);
   const [showViewPhotoModal, setShowViewPhotoModal] = useState(false);
 
-  // Active trail for modal playback
+  // Active trail ID for full-screen Instagram Reels playback (same user only)
+  const [activeReelTrailId, setActiveReelTrailId] = useState<string | null>(null);
+  const [profileFullTrails, setProfileFullTrails] = useState<TrailReel[]>([]);
   const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
   const [isModalMuted, setIsModalMuted] = useState(true);
   const [modalMediaUrl, setModalMediaUrl] = useState<string>('');
@@ -175,23 +181,58 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const handleUploaded = (e: any) => {
       const newTrail = e.detail;
       if (newTrail) {
+        const sanitized = sanitizeTrail(newTrail);
         const item: UserTrailItem = {
           id: newTrail.id,
           title: newTrail.title || newTrail.caption || newTrail.destination || 'Travel Trail',
           destination: newTrail.destination || 'Travel Destination',
-          viewsCount: '1',
-          likesCount: '1',
+          viewsCount: String(newTrail.viewsCount || 0),
+          likesCount: String(newTrail.likesCount || 0),
           videoUrl: newTrail.videoUrl,
           posterUrl: newTrail.posterUrl,
           duration: '0:30',
           mediaType: newTrail.mediaType || 'video',
-          caption: newTrail.caption || newTrail.title
+          caption: newTrail.caption || newTrail.title,
+          rawTrail: sanitized
         };
         setUserTrails((prev) => [item, ...prev.filter((p) => p.id !== item.id)]);
+        setProfileFullTrails((prev) => [sanitized, ...prev.filter((p) => p.id !== sanitized.id)]);
       }
     };
     window.addEventListener('roamai_trail_uploaded', handleUploaded);
     return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
+  }, []);
+
+  // Sync likes and views real-time to profile trails
+  useEffect(() => {
+    const handleLiked = (e: any) => {
+      const { trailId, likesCount } = e.detail || {};
+      if (!trailId) return;
+      setProfileFullTrails((prev) =>
+        prev.map((t) => (t.id === trailId ? { ...t, likesCount: typeof likesCount === 'number' ? likesCount : t.likesCount } : t))
+      );
+      setUserTrails((prev) =>
+        prev.map((u) => (u.id === trailId ? { ...u, likesCount: String(typeof likesCount === 'number' ? likesCount : u.likesCount) } : u))
+      );
+    };
+
+    const handleViewed = (e: any) => {
+      const { trailId, viewsCount } = e.detail || {};
+      if (!trailId) return;
+      setProfileFullTrails((prev) =>
+        prev.map((t) => (t.id === trailId ? { ...t, viewsCount: typeof viewsCount === 'number' ? viewsCount : t.viewsCount } : t))
+      );
+      setUserTrails((prev) =>
+        prev.map((u) => (u.id === trailId ? { ...u, viewsCount: String(typeof viewsCount === 'number' ? viewsCount : u.viewsCount) } : u))
+      );
+    };
+
+    window.addEventListener('roamai_trail_liked', handleLiked);
+    window.addEventListener('roamai_trail_viewed', handleViewed);
+    return () => {
+      window.removeEventListener('roamai_trail_liked', handleLiked);
+      window.removeEventListener('roamai_trail_viewed', handleViewed);
+    };
   }, []);
 
   // Trail Reel Upload Modal states
@@ -313,15 +354,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         id: trailId,
         title: cleanTitle,
         destination: destinationVal,
-        viewsCount: '1',
-        likesCount: '1',
+        viewsCount: '0',
+        likesCount: '0',
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
         mediaType: isImg ? 'image' : 'video',
         caption: captionVal
       };
 
-      const newReelForStorage = {
+      const newReelForStorage: TrailReel = {
         id: trailId,
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
@@ -339,9 +380,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         destination: destinationVal,
         tags: extractedTags.length > 0 ? extractedTags : (trailTags ? trailTags.split(' ').filter(Boolean) : ['#travel']),
         audioTitle: 'Original Audio',
-        likesCount: 1,
+        likesCount: 0,
         commentsCount: 0,
-        isLiked: true,
+        viewsCount: 0,
+        isLiked: false,
+        likedBy: [],
         comments: []
       };
 
@@ -352,6 +395,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
 
       setUserTrails((prev) => [newTrailItem, ...prev]);
+      setProfileFullTrails((prev) => [sanitizeTrail(newReelForStorage), ...prev]);
       setIsUploadTrailModalOpen(false);
       handleResetTrailUpload();
       setActiveTab('trails');
@@ -492,7 +536,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       if (t.destination) places.add(t.destination.trim().toLowerCase());
       t.days?.forEach((d) => {
         d.activities?.forEach((a) => {
-          if (a.placeName) places.add(a.placeName.trim().toLowerCase());
+          if ((a as any).placeName) places.add((a as any).placeName.trim().toLowerCase());
         });
       });
     });
@@ -503,8 +547,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const calculatedCountriesCount = React.useMemo(() => {
     const countries = new Set<string>();
     completedTrips.forEach((t) => {
-      if (t.destinationPlace?.country) {
-        countries.add(t.destinationPlace.country.trim().toLowerCase());
+      if ((t as any).destinationPlace?.country) {
+        countries.add((t as any).destinationPlace.country.trim().toLowerCase());
       } else if (t.destination) {
         const parts = t.destination.split(',');
         if (parts.length > 1) {
@@ -610,7 +654,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       bio,
       dob,
       email: user?.email || '',
-      travelDNA: travelDNAAnalysis.hasCompletedTrips ? travelDNAAnalysis.scores : undefined,
+      travelDNA: travelDNAAnalysis.hasCompletedTrips ? (travelDNAAnalysis.scores as any) : undefined,
       travelPreferences: travelDNAAnalysis.hasCompletedTrips ? {
         transport: travelDNAAnalysis.preferences.transport,
         pace: travelDNAAnalysis.preferences.pace,
@@ -680,7 +724,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         const targetUsername = (profile.username || getFallbackUsername(user, userMeta)).toLowerCase().replace(/^@/, '');
         const targetName = (profile.name || '').toLowerCase().trim();
 
-        const filtered = allTrails
+        const rawFiltered: TrailReel[] = allTrails
           .filter((t: any) => {
             if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
             const creatorUsername = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
@@ -688,21 +732,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             return (
               (targetUsername && creatorUsername === targetUsername) ||
               (targetName && creatorName === targetName) ||
+              (user?.id && t.creator?.id === user.id) ||
               (!creatorUsername && !targetUsername)
             );
           })
-          .map((t: any) => ({
-            id: t.id,
-            title: t.title || t.caption || t.destination || 'Travel Trail',
-            destination: t.destination || 'Travel Destination',
-            viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-            likesCount: t.likesCount ? String(t.likesCount) : '0',
-            videoUrl: t.videoUrl,
-            posterUrl: t.posterUrl,
-            duration: t.duration,
-            mediaType: t.mediaType || 'video',
-            caption: t.caption || t.title
-          }));
+          .map(sanitizeTrail);
+
+        setProfileFullTrails(rawFiltered);
+
+        const filtered: UserTrailItem[] = rawFiltered.map((t: TrailReel) => ({
+          id: t.id,
+          title: t.title || t.caption || t.destination || 'Travel Trail',
+          destination: t.destination || 'Travel Destination',
+          viewsCount: String(t.viewsCount || 0),
+          likesCount: String(t.likesCount || 0),
+          videoUrl: t.videoUrl,
+          posterUrl: t.posterUrl,
+          duration: (t as any).duration,
+          mediaType: t.mediaType || 'video',
+          caption: t.caption || t.title,
+          rawTrail: t
+        }));
 
         setUserTrails((prev) => {
           const prevIds = prev.map((p) => p.id).join(',');
@@ -867,7 +917,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       date: t.startDate || 'Recent',
       duration: `${t.durationDays} days`,
       cost: t.budgetTier,
-      imageUrl: t.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
+      imageUrl: (t as any).destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80',
       isCarousel: (t.days?.length || 0) > 1,
       isCompleted: true
     }));
@@ -1428,7 +1478,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 {userTrails.map((trail) => (
                   <div
                     key={trail.id}
-                    onClick={() => setSelectedTrail(trail)}
+                    onClick={() => setActiveReelTrailId(trail.id)}
                     className="relative aspect-[9/16] overflow-hidden group cursor-pointer bg-zinc-900"
                   >
                     {trail.posterUrl ? (
@@ -1451,7 +1501,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     {/* Bottom-left: Play Icon + Views Count (Instagram Reels style) */}
                     <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-bold drop-shadow-md">
                       <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>{trail.viewsCount || '1'}</span>
+                      <span>{trail.viewsCount || '0'}</span>
                     </div>
 
                     {/* Duration in top left */}
@@ -1646,183 +1696,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         )}
       </div>
 
-      {/* --- TRAIL VIDEO REEL PREVIEW MODAL (FULL SCREEN) --- */}
-      {selectedTrail && (
-        <div className="fixed inset-0 z-[100] bg-black w-full h-full flex items-center justify-center animate-fade-in select-none">
-          <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setSelectedTrail(null)}
-              className="absolute top-5 right-6 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-110 active:scale-95"
-              title="Close Trail Preview (Esc)"
-              aria-label="Close Trail Preview (Esc)"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Delete button in preview modal */}
-            <button
-              type="button"
-              onClick={() => setTrailToDelete(selectedTrail)}
-              className="absolute top-5 right-20 z-30 px-3.5 py-2.5 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-105 active:scale-95 text-xs font-semibold"
-              title="Delete Trail"
-              aria-label="Delete Trail"
-            >
-              <Trash2 className="w-4 h-4 text-rose-400 group-hover:text-white" />
-              <span className="hidden sm:inline">Delete</span>
-            </button>
-
-            {/* Mute button (only for video) */}
-            {selectedTrail.mediaType !== 'image' && (
-              <button
-                type="button"
-                onClick={() => setIsModalMuted(!isModalMuted)}
-                className="absolute top-5 left-6 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-xl border border-white/20 hover:scale-110 active:scale-95"
-                title={isModalMuted ? 'Unmute audio' : 'Mute audio'}
-                aria-label={isModalMuted ? 'Unmute audio' : 'Mute audio'}
-              >
-                {isModalMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
-              </button>
-            )}
-
-            {/* Loading Indicator */}
-            {isModalMediaLoading && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs text-white space-y-2">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-                <span className="text-xs font-semibold text-neutral-300">Loading trail clip...</span>
-              </div>
-            )}
-
-            {/* Media Content: Video or Image */}
-            {selectedTrail.mediaType === 'image' || modalMediaUrl.startsWith('data:image') ? (
-              <img
-                src={modalMediaUrl || selectedTrail.posterUrl || selectedTrail.videoUrl}
-                alt={selectedTrail.title}
-                className="w-full h-full object-cover select-none"
-              />
-            ) : (
-              <video
-                ref={modalVideoRef}
-                key={modalMediaUrl}
-                src={modalMediaUrl}
-                poster={selectedTrail.posterUrl}
-                autoPlay
-                loop
-                playsInline
-                webkit-playsinline="true"
-                muted={isModalMuted}
-                preload="auto"
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={() => {
-                  if (!modalVideoRef.current) return;
-                  if (modalVideoRef.current.paused) {
-                    modalVideoRef.current.play();
-                    setIsModalPlaying(true);
-                  } else {
-                    modalVideoRef.current.pause();
-                    setIsModalPlaying(false);
-                  }
-                }}
-                onPlay={() => setIsModalPlaying(true)}
-                onPause={() => setIsModalPlaying(false)}
-                onLoadedData={() => setIsModalMediaLoading(false)}
-                onPlaying={() => setIsModalMediaLoading(false)}
-                onError={() => {
-                  setModalMediaError(true);
-                  setIsModalMediaLoading(false);
-                }}
-              />
-            )}
-
-            {/* Tap to Play overlay when paused */}
-            {!isModalPlaying && !modalMediaError && (
-              <div
-                onClick={() => {
-                  if (modalVideoRef.current) {
-                    modalVideoRef.current.play();
-                    setIsModalPlaying(true);
-                  }
-                }}
-                className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 cursor-pointer"
-              >
-                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
-                  <Play className="w-8 h-8 fill-white ml-1" />
-                </div>
-              </div>
-            )}
-
-            {/* Error & Recovery Overlay if media URL was dead/expired */}
-            {modalMediaError && (
-              <div className="absolute inset-0 z-25 bg-neutral-950/95 flex flex-col items-center justify-center p-6 text-center space-y-4">
-                {selectedTrail.posterUrl && (
-                  <img
-                    src={selectedTrail.posterUrl}
-                    alt="Poster frame"
-                    className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs pointer-events-none"
-                  />
-                )}
-                <div className="relative z-10 w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-emerald-400">
-                  <Film className="w-7 h-7" />
-                </div>
-                <div className="relative z-10 space-y-1">
-                  <h4 className="text-sm font-bold text-white">Clip Stream Unavailable</h4>
-                  <p className="text-xs text-neutral-300 max-w-xs leading-relaxed">
-                    This video was saved in temporary session memory and expired on page reload.
-                  </p>
-                </div>
-                <div className="relative z-10 flex items-center gap-2 pt-2">
-                  <input
-                    ref={replaceFileInputRef}
-                    type="file"
-                    accept="video/*,image/*"
-                    className="hidden"
-                    onChange={handleReplaceTrailMedia}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => replaceFileInputRef.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg cursor-pointer active:scale-95"
-                  >
-                    <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Re-upload Clip</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteTrail(selectedTrail.id)}
-                    className="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Gradient Overlays for readable text */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30 pointer-events-none z-10" />
-
-            {/* Bottom info (Full-screen overlay) */}
-            <div className="absolute bottom-8 sm:bottom-10 left-6 sm:left-10 right-6 sm:right-10 z-20 space-y-2 text-left pointer-events-auto max-w-2xl">
-              <div className="flex items-center gap-2 text-sm font-bold text-emerald-400">
-                <MapPin className="w-4 h-4" />
-                <span>{selectedTrail.destination}</span>
-              </div>
-              <p className="text-sm sm:text-base text-white font-medium leading-snug line-clamp-3 drop-shadow-md">
-                {selectedTrail.title || selectedTrail.caption}
-              </p>
-              <div className="flex items-center gap-5 text-xs sm:text-sm text-zinc-300 pt-1">
-                <span className="flex items-center gap-1.5">
-                  <Play className="w-4 h-4 fill-white" />
-                  {selectedTrail.viewsCount} views
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
-                  {selectedTrail.likesCount}
-                </span>
-              </div>
-            </div>
-          </div>
+      {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER (SHOWING ONLY TRAILS BY THIS USER) --- */}
+      {activeReelTrailId && (
+        <div className="fixed inset-0 z-[100] bg-black w-full h-full animate-fade-in select-none">
+          <TrailsView
+            currentTheme={currentTheme}
+            session={session}
+            isActive={true}
+            customTrails={profileFullTrails}
+            initialTrailId={activeReelTrailId}
+            showBackButton={true}
+            feedTitle={profile.username || profile.name || 'Trails'}
+            onBack={() => setActiveReelTrailId(null)}
+            onDeleteTrail={(deletedId) => {
+              setProfileFullTrails((prev) => prev.filter((p) => p.id !== deletedId));
+              setUserTrails((prev) => prev.filter((p) => p.id !== deletedId));
+            }}
+            onStartPlanning={onStartPlanning}
+            onRequireAuth={onRequireAuth}
+            onOpenUploadPage={onOpenUploadPage}
+          />
         </div>
       )}
 

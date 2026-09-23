@@ -203,7 +203,7 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
 
   if (!isOpen) return null;
 
-  const totalLikesDisplay = Math.max(likesCount, likers.length);
+  const totalLikesDisplay = isLoading ? (likesCount || 0) : likers.length;
 
   return (
     <div 

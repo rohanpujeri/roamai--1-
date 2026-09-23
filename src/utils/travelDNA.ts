@@ -162,7 +162,7 @@ export function calculateTravelDNA(completedTrips: Trip[]): TravelDNAAnalysis {
     trip.days?.forEach((day) => {
       day.activities?.forEach((act) => {
         const cat = (act.category || '').toLowerCase();
-        const text = `${act.title || ''} ${act.description || ''} ${(act.tags || []).join(' ')}`.toLowerCase();
+        const text = `${act.title || ''} ${act.description || ''} ${((act as any).tags || []).join(' ')}`.toLowerCase();
 
         // Category bonuses
         if (cat.includes('adventure') || cat.includes('sport') || cat.includes('outdoor')) raw.adventure += 8;

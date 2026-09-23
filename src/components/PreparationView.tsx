@@ -254,7 +254,7 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
 
             <div className="space-y-3">
               {trip.requirements.map((doc) => {
-                const isDone = doc.status === 'Ready' || doc.status === 'Completed';
+                const isDone = (doc.status as string) === 'Ready' || (doc.status as string) === 'Completed';
 
                 return (
                   <div
@@ -328,7 +328,7 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
 
             <div className="space-y-3">
               {trip.bookings.map((booking) => {
-                const isBooked = booking.status === 'Booked' || booking.status === 'Confirmed';
+                const isBooked = booking.status === 'Booked' || (booking.status as string) === 'Confirmed';
 
                 return (
                   <div

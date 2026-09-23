@@ -58,8 +58,12 @@ export function sanitizeTrail(t: any): TrailReel {
     destination: t.destination || '',
     tags: Array.isArray(t.tags) ? t.tags : [],
     audioTitle: t.audioTitle || 'Original Audio',
-    likesCount: typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0),
+    likesCount: Array.isArray(t.likedBy)
+      ? t.likedBy.length
+      : (typeof t.likesCount === 'number' ? Math.max(0, t.likesCount) : (Number(t.likesCount) || 0)),
     commentsCount: typeof t.commentsCount === 'number' ? t.commentsCount : (Number(t.commentsCount) || 0),
+    viewsCount: typeof t.viewsCount === 'number' ? Math.max(0, t.viewsCount) : (Number(t.viewsCount) || 0),
+    viewedBy: Array.isArray(t.viewedBy) ? t.viewedBy : [],
     comments: Array.isArray(t.comments) ? t.comments : [],
     likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
     creator,
@@ -99,6 +103,7 @@ export interface TrailReel {
   isLiked?: boolean;
   isSaved?: boolean;
   viewsCount?: number;
+  viewedBy?: Array<{ id?: string; username: string; viewedAt?: string }>;
   comments?: TrailComment[];
   likedBy?: TrailLiker[];
   createdAt?: string;
@@ -518,29 +523,36 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
 }
 
 /**
- * Like / unlike a trail globally
+ * Like / unlike a trail globally.
+ * ONLY signed up users with a valid username can like a trail.
  */
 export async function likeGlobalTrail(
   trailId: string, 
   increment: boolean,
   liker?: TrailLiker
 ): Promise<void> {
+  // Strict check: only registered/signed up users can like
+  if (!liker || (!liker.username && !liker.id)) {
+    console.warn('[sharedTrailsService] likeGlobalTrail requires a signed-up user');
+    return;
+  }
+
   // 1. Update user liked state
   setTrailLikedByUser(trailId, increment);
 
   // 2. Update local likers list
   let currentLikers = getLocalTrailLikers(trailId);
-  if (liker && liker.username) {
-    const cleanU = liker.username.toLowerCase().replace(/^@+/, '');
-    if (increment) {
-      if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
-        currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
-      }
-    } else {
-      currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
+  const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+  if (!cleanU) return;
+
+  if (increment) {
+    if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
+      currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
     }
-    setLocalTrailLikers(trailId, currentLikers);
+  } else {
+    currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
   }
+  setLocalTrailLikers(trailId, currentLikers);
 
   // 3. Update local storage cache immediately for zero latency
   if (typeof window !== 'undefined') {
@@ -551,11 +563,9 @@ export async function likeGlobalTrail(
         if (Array.isArray(trails)) {
           const updated = trails.map((t) => {
             if (t.id === trailId) {
-              const currentLikes = Number(t.likesCount || 0);
-              const nextLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
               return { 
                 ...t, 
-                likesCount: nextLikes, 
+                likesCount: currentLikers.length, 
                 isLiked: increment,
                 likedBy: currentLikers 
               };
@@ -565,7 +575,7 @@ export async function likeGlobalTrail(
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
         }
       }
-      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker } }));
+      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: currentLikers.length } }));
       window.dispatchEvent(new Event('storage'));
     } catch {
       // ignore
@@ -578,11 +588,9 @@ export async function likeGlobalTrail(
     if (supabase) {
       const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
       if (data && data.trail_data) {
-        const currentLikes = Number(data.trail_data.likesCount || 0);
-        const updatedLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
         const updatedTrail = { 
           ...data.trail_data, 
-          likesCount: updatedLikes,
+          likesCount: currentLikers.length,
           likedBy: currentLikers 
         };
         await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
@@ -602,6 +610,117 @@ export async function likeGlobalTrail(
   } catch {
     // ignore
   }
+}
+
+/**
+ * Record view on a trail globally.
+ * ONLY signed up users can increase view count.
+ */
+export async function recordTrailView(
+  trailId: string,
+  viewer?: { id?: string; username: string }
+): Promise<number | undefined> {
+  if (!trailId || !viewer || (!viewer.id && !viewer.username)) {
+    // Only signed up users can record views
+    return undefined;
+  }
+
+  // Deduplicate in this browser session
+  const cleanU = (viewer.username || '').toLowerCase().replace(/^@+/, '');
+  const sessionKey = `roamai_viewed_${viewer.id || cleanU}_${trailId}`;
+  if (typeof window !== 'undefined') {
+    try {
+      if (sessionStorage.getItem(sessionKey)) {
+        return undefined; // Already counted this session
+      }
+      sessionStorage.setItem(sessionKey, '1');
+    } catch {
+      // ignore
+    }
+  }
+
+  let updatedViewsCount = 1;
+
+  // 1. Update local storage cache immediately
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw) {
+        const trails: TrailReel[] = JSON.parse(raw);
+        if (Array.isArray(trails)) {
+          const updated = trails.map((t) => {
+            if (t.id === trailId) {
+              const currentViews = Number(t.viewsCount || 0);
+              updatedViewsCount = currentViews + 1;
+              const viewedBy = Array.isArray(t.viewedBy) ? t.viewedBy : [];
+              const viewerExists = viewedBy.some((v: any) => 
+                (typeof v === 'string' && v.toLowerCase().replace(/^@+/, '') === cleanU) ||
+                (v && v.username && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
+              );
+              const newViewedBy = viewerExists ? viewedBy : [...viewedBy, { id: viewer.id, username: viewer.username, viewedAt: new Date().toISOString() }];
+              return {
+                ...t,
+                viewsCount: updatedViewsCount,
+                viewedBy: newViewedBy
+              };
+            }
+            return t;
+          });
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('roamai_trail_viewed', { detail: { trailId, viewsCount: updatedViewsCount, viewer } }));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Update in server API
+  try {
+    const res = await fetch(`/api/trails/${encodeURIComponent(trailId)}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewer })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data.viewsCount === 'number') {
+        updatedViewsCount = data.viewsCount;
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // 3. Update in Supabase
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
+      if (data && data.trail_data) {
+        const currentViews = Number(data.trail_data.viewsCount || 0);
+        const nextViews = currentViews + 1;
+        const viewedBy = Array.isArray(data.trail_data.viewedBy) ? data.trail_data.viewedBy : [];
+        const viewerExists = viewedBy.some((v: any) => 
+          (typeof v === 'string' && v.toLowerCase().replace(/^@+/, '') === cleanU) ||
+          (v && v.username && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
+        );
+        const newViewedBy = viewerExists ? viewedBy : [...viewedBy, { id: viewer.id, username: viewer.username, viewedAt: new Date().toISOString() }];
+        
+        await supabase.from('trails').update({
+          trail_data: {
+            ...data.trail_data,
+            viewsCount: nextViews,
+            viewedBy: newViewedBy
+          }
+        }).eq('id', trailId);
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  return updatedViewsCount;
 }
 
 /**

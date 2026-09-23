@@ -17,9 +17,10 @@ import {
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig } from '../types';
+import { TrailsView } from './TrailsView';
 import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
-import { fetchGlobalTrails, getLocalTrails } from '../services/sharedTrailsService';
+import { fetchGlobalTrails, getLocalTrails, TrailReel } from '../services/sharedTrailsService';
 import { FollowListModal } from './FollowListModal';
 import { 
   getFollowCounts, 
@@ -76,6 +77,7 @@ interface TravellerSearchViewProps {
   onOpenTrail?: (trailId?: string) => void;
   onStartPlanning?: (destination?: string) => void;
   onBack?: () => void;
+  onRequireAuth?: () => void;
 }
 
 const FOLLOWING_STORAGE_KEY = 'roamai_following_users';
@@ -119,11 +121,13 @@ function saveFollowedUserIds(followed: Set<string>) {
 }
 
 export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
+  currentTheme,
   session,
   onSelectTraveller,
   onOpenOwnProfile,
   onOpenTrail,
-  onStartPlanning
+  onStartPlanning,
+  onRequireAuth
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [travellers, setTravellers] = useState<TravellerProfile[]>([]);
@@ -134,6 +138,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [viewingProfile, setViewingProfile] = useState<TravellerProfile | null>(null);
   const [profileTab, setProfileTab] = useState<'trails' | 'places'>('trails');
   const [shareToast, setShareToast] = useState<string | null>(null);
+
+  // Full-screen Instagram Reels viewer state
+  const [activeReelTrailId, setActiveReelTrailId] = useState<string | null>(null);
+  const [activeReelTrails, setActiveReelTrails] = useState<TrailReel[] | null>(null);
+  const [activeReelTitle, setActiveReelTitle] = useState<string>('Trails');
 
   // Followers & Following Modal State
   const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
@@ -425,6 +434,25 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     });
   }, [viewingProfile, exploreTiles]);
 
+  // Full raw TrailReels uploaded by currently viewed user profile for Instagram Reels viewer
+  const viewingProfileFullTrails = useMemo<TrailReel[]>(() => {
+    if (!viewingProfile || !globalTrailsList) return [];
+    const vUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+    const vName = viewingProfile.name.toLowerCase();
+    const vId = viewingProfile.id;
+
+    return (globalTrailsList as TrailReel[]).filter((t: any) => {
+      if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
+      const creatorUname = (t.creator?.username || '').toLowerCase().replace(/^@+/, '');
+      const creatorName = (t.creator?.name || '').toLowerCase();
+      return (
+        creatorUname === vUname ||
+        creatorName === vName ||
+        (t.creator?.id && t.creator.id === vId)
+      );
+    });
+  }, [viewingProfile, globalTrailsList]);
+
   // Suggested profiles for discover people section: EXCLUDES the currently logged in user!
   const suggestedProfiles = useMemo(() => {
     return travellers.filter((t) => !isCurrentUser(t));
@@ -692,7 +720,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   {viewingProfileTrails.map((trail) => (
                     <div
                       key={trail.id}
-                      onClick={() => setSelectedTile(trail)}
+                      onClick={() => {
+                        setActiveReelTrails(viewingProfileFullTrails.length > 0 ? viewingProfileFullTrails : null);
+                        setActiveReelTitle(viewingProfile?.username ? `@${viewingProfile.username.replace(/^@+/, '')}'s Trails` : `${viewingProfile?.name || 'User'}'s Trails`);
+                        setActiveReelTrailId(trail.id);
+                      }}
                       className="relative aspect-square overflow-hidden cursor-pointer group bg-neutral-900 rounded-xs"
                     >
                       {trail.imageUrl ? (
@@ -818,8 +850,16 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      const tileId = selectedTile.id;
+                      const tileCreatorUname = (selectedTile.creator?.username || '').toLowerCase().replace(/^@+/, '');
+                      const creatorTrails = (globalTrailsList as TrailReel[]).filter((t: any) => {
+                        const u = (t.creator?.username || '').toLowerCase().replace(/^@+/, '');
+                        return u === tileCreatorUname;
+                      });
                       setSelectedTile(null);
-                      onOpenTrail?.(selectedTile.id);
+                      setActiveReelTrails(creatorTrails.length > 0 ? creatorTrails : (globalTrailsList as TrailReel[]));
+                      setActiveReelTitle(selectedTile.creator?.username || 'Community Trails');
+                      setActiveReelTrailId(tileId);
                     }}
                     className="flex-1 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                   >
@@ -1421,6 +1461,27 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER --- */}
+      {activeReelTrailId && (
+        <div className="fixed inset-0 z-[100] bg-black w-full h-full animate-fade-in select-none">
+          <TrailsView
+            currentTheme={currentTheme}
+            session={session}
+            isActive={true}
+            customTrails={activeReelTrails && activeReelTrails.length > 0 ? activeReelTrails : undefined}
+            initialTrailId={activeReelTrailId}
+            showBackButton={true}
+            feedTitle={activeReelTitle}
+            onBack={() => {
+              setActiveReelTrailId(null);
+              setActiveReelTrails(null);
+            }}
+            onStartPlanning={onStartPlanning}
+            onRequireAuth={onRequireAuth}
+          />
         </div>
       )}
     </div>

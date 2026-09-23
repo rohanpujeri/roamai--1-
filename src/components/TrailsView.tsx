@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Hash,
   UserPlus,
-  Camera
+  Camera,
+  Trash2
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
@@ -42,6 +43,9 @@ import {
   commentOnGlobalTrail,
   isTrailLikedByUser,
   TrailLiker,
+  TrailReel,
+  recordTrailView,
+  deleteGlobalTrail,
   sanitizeTrail,
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
@@ -49,38 +53,7 @@ import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser } from '../services/followService';
 import { TrailLikesModal } from './TrailLikesModal';
 
-
-export interface TrailReel {
-  id: string;
-  videoUrl: string;
-  posterUrl?: string;
-  mediaType?: 'video' | 'image';
-  title?: string;
-  creator: {
-    id?: string;
-    name: string;
-    username: string;
-    avatarUrl: string;
-    isFollowed?: boolean;
-    isVerified?: boolean;
-  };
-  caption: string;
-  destination: string;
-  tags: string[];
-  audioTitle: string;
-  likesCount: number;
-  commentsCount: number;
-  isLiked?: boolean;
-  isSaved?: boolean;
-  likedBy?: TrailLiker[];
-  comments?: Array<{
-    id: string;
-    user: string;
-    avatar: string;
-    text: string;
-    time: string;
-  }>;
-}
+export type { TrailReel };
 
 interface TrailsViewProps {
   currentTheme: ThemeConfig;
@@ -90,6 +63,12 @@ interface TrailsViewProps {
   onBack: () => void;
   onRequireAuth?: () => void;
   onOpenUploadPage?: (file?: File) => void;
+  customTrails?: TrailReel[];
+  initialTrailId?: string;
+  initialIndex?: number;
+  feedTitle?: string;
+  showBackButton?: boolean;
+  onDeleteTrail?: (trailId: string) => void;
 }
 
 export const TrailsView: React.FC<TrailsViewProps> = ({
@@ -99,7 +78,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onStartPlanning,
   onBack,
   onRequireAuth,
-  onOpenUploadPage
+  onOpenUploadPage,
+  customTrails,
+  initialTrailId,
+  initialIndex,
+  feedTitle,
+  showBackButton = false,
+  onDeleteTrail
 }) => {
   const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
   const currentUsername = useMemo(() => {
@@ -109,17 +94,40 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     ).toLowerCase().replace(/^@/, '');
   }, [cachedUser?.username, session?.user?.email]);
 
-  // Load real user trails exclusively from local and server registry
-  const [trails, setTrails] = useState<TrailReel[]>(() => 
-    getLocalTrails().map((t) => sanitizeTrail({ 
+  // Load trails: either customTrails (user-specific) or all global trails
+  const [trails, setTrails] = useState<TrailReel[]>(() => {
+    if (customTrails && customTrails.length > 0) {
+      return customTrails.map((t) => sanitizeTrail({
+        ...t,
+        isSaved: isTrailSaved(t.id),
+        isLiked: isTrailLikedByUser(t.id)
+      }));
+    }
+    return getLocalTrails().map((t) => sanitizeTrail({ 
       ...t, 
       isSaved: isTrailSaved(t.id),
       isLiked: isTrailLikedByUser(t.id)
-    }))
-  );
+    }));
+  });
 
-  // Periodically sync global trails from server API & Supabase so any profile can see everyone's trails
+  // Sync custom trails if prop updates
   useEffect(() => {
+    if (customTrails) {
+      setTrails(
+        customTrails.map((t) =>
+          sanitizeTrail({
+            ...t,
+            isSaved: isTrailSaved(t.id),
+            isLiked: isTrailLikedByUser(t.id)
+          })
+        )
+      );
+    }
+  }, [customTrails]);
+
+  // Periodically sync global trails from server API & Supabase ONLY if NOT in custom user feed
+  useEffect(() => {
+    if (customTrails) return; // Never overwrite user-specific feed with global trails!
     let isMounted = true;
     const syncTrails = async () => {
       try {
@@ -171,7 +179,69 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
   }, []);
 
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    if (initialTrailId && customTrails && customTrails.length > 0) {
+      const idx = customTrails.findIndex((t) => t.id === initialTrailId);
+      if (idx !== -1) return idx;
+    }
+    if (typeof initialIndex === 'number' && initialIndex >= 0) {
+      return initialIndex;
+    }
+    return 0;
+  });
+
+  // Jump to initial trail ID if provided
+  useEffect(() => {
+    if (initialTrailId && trails.length > 0) {
+      const idx = trails.findIndex((t) => t.id === initialTrailId);
+      if (idx !== -1) {
+        setCurrentIndex(idx);
+      }
+    }
+  }, [initialTrailId, trails.length]);
+
+  // Listen for view count updates
+  useEffect(() => {
+    const handleTrailViewed = (e: any) => {
+      const { trailId, viewsCount } = e.detail || {};
+      if (trailId && typeof viewsCount === 'number') {
+        setTrails((prev) =>
+          prev.map((t) => (t.id === trailId ? { ...t, viewsCount } : t))
+        );
+      }
+    };
+    window.addEventListener('roamai_trail_viewed', handleTrailViewed);
+    return () => window.removeEventListener('roamai_trail_viewed', handleTrailViewed);
+  }, []);
+
+  // Listen for trail liked updates
+  useEffect(() => {
+    const handleTrailLiked = (e: any) => {
+      const { trailId, increment, liker, likesCount } = e.detail || {};
+      if (!trailId) return;
+      setTrails((prev) =>
+        prev.map((t) => {
+          if (t.id === trailId) {
+            const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
+            const cleanU = (liker?.username || '').toLowerCase().replace(/^@+/, '');
+            const updatedLikers = increment && liker
+              ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
+              : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
+            return {
+              ...t,
+              isLiked: cleanU === currentUsername ? increment : t.isLiked,
+              likesCount: typeof likesCount === 'number' ? likesCount : updatedLikers.length,
+              likedBy: updatedLikers
+            };
+          }
+          return t;
+        })
+      );
+    };
+    window.addEventListener('roamai_trail_liked', handleTrailLiked);
+    return () => window.removeEventListener('roamai_trail_liked', handleTrailLiked);
+  }, [currentUsername]);
+
   const [isPlaying, setIsPlaying] = useState<boolean>(Boolean(isActive));
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -232,6 +302,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const dragDistanceRef = useRef<number>(0);
 
   const activeReel = trails[currentIndex] || trails[0];
+
+  // Record view count strictly for signed-up users
+  useEffect(() => {
+    if (!isActive || !activeReel?.id) return;
+    if (!session?.user) return; // ONLY signed-up users increase view count!
+
+    const viewer = {
+      id: session.user.id,
+      username: currentUsername || session.user.email?.split('@')[0] || `user_${session.user.id.slice(0, 8)}`
+    };
+
+    const timer = setTimeout(() => {
+      recordTrailView(activeReel.id, viewer);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [isActive, activeReel?.id, session?.user?.id, currentUsername]);
 
   // Resolve active media URL whenever active reel changes
   useEffect(() => {
@@ -441,27 +528,57 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeReel) return;
+    if (!session?.user) {
+      if (onRequireAuth) onRequireAuth();
+      return;
+    }
     const isLiked = !activeReel.isLiked;
     const liker = getCurrentUserLiker();
+    if (!liker) {
+      if (onRequireAuth) onRequireAuth();
+      return;
+    }
     likeGlobalTrail(activeReel.id, isLiked, liker);
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
           const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
-          const updatedLikers = isLiked && liker
-            ? [liker, ...currentLikers.filter((u) => u.username !== liker.username)]
-            : currentLikers.filter((u) => u.username !== liker?.username);
+          const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+          const updatedLikers = isLiked
+            ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
+            : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
 
           return {
             ...t,
             isLiked,
-            likesCount: isLiked ? t.likesCount + 1 : Math.max(0, t.likesCount - 1),
+            likesCount: updatedLikers.length,
             likedBy: updatedLikers
           };
         }
         return t;
       })
     );
+  };
+
+  const handleDeleteActiveTrail = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeReel) return;
+    if (!window.confirm('Are you sure you want to delete this trail?')) return;
+
+    const trailIdToDelete = activeReel.id;
+    await deleteGlobalTrail(trailIdToDelete);
+    if (onDeleteTrail) {
+      onDeleteTrail(trailIdToDelete);
+    }
+    const remaining = trails.filter((t) => t.id !== trailIdToDelete);
+    if (remaining.length === 0) {
+      onBack();
+    } else {
+      setTrails(remaining);
+      if (currentIndex >= remaining.length) {
+        setCurrentIndex(remaining.length - 1);
+      }
+    }
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -640,9 +757,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       destination: uploadDestination.trim() || 'Travel Destination',
       tags: extractedHashtags.length > 0 ? extractedHashtags : (uploadTags ? uploadTags.split(' ').filter(Boolean) : ['#travel']),
       audioTitle: uploadAudio.trim() || 'Original Sound',
-      likesCount: 1,
+      likesCount: 0,
       commentsCount: 0,
-      isLiked: true,
+      viewsCount: 0,
+      isLiked: false,
+      likedBy: [],
       comments: []
     };
 
@@ -722,31 +841,70 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       {/* Top Floating Action Bar */}
       <div className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto">
         <div className="flex items-center gap-2.5">
+          {(showBackButton || customTrails) && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md border border-white/20 text-white flex items-center justify-center cursor-pointer shadow-xl transition-all hover:scale-105 active:scale-95"
+              title="Back"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           <span className="px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white font-black text-xs sm:text-sm tracking-wider flex items-center shadow-xl">
-            TRAILS
+            {feedTitle ? feedTitle.toUpperCase() : 'TRAILS'}
           </span>
         </div>
 
-        {/* Upload Trail '+' Button (Upload Video or Photo) */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!session) {
-              onRequireAuth?.();
-              return;
+        <div className="flex items-center gap-2">
+          {/* If own trail, show delete button */}
+          {(() => {
+            const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
+            const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
+            const isOwnTrail = Boolean(
+              (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
+              (session?.user?.id && creator.id && creator.id === session.user.id)
+            );
+            if (isOwnTrail) {
+              return (
+                <button
+                  type="button"
+                  onClick={handleDeleteActiveTrail}
+                  className="w-10 h-10 rounded-full bg-black/60 hover:bg-rose-600/90 backdrop-blur-md border border-white/20 text-rose-300 hover:text-white flex items-center justify-center cursor-pointer shadow-xl transition-all hover:scale-105 active:scale-95"
+                  title="Delete Trail"
+                  aria-label="Delete Trail"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              );
             }
-            if (onOpenUploadPage) {
-              onOpenUploadPage();
-            } else {
-              setShowUploadModal(true);
-            }
-          }}
-          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-linear-to-tr from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-white flex items-center justify-center shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-110 active:scale-95 border border-white/20"
-          title="Upload trail (video or photo)"
-          aria-label="Upload trail (video or photo)"
-        >
-          <Plus className="w-6 h-6 stroke-[2.5]" />
-        </button>
+            return null;
+          })()}
+
+          {/* Upload Trail '+' Button (Upload Video or Photo - hidden in user profile reels view) */}
+          {!customTrails && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!session) {
+                  onRequireAuth?.();
+                  return;
+                }
+                if (onOpenUploadPage) {
+                  onOpenUploadPage();
+                } else {
+                  setShowUploadModal(true);
+                }
+              }}
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-linear-to-tr from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-white flex items-center justify-center shadow-xl shadow-emerald-950/60 cursor-pointer transition-all hover:scale-110 active:scale-95 border border-white/20"
+              title="Upload trail (video or photo)"
+              aria-label="Upload trail (video or photo)"
+            >
+              <Plus className="w-6 h-6 stroke-[2.5]" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Share Toast */}
@@ -822,27 +980,32 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             const now = Date.now();
             if (now - lastTapRef.current < 320) {
               // Double tap detected! Like the trail with heart burst animation
+              if (!session?.user) {
+                if (onRequireAuth) onRequireAuth();
+                return;
+              }
               if (activeReel && !activeReel.isLiked) {
                 const liker = getCurrentUserLiker();
-                likeGlobalTrail(activeReel.id, true, liker);
-                setTrails((prev) =>
-                  prev.map((t, idx) => {
-                    if (idx === currentIndex) {
-                      const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
-                      const updatedLikers = liker
-                        ? [liker, ...currentLikers.filter((u) => u.username !== liker.username)]
-                        : currentLikers;
+                if (liker) {
+                  likeGlobalTrail(activeReel.id, true, liker);
+                  setTrails((prev) =>
+                    prev.map((t, idx) => {
+                      if (idx === currentIndex) {
+                        const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
+                        const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+                        const updatedLikers = [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)];
 
-                      return {
-                        ...t,
-                        isLiked: true,
-                        likesCount: t.likesCount + 1,
-                        likedBy: updatedLikers
-                      };
-                    }
-                    return t;
-                  })
-                );
+                        return {
+                          ...t,
+                          isLiked: true,
+                          likesCount: updatedLikers.length,
+                          likedBy: updatedLikers
+                        };
+                      }
+                      return t;
+                    })
+                  );
+                }
               }
               setShowHeartBurst(true);
               setTimeout(() => setShowHeartBurst(false), 950);
@@ -1235,6 +1398,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         initialLikers={activeReel?.likedBy}
         currentUser={getCurrentUserLiker()}
         onLikeTrail={() => {
+          if (!session?.user) {
+            if (onRequireAuth) onRequireAuth();
+            return;
+          }
           if (activeReel && !activeReel.isLiked) {
             handleLike({ stopPropagation: () => {} } as React.MouseEvent);
           }
