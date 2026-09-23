@@ -291,34 +291,35 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
             className="relative w-full max-w-sm sm:max-w-md aspect-[9/16] bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/20 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Video Player */}
-            <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
-              {activePlaybackTrail.posterUrl && (
+            {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {activePlaybackTrail.posterUrl || activePlaybackTrail.videoUrl ? (
                 <img
-                  src={activePlaybackTrail.posterUrl}
+                  src={activePlaybackTrail.posterUrl || activePlaybackTrail.videoUrl}
                   alt=""
-                  className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-35 scale-110 pointer-events-none"
+                  className="w-full h-full object-cover blur-2xl opacity-35 scale-110"
                 />
-              )}
-
-              {activePlaybackTrail.videoUrl ? (
-                <video
-                  src={activePlaybackTrail.videoUrl}
-                  poster={activePlaybackTrail.posterUrl}
-                  className="relative z-10 w-full h-full object-contain max-h-full max-w-full"
-                  autoPlay
-                  loop
-                  playsInline
-                  muted={isMuted}
-                />
-              ) : (
-                <img
-                  src={activePlaybackTrail.posterUrl}
-                  alt={activePlaybackTrail.title}
-                  className="relative z-10 w-full h-full object-contain max-h-full max-w-full"
-                />
-              )}
+              ) : null}
             </div>
+
+            {/* Video Player - Sticking to original aspect ratio */}
+            {activePlaybackTrail.videoUrl ? (
+              <video
+                src={activePlaybackTrail.videoUrl}
+                poster={activePlaybackTrail.posterUrl}
+                className="relative z-10 w-full h-full object-contain"
+                autoPlay
+                loop
+                playsInline
+                muted={isMuted}
+              />
+            ) : (
+              <img
+                src={activePlaybackTrail.posterUrl}
+                alt={activePlaybackTrail.title}
+                className="relative z-10 w-full h-full object-contain"
+              />
+            )}
 
             {/* Top Modal Controls */}
             <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">

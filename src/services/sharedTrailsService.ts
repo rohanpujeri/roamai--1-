@@ -66,7 +66,6 @@ export function sanitizeTrail(t: any): TrailReel {
     viewedBy: Array.isArray(t.viewedBy) ? t.viewedBy : [],
     comments: Array.isArray(t.comments) ? t.comments : [],
     likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
-    aspectRatio: typeof t.aspectRatio === 'number' && !isNaN(t.aspectRatio) ? t.aspectRatio : undefined,
     creator,
   };
 }
@@ -107,7 +106,6 @@ export interface TrailReel {
   viewedBy?: Array<{ id?: string; username: string; viewedAt?: string }>;
   comments?: TrailComment[];
   likedBy?: TrailLiker[];
-  aspectRatio?: number;
   createdAt?: string;
 }
 

@@ -42,7 +42,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [mediaDimensions, setMediaDimensions] = useState<{ width: number; height: number; ratio: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -111,7 +110,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     setVideoFile(null);
     setVideoPreview('');
     setPosterPreview('');
-    setMediaDimensions(null);
     setIsPreviewPlaying(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (coverInputRef.current) coverInputRef.current.value = '';
@@ -188,8 +186,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         viewsCount: 0,
         isLiked: false,
         likedBy: [],
-        comments: [],
-        aspectRatio: mediaDimensions?.ratio
+        comments: []
       };
 
       // 3. Publish to Supabase and API
@@ -300,62 +297,42 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         /* STEP 2: Dedicated "New trail" Details Collection Page */
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full pb-8">
           <div className="px-4 sm:px-6 py-4 space-y-5">
-            {/* Centered Preview Card with "Preview" and "Edit cover" */}
-            <div 
-              className="relative mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/15 shadow-2xl flex items-center justify-center group transition-all duration-300"
-              style={{
-                width: mediaDimensions 
-                  ? (mediaDimensions.ratio >= 1.2 ? 'min(90vw, 320px)' : mediaDimensions.ratio >= 0.85 ? '220px' : '180px') 
-                  : '180px',
-                aspectRatio: mediaDimensions ? `${mediaDimensions.ratio}` : '9/16',
-                maxHeight: '320px',
-              }}
-            >
-              {/* Ambient blurred backdrop so letterbox areas look gorgeous */}
-              {(posterPreview || videoPreview) && (
-                <img
-                  src={posterPreview || videoPreview}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-110 pointer-events-none"
-                />
-              )}
-
+            {/* Centered Preview Card sticking to original aspect ratio */}
+            <div className="relative w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px] mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/15 shadow-2xl flex items-center justify-center group">
               {videoFile?.type.startsWith('image/') ? (
-                <img
-                  src={posterPreview || videoPreview}
-                  alt="Trail preview"
-                  onLoad={(e) => {
-                    const img = e.currentTarget;
-                    if (img.naturalWidth && img.naturalHeight) {
-                      setMediaDimensions({
-                        width: img.naturalWidth,
-                        height: img.naturalHeight,
-                        ratio: img.naturalWidth / img.naturalHeight
-                      });
-                    }
-                  }}
-                  className="relative z-10 w-full h-full object-contain"
-                />
+                <>
+                  <img
+                    src={posterPreview || videoPreview}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                  />
+                  <img
+                    src={posterPreview || videoPreview}
+                    alt="Trail preview"
+                    className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                  />
+                </>
               ) : (
-                <video
-                  src={videoPreview}
-                  poster={posterPreview}
-                  playsInline
-                  loop
-                  autoPlay={isPreviewPlaying}
-                  muted
-                  onLoadedMetadata={(e) => {
-                    const v = e.currentTarget;
-                    if (v.videoWidth && v.videoHeight) {
-                      setMediaDimensions({
-                        width: v.videoWidth,
-                        height: v.videoHeight,
-                        ratio: v.videoWidth / v.videoHeight
-                      });
-                    }
-                  }}
-                  className="relative z-10 w-full h-full object-contain"
-                />
+                <>
+                  {posterPreview && (
+                    <img
+                      src={posterPreview}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                    />
+                  )}
+                  <video
+                    src={videoPreview}
+                    poster={posterPreview}
+                    playsInline
+                    loop
+                    autoPlay={isPreviewPlaying}
+                    muted
+                    className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                  />
+                </>
               )}
 
               {/* "Preview" Pill on Top */}

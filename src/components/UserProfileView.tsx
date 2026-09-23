@@ -249,7 +249,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [showLocationInputTrail, setShowLocationInputTrail] = useState<boolean>(false);
   const [showHashtagSuggestionsTrail, setShowHashtagSuggestionsTrail] = useState<boolean>(false);
   const [isPreviewPlayingTrail, setIsPreviewPlayingTrail] = useState<boolean>(false);
-  const [trailDimensions, setTrailDimensions] = useState<{ width: number; height: number; ratio: number } | null>(null);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
   const trailCoverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -286,7 +285,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTrailFile(null);
     setTrailPreviewUrl('');
     setTrailPosterUrl('');
-    setTrailDimensions(null);
     setTrailDestination('');
     setTrailCaption('');
     setTrailTags('');
@@ -387,8 +385,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         viewsCount: 0,
         isLiked: false,
         likedBy: [],
-        comments: [],
-        aspectRatio: trailDimensions?.ratio
+        comments: []
       };
 
       try {
@@ -1796,62 +1793,42 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
                 {/* Scrollable Form Body */}
                 <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
-                  {/* Centered Preview Card with "Preview" and "Edit cover" */}
-                  <div 
-                    className="relative mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 shadow-2xl flex items-center justify-center group transition-all duration-300"
-                    style={{
-                      width: trailDimensions 
-                        ? (trailDimensions.ratio >= 1.2 ? 'min(90vw, 320px)' : trailDimensions.ratio >= 0.85 ? '220px' : '180px') 
-                        : '180px',
-                      aspectRatio: trailDimensions ? `${trailDimensions.ratio}` : '9/16',
-                      maxHeight: '320px',
-                    }}
-                  >
-                    {/* Ambient blurred backdrop so letterboxed parts look great */}
-                    {(trailPosterUrl || trailPreviewUrl) && (
-                      <img
-                        src={trailPosterUrl || trailPreviewUrl}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-110 pointer-events-none"
-                      />
-                    )}
-
+                  {/* Centered Preview Card sticking to original aspect ratio */}
+                  <div className="relative w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px] mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center group">
                     {trailFile?.type.startsWith('image/') ? (
-                      <img
-                        src={trailPosterUrl || trailPreviewUrl}
-                        alt="Trail preview"
-                        onLoad={(e) => {
-                          const img = e.currentTarget;
-                          if (img.naturalWidth && img.naturalHeight) {
-                            setTrailDimensions({
-                              width: img.naturalWidth,
-                              height: img.naturalHeight,
-                              ratio: img.naturalWidth / img.naturalHeight
-                            });
-                          }
-                        }}
-                        className="relative z-10 w-full h-full object-contain"
-                      />
+                      <>
+                        <img
+                          src={trailPosterUrl || trailPreviewUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                        />
+                        <img
+                          src={trailPosterUrl || trailPreviewUrl}
+                          alt="Trail preview"
+                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                        />
+                      </>
                     ) : (
-                      <video
-                        src={trailPreviewUrl}
-                        poster={trailPosterUrl}
-                        playsInline
-                        loop
-                        autoPlay={isPreviewPlayingTrail}
-                        muted
-                        onLoadedMetadata={(e) => {
-                          const v = e.currentTarget;
-                          if (v.videoWidth && v.videoHeight) {
-                            setTrailDimensions({
-                              width: v.videoWidth,
-                              height: v.videoHeight,
-                              ratio: v.videoWidth / v.videoHeight
-                            });
-                          }
-                        }}
-                        className="relative z-10 w-full h-full object-contain"
-                      />
+                      <>
+                        {trailPosterUrl && (
+                          <img
+                            src={trailPosterUrl}
+                            alt=""
+                            aria-hidden="true"
+                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                          />
+                        )}
+                        <video
+                          src={trailPreviewUrl}
+                          poster={trailPosterUrl}
+                          playsInline
+                          loop
+                          autoPlay={isPreviewPlayingTrail}
+                          muted
+                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                        />
+                      </>
                     )}
 
                     {/* "Preview" Pill on Top */}
