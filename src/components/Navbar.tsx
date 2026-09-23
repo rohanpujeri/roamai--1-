@@ -45,7 +45,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onPlanTrip
 }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
@@ -82,8 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [isDrawerOpen]);
 
-  const isWhiteBg = isHovered || isScrolled;
-  const isDarkText = isWhiteBg || currentTheme.id === 'snow' || !currentTheme.isDark;
+  const isDarkText = !currentTheme.isDark ? (isScrolled || currentTheme.id === 'snow') : false;
 
   const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search') => {
     onNavigate(view);
@@ -101,20 +99,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header 
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="sticky top-0 z-40 transition-all duration-300 relative bg-black/15 dark:bg-black/30 backdrop-blur-xs"
+        className="sticky top-0 z-40 transition-colors duration-300 relative bg-black/15 dark:bg-black/30 backdrop-blur-xs"
       >
-        {/* Sliding / Dropping Background on Hover/Scroll with Theme Awareness */}
+        {/* Backdrop on Scroll with Theme Awareness - NO slide down translation */}
         <div 
           className={`absolute inset-0 ${
             currentTheme.isDark 
               ? 'bg-slate-950/85 border-b border-white/10' 
               : 'bg-white/85 border-b border-slate-200/80'
-          } backdrop-blur-2xl shadow-md transition-all duration-300 ease-out pointer-events-none ${
-            isWhiteBg 
-              ? 'translate-y-0 opacity-100' 
-              : '-translate-y-full opacity-0'
+          } backdrop-blur-2xl shadow-md transition-opacity duration-300 ease-out pointer-events-none ${
+            isScrolled 
+              ? 'opacity-100' 
+              : 'opacity-0'
           }`} 
         />
 
