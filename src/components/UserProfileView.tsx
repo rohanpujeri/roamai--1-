@@ -117,8 +117,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const user = session?.user;
   const userMeta = (user?.user_metadata || {}) as Record<string, any>;
 
-  // Tabs: trips (grid), trails (reels), dna (travel personality), saved (bookmarks)
-  const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna' | 'saved'>('trips');
+  // Tabs: trips (completed journeys), trails (reels), dna (travel personality profile)
+  const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna'>('trips');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -1274,16 +1274,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       </div>
 
-      {/* 3. FOUR PROFILE TABS: TRIPS, TRAILS (REELS), TRAVEL DNA, SAVED */}
+      {/* 3. THREE PROFILE TABS: TRIPS (COMPLETED TRIPS), TRAILS (REELS), TRAVEL DNA */}
       <div className="max-w-2xl mx-auto mt-4 border-t border-zinc-850">
         <div className="flex items-center">
-          {/* 1. Trips Tab (Grid icon) */}
+          {/* 1. Completed Trips Tab (Grid icon) */}
           <button
             onClick={() => setActiveTab('trips')}
             className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
               activeTab === 'trips' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
             }`}
-            title="Trips"
+            title="Completed Trips"
           >
             <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
             {activeTab === 'trips' && (
@@ -1315,20 +1315,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           >
             <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
             {activeTab === 'dna' && (
-              <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
-            )}
-          </button>
-
-          {/* 4. Saved Places Tab (MapPin icon) */}
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
-              activeTab === 'saved' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Saved Places"
-          >
-            <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
-            {activeTab === 'saved' && (
               <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
             )}
           </button>
@@ -1638,48 +1624,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         )}
 
-        {/* --- TAB 4: SAVED (WISHLIST SPOTS) --- */}
-        {activeTab === 'saved' && (
-          <div>
-            {(profile.wishlist || []).length === 0 ? (
-              <div className="py-20 px-4 text-center space-y-3">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
-                  <MapPin className="w-7 h-7" />
-                </div>
-                <h4 className="text-sm sm:text-base font-bold text-white">No Saved Places</h4>
-                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                  Save dream destinations and places to easily find them later.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-0.5 sm:gap-1 mt-0.5">
-                {(profile.wishlist || []).map((spot) => (
-                  <div
-                    key={spot.id}
-                    onClick={() => onStartPlanning(spot.name)}
-                    className="relative aspect-square overflow-hidden group cursor-pointer bg-zinc-900"
-                  >
-                    <img
-                      src={spot.imageUrl}
-                      alt={spot.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2">
-                      <span className="text-xs sm:text-sm font-bold text-white truncate drop-shadow-xs">
-                        {spot.name}
-                      </span>
-                      {spot.country && (
-                        <span className="text-[10px] text-zinc-300 font-medium truncate drop-shadow-xs">
-                          {spot.country}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER (SHOWING ONLY TRAILS BY THIS USER) --- */}

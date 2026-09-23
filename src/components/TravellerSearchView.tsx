@@ -13,14 +13,17 @@ import {
   ArrowLeft,
   Share2,
   Check,
-  User
+  User,
+  LayoutGrid
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
-import { ThemeConfig } from '../types';
+import { ThemeConfig, Trip } from '../types';
 import { TrailsView } from './TrailsView';
-import { sanitizeAvatarUrl, getCachedUserProfile } from '../services/supabaseClient';
+import { sanitizeAvatarUrl, getCachedUserProfile, getSupabaseClient } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
 import { fetchGlobalTrails, getLocalTrails, TrailReel } from '../services/sharedTrailsService';
+import { calculateTravelDNA, TravelDNAAnalysis } from '../utils/travelDNA';
+import { isTripCompleted } from '../utils/tripCompletion';
 import { FollowListModal } from './FollowListModal';
 import { 
   getFollowCounts, 
@@ -136,7 +139,9 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
   // Instagram-style active viewing profile (opens profile in the same page)
   const [viewingProfile, setViewingProfile] = useState<TravellerProfile | null>(null);
-  const [profileTab, setProfileTab] = useState<'trails' | 'places'>('trails');
+  const [profileTab, setProfileTab] = useState<'trips' | 'trails' | 'dna'>('trips');
+  const [viewingProfileCompletedTrips, setViewingProfileCompletedTrips] = useState<Trip[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
 
   // Full-screen Instagram Reels viewer state
@@ -168,12 +173,97 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           recentPlaces: d.recentPlaces || [],
           isFollowing: !!d.isFollowing
         });
-        setProfileTab('trails');
+        setProfileTab('trips');
       }
     };
     window.addEventListener('roamai_view_traveller', handleViewTraveller);
     return () => window.removeEventListener('roamai_view_traveller', handleViewTraveller);
   }, []);
+
+  // Fetch completed trips for currently viewed profile to display Completed Trips and Travel DNA
+  useEffect(() => {
+    if (!viewingProfile) {
+      setViewingProfileCompletedTrips([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingTrips(true);
+
+    const loadCompletedTrips = async () => {
+      const vId = viewingProfile.id;
+      const cleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
+      const foundTrips: Trip[] = [];
+
+      // 1. Search local storage for cached trips under this user ID or general trips
+      if (typeof window !== 'undefined') {
+        try {
+          const keysToTry = [
+            `tripwise_user_trips_v2_${cleanId}`,
+            `tripwise_user_trips_v2_${vId}`,
+            'tripwise_user_trips_v2'
+          ];
+          for (const key of keysToTry) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((t: any) => {
+                  if (t && (t.isCompleted || isTripCompleted(t))) {
+                    if (!foundTrips.some((existing) => existing.id === t.id)) {
+                      foundTrips.push(t);
+                    }
+                  }
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Error reading local trips for profile:', e);
+        }
+      }
+
+      // 2. Query Supabase trips table for this user if available
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('trips')
+            .select('*')
+            .or(`user_id.eq.${cleanId},user_id.eq.${vId}`);
+
+          if (!error && Array.isArray(data)) {
+            data.forEach((row: any) => {
+              const t = row.trip_data || row;
+              if (t && (t.isCompleted || isTripCompleted(t))) {
+                if (!foundTrips.some((existing) => existing.id === t.id)) {
+                  foundTrips.push(t);
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Error fetching user trips from Supabase:', err);
+        }
+      }
+
+      if (isMounted) {
+        setViewingProfileCompletedTrips(foundTrips);
+        setIsLoadingTrips(false);
+      }
+    };
+
+    loadCompletedTrips();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [viewingProfile]);
+
+  // Compute Travel DNA profile for the currently viewed traveller
+  const viewingProfileTravelDNA = useMemo<TravelDNAAnalysis>(() => {
+    return calculateTravelDNA(viewingProfileCompletedTrips);
+  }, [viewingProfileCompletedTrips]);
 
   // Collect all identifiers for currently logged-in user to prevent suggesting oneself
   const currentIdentifiers = useMemo(() => {
@@ -499,7 +589,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       return;
     }
     setViewingProfile(tr);
-    setProfileTab('trails');
+    setProfileTab('trips');
     onSelectTraveller?.(tr);
   };
 
@@ -587,13 +677,28 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               </div>
             )}
 
-            {/* Stats (Trails | Followers | Following) */}
+            {/* Stats (Trips | Trails | Followers | Following) */}
             <div className="flex-1 flex items-center justify-around text-center">
-              <div>
-                <div className="font-bold text-base sm:text-lg text-white">
+              <div
+                onClick={() => setProfileTab('trips')}
+                className="cursor-pointer group flex flex-col items-center"
+                title="View Completed Trips"
+              >
+                <div className="font-bold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
+                  {viewingProfileCompletedTrips.length}
+                </div>
+                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trips</div>
+              </div>
+
+              <div
+                onClick={() => setProfileTab('trails')}
+                className="cursor-pointer group flex flex-col items-center"
+                title="View Trails"
+              >
+                <div className="font-bold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
                   {viewingProfileTrails.length}
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400">trails</div>
+                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trails</div>
               </div>
 
               <div
@@ -688,9 +793,22 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             </button>
           </div>
 
-          {/* 4. Instagram Profile Tabs: Trails | Places */}
+          {/* 4. Instagram Profile Tabs: Completed Trips | Trails | Travel DNA (NO Saved Places) */}
           <div className="border-t border-neutral-800/80 pt-2">
             <div className="flex items-center justify-around border-b border-neutral-800/80 pb-2">
+              {/* Tab 1: Completed Trips */}
+              <button
+                type="button"
+                onClick={() => setProfileTab('trips')}
+                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                  profileTab === 'trips' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                <span>TRIPS ({viewingProfileCompletedTrips.length})</span>
+              </button>
+
+              {/* Tab 2: Trails */}
               <button
                 type="button"
                 onClick={() => setProfileTab('trails')}
@@ -701,19 +819,64 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <Video className="w-4 h-4" />
                 <span>TRAILS ({viewingProfileTrails.length})</span>
               </button>
+
+              {/* Tab 3: Travel DNA Profile */}
               <button
                 type="button"
-                onClick={() => setProfileTab('places')}
+                onClick={() => setProfileTab('dna')}
                 className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                  profileTab === 'places' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                  profileTab === 'dna' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
                 }`}
               >
-                <MapPin className="w-4 h-4" />
-                <span>PLACES ({viewingProfile.placesCount || viewingProfile.recentPlaces?.length || 0})</span>
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>TRAVEL DNA</span>
               </button>
             </div>
 
-            {/* Tab 1: Trails Grid */}
+            {/* Tab 1: Completed Trips Grid */}
+            {profileTab === 'trips' && (
+              viewingProfileCompletedTrips.length > 0 ? (
+                <div className="grid grid-cols-3 gap-0.5 sm:gap-1.5 pt-2">
+                  {viewingProfileCompletedTrips.map((trip) => (
+                    <div
+                      key={trip.id}
+                      onClick={() => onStartPlanning?.(trip.destination)}
+                      className="relative aspect-square overflow-hidden cursor-pointer group bg-neutral-900 rounded-xs"
+                    >
+                      <img
+                        src={trip.heroImage || '/images/bg_waterfall.jpg'}
+                        alt={trip.destination}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-white text-[9px] font-extrabold flex items-center gap-1 shadow-md">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>Completed</span>
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end">
+                        <span className="text-xs font-bold text-white drop-shadow-xs truncate">
+                          {trip.destination}
+                        </span>
+                        <span className="text-[10px] text-neutral-300 font-medium truncate">
+                          {trip.durationDays || 3} Days
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-16 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto text-emerald-400">
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">No Completed Trips Yet</h3>
+                  <p className="text-xs text-neutral-400 max-w-xs mx-auto">
+                    When {viewingProfile.name} completes journeys, their travel footprints will appear here.
+                  </p>
+                </div>
+              )
+            )}
+
+            {/* Tab 2: Trails Grid */}
             {profileTab === 'trails' && (
               viewingProfileTrails.length > 0 ? (
                 <div className="grid grid-cols-3 gap-0.5 sm:gap-1.5 pt-2">
@@ -762,33 +925,79 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               )
             )}
 
-            {/* Tab 2: Places List */}
-            {profileTab === 'places' && (
-              <div className="pt-3 space-y-2">
-                {viewingProfile.recentPlaces && viewingProfile.recentPlaces.length > 0 ? (
-                  viewingProfile.recentPlaces.map((place, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-[#121212] border border-neutral-800/80 rounded-xl p-3 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-emerald-400" />
-                        <span className="text-xs font-semibold text-white">{place}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onStartPlanning?.(place)}
-                        className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 cursor-pointer"
-                      >
-                        Plan Trip
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="py-12 text-center text-xs text-neutral-400">
-                    No travel destinations added yet.
+            {/* Tab 3: Travel DNA Profile */}
+            {profileTab === 'dna' && (
+              <div className="pt-3 space-y-3 text-left">
+                {/* Travel Archetype Hero Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#141419] border border-white/10 shadow-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Travel DNA Profile
+                    </span>
+                    <span className="text-[11px] text-neutral-400 font-semibold">
+                      {viewingProfileCompletedTrips.length} {viewingProfileCompletedTrips.length === 1 ? 'Trip' : 'Trips'} Completed
+                    </span>
                   </div>
-                )}
+                  <h3 className="text-lg sm:text-xl font-black text-white">
+                    {viewingProfileTravelDNA.archetype.title}
+                  </h3>
+                  <p className="text-xs text-neutral-300 leading-relaxed">
+                    {viewingProfileTravelDNA.archetype.description}
+                  </p>
+                </div>
+
+                {/* Vibe Breakdown */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#141419] border border-white/10 shadow-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs sm:text-sm font-bold text-white">
+                      Vibe Breakdown
+                    </h4>
+                    <span className="text-[10px] text-neutral-400">
+                      Based on travel footprint
+                    </span>
+                  </div>
+
+                  {Object.entries(viewingProfileTravelDNA.scores).map(([trait, score]) => (
+                    <div key={trait} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="capitalize text-neutral-300 font-medium">{trait}</span>
+                        <span className="font-bold text-white">{score}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
+                        <div 
+                          className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.max(score, 12)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Learned Preferences */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#141419] border border-white/10 shadow-xl space-y-2.5">
+                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                    Travel Preferences & Style
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+                      <span className="text-[10px] text-neutral-400 block mb-0.5">Transport</span>
+                      <span className="text-white font-semibold">{viewingProfileTravelDNA.preferences.transport}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+                      <span className="text-[10px] text-neutral-400 block mb-0.5">Pace</span>
+                      <span className="text-white font-semibold">{viewingProfileTravelDNA.preferences.pace}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+                      <span className="text-[10px] text-neutral-400 block mb-0.5">Budget</span>
+                      <span className="text-white font-semibold">{viewingProfileTravelDNA.preferences.budget}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+                      <span className="text-[10px] text-neutral-400 block mb-0.5">Stays</span>
+                      <span className="text-white font-semibold">{viewingProfileTravelDNA.preferences.accommodation}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -913,7 +1122,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               recentPlaces: [],
               isFollowing: selectedUser.isFollowing
             });
-            setProfileTab('trails');
+            setProfileTab('trips');
           }}
         />
       </div>
