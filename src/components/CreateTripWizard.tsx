@@ -274,7 +274,11 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         country: addr.toLowerCase().includes('india') ? 'India' : 'International',
         heroImage:
           selectedDestinationPlace.photoUrl ||
-          'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+          (addr.toLowerCase().includes('ladakh') ? 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=1200&q=80' :
+           addr.toLowerCase().includes('jaipur') ? 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80' :
+           addr.toLowerCase().includes('beach') || addr.toLowerCase().includes('goa') ? '/images/bg_beach.jpg' :
+           addr.toLowerCase().includes('paris') ? 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80' :
+           '/images/bg_beach.jpg'),
         gallery: [],
         climate: 'Pleasant & Moderate',
         avgCostPerDay: 7000,
@@ -289,7 +293,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       tagline: 'Your Personalized Journey',
       region: 'Explore',
       country: 'Global',
-      heroImage: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+      heroImage: '/images/bg_beach.jpg',
       gallery: [],
       climate: 'Pleasant',
       avgCostPerDay: 7000,

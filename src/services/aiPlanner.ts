@@ -183,8 +183,19 @@ export async function generateTripClientSide(params: {
   const destName = params.destinationPlace?.name || params.destinationId;
   const destAddress = params.destinationPlace?.address || destName;
   const destLat = params.destinationPlace?.latitude || 20.0;
-  const destLng = params.destinationPlace?.longitude || 78.0;
-  const heroImg = params.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
+  const getDestinationDefaultPhoto = (name: string): string => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('ladakh') || n.includes('leh')) return 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=1200&q=80';
+    if (n.includes('jaipur') || n.includes('rajasthan')) return 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80';
+    if (n.includes('goa') || n.includes('beach') || n.includes('bali') || n.includes('maldives')) return '/images/bg_beach.jpg';
+    if (n.includes('manali') || n.includes('swiss') || n.includes('alps') || n.includes('mountain')) return '/images/bg_mountain.jpg';
+    if (n.includes('iceland') || n.includes('waterfall') || n.includes('kerala')) return '/images/bg_waterfall.jpg';
+    if (n.includes('snow') || n.includes('hokkaido')) return '/images/bg_snow.jpg';
+    if (n.includes('paris') || n.includes('france')) return 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80';
+    if (n.includes('tokyo') || n.includes('japan') || n.includes('kyoto')) return '/images/bg_basic_minimal.jpg';
+    return '/images/bg_beach.jpg';
+  };
+  const heroImg = params.destinationPlace?.photoUrl || getDestinationDefaultPhoto(destName);
 
   const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
   const foodPref = params.preferences.food;

@@ -21,33 +21,33 @@ interface DisplayTripItem {
   colorCardRgb: string;
 }
 
-// Destination-specific curated photos so every destination has its own unique, iconic image
+// Destination-specific curated photos so EVERY destination has its own unique, iconic image
 const DESTINATION_PHOTO_MAP: { [key: string]: string } = {
+  ladakh: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80',
+  leh: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80',
+  jaipur: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80',
+  rajasthan: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80',
   bali: '/images/bg_beach.jpg',
   beach: '/images/bg_beach.jpg',
-  goa: '/images/bg_beach.jpg',
-  maldives: '/images/bg_beach.jpg',
-  hawaii: '/images/bg_beach.jpg',
+  goa: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=600&q=80',
+  manali: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=600&q=80',
+  kerala: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=600&q=80',
+  paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
+  france: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
   kyoto: '/images/bg_basic_minimal.jpg',
   tokyo: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
   japan: '/images/bg_basic_minimal.jpg',
   swiss: '/images/bg_mountain.jpg',
   alps: '/images/bg_mountain.jpg',
   switzerland: '/images/bg_mountain.jpg',
-  manali: '/images/bg_mountain.jpg',
   dolomites: '/images/bg_mountain.jpg',
   iceland: '/images/bg_waterfall.jpg',
   waterfall: '/images/bg_waterfall.jpg',
   norway: '/images/bg_waterfall.jpg',
-  kerala: '/images/bg_waterfall.jpg',
   hokkaido: '/images/bg_snow.jpg',
   snow: '/images/bg_snow.jpg',
-  arctic: '/images/bg_snow.jpg',
   patagonia: '/images/bg_trekking.jpg',
   trek: '/images/bg_trekking.jpg',
-  ladakh: '/images/bg_trekking.jpg',
-  paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
-  france: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80',
   rome: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80',
   italy: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80',
   santorini: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80',
@@ -57,29 +57,50 @@ const DESTINATION_PHOTO_MAP: { [key: string]: string } = {
   london: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=80',
   uk: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=80',
   'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=600&q=80',
+  maldives: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=600&q=80',
 };
 
 const DISTINCT_IMAGE_POOL = [
-  '/images/bg_beach.jpg',
-  '/images/bg_basic_minimal.jpg',
-  '/images/bg_mountain.jpg',
-  '/images/bg_waterfall.jpg',
-  '/images/bg_snow.jpg',
-  '/images/bg_trekking.jpg',
+  'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=600&q=80', // Ladakh
+  'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=600&q=80', // Jaipur
+  '/images/bg_beach.jpg', // Bali
+  'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80', // Paris
+  '/images/bg_basic_minimal.jpg', // Kyoto
+  '/images/bg_mountain.jpg', // Swiss Alps
+  '/images/bg_waterfall.jpg', // Iceland
+  '/images/bg_snow.jpg', // Hokkaido
+  '/images/bg_trekking.jpg', // Patagonia
+  'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80', // Rome
+  'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=600&q=80', // Santorini
+  'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=600&q=80', // Dubai
 ];
 
+function isGenericPlaceholder(url?: string): boolean {
+  if (!url) return true;
+  return (
+    url.includes('1488646953014') || // Generic camera on map placeholder
+    url.includes('regenerated_image') || // Generated placeholder
+    url.includes('1787112827232') ||
+    url.includes('placeholder')
+  );
+}
+
 function resolveDestinationPhoto(destination: string, index: number, existingHero?: string): string {
-  // If user provided a custom image and it's NOT the generic camera placeholder
-  if (existingHero && !existingHero.includes('regenerated_image_') && !existingHero.includes('1787112827232')) {
-    return existingHero;
-  }
   const clean = (destination || '').toLowerCase().trim();
+
+  // First: Check if the destination matches a known world/Indian destination
   for (const [key, url] of Object.entries(DESTINATION_PHOTO_MAP)) {
     if (clean.includes(key)) {
       return url;
     }
   }
-  // Guarantee unique distinct photo by index so no two cards ever look the same
+
+  // Second: If user provided a custom image that is NOT the generic camera placeholder
+  if (existingHero && !isGenericPlaceholder(existingHero)) {
+    return existingHero;
+  }
+
+  // Third: Guarantee unique distinct photo by index so no two cards ever look the same
   return DISTINCT_IMAGE_POOL[index % DISTINCT_IMAGE_POOL.length];
 }
 
@@ -219,15 +240,15 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
       lastTimeRef.current = time;
 
       if (!isDraggingRef.current) {
-        // If hovered and mouse velocity exists, rotate accordingly
-        if (Math.abs(hoverVelocityRef.current) > 0.05) {
+        // If hovered and mouse moved, rotate in that direction smoothly
+        if (Math.abs(hoverVelocityRef.current) > 0.04) {
           const newAngle = angleRef.current + hoverVelocityRef.current;
           angleRef.current = newAngle;
           setRotationAngle(newAngle);
-          // Gently decay hover velocity
-          hoverVelocityRef.current *= 0.92;
+          // Friction decay
+          hoverVelocityRef.current *= 0.93;
         } else if (!isInteracting) {
-          // Normal ambient smooth rotation (~16 degrees per sec)
+          // Normal ambient smooth rotation (~16 degrees per second)
           const newAngle = (angleRef.current + 16 * deltaSec) % 360;
           angleRef.current = newAngle;
           setRotationAngle(newAngle);
@@ -255,7 +276,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
     const centerX = rect.left + rect.width / 2;
     const diff = (e.clientX - centerX) / (rect.width / 2); // -1.0 to +1.0
     // Rotate smoothly in direction of cursor position
-    hoverVelocityRef.current = diff * 0.9;
+    hoverVelocityRef.current = diff * 1.5;
   };
 
   // Drag & touch swipe handlers
@@ -305,12 +326,12 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   return (
     <div className="w-full flex flex-col items-center justify-center relative select-none">
       {/* Top Header Tag */}
-      <div className="flex items-center gap-1.5 mb-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold shadow-md">
+      <div className="flex items-center gap-1.5 mb-1 px-2.5 py-0.5 rounded-full bg-black/45 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold shadow-md">
         <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
-        <span>Recently Planned Journeys • 3D Carousel</span>
+        <span>Recently Planned Journeys • 3D Orbit</span>
       </div>
 
-      {/* 3D Rotating Carousel Container */}
+      {/* 3D Rotating Carousel Container with Hover Steering & Touch Swipe */}
       <div 
         ref={containerRef}
         onMouseMove={handleMouseMove}
@@ -351,11 +372,11 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                   transform: `rotateY(${cardDegree}deg) translateZ(var(--translateZ))`,
                   // @ts-ignore
                   '--color-card': item.colorCardRgb || themeRgb,
-                  zIndex: isHovered ? 12 : 2,
+                  zIndex: isHovered ? 15 : 2,
                 }}
                 title={`Click to open ${item.destination} itinerary`}
               >
-                {/* 1. FRONT FACE (Facing Outwards) */}
+                {/* 1. FRONT FACE (Facing Outwards towards Viewer) */}
                 <div className="rotating-carousel-card-face rotating-carousel-card-front">
                   {/* Destination Hero Image */}
                   <img
@@ -365,12 +386,12 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                     className="rotating-carousel-img group-hover:scale-108 transition-transform duration-500 pointer-events-none"
                   />
 
-                  {/* High-Contrast Dark Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/30 to-black/20 pointer-events-none" />
+                  {/* High-Contrast Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/25 to-black/25 pointer-events-none" />
 
-                  {/* Top Badges (Compact Font Sizes) */}
+                  {/* Top Badges (Reduced Font Size) */}
                   <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 pointer-events-none">
-                    <span className="px-1.5 py-0.5 rounded-md text-[8px] font-extrabold bg-black/70 backdrop-blur-md text-white border border-white/20 flex items-center gap-1 shadow-xs">
+                    <span className="px-1.5 py-0.5 rounded-md text-[8px] font-extrabold bg-black/75 backdrop-blur-md text-white border border-white/20 flex items-center gap-1 shadow-xs">
                       {item.isUserTrip ? (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                       ) : (
@@ -379,12 +400,12 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                       <span>{item.durationDays}D</span>
                     </span>
 
-                    <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20 shadow-xs">
+                    <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-black/75 backdrop-blur-md text-white border border-white/20 shadow-xs">
                       {item.weather}
                     </span>
                   </div>
 
-                  {/* Bottom Info (Reduced Font Size & Crisp Layout) */}
+                  {/* Bottom Info (Reduced Font Size & Tight Clean Layout) */}
                   <div className="absolute inset-x-0 bottom-0 p-2 sm:p-2.5 flex flex-col justify-end text-left pointer-events-none">
                     {item.isUserTrip && (
                       <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-0.5 mb-0.5">
@@ -409,7 +430,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                   </div>
                 </div>
 
-                {/* 2. BACK FACE (Facing Inwards - Displays Upright with 180deg so full rotation is always visible without mirrored text!) */}
+                {/* 2. BACK FACE (Facing Inwards - Displays Upright with 180deg so the FULL 360 circle is always visible!) */}
                 <div className="rotating-carousel-card-face rotating-carousel-card-back">
                   <img
                     src={item.heroImage}
@@ -417,17 +438,17 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                     referrerPolicy="no-referrer"
                     className="rotating-carousel-img pointer-events-none"
                   />
-                  <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-[0.5px] pointer-events-none" />
+                  <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[0.5px] pointer-events-none" />
 
                   {/* Upright Center Badge for cards on the back of the cylinder */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
-                    <span className="text-[8px] font-bold text-white/80 uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <span className="text-[8px] font-bold text-white/90 uppercase tracking-widest mb-1 flex items-center gap-1 drop-shadow">
                       <Compass className="w-2.5 h-2.5 text-sky-400" /> {item.durationDays} Days
                     </span>
-                    <h5 className="text-xs font-black text-white drop-shadow-sm truncate max-w-full">
+                    <h5 className="text-xs font-black text-white drop-shadow-md truncate max-w-full">
                       {item.destination}
                     </h5>
-                    <span className="text-[8px] font-semibold text-sky-300 mt-1">
+                    <span className="text-[8px] font-bold text-sky-300 mt-1 drop-shadow">
                       {item.budget}
                     </span>
                   </div>
@@ -439,9 +460,9 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
       </div>
 
       {/* Interactive Helper Text */}
-      <div className="flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-[10px] text-white/80 font-medium">
+      <div className="flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-black/35 backdrop-blur-sm border border-white/15 text-[10px] text-white/90 font-medium">
         <Compass className="w-3 h-3 text-sky-400 animate-spin" style={{ animationDuration: '8s' }} />
-        <span>Move cursor or drag to rotate • Click any card to open</span>
+        <span>Move cursor or swipe to rotate • Tap any card to open</span>
       </div>
     </div>
   );
