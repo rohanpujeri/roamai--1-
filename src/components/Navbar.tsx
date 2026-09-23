@@ -99,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header 
-        className="sticky top-0 z-40 transition-colors duration-300 relative bg-black/15 dark:bg-black/30 backdrop-blur-xs"
+        className="sticky top-0 z-40 transition-colors duration-300 relative bg-transparent"
       >
         {/* Backdrop on Scroll with Theme Awareness - NO slide down translation */}
         <div 
