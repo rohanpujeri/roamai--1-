@@ -99,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigate('landing');
                   setIsDrawerOpen(false);
                 }}
-                className="flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer shrink-0 px-2.5 py-1.5 rounded-xl sm:rounded-2xl bg-black/35 hover:bg-black/50 backdrop-blur-md border border-white/20 shadow-md transition-all"
+                className="flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer shrink-0 bg-transparent border-0 p-1 shadow-none transition-transform hover:scale-102 active:scale-98"
               >
                 <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 shrink-0 ring-1.5 ring-white/30">
                   <img
@@ -189,23 +189,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Right Action buttons (Optimized for Mobile) */}
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-              {/* Color Theme Selector Pill */}
+              {/* Color Theme Selector */}
               <button
                 onClick={onOpenThemeModal}
-                className={`flex items-center gap-1 sm:gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border text-xs font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+                className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 sm:py-1 rounded-lg bg-transparent border-0 shadow-none text-xs font-bold transition-all cursor-pointer hover:opacity-80 active:scale-95 ${
                   isDarkText
-                    ? 'border-slate-300 bg-white/90 hover:bg-white text-slate-900 font-bold shadow-xs'
-                    : 'border-white/30 bg-black/25 hover:bg-black/35 text-white'
+                    ? 'text-slate-900 font-bold'
+                    : 'text-white'
                 }`}
-                style={!isDarkText ? { textShadow: '0 1px 3px rgba(0,0,0,0.6)' } : undefined}
+                style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6)' } : undefined}
                 title="Change color theme palette"
               >
                 <div 
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full shadow-2xs border border-white/40 shrink-0"
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full shadow-md border-2 border-white/60 shrink-0"
                   style={{ backgroundColor: currentTheme.primaryColor }}
                 />
                 <span className="font-bold hidden md:inline">{currentTheme.name}</span>
-                <Palette className={`w-3.5 h-3.5 ${isDarkText ? 'text-slate-700' : 'text-white/80'}`} />
+                <Palette className={`w-4 h-4 ${isDarkText ? 'text-slate-800' : 'text-white drop-shadow-md'}`} />
               </button>
 
 
