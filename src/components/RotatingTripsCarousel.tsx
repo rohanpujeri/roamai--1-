@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Calendar, ArrowRight, Compass } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, Compass, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
 
 interface RotatingTripsCarouselProps {
@@ -173,23 +173,27 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   onOpenTrip,
   onStartPlanning,
 }) => {
-  const [rotationAngle, setRotationAngle] = useState(0);
-  const [isInteracting, setIsInteracting] = useState(false);
   const [hoveredCardIdx, setHoveredCardIdx] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startAngleRef = useRef(0);
-  const dragDistanceRef = useRef(0);
-  const animFrameIdRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(performance.now());
-  const angleRef = useRef(0);
-  const hoverVelocityRef = useRef(0);
+  const innerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    angleRef.current = rotationAngle;
-  }, [rotationAngle]);
+  const angleRef = useRef<number>(0);
+  const velocityRef = useRef<number>(18); // Default ambient rotation speed (~18 deg/s)
+  const isDraggingRef = useRef<boolean>(false);
+  const startXRef = useRef<number>(0);
+  const lastXRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+  const dragDistanceRef = useRef<number>(0);
+  const ambientSteerRef = useRef<number>(0);
+  const isHoveredCardRef = useRef<boolean>(false);
+  const animFrameIdRef = useRef<number | null>(null);
+
+  const renderTransform = (angle: number) => {
+    if (innerRef.current) {
+      innerRef.current.style.transform = `perspective(var(--perspective)) rotateX(var(--rotateX)) rotateY(${angle}deg)`;
+    }
+  };
 
   const themeHexToRgb = (hex: string): string => {
     const clean = hex.replace('#', '');
@@ -230,91 +234,109 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   }
   const finalSixTrips = combinedTrips.slice(0, 6);
 
-  // Auto-rotation & hover momentum loop
+  // Silky-Smooth GPU Animation Loop with Inertia Physics (Zero React Re-renders!)
   useEffect(() => {
     let active = true;
+    let lastFrameTime = performance.now();
 
-    const tick = (time: number) => {
+    const tick = (now: number) => {
       if (!active) return;
-      const deltaSec = (time - lastTimeRef.current) / 1000;
-      lastTimeRef.current = time;
+      const deltaSec = Math.min((now - lastFrameTime) / 1000, 0.06);
+      lastFrameTime = now;
 
       if (!isDraggingRef.current) {
-        // If hovered and mouse moved, rotate in that direction smoothly
-        if (Math.abs(hoverVelocityRef.current) > 0.04) {
-          const newAngle = angleRef.current + hoverVelocityRef.current;
-          angleRef.current = newAngle;
-          setRotationAngle(newAngle);
-          // Friction decay
-          hoverVelocityRef.current *= 0.93;
-        } else if (!isInteracting) {
-          // Normal ambient smooth rotation (~16 degrees per second)
-          const newAngle = (angleRef.current + 16 * deltaSec) % 360;
-          angleRef.current = newAngle;
-          setRotationAngle(newAngle);
+        // Target ambient rotation speed
+        const baseAmbient = isHoveredCardRef.current ? 4 : (18 + ambientSteerRef.current);
+
+        // Coasting with friction towards base ambient speed
+        if (Math.abs(velocityRef.current) > Math.abs(baseAmbient) + 1) {
+          velocityRef.current *= 0.94; // Smooth coasting decay
+        } else {
+          velocityRef.current = velocityRef.current * 0.85 + baseAmbient * 0.15;
         }
+
+        angleRef.current = (angleRef.current + velocityRef.current * deltaSec) % 360;
+        renderTransform(angleRef.current);
       }
 
       animFrameIdRef.current = requestAnimationFrame(tick);
     };
 
-    lastTimeRef.current = performance.now();
+    renderTransform(angleRef.current);
     animFrameIdRef.current = requestAnimationFrame(tick);
 
     return () => {
       active = false;
-      if (animFrameIdRef.current) {
-        cancelAnimationFrame(animFrameIdRef.current);
-      }
+      if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [isInteracting]);
+  }, []);
 
-  // Mouse hover movement rotates carousel accordingly
+  // Mouse hover steering on desktop
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDraggingRef.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
-    const diff = (e.clientX - centerX) / (rect.width / 2); // -1.0 to +1.0
-    // Rotate smoothly in direction of cursor position
-    hoverVelocityRef.current = diff * 1.5;
+    const offset = (e.clientX - centerX) / (rect.width / 2); // -1.0 to +1.0
+    ambientSteerRef.current = offset * 24;
   };
 
-  // Drag & touch swipe handlers
+  // High-performance pointer / drag / touch handlers
   const handlePointerDown = (e: React.PointerEvent) => {
     isDraggingRef.current = true;
     startXRef.current = e.clientX;
-    startAngleRef.current = angleRef.current;
+    lastXRef.current = e.clientX;
+    lastTimeRef.current = performance.now();
     dragDistanceRef.current = 0;
-    hoverVelocityRef.current = 0;
-    setIsInteracting(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    velocityRef.current = 0; // Hold rotation firmly during grab
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDraggingRef.current) return;
-    const deltaX = e.clientX - startXRef.current;
-    dragDistanceRef.current += Math.abs(deltaX);
-    const newAngle = startAngleRef.current + deltaX * 0.45;
-    angleRef.current = newAngle;
-    setRotationAngle(newAngle);
+
+    const now = performance.now();
+    const dt = Math.max((now - lastTimeRef.current) / 1000, 0.003);
+    const dx = e.clientX - lastXRef.current;
+    dragDistanceRef.current += Math.abs(dx);
+
+    // Effortless 1:1 rotation (0.75 deg per px)
+    angleRef.current = (angleRef.current + dx * 0.75) % 360;
+    renderTransform(angleRef.current);
+
+    // Track instantaneous throw velocity
+    const instantVelocity = (dx * 0.75) / dt;
+    velocityRef.current = velocityRef.current * 0.3 + instantVelocity * 0.7;
+
+    lastXRef.current = e.clientX;
+    lastTimeRef.current = now;
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
-    setTimeout(() => {
-      setIsInteracting(false);
-    }, 400);
+
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // Ignore
+    } catch {}
+
+    // Clamp flick velocity to prevent disorienting hyper-spin
+    if (Math.abs(velocityRef.current) > 320) {
+      velocityRef.current = Math.sign(velocityRef.current) * 320;
     }
+  };
+
+  // Nudge carousel by 60° (one full card orbit)
+  const nudgeRotation = (direction: -1 | 1) => {
+    velocityRef.current = direction * 150;
   };
 
   const handleCardClick = (item: DisplayTripItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Only open if user tapped/clicked rather than dragged
-    if (dragDistanceRef.current > 7) return;
+    // Only open if user tapped/clicked rather than dragged/swiped
+    if (dragDistanceRef.current > 8) return;
 
     if (item.isUserTrip && item.id && onOpenTrip) {
       onOpenTrip(item.id);
@@ -339,10 +361,8 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onMouseEnter={() => setIsInteracting(true)}
         onMouseLeave={() => {
-          hoverVelocityRef.current = 0;
-          if (!isDraggingRef.current) setIsInteracting(false);
+          ambientSteerRef.current = 0;
         }}
         className="rotating-carousel-wrapper"
         style={{
@@ -352,10 +372,8 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
         }}
       >
         <div 
+          ref={innerRef}
           className="rotating-carousel-inner"
-          style={{
-            transform: `perspective(var(--perspective)) rotateX(var(--rotateX)) rotateY(${rotationAngle}deg)`,
-          }}
         >
           {finalSixTrips.map((item, index) => {
             const isHovered = hoveredCardIdx === index;
@@ -365,8 +383,14 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
               <div
                 key={item.id || item.destination + index}
                 onClick={(e) => handleCardClick(item, e)}
-                onMouseEnter={() => setHoveredCardIdx(index)}
-                onMouseLeave={() => setHoveredCardIdx(null)}
+                onMouseEnter={() => {
+                  setHoveredCardIdx(index);
+                  isHoveredCardRef.current = true;
+                }}
+                onMouseLeave={() => {
+                  setHoveredCardIdx(null);
+                  isHoveredCardRef.current = false;
+                }}
                 className="rotating-carousel-card group"
                 style={{
                   transform: `rotateY(${cardDegree}deg) translateZ(var(--translateZ))`,
@@ -459,10 +483,36 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
         </div>
       </div>
 
-      {/* Interactive Helper Text */}
-      <div className="flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-black/35 backdrop-blur-sm border border-white/15 text-[10px] text-white/90 font-medium">
-        <Compass className="w-3 h-3 text-sky-400 animate-spin" style={{ animationDuration: '8s' }} />
-        <span>Move cursor or swipe to rotate • Tap any card to open</span>
+      {/* Interactive Helper Text & Quick-Rotate Arrows */}
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            nudgeRotation(-1);
+          }}
+          className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 active:scale-90 text-white/90 border border-white/20 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-md"
+          title="Rotate previous card"
+          aria-label="Previous trip"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-[10px] text-white/95 font-medium shadow-sm">
+          <Compass className="w-3 h-3 text-sky-400 animate-spin" style={{ animationDuration: '8s' }} />
+          <span>Swipe or tap arrows to rotate • Tap card to view</span>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            nudgeRotation(1);
+          }}
+          className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 active:scale-90 text-white/90 border border-white/20 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-md"
+          title="Rotate next card"
+          aria-label="Next trip"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
