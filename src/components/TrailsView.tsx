@@ -288,6 +288,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [showLocationInput, setShowLocationInput] = useState<boolean>(false);
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState<boolean>(false);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
+  const [uploadDimensions, setUploadDimensions] = useState<{ width: number; height: number; ratio: number } | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
@@ -688,6 +689,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setUploadVideoFile(null);
     setUploadVideoPreview('');
     setUploadPosterPreview('');
+    setUploadDimensions(null);
     setUploadCaption('');
     setUploadDestination('');
     setUploadTags('');
@@ -762,7 +764,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       viewsCount: 0,
       isLiked: false,
       likedBy: [],
-      comments: []
+      comments: [],
+      aspectRatio: uploadDimensions?.ratio
     };
 
     // 3. Publish to global server and Supabase so anyone / other profiles can view it immediately
@@ -1026,44 +1029,55 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </div>
           )}
           {/* Video or Image Media Player */}
-          {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
-            <img
-              src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
-              alt={activeReel.caption}
-              className="w-full h-full object-cover select-none"
-            />
-          ) : (
-            <video
-              ref={videoRef}
-              key={activeMediaUrl}
-              src={activeMediaUrl}
-              poster={activeReel.posterUrl}
-              playsInline
-              webkit-playsinline="true"
-              loop
-              autoPlay={isActive && !showUploadModal && !showLikesModal}
-              preload={isActive ? 'auto' : 'none'}
-              muted={isMuted}
-              className="w-full h-full object-cover"
-              onPlay={() => {
-                if (!isActive || showUploadModal || showLikesModal) {
-                  videoRef.current?.pause();
-                  setIsPlaying(false);
-                  return;
-                }
-                setIsPlaying(true);
-              }}
-              onPause={() => setIsPlaying(false)}
-              onError={() => {
-                setActiveMediaError(true);
-              }}
-              onTimeUpdate={() => {
-                if (videoRef.current && videoRef.current.duration) {
-                  setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-                }
-              }}
-            />
-          )}
+          <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none">
+            {/* Ambient blurred backdrop so non-9:16 videos/images fill the screen with immersive glow without letterbox void */}
+            {(activeReel.posterUrl || activeMediaUrl) && (
+              <img
+                src={activeReel.posterUrl || activeMediaUrl}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-35 scale-110 pointer-events-none"
+              />
+            )}
+
+            {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
+              <img
+                src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
+                alt={activeReel.caption}
+                className="relative z-10 w-full h-full object-contain select-none max-h-full max-w-full"
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                key={activeMediaUrl}
+                src={activeMediaUrl}
+                poster={activeReel.posterUrl}
+                playsInline
+                webkit-playsinline="true"
+                loop
+                autoPlay={isActive && !showUploadModal && !showLikesModal}
+                preload={isActive ? 'auto' : 'none'}
+                muted={isMuted}
+                className="relative z-10 w-full h-full object-contain max-h-full max-w-full"
+                onPlay={() => {
+                  if (!isActive || showUploadModal || showLikesModal) {
+                    videoRef.current?.pause();
+                    setIsPlaying(false);
+                    return;
+                  }
+                  setIsPlaying(true);
+                }}
+                onPause={() => setIsPlaying(false)}
+                onError={() => {
+                  setActiveMediaError(true);
+                }}
+                onTimeUpdate={() => {
+                  if (videoRef.current && videoRef.current.duration) {
+                    setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                  }
+                }}
+              />
+            )}
+          </div>
 
           {/* Recovery overlay if old session clip expired */}
           {activeMediaError && (
@@ -1579,12 +1593,40 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {/* Scrollable Form Body */}
                 <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
                   {/* Centered Preview Card with "Preview" and "Edit cover" */}
-                  <div className="relative w-44 sm:w-48 aspect-[9/16] max-h-72 mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 shadow-2xl flex items-center justify-center group">
+                  <div 
+                    className="relative mx-auto rounded-3xl overflow-hidden bg-zinc-950 border border-white/10 shadow-2xl flex items-center justify-center group transition-all duration-300"
+                    style={{
+                      width: uploadDimensions 
+                        ? (uploadDimensions.ratio >= 1.2 ? 'min(90vw, 320px)' : uploadDimensions.ratio >= 0.85 ? '220px' : '180px') 
+                        : '180px',
+                      aspectRatio: uploadDimensions ? `${uploadDimensions.ratio}` : '9/16',
+                      maxHeight: '320px',
+                    }}
+                  >
+                    {/* Ambient blurred backdrop so letterboxed parts look great */}
+                    {(uploadPosterPreview || uploadVideoPreview) && (
+                      <img
+                        src={uploadPosterPreview || uploadVideoPreview}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-110 pointer-events-none"
+                      />
+                    )}
+
                     {uploadVideoFile?.type.startsWith('image/') ? (
                       <img
                         src={uploadPosterPreview || uploadVideoPreview}
                         alt="Trail preview"
-                        className="w-full h-full object-cover"
+                        onLoad={(e) => {
+                          const img = e.currentTarget;
+                          if (img.naturalWidth && img.naturalHeight) {
+                            setUploadDimensions({
+                              width: img.naturalWidth,
+                              height: img.naturalHeight,
+                              ratio: img.naturalWidth / img.naturalHeight
+                            });
+                          }
+                        }}
+                        className="relative z-10 w-full h-full object-contain"
                       />
                     ) : (
                       <video
@@ -1594,7 +1636,17 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         loop
                         autoPlay={isPreviewPlaying}
                         muted
-                        className="w-full h-full object-cover"
+                        onLoadedMetadata={(e) => {
+                          const v = e.currentTarget;
+                          if (v.videoWidth && v.videoHeight) {
+                            setUploadDimensions({
+                              width: v.videoWidth,
+                              height: v.videoHeight,
+                              ratio: v.videoWidth / v.videoHeight
+                            });
+                          }
+                        }}
+                        className="relative z-10 w-full h-full object-contain"
                       />
                     )}
 

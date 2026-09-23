@@ -292,23 +292,33 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Video Player */}
-            {activePlaybackTrail.videoUrl ? (
-              <video
-                src={activePlaybackTrail.videoUrl}
-                poster={activePlaybackTrail.posterUrl}
-                className="w-full h-full object-cover"
-                autoPlay
-                loop
-                playsInline
-                muted={isMuted}
-              />
-            ) : (
-              <img
-                src={activePlaybackTrail.posterUrl}
-                alt={activePlaybackTrail.title}
-                className="w-full h-full object-cover"
-              />
-            )}
+            <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
+              {activePlaybackTrail.posterUrl && (
+                <img
+                  src={activePlaybackTrail.posterUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-35 scale-110 pointer-events-none"
+                />
+              )}
+
+              {activePlaybackTrail.videoUrl ? (
+                <video
+                  src={activePlaybackTrail.videoUrl}
+                  poster={activePlaybackTrail.posterUrl}
+                  className="relative z-10 w-full h-full object-contain max-h-full max-w-full"
+                  autoPlay
+                  loop
+                  playsInline
+                  muted={isMuted}
+                />
+              ) : (
+                <img
+                  src={activePlaybackTrail.posterUrl}
+                  alt={activePlaybackTrail.title}
+                  className="relative z-10 w-full h-full object-contain max-h-full max-w-full"
+                />
+              )}
+            </div>
 
             {/* Top Modal Controls */}
             <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">

@@ -43,6 +43,7 @@ export interface ServerTrailRecord {
     avatarUrl?: string;
     likedAt?: string;
   }>;
+  aspectRatio?: number;
   createdAt: string;
 }
 
@@ -199,6 +200,7 @@ export function saveServerTrail(
     isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
     isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
     comments: trailData.comments || existing?.comments || [],
+    aspectRatio: typeof trailData.aspectRatio === 'number' ? trailData.aspectRatio : existing?.aspectRatio,
     createdAt: trailData.createdAt || existing?.createdAt || new Date().toISOString()
   };
 
