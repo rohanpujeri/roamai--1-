@@ -1303,9 +1303,8 @@ export default function App() {
                 className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
-                {/* Full Dynamic Photographic Scenic Backdrop - Moves smoothly with slide */}
-                <ThemeHeroBackdrop isAbsolute currentTheme={currentTheme} isDark={currentTheme.isDark} />
-                {themeId === 'snow' && <SnowfallEffect fullScreen={false} density="gentle" />}
+                {/* Full Dynamic Photographic Scenic Backdrop - Stays pinned across full vertical scroll, swipes smoothly with slide */}
+                <ThemeHeroBackdrop isSticky currentTheme={currentTheme} isDark={currentTheme.isDark} />
 
                 <div className="relative z-10">
                   <Navbar
@@ -1370,9 +1369,8 @@ export default function App() {
                 className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always relative"
                 style={{ backgroundColor: currentTheme.canvasBg }}
               >
-                {/* Full Photographic Scenic Backdrop - Moves smoothly with slide */}
-                <ThemeHeroBackdrop isAbsolute currentTheme={currentTheme} isDark={currentTheme.isDark} />
-                {themeId === 'snow' && <SnowfallEffect fullScreen={false} density="gentle" />}
+                {/* Full Photographic Scenic Backdrop - Stays pinned across full vertical scroll, swipes smoothly with slide */}
+                <ThemeHeroBackdrop isSticky currentTheme={currentTheme} isDark={currentTheme.isDark} />
 
                 <div className="relative z-10">
                   <CreateTripWizard

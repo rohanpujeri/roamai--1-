@@ -54,11 +54,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    const handleScroll = (e?: Event) => {
+      const target = e?.target as HTMLElement | undefined;
+      const scrollY = target && typeof target.scrollTop === 'number' ? target.scrollTop : window.scrollY;
+      setIsScrolled(scrollY > 15);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, []);
 
   // Handle escape key to close drawer
@@ -101,11 +103,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="sticky top-0 z-40 transition-all duration-300 relative"
+        className="sticky top-0 z-40 transition-all duration-300 relative bg-black/15 dark:bg-black/30 backdrop-blur-xs"
       >
-        {/* Sliding / Dropping White Background on Hover/Scroll */}
+        {/* Sliding / Dropping Background on Hover/Scroll with Theme Awareness */}
         <div 
-          className={`absolute inset-0 bg-white/95 backdrop-blur-2xl border-b border-slate-200/90 shadow-md transition-all duration-300 ease-out pointer-events-none ${
+          className={`absolute inset-0 ${
+            currentTheme.isDark 
+              ? 'bg-slate-950/85 border-b border-white/10' 
+              : 'bg-white/85 border-b border-slate-200/80'
+          } backdrop-blur-2xl shadow-md transition-all duration-300 ease-out pointer-events-none ${
             isWhiteBg 
               ? 'translate-y-0 opacity-100' 
               : '-translate-y-full opacity-0'

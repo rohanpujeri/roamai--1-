@@ -8,6 +8,7 @@ interface ThemeHeroBackdropProps {
   currentTheme?: ThemeConfig;
   isDark?: boolean;
   isAbsolute?: boolean;
+  isSticky?: boolean;
 }
 
 interface ColorGradePreset {
@@ -65,6 +66,7 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   currentTheme,
   isDark = false,
   isAbsolute = false,
+  isSticky = false,
 }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const themeId = currentTheme?.id || 'waterfall';
@@ -84,7 +86,16 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   }, [themeId]);
 
   return (
-    <div className={`${isAbsolute ? 'absolute' : 'fixed'} inset-0 w-full h-full overflow-hidden pointer-events-none z-0 select-none`} aria-hidden="true">
+    <div 
+      className={`${
+        isSticky
+          ? 'sticky top-0 left-0 w-full h-screen h-[100dvh] -mb-[100vh] -mb-[100dvh]'
+          : isAbsolute
+          ? 'absolute inset-0 w-full h-full'
+          : 'fixed inset-0 w-full h-full'
+      } overflow-hidden pointer-events-none z-0 select-none`} 
+      aria-hidden="true"
+    >
       {/* 1. Theme Scenic Landscape Photographic Background Layer with Smooth Transition */}
       <AnimatePresence mode="wait">
         <motion.div
