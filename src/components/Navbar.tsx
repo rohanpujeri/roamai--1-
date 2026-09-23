@@ -45,22 +45,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onPlanTrip
 }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
   const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
-
-  useEffect(() => {
-    const handleScroll = (e?: Event) => {
-      const target = e?.target as HTMLElement | undefined;
-      const scrollY = target && typeof target.scrollTop === 'number' ? target.scrollTop : window.scrollY;
-      setIsScrolled(scrollY > 15);
-    };
-    window.addEventListener('scroll', handleScroll, true);
-    return () => window.removeEventListener('scroll', handleScroll, true);
-  }, []);
 
   // Handle escape key to close drawer
   useEffect(() => {
@@ -81,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [isDrawerOpen]);
 
-  const isDarkText = !currentTheme.isDark ? (isScrolled || currentTheme.id === 'snow') : false;
+  const isDarkText = currentTheme.id === 'snow';
 
   const handleDrawerNavigate = (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search') => {
     onNavigate(view);
@@ -101,19 +90,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header 
         className="sticky top-0 z-40 transition-colors duration-300 relative bg-transparent"
       >
-        {/* Backdrop on Scroll with Theme Awareness - NO slide down translation */}
-        <div 
-          className={`absolute inset-0 ${
-            currentTheme.isDark 
-              ? 'bg-slate-950/85 border-b border-white/10' 
-              : 'bg-white/85 border-b border-slate-200/80'
-          } backdrop-blur-2xl shadow-md transition-opacity duration-300 ease-out pointer-events-none ${
-            isScrolled 
-              ? 'opacity-100' 
-              : 'opacity-0'
-          }`} 
-        />
-
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 relative z-10">
           <div className="flex items-center justify-between h-14 sm:h-18">
             {/* Left: Logo */}
@@ -138,16 +114,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className={`text-lg sm:text-xl font-bold tracking-tight font-sans transition-colors duration-300 ${
                         isDarkText ? 'text-slate-900 font-extrabold' : 'text-white'
                       }`}
-                      style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.6)' } : undefined}
+                      style={!isDarkText ? { textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)' } : undefined}
                     >
                       Trip<span style={{ color: currentTheme.primaryColor }}>Wise</span>
                     </span>
                   </div>
                   <p 
                     className={`text-[11px] -mt-0.5 hidden sm:block font-medium transition-colors duration-300 ${
-                      isDarkText ? 'text-slate-700 font-semibold' : 'text-white/80'
+                      isDarkText ? 'text-slate-700 font-semibold' : 'text-white/90'
                     }`}
-                    style={!isDarkText ? { textShadow: '0 1px 3px rgba(0,0,0,0.6)' } : undefined}
+                    style={!isDarkText ? { textShadow: '0 1px 4px rgba(0,0,0,0.85)' } : undefined}
                   >
                     Plan • Prepare • Travel • Adapt
                   </p>
