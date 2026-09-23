@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Compass, 
   Bookmark, 
@@ -49,6 +50,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
 
   const [savedTrailsCount, setSavedTrailsCount] = useState<number>(() => getSavedTrailsCount());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleCountChange = () => {
@@ -62,7 +68,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     };
   }, []);
 
-  // Close on Escape key press and prevent background scroll
+  // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -71,13 +77,9 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     };
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
 
@@ -98,16 +100,22 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     onClose();
   };
 
-  return (
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
+
+  const drawerContent = (
     <div 
-      className={`fixed inset-0 z-[100] transition-visibility duration-300 ${
-        isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+      className={`fixed inset-0 z-[99999] transition-visibility duration-300 ${
+        isOpen ? 'pointer-events-auto visible' : 'pointer-events-none invisible'
       }`}
+      style={{ isolation: 'isolate' }}
     >
       {/* Backdrop Overlay */}
       <div 
         onClick={onClose}
-        className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-in-out z-[100] ${
+        onTouchMove={(e) => e.preventDefault()}
+        className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 ease-in-out z-[99999] ${
           isOpen ? 'opacity-100' : 'opacity-0'
         }`}
         aria-hidden="true"
@@ -115,13 +123,15 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
       {/* Slide-Out Drawer Panel - Above bottom navigation bar with full viewport height */}
       <div 
-        className={`fixed top-0 right-0 bottom-0 h-full h-[100dvh] max-h-screen w-[88vw] max-w-[420px] sm:w-1/2 sm:max-w-[480px] bg-black text-white border-l border-neutral-800 shadow-2xl z-[101] flex flex-col transition-transform duration-300 ease-out transform ${
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        className={`fixed top-0 right-0 bottom-0 h-full h-[100dvh] max-h-screen w-[88vw] max-w-[420px] sm:w-1/2 sm:max-w-[480px] bg-black text-white border-l border-neutral-800 shadow-2xl z-[100000] flex flex-col transition-transform duration-300 ease-out transform ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ backgroundColor: '#000000' }}
+        style={{ backgroundColor: '#000000', touchAction: 'pan-y' }}
       >
         {/* Pinned Drawer Header */}
-        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-neutral-800 shrink-0 bg-black">
+        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-neutral-800 shrink-0 bg-black z-10">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl overflow-hidden shadow-lg shrink-0 ring-1 sm:ring-2 ring-neutral-700">
               <img
@@ -138,22 +148,37 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
           </div>
 
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 active:scale-95"
-            aria-label="Close menu"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Quick Header Sign Out Button */}
+            {session && (
+              <button
+                type="button"
+                onClick={handleSignOutInternal}
+                className="px-2.5 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/80 text-red-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-sm"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-[11px]">Sign Out</span>
+              </button>
+            )}
+
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 active:scale-95"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Main Scrollable Drawer Content - Smooth touch scrolling with min-h-0 flex constraint */}
+        {/* Main Scrollable Drawer Content - Smooth touch scrolling with pb-36 and touch-pan-y */}
         <div 
-          className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1 space-y-4 sm:space-y-6 bg-black"
+          className="p-4 sm:p-5 overflow-y-auto overscroll-contain min-h-0 flex-1 space-y-4 sm:space-y-6 bg-black pb-36 sm:pb-28"
           style={{ 
             WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain'
+            touchAction: 'pan-y'
           }}
         >
 
@@ -447,13 +472,25 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
           </div>
         </div>
 
-        {/* Drawer Footer */}
-        <div className="p-2.5 sm:p-4 border-t border-neutral-800 bg-black text-center shrink-0">
-          <p className="text-[9px] sm:text-[11px] text-neutral-500 font-medium">
+        {/* Pinned Drawer Footer with Quick Sign Out for 100% mobile accessibility */}
+        <div className="p-3 sm:p-4 border-t border-neutral-800 bg-black/95 backdrop-blur-md shrink-0 space-y-2 z-10">
+          {session && (
+            <button
+              type="button"
+              onClick={handleSignOutInternal}
+              className="w-full py-2.5 px-3 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+            >
+              <LogOut className="w-4 h-4 text-red-400" />
+              <span>Sign Out</span>
+            </button>
+          )}
+          <p className="text-[9px] sm:text-[11px] text-neutral-500 font-medium text-center">
             TripWise • AI Travel
           </p>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 };
