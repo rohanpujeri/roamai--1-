@@ -339,6 +339,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   // Fetch real registered profiles dynamically across Supabase, server registry, and local profiles
   useEffect(() => {
     let isMounted = true;
+    // Do not fetch/display community accounts if the visitor is not logged in and not searching
+    if (!session?.user && !searchQuery.trim()) {
+      setTravellers([]);
+      return;
+    }
     searchRealTravellers(searchQuery).then((results) => {
       if (isMounted) {
         const currentFollows = getFollowedUserIds();
@@ -355,7 +360,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [searchQuery]);
+  }, [searchQuery, session]);
 
   // Sync followed set with storage changes
   useEffect(() => {
@@ -442,6 +447,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   // Handle follow button click (prompts confirmation if already following)
   const handleFollowAction = useCallback((id: string, username: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (!session?.user) {
+      onRequireAuth?.();
+      return;
+    }
     const cleanUser = username.replace(/^@+/, '').toLowerCase();
     const isAlreadyFollowing = followedSet.has(id) || followedSet.has(cleanUser) || isUserFollowing(currentUserProfile.username, username);
 
@@ -554,10 +563,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     });
   }, [viewingProfile, globalTrailsList]);
 
-  // Suggested profiles for discover people section: EXCLUDES the currently logged in user!
+  // Suggested profiles for discover people section: ONLY shown for logged-in users, excluding yourself
   const suggestedProfiles = useMemo(() => {
+    if (!session?.user) return [];
     return travellers.filter((t) => !isCurrentUser(t));
-  }, [travellers, isCurrentUser]);
+  }, [travellers, isCurrentUser, session]);
 
   // Filtered Travellers during active search
   const filteredTravellers = useMemo(() => {
