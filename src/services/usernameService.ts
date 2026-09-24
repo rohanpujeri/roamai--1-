@@ -128,6 +128,8 @@ export async function checkUsernameAvailability(
 
   const clean = validation.cleanUsername;
 
+  let checkedWithServerOrSupabase = false;
+
   // 1. PRIMARY SOURCE OF TRUTH: Query Supabase public.profiles & public.usernames tables
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -139,12 +141,15 @@ export async function checkUsernameAvailability(
         .or(`username.ilike.${clean},username.ilike.${withAt}`)
         .limit(1);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const existing = data[0];
-        if (currentUserId && (existing.id === currentUserId || existing.id === `supa_${currentUserId}`)) {
-          return { available: true };
+      if (!error) {
+        checkedWithServerOrSupabase = true;
+        if (Array.isArray(data) && data.length > 0) {
+          const existing = data[0];
+          if (currentUserId && (existing.id === currentUserId || existing.id === `supa_${currentUserId}`)) {
+            return { available: true };
+          }
+          return { available: false, error: `@${clean} is already registered. Please choose another username.` };
         }
-        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
       }
     } catch (err) {
       console.warn('Error querying public.profiles in checkUsernameAvailability:', err);
@@ -158,12 +163,15 @@ export async function checkUsernameAvailability(
         .or(`username.ilike.${clean},username.ilike.${withAt}`)
         .limit(1);
 
-      if (!uErr && Array.isArray(uData) && uData.length > 0) {
-        const uRow = uData[0];
-        if (currentUserId && (uRow.user_id === currentUserId || uRow.user_id === `supa_${currentUserId}`)) {
-          return { available: true };
+      if (!uErr) {
+        checkedWithServerOrSupabase = true;
+        if (Array.isArray(uData) && uData.length > 0) {
+          const uRow = uData[0];
+          if (currentUserId && (uRow.user_id === currentUserId || uRow.user_id === `supa_${currentUserId}`)) {
+            return { available: true };
+          }
+          return { available: false, error: `@${clean} is already registered. Please choose another username.` };
         }
-        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
       }
     } catch {
       // Table might not exist yet; gracefully handled
@@ -175,6 +183,7 @@ export async function checkUsernameAvailability(
     const apiRes = await fetch(`/api/auth/check-username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId || '')}`);
     if (apiRes.ok) {
       const data = await apiRes.json();
+      checkedWithServerOrSupabase = true;
       if (!data.available) {
         return { available: false, error: data.error || `@${clean} is already taken.` };
       }
@@ -183,7 +192,12 @@ export async function checkUsernameAvailability(
     // If backend is unreachable or local development, fall through to local cache check
   }
 
-  // 3. Check local cache registry
+  // If live database or backend API responded, trust the cloud database!
+  if (checkedWithServerOrSupabase) {
+    return { available: true };
+  }
+
+  // 3. Fallback: Only check local cache registry if offline / server disconnected
   const localRegistry = getLocalClaimedUsernames();
   const withAt = `@${clean}`;
   const localRecord = localRegistry[clean] || localRegistry[withAt];
