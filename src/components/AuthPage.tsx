@@ -79,6 +79,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
     return () => clearTimeout(timer);
   }, [username, authMode]);
 
+  // Show confirmation success message if returning from email verification link
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+
+      if (hash.includes('error_description') || search.includes('error_description')) {
+        const params = new URLSearchParams(hash.replace(/^#/, '') || search.replace(/^\?/, ''));
+        const errDesc = params.get('error_description');
+        if (errDesc) {
+          setError(decodeURIComponent(errDesc.replace(/\+/g, ' ')));
+        }
+      } else if (hash.includes('access_token') || hash.includes('type=signup') || search.includes('confirmed=true') || search.includes('verified=true')) {
+        setMessage('Your email has been confirmed successfully! Please sign in with your password.');
+        setAuthMode('signin');
+      }
+    }
+  }, []);
+
   const getErrorMessage = (err: any): string => {
     const msg = err?.message?.toLowerCase() || '';
     if (msg.includes('invalid login credentials')) {
@@ -156,10 +175,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
     try {
       if (authMode === 'signup') {
         const cleanUname = cleanUsernameInput(username);
+        const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}` : 'https://tripwise-wheat-one.vercel.app';
         const { error: signUpError, data } = await supabase.auth.signUp({
           email,
           password,
           options: {
+            emailRedirectTo: redirectUrl,
             data: {
               username: `@${cleanUname}`,
               full_name: fullName.trim(),
@@ -260,9 +281,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
     setMessage(null);
     
     try {
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}` : 'https://tripwise-wheat-one.vercel.app';
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
+        options: {
+          emailRedirectTo: redirectUrl
+        }
       });
       if (error) {
         setError(getErrorMessage(error));
