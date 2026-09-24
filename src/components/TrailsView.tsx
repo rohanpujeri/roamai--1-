@@ -834,15 +834,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </button>
           </div>
         </div>
-        {/* Edit Cover Modal */}
-        <EditCoverModal
-          isOpen={isEditCoverModalOpen}
-          videoFile={uploadVideoFile}
-          videoUrl={uploadVideoPreview}
-          initialPoster={uploadPosterPreview}
-          onClose={() => setIsEditCoverModalOpen(false)}
-          onSave={(newPoster) => setUploadPosterPreview(newPoster)}
-        />
       </div>
     );
   }
@@ -1666,7 +1657,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     {/* "Edit cover" Pill on Bottom */}
                     <button
                       type="button"
-                      onClick={() => setIsEditCoverModalOpen(true)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsEditCoverModalOpen(true);
+                      }}
                       className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95"
                     >
                       Edit cover
@@ -1932,6 +1927,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Edit Cover Modal */}
+      <EditCoverModal
+        isOpen={isEditCoverModalOpen}
+        videoFile={uploadVideoFile}
+        videoUrl={uploadVideoPreview}
+        initialPoster={uploadPosterPreview}
+        onClose={() => setIsEditCoverModalOpen(false)}
+        onSave={(newPoster) => setUploadPosterPreview(newPoster)}
+      />
     </div>
   );
 };

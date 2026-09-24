@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Check, Loader2 } from 'lucide-react';
 
 export interface EditCoverModalProps {
   isOpen: boolean;
@@ -25,7 +25,7 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
   onSave,
 }) => {
   const [frames, setFrames] = useState<FrameItem[]>([]);
-  const [isLoadingFrames, setIsLoadingFrames] = useState(false);
+  const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
   const [selectedDataUrl, setSelectedDataUrl] = useState<string>('');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   
@@ -36,28 +36,56 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
   const [textColor, setTextColor] = useState<string>('#ffffff');
   
   const cameraRollInputRef = useRef<HTMLInputElement | null>(null);
-  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Initialize selected poster when opened
+  // Initialize selected poster whenever opened
   useEffect(() => {
     if (isOpen) {
-      if (initialPoster) {
-        setSelectedDataUrl(initialPoster);
-      }
+      const defaultImg = initialPoster || '';
+      setSelectedDataUrl(defaultImg);
       setIsEditingText(false);
+      setOverlayText('');
     }
   }, [isOpen, initialPoster]);
 
-  // Extract frames from video across timeline
+  // Extract frames from video or load image
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
-    const mediaSource = videoFile ? URL.createObjectURL(videoFile) : (videoUrl || '');
+    const isImageFile = videoFile && (videoFile.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(videoFile.name));
+    const isImageUrl = !videoFile && videoUrl && (videoUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|webp|gif)/i.test(videoUrl));
 
+    // CASE 1: File/Source is an Image (not a video)
+    if (isImageFile || isImageUrl) {
+      let imgData = '';
+      if (videoFile) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!isMounted) return;
+          const res = reader.result as string;
+          if (res) {
+            setSelectedDataUrl(res);
+            setFrames([{ id: 'img-0', time: 0, dataUrl: res }]);
+          }
+        };
+        reader.readAsDataURL(videoFile);
+      } else {
+        imgData = videoUrl || initialPoster || '';
+        if (imgData) {
+          setSelectedDataUrl(imgData);
+          setFrames([{ id: 'img-0', time: 0, dataUrl: imgData }]);
+        }
+      }
+      setIsLoadingFrames(false);
+      return;
+    }
+
+    // CASE 2: File/Source is a Video
+    const mediaSource = videoFile ? URL.createObjectURL(videoFile) : (videoUrl || '');
     if (!mediaSource) {
       if (initialPoster) {
         setFrames([{ id: 'init-0', time: 0, dataUrl: initialPoster }]);
+        setSelectedDataUrl(initialPoster);
       }
       return;
     }
@@ -69,75 +97,101 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
     video.crossOrigin = 'anonymous';
     video.muted = true;
     video.playsInline = true;
-    video.setAttribute('webkit-playsinline', 'true');
-    video.preload = 'metadata';
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.preload = 'auto';
 
-    const frameCount = 8;
+    const frameCount = 7;
     const extractedList: FrameItem[] = [];
+
+    const captureSingleFrame = (targetTime: number): Promise<string> => {
+      return new Promise<string>((resolve) => {
+        let timeoutId: any = null;
+
+        const onSeeked = () => {
+          clearTimeout(timeoutId);
+          video.removeEventListener('seeked', onSeeked);
+          try {
+            const canvas = document.createElement('canvas');
+            const w = video.videoWidth || 540;
+            const h = video.videoHeight || 960;
+            const maxW = 540;
+            canvas.width = Math.min(w, maxW);
+            canvas.height = Math.round((canvas.width / w) * h);
+            const ctx = canvas.getContext('2d');
+            if (ctx && canvas.width > 0 && canvas.height > 0) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+              return resolve(dataUrl);
+            }
+          } catch {}
+          resolve('');
+        };
+
+        // 1.2s timeout fallback per frame
+        timeoutId = setTimeout(() => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve('');
+        }, 1200);
+
+        video.addEventListener('seeked', onSeeked);
+        try {
+          video.currentTime = targetTime;
+        } catch {
+          clearTimeout(timeoutId);
+          resolve('');
+        }
+      });
+    };
 
     const handleLoadedMetadata = async () => {
       try {
         const duration = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 3;
-        const intervals = Array.from({ length: frameCount }, (_, i) => {
-          // Spread across 3% to 95% of video duration
-          const ratio = (i + 0.3) / (frameCount + 0.3);
+
+        // Quick capture first frame at 0.1s so user sees something immediately
+        const firstFrame = await captureSingleFrame(Math.min(0.2, duration * 0.05));
+        if (isMounted && firstFrame) {
+          extractedList.push({ id: 'frame-0', time: 0.1, dataUrl: firstFrame });
+          setFrames([...extractedList]);
+          setSelectedDataUrl((cur) => cur || firstFrame);
+          setSelectedIndex(0);
+        }
+
+        // Capture remaining timeline frames
+        const intervals = Array.from({ length: frameCount - 1 }, (_, i) => {
+          const ratio = (i + 1) / frameCount;
           return Math.max(0.1, Math.min(duration - 0.1, duration * ratio));
         });
 
         for (let i = 0; i < intervals.length; i++) {
           if (!isMounted) break;
           const targetTime = intervals[i];
-
-          const frameUrl = await new Promise<string>((resolve) => {
-            const onSeeked = () => {
-              video.removeEventListener('seeked', onSeeked);
-              try {
-                const canvas = document.createElement('canvas');
-                const width = video.videoWidth || 540;
-                const height = video.videoHeight || 960;
-                canvas.width = Math.min(width, 720);
-                canvas.height = Math.round((canvas.width / width) * height);
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                  resolve(canvas.toDataURL('image/jpeg', 0.85));
-                  return;
-                }
-              } catch {}
-              resolve('');
-            };
-
-            video.addEventListener('seeked', onSeeked);
-            video.currentTime = targetTime;
-          });
-
+          const frameUrl = await captureSingleFrame(targetTime);
           if (frameUrl) {
             extractedList.push({
-              id: `frame-${i}`,
+              id: `frame-${i + 1}`,
               time: targetTime,
               dataUrl: frameUrl,
             });
+            if (isMounted) {
+              setFrames([...extractedList]);
+            }
           }
         }
 
-        if (isMounted) {
-          if (extractedList.length > 0) {
-            setFrames(extractedList);
-            if (!initialPoster) {
-              setSelectedDataUrl(extractedList[0].dataUrl);
-              setSelectedIndex(0);
-            }
-          } else if (initialPoster) {
-            setFrames([{ id: 'init-0', time: 0, dataUrl: initialPoster }]);
-          }
+        if (isMounted && extractedList.length > 0) {
+          setFrames(extractedList);
+          setSelectedDataUrl((cur) => cur || extractedList[0].dataUrl);
         }
       } catch (err) {
-        console.warn('Could not extract video frames:', err);
+        console.warn('Frame extraction warning:', err);
       } finally {
         if (isMounted) {
           setIsLoadingFrames(false);
-          if (videoFile) {
-            URL.revokeObjectURL(mediaSource);
+          if (videoFile && mediaSource) {
+            try {
+              URL.revokeObjectURL(mediaSource);
+            } catch {}
           }
         }
       }
@@ -145,10 +199,22 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
 
+    // Global 8s timeout in case loadedmetadata never fires
+    const globalTimeout = setTimeout(() => {
+      if (isMounted && extractedList.length === 0) {
+        setIsLoadingFrames(false);
+        if (initialPoster) {
+          setFrames([{ id: 'init-0', time: 0, dataUrl: initialPoster }]);
+          setSelectedDataUrl(initialPoster);
+        }
+      }
+    }, 8000);
+
     return () => {
       isMounted = false;
+      clearTimeout(globalTimeout);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      if (videoFile) {
+      if (videoFile && mediaSource) {
         try {
           URL.revokeObjectURL(mediaSource);
         } catch {}
@@ -167,7 +233,6 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         const resultUrl = event.target?.result as string;
         if (resultUrl) {
           setSelectedDataUrl(resultUrl);
-          // Add custom photo to beginning of frames list
           setFrames((prev) => [
             { id: `custom-${Date.now()}`, time: 0, dataUrl: resultUrl },
             ...prev.filter((f) => !f.id.startsWith('custom-')),
@@ -186,7 +251,7 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
       return;
     }
 
-    // If no text overlay, save image as is
+    // If no text overlay, save selected frame directly
     if (!overlayText.trim()) {
       onSave(selectedDataUrl);
       onClose();
@@ -207,21 +272,18 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         return;
       }
 
-      // Draw base image
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Draw overlay text
-      const fontSize = Math.round(canvas.width * 0.06);
+      const fontSize = Math.round(canvas.width * 0.055);
       ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
       ctx.fillStyle = textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 10;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 2;
 
-      // Position text vertically in the lower-middle zone
       const textX = canvas.width / 2;
       const textY = canvas.height * 0.52;
 
@@ -239,7 +301,11 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-100 flex flex-col bg-[#0b0c10] text-white animate-in fade-in duration-200 select-none">
+    <div
+      style={{ zIndex: 999999 }}
+      className="fixed inset-0 flex flex-col bg-[#0b0c10] text-white select-none overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Hidden file input for camera roll */}
       <input
         ref={cameraRollInputRef}
@@ -254,7 +320,10 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         {/* Close Button */}
         <button
           type="button"
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 text-white flex items-center justify-center transition-colors cursor-pointer active:scale-95"
           title="Cancel"
         >
@@ -269,7 +338,10 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         {/* Done / Checkmark Button */}
         <button
           type="button"
-          onClick={handleSave}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSave();
+          }}
           className="w-9 h-9 rounded-full bg-[#3875f6] hover:bg-[#2b66e3] text-white flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-blue-500/25 active:scale-95"
           title="Done"
         >
@@ -277,12 +349,12 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         </button>
       </header>
 
-      {/* Subheader: Cover Tab (no profile grid per request) */}
+      {/* Subheader: Cover Tab (no profile grid) */}
       <div className="pt-2.5 pb-2 text-center shrink-0">
         <div className="inline-block border-b-2 border-white pb-1.5 px-3">
           <span className="text-sm font-bold text-white tracking-wide">Cover</span>
         </div>
-        <p className="text-xs text-zinc-400 mt-2.5 px-4 font-normal max-w-xs mx-auto">
+        <p className="text-xs text-zinc-400 mt-2 px-4 font-normal max-w-xs mx-auto">
           Select a cover image from your video or camera roll and add text.
         </p>
       </div>
@@ -319,7 +391,8 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
           {/* Floating Aa Button on Bottom-Left */}
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setTempText(overlayText);
               setIsEditingText(true);
             }}
@@ -332,7 +405,10 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
 
         {/* Text Input Modal Overlay (when tapping Aa) */}
         {isEditingText && (
-          <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-150">
+          <div 
+            className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-full max-w-xs space-y-4 text-center">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Add Text to Cover</span>
@@ -415,7 +491,8 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
                 return (
                   <div
                     key={frame.id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setSelectedDataUrl(frame.dataUrl);
                       setSelectedIndex(index);
                     }}
@@ -440,7 +517,10 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
         {/* Big Blue "Add from camera roll" Button */}
         <button
           type="button"
-          onClick={() => cameraRollInputRef.current?.click()}
+          onClick={(e) => {
+            e.stopPropagation();
+            cameraRollInputRef.current?.click();
+          }}
           className="w-full py-3.5 rounded-xl bg-[#3875f6] hover:bg-[#2b66e3] text-white font-bold text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-[0.98]"
         >
           <span>Add from camera roll</span>

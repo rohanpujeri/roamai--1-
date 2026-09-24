@@ -195,17 +195,17 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // Check if clicked element or any ancestor is a theme-related button or inside the theme modal
-      const isThemeElement = Boolean(
+      // Check if clicked element or any ancestor is a theme-related button, inside theme modal, or cover action
+      const isExemptElement = Boolean(
         target.closest('[data-theme-action="true"]') ||
         target.closest('#theme-selector-modal') ||
         target.closest('[data-theme-modal="true"]') ||
         target.closest('button[title*="theme" i]') ||
-        target.closest('button[title*="Theme" i]')
+        target.closest('button[title*="Theme" i]') ||
+        target.closest('[data-cover-action="true"]')
       );
 
-      if (isThemeElement) {
-        // Theme changing is explicitly allowed!
+      if (isExemptElement) {
         return;
       }
 
