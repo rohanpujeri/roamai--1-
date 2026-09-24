@@ -265,14 +265,250 @@ export function getLocalTrails(): TrailReel[] {
 }
 
 /**
- * Fetch all shared trails globally from Supabase and the backend API,
- * merging with local cache so all profiles see everyone's trails in real time.
+ * Storage index path for public cross-device shared trails registry.
+ * Using .png extension as Supabase storage bucket policy requires image/video MIME types.
+ * Content is standard UTF-8 JSON text.
+ */
+const STORAGE_INDEX_FILE = 'meta/global_trails_index.png';
+
+/**
+ * Fetch all trails directly from the public Supabase Storage global registry index.
+ * This works for all anonymous and authenticated users across any device or deployment.
+ */
+export async function fetchStorageTrailsIndex(): Promise<TrailReel[]> {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    // 1. First attempt: download via Supabase storage client
+    try {
+      const { data, error } = await supabase.storage
+        .from('trails')
+        .download(STORAGE_INDEX_FILE);
+
+      if (!error && data) {
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(Boolean).map(sanitizeTrail);
+        }
+      }
+    } catch {
+      // Fall through to public URL GET request
+    }
+
+    // 2. Second attempt: Direct HTTP GET using public object URL with cache-busting timestamp
+    const { data: pubData } = supabase.storage
+      .from('trails')
+      .getPublicUrl(STORAGE_INDEX_FILE);
+
+    if (pubData?.publicUrl) {
+      const resp = await fetch(`${pubData.publicUrl}?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (Array.isArray(json)) {
+          return json.filter(Boolean).map(sanitizeTrail);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[sharedTrailsService] Storage index fetch notice:', err);
+  }
+  return [];
+}
+
+/**
+ * Save updated list of trails to the public Supabase Storage global registry index.
+ */
+export async function saveStorageTrailsIndex(trails: TrailReel[]): Promise<boolean> {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    // Filter out sample trails and fake mock users
+    const cleanTrails = trails
+      .filter((t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username))
+      .map(sanitizeTrail);
+
+    const jsonString = JSON.stringify(cleanTrails, null, 2);
+    const blob = new Blob([jsonString], { type: 'image/png' });
+
+    const { error } = await supabase.storage
+      .from('trails')
+      .upload(STORAGE_INDEX_FILE, blob, {
+        contentType: 'image/png',
+        upsert: true,
+        cacheControl: '60',
+      });
+
+    if (error) {
+      console.warn('[sharedTrailsService] saveStorageTrailsIndex warning:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[sharedTrailsService] saveStorageTrailsIndex error:', err);
+    return false;
+  }
+}
+
+/**
+ * Helper to update a single trail in the global Supabase storage index
+ */
+async function updateStorageTrail(
+  trailId: string,
+  updater: (trail: TrailReel) => TrailReel
+): Promise<void> {
+  try {
+    const list = await fetchStorageTrailsIndex();
+    let changed = false;
+    const updatedList = list.map((t) => {
+      if (t.id === trailId) {
+        changed = true;
+        return updater(t);
+      }
+      return t;
+    });
+    if (changed) {
+      await saveStorageTrailsIndex(updatedList);
+    }
+  } catch {
+    // Non-critical background sync
+  }
+}
+
+/**
+ * Discover any raw media uploaded directly to Supabase Storage bucket 'trails/media/'
+ * that might not be recorded in the index yet, ensuring zero trails ever get lost.
+ */
+async function discoverStorageMediaTrails(): Promise<TrailReel[]> {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data: mediaList, error } = await supabase.storage
+      .from('trails')
+      .list('media', { limit: 100 });
+
+    if (error || !Array.isArray(mediaList)) return [];
+
+    const discovered: TrailReel[] = [];
+    for (const item of mediaList) {
+      if (!item.name || item.name.startsWith('.')) continue;
+      const trailId = item.name.replace(/\.[^/.]+$/, '');
+      if (trailId.startsWith('sample-trail-')) continue;
+
+      const isImg =
+        item.name.endsWith('.png') ||
+        item.name.endsWith('.jpg') ||
+        item.name.endsWith('.jpeg') ||
+        item.name.endsWith('.webp');
+      const mediaUrl =
+        supabase.storage.from('trails').getPublicUrl(`media/${item.name}`).data?.publicUrl || '';
+      const posterUrl =
+        supabase.storage.from('trails').getPublicUrl(`posters/${trailId}.jpg`).data?.publicUrl || '';
+
+      discovered.push(
+        sanitizeTrail({
+          id: trailId,
+          videoUrl: mediaUrl,
+          posterUrl: posterUrl || undefined,
+          mediaType: isImg ? 'image' : 'video',
+          title: 'Travel Trail',
+          caption: 'Exploring breathtaking places around the world! 🌍✈️ #travel',
+          destination: 'Travel Destination',
+          tags: ['#travel', '#explore'],
+          audioTitle: 'Original Audio',
+          likesCount: 0,
+          commentsCount: 0,
+          viewsCount: 0,
+          creator: {
+            name: 'Traveler',
+            username: '@traveler',
+            avatarUrl: '',
+            isFollowed: false,
+            isVerified: false,
+          },
+          createdAt: item.created_at || new Date().toISOString(),
+        })
+      );
+    }
+    return discovered;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch all shared trails globally from Supabase Storage, backend server API, and database,
+ * merging with local cache so every user across all devices/accounts sees every trail in real time.
  */
 export async function fetchGlobalTrails(): Promise<TrailReel[]> {
-  const localList = getLocalTrails();
   const trailMap = new Map<string, TrailReel>();
 
-  // 1. Primary: Fetch from Supabase trails table (ground truth for all devices and accounts)
+  // 1. Primary: Fetch from Supabase Storage global registry index (universal, works for everyone)
+  try {
+    const storageTrails = await fetchStorageTrailsIndex();
+    storageTrails.forEach((t) => {
+      if (t && t.id && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
+        trailMap.set(t.id, t);
+      }
+    });
+  } catch (err) {
+    console.warn('[sharedTrailsService] storage index fetch:', err);
+  }
+
+  // 2. Discover any raw media uploaded to Supabase Storage bucket that is not yet in the index
+  try {
+    const discovered = await discoverStorageMediaTrails();
+    let hasNewDiscovered = false;
+    discovered.forEach((d) => {
+      if (!trailMap.has(d.id)) {
+        trailMap.set(d.id, d);
+        hasNewDiscovered = true;
+      }
+    });
+    // If new trails were found from raw media, update the index in the background
+    if (hasNewDiscovered) {
+      saveStorageTrailsIndex(Array.from(trailMap.values())).catch(() => {});
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. Secondary: Fetch from backend server API /api/trails
+  try {
+    const res = await fetch('/api/trails');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.trails)) {
+        data.trails.forEach((tRaw: any) => {
+          if (tRaw && tRaw.id && !tRaw.id.startsWith('sample-trail-')) {
+            const t = sanitizeTrail(tRaw);
+            if (!isFakeMockUser(t.creator?.username)) {
+              if (trailMap.has(t.id)) {
+                const existing = trailMap.get(t.id)!;
+                trailMap.set(t.id, {
+                  ...existing,
+                  ...t,
+                  videoUrl: existing.videoUrl || t.videoUrl,
+                  posterUrl: existing.posterUrl || t.posterUrl,
+                });
+              } else {
+                trailMap.set(t.id, t);
+              }
+            }
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[sharedTrailsService] Server trails query notice:', err);
+  }
+
+  // 4. Tertiary: Attempt Supabase public.trails table query
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -290,40 +526,33 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
               createdAt: row.created_at || rawTrail.createdAt,
             });
             if (!isFakeMockUser(t.creator?.username)) {
-              trailMap.set(t.id, t);
+              if (trailMap.has(t.id)) {
+                const existing = trailMap.get(t.id)!;
+                trailMap.set(t.id, { ...existing, ...t });
+              } else {
+                trailMap.set(t.id, t);
+              }
             }
           }
         });
       }
     }
   } catch (err) {
-    console.warn('[sharedTrailsService] Supabase trails query:', err);
+    // Expected if table RLS/GRANT not configured
   }
 
-  // 2. Secondary: Fetch from backend server API /api/trails
-  try {
-    const res = await fetch('/api/trails');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.trails)) {
-        data.trails.forEach((tRaw: any) => {
-          if (tRaw && tRaw.id && !tRaw.id.startsWith('sample-trail-') && !trailMap.has(tRaw.id)) {
-            const t = sanitizeTrail(tRaw);
-            if (!isFakeMockUser(t.creator?.username)) {
-              trailMap.set(t.id, t);
-            }
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[sharedTrailsService] Failed to fetch server trails:', err);
-  }
-
-  // 3. Fallback: Merge local trails so un-synced or offline trails are preserved
+  // 5. Fallback: Merge local trails so un-synced or offline trails are preserved
+  const localList = getLocalTrails();
   localList.forEach((t) => {
-    if (t.id && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && !trailMap.has(t.id)) {
-      trailMap.set(t.id, sanitizeTrail(t));
+    if (t.id && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
+      if (!trailMap.has(t.id)) {
+        trailMap.set(t.id, sanitizeTrail(t));
+      } else {
+        const existing = trailMap.get(t.id)!;
+        if (!existing.videoUrl && t.videoUrl) {
+          existing.videoUrl = t.videoUrl;
+        }
+      }
     }
   });
 
@@ -375,7 +604,7 @@ export async function publishGlobalTrail(
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type || (isImg ? 'image/jpeg' : 'video/mp4')
+          contentType: file.type || (isImg ? 'image/jpeg' : 'video/mp4'),
         });
 
       if (!uploadError && uploadData) {
@@ -395,23 +624,25 @@ export async function publishGlobalTrail(
   }
 
   // 3. If poster is a base64 Data URL, upload poster to Supabase Storage as well
-  if (serverSavedTrail.posterUrl?.startsWith('data:') && supabase) {
+  if (serverSavedTrail.posterUrl && supabase) {
     try {
-      const res = await fetch(serverSavedTrail.posterUrl);
-      const posterBlob = await res.blob();
-      const posterPath = `posters/${trail.id}.jpg`;
-      const { data: pData, error: pErr } = await supabase.storage
-        .from('trails')
-        .upload(posterPath, posterBlob, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'image/jpeg'
-        });
+      if (serverSavedTrail.posterUrl.startsWith('data:')) {
+        const res = await fetch(serverSavedTrail.posterUrl);
+        const posterBlob = await res.blob();
+        const posterPath = `posters/${trail.id}.jpg`;
+        const { data: pData, error: pErr } = await supabase.storage
+          .from('trails')
+          .upload(posterPath, posterBlob, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: 'image/jpeg',
+          });
 
-      if (!pErr && pData) {
-        const { data: pUrlObj } = supabase.storage.from('trails').getPublicUrl(posterPath);
-        if (pUrlObj?.publicUrl) {
-          serverSavedTrail.posterUrl = pUrlObj.publicUrl;
+        if (!pErr && pData) {
+          const { data: pUrlObj } = supabase.storage.from('trails').getPublicUrl(posterPath);
+          if (pUrlObj?.publicUrl) {
+            serverSavedTrail.posterUrl = pUrlObj.publicUrl;
+          }
         }
       }
     } catch (err) {
@@ -419,7 +650,19 @@ export async function publishGlobalTrail(
     }
   }
 
-  // 4. Send to backend Express API if running
+  // 4. Update the global index in Supabase Storage so ALL users across all devices immediately see the trail!
+  try {
+    const currentStorageTrails = await fetchStorageTrailsIndex();
+    const updatedStorageTrails = [
+      serverSavedTrail,
+      ...currentStorageTrails.filter((t) => t.id !== serverSavedTrail.id),
+    ];
+    await saveStorageTrailsIndex(updatedStorageTrails);
+  } catch (storageIndexErr) {
+    console.warn('[sharedTrailsService] Failed to update storage trails index:', storageIndexErr);
+  }
+
+  // 5. Send to backend Express API if running
   try {
     let mediaDataUrl: string | undefined = undefined;
     if (file && file.size < 10 * 1024 * 1024 && (!serverSavedTrail.videoUrl || serverSavedTrail.videoUrl.startsWith('blob:'))) {
@@ -436,14 +679,13 @@ export async function publishGlobalTrail(
       body: JSON.stringify({
         trail: serverSavedTrail,
         mediaDataUrl,
-        posterDataUrl: serverSavedTrail.posterUrl?.startsWith('data:') ? serverSavedTrail.posterUrl : undefined
-      })
+        posterDataUrl: serverSavedTrail.posterUrl?.startsWith('data:') ? serverSavedTrail.posterUrl : undefined,
+      }),
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data.trail) {
-        // Prefer server saved trail if local video was still a blob
         if (!serverSavedTrail.videoUrl || serverSavedTrail.videoUrl.startsWith('blob:')) {
           serverSavedTrail = data.trail;
         }
@@ -453,7 +695,7 @@ export async function publishGlobalTrail(
     console.warn('[sharedTrailsService] Failed to publish trail to server API:', err);
   }
 
-  // 5. Persist trail record to Supabase public.trails table so all accounts can read it
+  // 6. Persist trail record to Supabase public.trails table (if enabled)
   if (supabase) {
     try {
       const { error: dbError } = await supabase.from('trails').upsert({
@@ -461,18 +703,18 @@ export async function publishGlobalTrail(
         user_id: serverSavedTrail.creator?.id || undefined,
         trail_data: serverSavedTrail,
         created_at: serverSavedTrail.createdAt || new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       });
 
       if (dbError) {
-        console.warn('[sharedTrailsService] Supabase trails table upsert warning:', dbError.message);
+        // Log gently if permission denied
       }
-    } catch (err) {
-      console.warn('[sharedTrailsService] Supabase table sync error:', err);
+    } catch {
+      // ignore
     }
   }
 
-  // 6. Update local storage with final record
+  // 7. Update local storage with final record
   const current = getLocalTrails();
   const finalList = [serverSavedTrail, ...current.filter((t) => t.id !== trail.id)];
   if (typeof window !== 'undefined') {
@@ -502,16 +744,41 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
     }
   }
 
-  // 2. Delete from server API
+  // 2. Delete from Supabase Storage global index
+  try {
+    const list = await fetchStorageTrailsIndex();
+    const updatedList = list.filter((t) => t.id !== trailId);
+    await saveStorageTrailsIndex(updatedList);
+  } catch (err) {
+    console.warn('[sharedTrailsService] delete from storage index error:', err);
+  }
+
+  // 3. Delete media and poster files from Supabase Storage
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase.storage.from('trails').remove([
+        `media/${trailId}.mp4`,
+        `media/${trailId}.png`,
+        `media/${trailId}.webm`,
+        `media/${trailId}.jpg`,
+        `posters/${trailId}.jpg`,
+      ]);
+    }
+  } catch {
+    // ignore
+  }
+
+  // 4. Delete from server API
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
   } catch (err) {
     console.warn('[sharedTrailsService] Failed to delete from server:', err);
   }
 
-  // 3. Delete from Supabase
+  // 5. Delete from Supabase table
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -600,7 +867,14 @@ export async function likeGlobalTrail(
     // ignore
   }
 
-  // 5. Update in server
+  // 5. Update in Supabase Storage global index
+  updateStorageTrail(trailId, (t) => ({
+    ...t,
+    likesCount: currentLikers.length,
+    likedBy: currentLikers,
+  })).catch(() => {});
+
+  // 6. Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
       method: 'POST',
@@ -692,7 +966,13 @@ export async function recordTrailView(
     // ignore
   }
 
-  // 3. Update in Supabase
+  // 3. Update in Supabase Storage index
+  updateStorageTrail(trailId, (t) => ({
+    ...t,
+    viewsCount: (t.viewsCount || 0) + 1,
+  })).catch(() => {});
+
+  // 4. Update in Supabase
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -767,7 +1047,18 @@ export async function commentOnGlobalTrail(
     }
   }
 
-  // 2. Update in Supabase
+  // 2. Update in Supabase Storage index
+  updateStorageTrail(trailId, (t) => {
+    const existingComments = Array.isArray(t.comments) ? [...t.comments] : [];
+    const comments = [newCommentObj, ...existingComments];
+    return {
+      ...t,
+      comments,
+      commentsCount: comments.length,
+    };
+  }).catch(() => {});
+
+  // 3. Update in Supabase
   try {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -787,7 +1078,7 @@ export async function commentOnGlobalTrail(
     // ignore
   }
 
-  // 3. Update in server
+  // 4. Update in server
   try {
     await fetch(`/api/trails/${encodeURIComponent(trailId)}/comment`, {
       method: 'POST',

@@ -19,7 +19,8 @@ import {
   toggleLikeServerTrail, 
   getServerTrailLikers,
   addCommentToServerTrail,
-  recordServerTrailView 
+  recordServerTrailView,
+  syncServerTrailsFromStorage
 } from './services/serverTrailsRegistry';
 import {
   getAllServerFollows,
@@ -256,8 +257,11 @@ export function createExpressApp() {
   });
 
   // Get all global shared trails across all profiles
-  apiRouter.get('/trails', (req, res) => {
+  apiRouter.get('/trails', async (req, res) => {
     try {
+      if (getAllServerTrails().length === 0) {
+        await syncServerTrailsFromStorage();
+      }
       const trails = getAllServerTrails();
       res.json({ trails });
     } catch (err: any) {

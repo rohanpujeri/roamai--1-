@@ -570,7 +570,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return exploreTiles.filter((tile) =>
       (tile.title || '').toLowerCase().includes(q) ||
       (tile.destination || '').toLowerCase().includes(q) ||
-      (tile.creator?.username || '').toLowerCase().includes(q)
+      (tile.creator?.username || '').toLowerCase().includes(q) ||
+      (tile.creator?.name || '').toLowerCase().includes(q)
     );
   }, [exploreTiles, searchQuery]);
 

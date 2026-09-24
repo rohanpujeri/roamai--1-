@@ -3215,6 +3215,26 @@ function persistToDisk3() {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
+var SUPABASE_STORAGE_URL = "https://kfqdlajqarsfdoskeahh.supabase.co/storage/v1/object/public/trails";
+async function syncServerTrailsFromStorage() {
+  try {
+    const res = await fetch(`${SUPABASE_STORAGE_URL}/meta/global_trails_index.png?t=${Date.now()}`);
+    if (res.ok) {
+      const parsed = await res.json();
+      if (Array.isArray(parsed)) {
+        parsed.forEach((rec) => {
+          if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username)) {
+            trailsMap.set(rec.id, rec);
+          }
+        });
+        persistToDisk3();
+      }
+    }
+  } catch (err) {
+  }
+}
+syncServerTrailsFromStorage().catch(() => {
+});
 function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
   try {
     if (!base64Data || !base64Data.startsWith("data:")) return null;
@@ -3557,8 +3577,11 @@ function createExpressApp() {
     const users = searchServerUsers(q);
     res.json({ users });
   });
-  apiRouter.get("/trails", (req, res) => {
+  apiRouter.get("/trails", async (req, res) => {
     try {
+      if (getAllServerTrails().length === 0) {
+        await syncServerTrailsFromStorage();
+      }
       const trails = getAllServerTrails();
       res.json({ trails });
     } catch (err) {

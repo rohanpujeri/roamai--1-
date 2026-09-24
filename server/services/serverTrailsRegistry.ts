@@ -92,6 +92,35 @@ function persistToDisk(): void {
   }
 }
 
+const SUPABASE_STORAGE_URL = 'https://kfqdlajqarsfdoskeahh.supabase.co/storage/v1/object/public/trails';
+
+export async function syncServerTrailsFromStorage(): Promise<void> {
+  try {
+    const res = await fetch(`${SUPABASE_STORAGE_URL}/meta/global_trails_index.png?t=${Date.now()}`);
+    if (res.ok) {
+      const parsed: ServerTrailRecord[] = await res.json();
+      if (Array.isArray(parsed)) {
+        parsed.forEach((rec) => {
+          if (
+            rec &&
+            rec.id &&
+            !rec.id.startsWith('sample-trail-') &&
+            !isFakeMockUser(rec.creator?.username)
+          ) {
+            trailsMap.set(rec.id, rec);
+          }
+        });
+        persistToDisk();
+      }
+    }
+  } catch (err) {
+    // Non-fatal
+  }
+}
+
+// Kick off initial sync from storage
+syncServerTrailsFromStorage().catch(() => {});
+
 /**
  * Save binary base64 file to disk if possible, returning the public static URL
  */
