@@ -28,6 +28,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
+import { EditCoverModal } from './EditCoverModal';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 import {
@@ -288,6 +289,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
   const [uploadVideoPreview, setUploadVideoPreview] = useState<string>('');
   const [uploadPosterPreview, setUploadPosterPreview] = useState<string>('');
+  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
   const [uploadCaption, setUploadCaption] = useState<string>('');
   const [uploadDestination, setUploadDestination] = useState<string>('');
   const [uploadTags, setUploadTags] = useState<string>('');
@@ -832,6 +834,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </button>
           </div>
         </div>
+        {/* Edit Cover Modal */}
+        <EditCoverModal
+          isOpen={isEditCoverModalOpen}
+          videoFile={uploadVideoFile}
+          videoUrl={uploadVideoPreview}
+          initialPoster={uploadPosterPreview}
+          onClose={() => setIsEditCoverModalOpen(false)}
+          onSave={(newPoster) => setUploadPosterPreview(newPoster)}
+        />
       </div>
     );
   }
@@ -1653,16 +1664,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     </button>
 
                     {/* "Edit cover" Pill on Bottom */}
-                    <input
-                      ref={coverInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCoverChange}
-                      className="hidden"
-                    />
                     <button
                       type="button"
-                      onClick={() => coverInputRef.current?.click()}
+                      onClick={() => setIsEditCoverModalOpen(true)}
                       className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95"
                     >
                       Edit cover

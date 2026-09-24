@@ -16,6 +16,7 @@ import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
+import { EditCoverModal } from './EditCoverModal';
 
 export interface UploadTrailViewProps {
   initialFile?: File | null;
@@ -42,6 +43,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -348,7 +350,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
               {/* "Edit cover" Pill on Bottom */}
               <button
                 type="button"
-                onClick={() => coverInputRef.current?.click()}
+                onClick={() => setIsEditCoverModalOpen(true)}
                 className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/20 cursor-pointer shadow-md transition-all active:scale-95"
               >
                 Edit cover
@@ -533,6 +535,15 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
           </div>
         </form>
       )}
+      {/* Edit Cover Modal (Matching Reel Cover Selector) */}
+      <EditCoverModal
+        isOpen={isEditCoverModalOpen}
+        videoFile={videoFile}
+        videoUrl={videoPreview}
+        initialPoster={posterPreview}
+        onClose={() => setIsEditCoverModalOpen(false)}
+        onSave={(newPoster) => setPosterPreview(newPoster)}
+      />
     </div>
   );
 };

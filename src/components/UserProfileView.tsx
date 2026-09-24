@@ -65,6 +65,7 @@ import {
   sanitizeTrail
 } from '../services/sharedTrailsService';
 import { TrailsView } from './TrailsView';
+import { EditCoverModal } from './EditCoverModal';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
@@ -257,6 +258,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailFile, setTrailFile] = useState<File | null>(null);
   const [trailPreviewUrl, setTrailPreviewUrl] = useState<string>('');
   const [trailPosterUrl, setTrailPosterUrl] = useState<string>('');
+  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
   const [trailDestination, setTrailDestination] = useState<string>('');
   const [trailCaption, setTrailCaption] = useState<string>('');
   const [trailTags, setTrailTags] = useState<string>('');
@@ -1868,16 +1870,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     </button>
 
                     {/* "Edit cover" Pill on Bottom */}
-                    <input
-                      ref={trailCoverInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleTrailCoverChange}
-                      className="hidden"
-                    />
                     <button
                       type="button"
-                      onClick={() => trailCoverInputRef.current?.click()}
+                      onClick={() => setIsEditCoverModalOpen(true)}
                       className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95"
                     >
                       Edit cover
@@ -2431,6 +2426,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           );
           onNavigate?.('search');
         }}
+      />
+
+      {/* Edit Cover Modal for Trail Upload */}
+      <EditCoverModal
+        isOpen={isEditCoverModalOpen}
+        videoFile={trailFile}
+        videoUrl={trailPreviewUrl}
+        initialPoster={trailPosterUrl}
+        onClose={() => setIsEditCoverModalOpen(false)}
+        onSave={(newPoster) => setTrailPosterUrl(newPoster)}
       />
     </div>
   );
