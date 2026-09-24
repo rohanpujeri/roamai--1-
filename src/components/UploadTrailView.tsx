@@ -160,8 +160,8 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
       const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
       const extractedHashtags = (caption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
-      const finalCaption = caption.trim() || 'Exploring this breathtaking destination! 🌍✈️';
-      const cleanTitle = caption.replace(/#\S+/g, '').trim() || destination.trim() || 'Travel Trail';
+      const finalCaption = caption.trim();
+      const cleanTitle = caption.replace(/#\S+/g, '').trim() || destination.trim() || '';
 
       const newTrail: TrailReel = {
         id: trailId,
@@ -178,8 +178,8 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
           isVerified: false
         },
         caption: finalCaption,
-        destination: destination.trim() || 'Travel Destination',
-        tags: extractedHashtags.length > 0 ? extractedHashtags : ['#travel'],
+        destination: destination.trim(),
+        tags: extractedHashtags,
         audioTitle: '',
         likesCount: 0,
         commentsCount: 0,

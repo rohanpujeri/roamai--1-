@@ -744,10 +744,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
     const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
-    // Extract hashtags automatically from the combined caption & hashtags box
     const extractedHashtags = (uploadCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
-    const finalCaption = uploadCaption.trim() || 'Exploring this breathtaking destination! 🌍✈️';
-    const cleanTitle = uploadCaption.replace(/#\S+/g, '').trim() || uploadDestination.trim() || 'Travel Trail';
+    const finalCaption = uploadCaption.trim();
+    const cleanTitle = uploadCaption.replace(/#\S+/g, '').trim() || uploadDestination.trim() || '';
 
     const newTrail: TrailReel = {
       id: trailId,
@@ -764,8 +763,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         isVerified: false
       },
       caption: finalCaption,
-      destination: uploadDestination.trim() || 'Travel Destination',
-      tags: extractedHashtags.length > 0 ? extractedHashtags : (uploadTags ? uploadTags.split(' ').filter(Boolean) : ['#travel']),
+      destination: uploadDestination.trim(),
+      tags: extractedHashtags.length > 0 ? extractedHashtags : (uploadTags ? uploadTags.split(' ').filter(Boolean) : []),
       audioTitle: uploadAudio.trim() || 'Original Sound',
       likesCount: 0,
       commentsCount: 0,

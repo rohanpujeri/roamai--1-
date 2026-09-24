@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   username text UNIQUE,
   name text,
   avatar_url text,
-  bio text DEFAULT 'Exploring new places, one trip at a time 🌍',
+  bio text DEFAULT '',
   place text DEFAULT '',
   location text DEFAULT 'Traveler',
   level text DEFAULT 'Travel Explorer',
@@ -34,7 +34,7 @@ BEGIN
     ALTER TABLE public.profiles ADD COLUMN avatar_url text;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'bio') THEN
-    ALTER TABLE public.profiles ADD COLUMN bio text DEFAULT 'Exploring new places, one trip at a time 🌍';
+    ALTER TABLE public.profiles ADD COLUMN bio text DEFAULT '';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'place') THEN
     ALTER TABLE public.profiles ADD COLUMN place text DEFAULT '';
@@ -118,7 +118,7 @@ BEGIN
 
   extracted_bio := COALESCE(
     new.raw_user_meta_data->>'bio',
-    'Exploring new places, one trip at a time 🌍'
+    ''
   );
 
   INSERT INTO public.profiles (
@@ -180,7 +180,7 @@ SELECT
     initcap(replace(split_part(u.email, '@', 1), '.', ' '))
   ),
   COALESCE(u.raw_user_meta_data->>'avatar_url', u.raw_user_meta_data->>'avatarUrl', ''),
-  COALESCE(u.raw_user_meta_data->>'bio', 'Exploring new places, one trip at a time 🌍'),
+  COALESCE(u.raw_user_meta_data->>'bio', ''),
   COALESCE(u.raw_user_meta_data->>'place', 'Traveler'),
   COALESCE(u.raw_user_meta_data->>'place', 'Traveler')
 FROM auth.users u

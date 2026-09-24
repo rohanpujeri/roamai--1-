@@ -368,7 +368,7 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
       username: rel.followerUsername.startsWith('@') ? rel.followerUsername : `@${rel.followerUsername}`,
       name: enriched?.name || rel.followerName || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followerAvatar || ''),
-      bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
+      bio: enriched?.bio || '',
       location: '',
       isFollowing: isF,
       followsYou: followsViewer
@@ -421,7 +421,7 @@ export async function getFollowing(userIdentifier: string, currentViewerIdentifi
       username: rel.followingUsername.startsWith('@') ? rel.followingUsername : `@${rel.followingUsername}`,
       name: enriched?.name || rel.followingName || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followingAvatar || ''),
-      bio: enriched?.bio || 'Exploring new places, one trip at a time 🌍',
+      bio: enriched?.bio || '',
       location: '',
       isFollowing: isF,
       followsYou: followsViewer

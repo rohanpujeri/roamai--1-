@@ -334,7 +334,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       username: `@${cleanUser}`,
       avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
       location: '',
-      bio: p.bio || existing?.bio || 'Exploring new places, one trip at a time 🌍',
+      bio: p.bio || existing?.bio || '',
       level: p.level || existing?.level || 'Travel Explorer',
       tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
       placesCount: p.placesCount ?? existing?.placesCount ?? 0,

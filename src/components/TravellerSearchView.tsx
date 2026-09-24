@@ -165,7 +165,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           username: d.username?.startsWith('@') ? d.username : `@${cleanUname}`,
           avatarUrl: d.avatarUrl || '',
           location: d.location || 'Traveler',
-          bio: d.bio || 'Exploring new places, one trip at a time 🌍',
+          bio: d.bio || '',
           level: d.level || 'Travel Explorer',
           tripsCount: d.tripsCount || 0,
           placesCount: d.placesCount || 0,
@@ -747,9 +747,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             <h2 className="text-sm sm:text-base font-bold text-white">
               {viewingProfile.name}
             </h2>
-            <p className="text-xs text-neutral-200 pt-1 leading-relaxed whitespace-pre-line">
-              {viewingProfile.bio || 'Exploring new places, one trip at a time 🌍'}
-            </p>
+            {viewingProfile.bio && (
+              <p className="text-xs text-neutral-200 pt-1 leading-relaxed whitespace-pre-line">
+                {viewingProfile.bio}
+              </p>
+            )}
 
             {/* Travel DNA tags */}
             {viewingProfile.topDNA && viewingProfile.topDNA.length > 0 && (
@@ -1125,7 +1127,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               username: selectedUser.username,
               avatarUrl: selectedUser.avatarUrl || '',
               location: selectedUser.location || 'Traveler',
-              bio: selectedUser.bio || 'Exploring new places, one trip at a time 🌍',
+              bio: selectedUser.bio || '',
               level: 'Travel Explorer',
               tripsCount: 0,
               placesCount: 0,

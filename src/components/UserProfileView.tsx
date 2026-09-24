@@ -142,31 +142,39 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailToDelete, setTrailToDelete] = useState<UserTrailItem | null>(null);
   const [isDeletingTrail, setIsDeletingTrail] = useState<boolean>(false);
 
-  // User uploaded trails from local storage
+  // User uploaded trails from local storage - strictly filtered to this authenticated user
   const [userTrails, setUserTrails] = useState<UserTrailItem[]>(() => {
     try {
       const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
+          const currentUname = (userMeta.username || '').toLowerCase().replace(/^@/, '');
+          const currentUid = user?.id;
+          if (!currentUname && !currentUid) return [];
+
           return parsed
             .filter(
               (t: any) =>
                 t &&
                 !t.id?.startsWith('sample-trail-') &&
-                !isFakeMockUser(t.creator?.username)
+                !isFakeMockUser(t.creator?.username) &&
+                (
+                  (currentUname && (t.creator?.username || '').toLowerCase().replace(/^@/, '') === currentUname) ||
+                  (currentUid && t.creator?.id === currentUid)
+                )
             )
             .map((t: any) => ({
               id: t.id,
-              title: t.title || t.caption || t.destination || 'Travel Trail',
-              destination: t.destination || 'Travel Destination',
+              title: t.title || t.caption || t.destination || '',
+              destination: t.destination || '',
               viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
               likesCount: t.likesCount ? String(t.likesCount) : '0',
               videoUrl: t.videoUrl,
               posterUrl: t.posterUrl,
               duration: t.duration,
               mediaType: t.mediaType || 'video',
-              caption: t.caption || t.title
+              caption: t.caption || t.title || ''
             }));
         }
       }
@@ -354,9 +362,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       const isImg = trailFile ? trailFile.type.startsWith('image/') : false;
       const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
-      const destinationVal = trailDestination.trim() || 'Travel Destination';
-      const captionVal = trailCaption.trim() || 'Exploring new places with TripWise 🌍✈️';
-      const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || 'Travel Trail';
+      const destinationVal = trailDestination.trim();
+      const captionVal = trailCaption.trim();
+      const cleanTitle = trailCaption.replace(/#\S+/g, '').trim() || destinationVal || '';
       const extractedTags = (trailCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
 
       const newTrailItem: UserTrailItem = {
@@ -387,7 +395,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         },
         caption: captionVal,
         destination: destinationVal,
-        tags: extractedTags.length > 0 ? extractedTags : (trailTags ? trailTags.split(' ').filter(Boolean) : ['#travel']),
+        tags: extractedTags.length > 0 ? extractedTags : (trailTags ? trailTags.split(' ').filter(Boolean) : []),
         audioTitle: 'Original Audio',
         likesCount: 0,
         commentsCount: 0,
@@ -599,7 +607,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return {
       name: cached?.name || getFallbackName(user, userMeta),
       username: cached?.username || getFallbackUsername(user, userMeta),
-      bio: cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍',
+      bio: cached?.bio || userMeta.bio || '',
       avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || ''),
       dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || '',
@@ -652,7 +660,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const username = cached?.username || getFallbackUsername(user, userMeta);
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
     const place = cached?.place || userMeta.place || '';
-    const bio = cached?.bio || userMeta.bio || 'Exploring new places, one trip at a time 🌍';
+    const bio = cached?.bio || userMeta.bio || '';
     const dob = cached?.dob || userMeta.dob || '';
 
     const synced: UserProfileData = {
@@ -737,12 +745,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           .filter((t: any) => {
             if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
             const creatorUsername = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
-            const creatorName = (t.creator?.name || '').toLowerCase().trim();
+            const creatorId = t.creator?.id;
             return (
               (targetUsername && creatorUsername === targetUsername) ||
-              (targetName && creatorName === targetName) ||
-              (user?.id && t.creator?.id === user.id) ||
-              (!creatorUsername && !targetUsername)
+              (user?.id && creatorId === user.id)
             );
           })
           .map(sanitizeTrail);
@@ -1197,10 +1203,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         {/* Bio & Details */}
         <div className="mt-3 text-left">
-          <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line">
-            {profile.bio}
-          </p>
-          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400 font-medium flex-wrap">
+          {profile.bio && (
+            <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line mb-1">
+              {profile.bio}
+            </p>
+          )}
+          <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium flex-wrap">
             <span className="text-zinc-500 font-mono">
               {profile.username || getFallbackUsername(user, userMeta)}
             </span>
