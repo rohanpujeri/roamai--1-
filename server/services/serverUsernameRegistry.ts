@@ -64,8 +64,8 @@ function persistToDisk(): void {
   }
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://kfqdlajqarsfdoskeahh.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://lqptcfdnvejwfrbjtlrn.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1';
 
 export async function isUsernameAvailable(
   rawUsername: string,

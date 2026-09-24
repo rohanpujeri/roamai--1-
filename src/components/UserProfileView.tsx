@@ -227,11 +227,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       );
     };
 
+    const handleDeleted = (e: any) => {
+      const { trailId } = e.detail || {};
+      if (!trailId) return;
+      setProfileFullTrails((prev) => prev.filter((t) => t.id !== trailId));
+      setUserTrails((prev) => prev.filter((u) => u.id !== trailId));
+    };
+
     window.addEventListener('roamai_trail_liked', handleLiked);
     window.addEventListener('roamai_trail_viewed', handleViewed);
+    window.addEventListener('roamai_trail_deleted', handleDeleted);
     return () => {
       window.removeEventListener('roamai_trail_liked', handleLiked);
       window.removeEventListener('roamai_trail_viewed', handleViewed);
+      window.removeEventListener('roamai_trail_deleted', handleDeleted);
     };
   }, []);
 
@@ -1640,7 +1649,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             onBack={() => setActiveReelTrailId(null)}
             onDeleteTrail={(deletedId) => {
               setProfileFullTrails((prev) => prev.filter((p) => p.id !== deletedId));
-              setUserTrails((prev) => prev.filter((p) => p.id !== deletedId));
+              setUserTrails((prev) => {
+                const updated = prev.filter((p) => p.id !== deletedId);
+                try {
+                  localStorage.setItem('roamai_user_trails', JSON.stringify(updated));
+                  localStorage.setItem('tripwise_user_trails', JSON.stringify(updated));
+                } catch {
+                  // ignore
+                }
+                return updated;
+              });
             }}
             onStartPlanning={onStartPlanning}
             onRequireAuth={onRequireAuth}

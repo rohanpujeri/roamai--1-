@@ -286,11 +286,11 @@ export function createExpressApp() {
     }
   });
 
-  // Delete a shared trail
-  apiRouter.delete('/trails/:id', (req, res) => {
+  // Delete a shared trail completely from server & backend
+  apiRouter.delete('/trails/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const success = deleteServerTrail(id);
+      const success = await deleteServerTrail(id);
       res.json({ success });
     } catch (err: any) {
       console.error('Error deleting trail:', err);

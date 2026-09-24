@@ -92,11 +92,12 @@ function persistToDisk(): void {
   }
 }
 
-const SUPABASE_STORAGE_URL = 'https://kfqdlajqarsfdoskeahh.supabase.co/storage/v1/object/public/trails';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://lqptcfdnvejwfrbjtlrn.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1';
 
 export async function syncServerTrailsFromStorage(): Promise<void> {
   try {
-    const res = await fetch(`${SUPABASE_STORAGE_URL}/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const parsed: ServerTrailRecord[] = await res.json();
       if (Array.isArray(parsed)) {
@@ -113,12 +114,12 @@ export async function syncServerTrailsFromStorage(): Promise<void> {
         persistToDisk();
       }
     }
-  } catch (err) {
+  } catch {
     // Non-fatal
   }
 }
 
-// Kick off initial sync from storage
+// Initial background sync from storage on startup
 syncServerTrailsFromStorage().catch(() => {});
 
 /**
@@ -234,17 +235,175 @@ export function saveServerTrail(
   trailsMap.set(cleanRecord.id, cleanRecord);
   persistToDisk();
 
+  // Async sync to Supabase public.trails table so all users on any device see it
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    fetch(`${SUPABASE_URL}/rest/v1/trails`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        id: cleanRecord.id,
+        user_id: null,
+        trail_data: cleanRecord,
+        created_at: cleanRecord.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+    }).catch(err => {
+      console.warn('[serverTrailsRegistry] Supabase trails table sync notice:', err);
+    });
+
+    // Also update global storage index
+    (async () => {
+      try {
+        const allTrails = Array.from(trailsMap.values())
+          .filter(t => t && t.id && !t.id.startsWith('sample-trail-'))
+          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        const jsonBody = JSON.stringify(allTrails, null, 2);
+        await fetch(`${SUPABASE_URL}/storage/v1/object/trails/meta/global_trails_index.png`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'image/png',
+            'x-upsert': 'true'
+          },
+          body: jsonBody
+        });
+      } catch (err) {
+        console.warn('[serverTrailsRegistry] Global storage index sync notice:', err);
+      }
+    })();
+  }
+
   return cleanRecord;
 }
 
 /**
- * Delete a trail from the global shared registry
+ * Delete a trail completely from the backend:
+ * 1. In-memory map
+ * 2. Persistent disk JSON
+ * 3. Local uploaded media and poster files on disk
+ * 4. Supabase Storage files
+ * 5. Supabase Storage global registry index
+ * 6. Supabase public.trails table
  */
-export function deleteServerTrail(trailId: string): boolean {
-  if (!trailsMap.has(trailId)) return false;
+export async function deleteServerTrail(trailId: string): Promise<boolean> {
+  if (!trailId) return false;
+  const cleanId = String(trailId).trim();
+  const decodedId = decodeURIComponent(cleanId);
+  const encodedId = encodeURIComponent(cleanId);
 
-  trailsMap.delete(trailId);
+  // 1. Remove from in-memory map
+  trailsMap.delete(cleanId);
+  trailsMap.delete(decodedId);
+  trailsMap.delete(encodedId);
+
+  for (const [k] of trailsMap) {
+    if (k === cleanId || k === decodedId || k === encodedId || decodeURIComponent(k) === decodedId) {
+      trailsMap.delete(k);
+    }
+  }
+
+  // 2. Persist to disk trails.json
   persistToDisk();
+
+  // 3. Remove disk media files (both /uploads/trails and /tmp/roamai_uploads)
+  const candidateDirs = [uploadsDir, publicUploadsDir, tmpUploadsDir];
+  for (const dir of candidateDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          if (
+            file.startsWith(`${cleanId}_`) || file.startsWith(`${cleanId}.`) ||
+            file.startsWith(`${decodedId}_`) || file.startsWith(`${decodedId}.`)
+          ) {
+            try {
+              fs.unlinkSync(path.join(dir, file));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 4. Delete media & poster files from Supabase Storage
+  try {
+    const prefixes = [
+      `media/${cleanId}.mp4`,
+      `media/${cleanId}.webm`,
+      `media/${cleanId}.png`,
+      `media/${cleanId}.jpg`,
+      `media/${cleanId}.mov`,
+      `posters/${cleanId}.jpg`,
+      `posters/${cleanId}.png`,
+      `media/${decodedId}.mp4`,
+      `media/${decodedId}.webm`,
+      `media/${decodedId}.png`,
+      `media/${decodedId}.jpg`,
+      `media/${decodedId}.mov`,
+      `posters/${decodedId}.jpg`,
+      `posters/${decodedId}.png`
+    ];
+    await fetch(`${SUPABASE_URL}/storage/v1/object/trails`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prefixes })
+    });
+  } catch (err) {
+    console.warn('[serverTrailsRegistry] Supabase storage file remove warning:', err);
+  }
+
+  // 5. Update global storage index in Supabase Storage
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        const filtered = list.filter((t: any) => t && t.id !== cleanId && t.id !== decodedId);
+        if (filtered.length !== list.length) {
+          await fetch(`${SUPABASE_URL}/storage/v1/object/trails/meta/global_trails_index.png`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'image/png',
+              'x-upsert': 'true'
+            },
+            body: JSON.stringify(filtered)
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // 6. Delete from Supabase public.trails table
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+  } catch (err) {
+    console.warn('[serverTrailsRegistry] Supabase table delete warning:', err);
+  }
+
   return true;
 }
 

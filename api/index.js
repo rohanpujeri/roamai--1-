@@ -626,94 +626,520 @@ async function generateTripFromInputs(params) {
   const alcoholPref = params.preferences.alcohol;
   const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
   const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
-  const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : "car / personal road vehicle";
+  const startCoordinates = params.preferences?.startCoordinates || params?.startCoordinates || "";
+  const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : travelMode === "Car / Road Trip" ? "car / personal road vehicle" : travelMode;
   const actionVerb = travelMode === "Bike / Motorcycle" ? "motorcycle ride" : "car drive";
-  const prompt = `You are a world-class AI travel planner and local expert.
-Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
-Destination: "${destName}" (${destAddress}).
-${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}, Longitude ${destLng}.` : ""}
-Departure Point: "${startCity}".
-Travelers: ${params.companionType} (${params.travellersCount} people).
-Travel Mode: ${travelMode}.
-Budget Level: ${params.budgetTier} (~\u20B9${params.targetBudget?.toLocaleString() || "30,000"} total for ${params.travellersCount} people over ${params.durationDays} days).
+  const prompt = `You are the AI travel-planning engine for a real-world travel planning application.
 
-USER PREFERENCES:
-1. TRAVEL STYLES:
-   ${hasUserSelectedStyles ? `\u2022 User explicitly selected: ${params.preferences.styles.join(", ")}. The itinerary MUST specifically prioritize these styles:
-     ${params.preferences.styles.includes("Adventure") ? "\u2022 ADVENTURE: Include outdoor thrills, hiking/trekking trails, watersports, or viewpoints with climbs." : ""}
-     ${params.preferences.styles.includes("Relaxation") ? "\u2022 RELAXATION: Include peaceful lakeside/beach walks, gardens, scenic viewpoints, or unhurried tea lounges." : ""}
-     ${params.preferences.styles.includes("Food") ? "\u2022 FOOD: Include famous local food streets, heritage bakeries, regional culinary legends, and authentic tasting spots." : ""}
-     ${params.preferences.styles.includes("Nature") ? "\u2022 NATURE: Feature national parks, waterfalls, botanical gardens, lakes, mountain viewpoints, or wildlife reserves." : ""}
-     ${params.preferences.styles.includes("Culture") ? "\u2022 CULTURE: Feature historic forts, palaces, heritage architecture, art galleries, museums, or local craft hubs." : ""}
-     ${params.preferences.styles.includes("Nightlife") ? "\u2022 NIGHTLIFE: Include lively evening streets, night markets, rooftop lounges, or live music venues." : ""}
-     ${params.preferences.styles.includes("Photography") ? "\u2022 PHOTOGRAPHY: Include photogenic golden-hour viewpoints, architectural vistas, and scenic photo spots." : ""}
-     ${params.preferences.styles.includes("Shopping") ? "\u2022 SHOPPING: Include vibrant local bazaars, spice/tea markets, artisan souvenir emporiums, or flea markets." : ""}
-     ${params.preferences.styles.includes("Spiritual") ? "\u2022 SPIRITUAL: Feature iconic historic temples, ashrams, sacred ghats, shrines, or meditation spots." : ""}
-     ${params.preferences.styles.includes("Hidden gems") ? "\u2022 HIDDEN GEMS: Include offbeat, secret, uncrowded scenic spots and local-favorite corners." : ""}
-     ${params.preferences.styles.includes("Luxury") ? "\u2022 LUXURY: Feature fine dining, exclusive heritage tours, and high-end viewpoints." : ""}
-     ${params.preferences.styles.includes("Backpacking") ? "\u2022 BACKPACKING: Feature scenic budget-friendly routes, youth vibes, walking tours, and free panoramic points." : ""}` : "\u2022 None selected: The user did NOT select any specific travel styles. DO NOT assume or force any narrow styles. Create an open, versatile, balanced itinerary highlighting the premier authentic attractions of the destination."}
+Your responsibility is to generate a realistic, personalized, geographically consistent, budget-aware and time-aware travel itinerary based entirely on the user's actual trip parameters and reliable data available to you.
 
-2. FOOD PREFERENCE:
-   ${foodPref === "Vegetarian" ? "\u2022 STRICT VEGETARIAN REQUIREMENT: ALL proposed dining, breakfast, lunch, and dinner activities MUST be 100% pure vegetarian restaurants or renowned veg-friendly regional kitchens in the destination." : ""}
-   ${foodPref === "Vegan" ? "\u2022 STRICT VEGAN REQUIREMENT: All meals and cafe stops must be plant-based and vegan-friendly organic eateries." : ""}
-   ${foodPref === "Non-vegetarian" ? "\u2022 NON-VEGETARIAN: Feature famous authentic regional non-veg specialties, seafood, or traditional local meat preparations." : ""}
-   ${!foodPref || foodPref === "No preference" ? "\u2022 No specific dietary restrictions specified. Include a diverse mix of authentic regional culinary highlights." : ""}
+==================================================
+CORE PRINCIPLE
+==================================================
 
-3. ALCOHOL PREFERENCE:
-   ${alcoholPref === "No" ? "\u2022 ZERO ALCOHOL VENUES: The user explicitly requested NO alcohol. Do NOT suggest any bars, pubs, breweries, liquor venues, or wine tasting. For evenings, suggest scenic night viewpoints, artisan dessert parlors, cultural walks, or night bazaars." : alcoholPref === "Yes" || alcoholPref === "Occasionally" ? "\u2022 User drinks alcohol: Include vibrant evening sunset cocktail lounges, craft breweries, scenic rooftop bars, or beach/hillview shacks." : "\u2022 Not specified: Do not restrict or force alcohol venues. Include a natural mix of scenic evening dinner, viewpoints, and cafe spots."}
+EVERYTHING MUST BE DYNAMIC.
 
-4. SPECIAL REQUESTS & CUSTOM NOTES:
-   ${customNotesText ? `\u2022 CRITICAL USER REQUEST: "${customNotesText}". MUST explicitly integrate this request into the relevant daily activities, dining options, or schedule notes!` : "\u2022 None specified."}
+Do NOT use predefined destinations, cities, highways, airports, restaurants, hotels, attractions, prices, weather values, travel times, image URLs, packing items, or fixed routes.
 
-STRICT ACCURACY & TIMELINE RULES:
-1. COMPLETE ROUND-TRIP LIFECYCLE (START AT SOURCE, END AT SOURCE):
-   - The total itinerary spans ${params.durationDays} days. The entire trip MUST start from "${startCity}", travel to "${destName}", explore "${destName}", and safely return back to "${startCity}".
+Do NOT copy example values from this instruction into the generated itinerary.
 
-${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MANDATE:
-      \u2022 The user selected "${travelMode}". The ENTIRE trip from start to end (outbound travel from "${startCity}", ALL local travel between sights in "${destName}", and return travel back to "${startCity}") MUST BE 100% EXCLUSIVELY BY ${travelMode.toUpperCase()}!
-      \u2022 ABSOLUTELY FORBIDDEN: Do NOT mention flights, airports, airlines, flight boarding, airport cabs, trains, railway stations, sleeper coaches, metro, or public buses anywhere in the itinerary!
-      \u2022 OUTBOUND ROAD TRANSIT:
-        - If the one-way road distance between "${startCity}" and "${destName}" is within a single day's ride/drive (<= 550 km):
-          * Day 1 departs "${startCity}", cruises via highway/scenic expressway with dhaba pitstop, arrives in "${destName}" by late afternoon/evening, checks into hotel/resort in "${destName}" with secure ${vehicleType} parking, and enjoys an evening relaxed walk/dinner in "${destName}".
-        - If the one-way road distance is long (> 550 km, e.g. Bengaluru to Ladakh is ~3,000 km, Delhi to Goa is ~1,900 km, Bengaluru to Mumbai is ~1,000 km, etc.):
-          * Day 1 CANNOT reach "${destName}"! Travelers realistically ride/drive 400-550 km per day.
-          * Day 1 covers the first ~400-500 km highway corridor from "${startCity}" along the national highway (e.g. NH-44), stopping overnight in a realistic intermediate transit city/town (e.g., Anantapur, Kurnool, Hyderabad, etc.).
-          * Activity 1: Highway departure prep & tank-up in "${startCity}".
-          * Activity 2: Morning highway cruising on the national highway.
-          * Activity 3: Highway dhaba lunch stop along the corridor.
-          * Activity 4: Evening arrival at the intermediate highway transit city (e.g., Anantapur / Kurnool), checking in to a local highway hotel/lodge with secure ${vehicleType} parking, and dinner. The location for Activity 4 MUST be in that intermediate transit city, NOT "${destName}".
-          * Subsequent transit days continue onward through intermediate transit hubs until reaching "${destName}".
-          * Sights and activities inside "${destName}" MUST strictly only begin after the travelers have arrived in "${destName}"!
-      \u2022 LOCAL INTER-ACTIVITY TRAVEL: For all activities on all days, "travelTimeFromPrev" MUST specify ${actionVerb} times (e.g. "15 min ${actionVerb}", "25 min scenic ${actionVerb}"). NEVER suggest hiring taxis, cabs, autos, or public transit because the travelers have their own ${vehicleType} with them throughout the trip!
-      \u2022 INBOUND RETURN DAY: Final day starts with packing the ${vehicleType}, hotel check-out, and a full scenic return highway ${actionVerb} back to "${startCity}" with highway meal stop, arriving safely home in "${startCity}" by ${vehicleType}.
-      \u2022 ROUTE SUMMARY FOR ${travelMode.toUpperCase()}:
-        - "departureHub": "${startCity} Highway Exit / Expressway Corridor"
-        - "arrivalHub": "${destName} Valley Entry / Highway Gateway"
-        - "recommendedMode": "${travelMode}"
-        - "keyHighwayOrTrain": Realistic national highway name (e.g. NH-44, NH-48, NH-181, Mumbai-Pune Expressway, etc.)` : `   - OUTBOUND PHASE (Day 1 / Early Days):
-     \u2022 Day 1 MUST start at "${startCity}": Activity 1 is departure logistics from "${startCity}" (airport check-in, railway station boarding, or highway start).
-     \u2022 CONNECTING FLIGHT & NEAREST AIRPORT LOGISTICS:
-       - If travelMode is Flight and there is NO direct commercial airport in "${destName}" (e.g., hill stations like Ooty, Manali, Munnar, Coorg, or remote regions), or no direct non-stop flight exists from "${startCity}":
-         * Leg 1 (Flight): Fly from "${startCity}" airport to the Nearest Commercial Airport (e.g. Coimbatore for Ooty, Chandigarh/Bhuntar for Manali, Cochin for Munnar, Mangalore/Mysore for Coorg, or connecting flight with hub layover).
-         * Leg 2 (Airport Transfer): Scenic cab/shuttle drive or mountain railway from the arrival airport to "${destName}".
-         * Leg 3 (Arrival & Stay): Reaching "${destName}", checking in to hotel/resort, unpacking and freshening up.
-         * Leg 4 (Evening): Relaxed welcome walk or dinner at a nearby local spot in "${destName}".
-     \u2022 MULTI-DAY TRANSIT RULE: If distance between "${startCity}" and "${destName}" is very long (e.g. > 1,200 km by Train or Road where travel takes 24-48 hours), Day 1 and Day 2 MUST realistically cover outbound journey, scenic rail/road route, sleeper/en-route food stops, arriving and checking in to "${destName}" on Day 2.
-   - INBOUND RETURN PHASE (Final Day / Day ${params.durationDays}):
-     \u2022 The final day MUST conclude the round-trip journey back to "${startCity}": Morning farewell cafe or souvenir shopping in "${destName}", hotel check-out, return road transfer to the nearest airport/station (if applicable), return flight/train/drive via ${travelMode}, and safe arrival back home in "${startCity}"!
-   - TRANSIT LOGISTICS & ROUTE SUMMARY: Calculate realistic distance and transit options from "${startCity}" to "${destName}". If there is no direct flight, "routeSummary.arrivalHub" MUST name the nearest commercial airport and ground transfer (e.g., "Coimbatore Airport (CJB) + 3h Nilgiri Ghat Drive to Ooty").`}
-   - CORE DESTINATION IMMERSION (Middle Days):
-     \u2022 Full dedicated days exploring "${destName}"'s iconic landmarks, viewpoints, nature, culture, and cuisine with 3 to 4 sequential activities per day tailored to user preferences.
-2. QUANTITY PER DAY: Each day MUST contain 3 to 4 sequential, well-timed activities (e.g., Morning 09:00 AM - 11:30 AM, Lunch 01:00 PM - 02:30 PM, Afternoon 03:30 PM - 05:30 PM, Evening 07:30 PM - 09:30 PM).
-3. ZERO HALLUCINATIONS: Every destination activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place in "${destName}".
-4. NEVER mix up destinations: Do NOT include unrelated tourist destinations.
-5. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates.
-6. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries and regional cuisine aligned with the ${params.budgetTier} budget tier.
-7. REALISTIC COSTS: Every activity cost in INR must be realistic for real travelers.
-8. PREPARATION, PERMITS & BOOKINGS RULES:
-   - In "packingList": every single item MUST have "checked": false (the user has not packed yet!).
-   - In "requirements": mandatory permits and documents MUST have "status": "Action Required" (the traveler needs to apply or carry them, not already completed!).
-   - In "bookings": stays, vehicles, or tickets MUST have "status": "To Book" (not already confirmed!).`;
+Do NOT assume a route simply because it is commonly known.
+
+Do NOT fabricate current information.
+
+If reliable live/grounded information is available, use it.
+
+If reliable information is unavailable, use null, an empty string, or clearly indicate that the information needs verification rather than inventing a value.
+
+The user's actual trip parameters always take priority.
+
+==================================================
+USER INPUT
+==================================================
+
+Destination:
+"${destName}"
+
+Destination Address:
+"${destAddress}"
+
+Departure Point:
+"${startCity}"
+
+Departure Coordinates:
+"${startCoordinates || ""}"
+
+Trip Duration:
+${params.durationDays} days
+
+Start Date:
+"${params.startDate || ""}"
+
+Number of Travelers:
+${params.travellersCount}
+
+Traveler Type:
+"${params.companionType}"
+
+Travel Mode:
+"${travelMode}"
+
+Vehicle Type:
+"${vehicleType || ""}"
+
+Budget Tier:
+"${params.budgetTier}"
+
+Target Budget:
+"${params.targetBudget || ""}"
+
+Travel Styles:
+"${hasUserSelectedStyles ? params.preferences.styles.join(", ") : ""}"
+
+Food Preference:
+"${foodPref || ""}"
+
+Alcohol Preference:
+"${alcoholPref || ""}"
+
+Special Notes:
+"${customNotesText || ""}"
+
+==================================================
+DATA GROUNDING
+==================================================
+
+When Gemini has access to Google Search grounding, Google Maps/Places data, application APIs, or other trusted live data:
+
+- Prefer grounded/current information.
+- Use actual locations.
+- Use actual distances and travel times.
+- Use actual opening hours when available.
+- Use current or recently verified prices when available.
+- Use current weather data when available.
+- Use actual business and attraction information.
+- Respect the date of the trip when evaluating information.
+
+Never present an unverified assumption as a verified current fact.
+
+If live information conflicts with general model knowledge, prefer the reliable current source.
+
+==================================================
+1. COMPLETE ROUND TRIP
+==================================================
+
+Generate the complete trip lifecycle:
+
+DEPARTURE POINT
+\u2192 TRANSIT
+\u2192 DESTINATION
+\u2192 DESTINATION EXPLORATION
+\u2192 RETURN TRANSIT
+\u2192 DEPARTURE POINT
+
+The itinerary must account for the entire requested number of days.
+
+Do not end the itinerary at the destination unless the user explicitly requested a one-way trip.
+
+The final day must logically account for the return journey.
+
+==================================================
+2. DYNAMIC TRAVEL MODE
+==================================================
+
+Respect the user's selected travel mode.
+
+If the user selects a personal car or motorcycle:
+
+- Use that vehicle throughout the road journey.
+- Use it for outbound travel.
+- Use it for local destination travel.
+- Use it for travel between activities.
+- Use it for the return journey.
+- Do not randomly switch to taxis, rental vehicles, buses, trains or flights.
+
+Only introduce another transportation method when:
+1. The user selected it, or
+2. A genuine route limitation makes it necessary.
+
+If another transportation mode is genuinely necessary, explain it through the relevant itinerary data.
+
+If the user selects flight, train, bus or another mode:
+
+- Build the trip around that mode.
+- Determine connecting transportation dynamically.
+- Determine airports/stations/terminals dynamically.
+- Do not assume direct connectivity.
+- Do not invent schedules.
+
+==================================================
+3. DYNAMIC ROAD-TRIP PLANNING
+==================================================
+
+For car and motorcycle trips, determine realistic travel days dynamically.
+
+Do NOT use a fixed distance threshold.
+
+Consider:
+
+- Actual road distance
+- Actual estimated driving/riding duration
+- Road conditions
+- Terrain
+- Traffic when available
+- Rest requirements
+- Meal breaks
+- Fuel/charging requirements
+- Traveler type
+- Trip duration
+- Departure time
+- Arrival time
+- Weather
+- Seasonal restrictions
+
+If the destination cannot realistically be reached on the first day:
+
+- Determine an appropriate intermediate overnight location.
+- The intermediate location must be geographically sensible along the actual route.
+- Do not use a predefined list of cities.
+- Continue the route logically on subsequent days.
+
+Do not place destination sightseeing activities before the traveler has arrived.
+
+==================================================
+4. ROUTE OPTIMIZATION
+==================================================
+
+Create a geographically sensible itinerary.
+
+Minimize unnecessary backtracking.
+
+Group nearby attractions together.
+
+Consider actual travel times between locations.
+
+For each activity, calculate or obtain realistic travel time from the previous activity.
+
+The sequence must be physically possible.
+
+Never schedule:
+
+- An activity before its opening time.
+- An activity after its closing time.
+- Two activities at the same time.
+- An impossible long-distance jump between consecutive activities.
+
+==================================================
+5. DESTINATION RECOMMENDATIONS
+==================================================
+
+Select attractions dynamically according to:
+
+- User interests
+- Travel styles
+- Traveler type
+- Budget
+- Trip duration
+- Season
+- Weather
+- Destination geography
+- Opening hours
+- Activity duration
+- Travel mode
+- Special notes
+
+Do not use a fixed number of attractions per day.
+
+A day may contain fewer activities when an experience requires significant time.
+
+A day may contain more activities when locations are close together and realistically fit.
+
+==================================================
+6. REAL-WORLD PLACES
+==================================================
+
+Use exact real-world locations.
+
+Never generate generic names such as:
+
+"Popular Tourist Spot"
+"Local Restaurant"
+"Scenic Viewpoint"
+"Famous Market"
+"Authentic Cafe"
+
+Every place should have a real name when reliable information is available.
+
+For each place, consider:
+
+- Exact location
+- Opening hours
+- Entry requirements
+- Current pricing
+- Rating
+- Reviews when available
+- Distance
+- Travel time
+- Relevance to the user
+
+Do not invent businesses, restaurants, hotels or attractions.
+
+==================================================
+7. TIMING
+==================================================
+
+Determine activity times dynamically.
+
+Consider:
+
+- Opening hours
+- Closing hours
+- Sunrise
+- Sunset
+- Weather
+- Traffic
+- Travel time
+- Expected visit duration
+- Booking time
+- User preferences
+- Meal periods
+- Activity difficulty
+
+Do not use fixed example times.
+
+Do not force activities into arbitrary time slots.
+
+Every activity must have a realistic start and end time.
+
+==================================================
+8. WEATHER
+==================================================
+
+If current or forecast weather information is available, use it.
+
+Weather must correspond as closely as possible to:
+
+- Destination
+- Specific travel date
+- Relevant time period
+
+Use weather to adjust the itinerary when appropriate.
+
+For example, dynamically consider whether outdoor activities should be moved, shortened or replaced.
+
+Do not invent temperature, rain probability or weather conditions.
+
+If weather data is unavailable, return null/empty values instead of fabricated forecasts.
+
+==================================================
+9. BUDGET
+==================================================
+
+Plan around the user's actual budget.
+
+Dynamically consider:
+
+- Transportation
+- Fuel
+- Charging
+- Accommodation
+- Food
+- Entry fees
+- Activities
+- Parking
+- Tolls
+- Permits
+- Local transport
+- Other necessary expenses
+
+Use current/reliable pricing when available.
+
+Do not use fixed prices from this prompt.
+
+Do not silently exceed the user's target budget.
+
+If the requested itinerary cannot realistically fit the budget, make reasonable adjustments and reflect the resulting estimated costs.
+
+==================================================
+10. FOOD
+==================================================
+
+Respect the user's food preference.
+
+Recommend real restaurants and food locations dynamically.
+
+Consider:
+
+- Dietary preference
+- Cuisine
+- Budget
+- Location
+- Opening hours
+- Ratings
+- Distance from route
+- Availability when available
+
+If the user does not want alcohol, do not force bars, clubs or alcohol-related activities.
+
+==================================================
+11. TRAVELER PROFILE
+==================================================
+
+Adapt the itinerary according to:
+
+- Number of travelers
+- Traveler type
+- Children if applicable
+- Older travelers if applicable
+- Group/friends/couple/solo configuration
+- User's stated preferences
+
+Consider this when determining:
+
+- Activity intensity
+- Rest
+- Accommodation
+- Food
+- Travel time
+- Accessibility
+- Safety
+
+==================================================
+12. SAFETY AND REQUIREMENTS
+==================================================
+
+Identify genuine travel requirements dynamically.
+
+Consider:
+
+- Permits
+- Government permissions
+- Restricted areas
+- Identification requirements
+- Seasonal restrictions
+- Road restrictions
+- Weather risks
+- Activity difficulty
+- Local regulations
+
+Only add a requirement when it is actually relevant.
+
+Do not invent permit requirements.
+
+==================================================
+13. CLOTHING AND PACKING
+==================================================
+
+Generate the packing list specifically for this trip.
+
+Consider:
+
+- Destination
+- Travel dates
+- Weather
+- Activities
+- Terrain
+- Travel mode
+- Trip duration
+- Cultural requirements
+- Documents
+- Electronics
+- Safety requirements
+
+Do NOT use a fixed packing list.
+
+Each packing item must have a reason relevant to this trip.
+
+==================================================
+14. IMAGES
+==================================================
+
+Only return image URLs obtained from reliable application data or trusted image/places sources.
+
+Never use a hardcoded image URL.
+
+Never invent an image URL.
+
+If an appropriate image URL is unavailable:
+
+"imageUrl": ""
+
+==================================================
+15. BOOKINGS
+==================================================
+
+Identify bookings that are actually relevant.
+
+Possible booking categories include:
+
+- Accommodation
+- Transport
+- Attractions
+- Activities
+- Permits
+
+Only include a booking when it is genuinely required or useful.
+
+Do not claim availability unless availability information is actually available.
+
+==================================================
+16. FINAL DAY
+==================================================
+
+The final day must logically complete the trip.
+
+If the trip is round-trip:
+
+Destination
+\u2192 Return journey
+\u2192 Original departure point
+
+Account for realistic travel duration.
+
+Do not compress an unrealistic return journey simply to fit the requested number of days.
+
+==================================================
+17. JSON OUTPUT
+==================================================
+
+Return ONLY valid JSON.
+
+Do not return Markdown.
+
+Do not add explanations before or after the JSON.
+
+Do not use code fences.
+
+==================================================
+18. FINAL VALIDATION
+==================================================
+
+Before returning the JSON, internally validate the entire itinerary.
+
+Verify:
+
+1. The trip begins at the actual departure point.
+2. The destination is reached.
+3. The return journey is included when required.
+4. The requested travel mode is respected.
+5. Every movement is geographically possible.
+6. No activities overlap.
+7. Opening hours are respected when available.
+8. Travel times are realistic.
+9. The itinerary fits the requested number of days.
+10. Costs are consistent with the user's budget.
+11. Weather is not fabricated.
+12. Places are real when presented as real.
+13. Image URLs are not fabricated.
+14. No hardcoded example locations were used.
+15. No fixed example prices were used.
+16. No fixed example weather was used.
+17. No fixed packing list was used.
+18. No placeholder attractions or businesses were used.
+19. The JSON is syntactically valid.
+20. The itinerary feels like a realistic trip that a real traveler could actually follow.
+
+The final result must be a genuinely dynamic itinerary created from the user's actual inputs and reliable available data.`;
   const schema = {
     type: "OBJECT",
     properties: {
@@ -981,7 +1407,7 @@ ${isRoadVehicleMode ? `   - CRITICAL ${travelMode.toUpperCase()} EXCLUSIVITY MAN
     driveDuration: genData.routeSummary.driveDuration || "4h 30m",
     departureHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.departureHub || "") ? `${startCity} Highway Exit / Expressway Corridor` : genData.routeSummary.departureHub || (isRoadVehicleMode ? `${startCity} Highway Corridor` : `${startCity} Terminal`),
     arrivalHub: isRoadVehicleMode && /airport|terminal|station|railway/i.test(genData.routeSummary.arrivalHub || "") ? `${destName} Valley Entry / Highway Gateway` : genData.routeSummary.arrivalHub || (isRoadVehicleMode ? `${destName} Entry / Highway Hub` : `${destName} Junction`),
-    keyHighwayOrTrain: genData.routeSummary.keyHighwayOrTrain || (isRoadVehicleMode ? "National Highway Corridor" : "Direct Transit Route"),
+    keyHighwayOrTrain: genData.routeSummary.keyHighwayOrTrain || genData.routeSummary.keyRoute || (isRoadVehicleMode ? "National Highway Corridor" : "Direct Transit Route"),
     recommendedMode: isRoadVehicleMode ? travelMode : genData.routeSummary.recommendedMode || travelMode,
     notes: isRoadVehicleMode ? `Complete overland round-trip road journey by ${travelMode}` : genData.routeSummary.notes || "Direct transit connectivity"
   } : {
@@ -2902,8 +3328,8 @@ function makeKey(followerUsername, followingUsername) {
 var followsMap = /* @__PURE__ */ new Map();
 var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
 var dataFile = path.join(dataDir, "follows.json");
-var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
-var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
+var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
 function isFakeMockUser(_username) {
   return false;
 }
@@ -3108,8 +3534,8 @@ function persistToDisk2() {
     console.warn("Could not persist usernames to disk:", err);
   }
 }
-var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://kfqdlajqarsfdoskeahh.supabase.co";
-var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_sczvF-TyjyC1jNz2RV7EkQ_skgH9A5l";
+var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
+var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
 async function isUsernameAvailable(rawUsername, currentUserId) {
   if (!rawUsername) {
     return { available: false, error: "Username is required." };
@@ -3215,10 +3641,11 @@ function persistToDisk3() {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
-var SUPABASE_STORAGE_URL = "https://kfqdlajqarsfdoskeahh.supabase.co/storage/v1/object/public/trails";
+var SUPABASE_URL3 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
+var SUPABASE_KEY3 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
 async function syncServerTrailsFromStorage() {
   try {
-    const res = await fetch(`${SUPABASE_STORAGE_URL}/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const parsed = await res.json();
       if (Array.isArray(parsed)) {
@@ -3230,7 +3657,7 @@ async function syncServerTrailsFromStorage() {
         persistToDisk3();
       }
     }
-  } catch (err) {
+  } catch {
   }
 }
 syncServerTrailsFromStorage().catch(() => {
@@ -3320,12 +3747,139 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
   };
   trailsMap.set(cleanRecord.id, cleanRecord);
   persistToDisk3();
+  if (SUPABASE_URL3 && SUPABASE_KEY3) {
+    fetch(`${SUPABASE_URL3}/rest/v1/trails`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY3,
+        "Authorization": `Bearer ${SUPABASE_KEY3}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        id: cleanRecord.id,
+        user_id: null,
+        trail_data: cleanRecord,
+        created_at: cleanRecord.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+        updated_at: (/* @__PURE__ */ new Date()).toISOString()
+      })
+    }).catch((err) => {
+      console.warn("[serverTrailsRegistry] Supabase trails table sync notice:", err);
+    });
+    (async () => {
+      try {
+        const allTrails = Array.from(trailsMap.values()).filter((t) => t && t.id && !t.id.startsWith("sample-trail-")).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        const jsonBody = JSON.stringify(allTrails, null, 2);
+        await fetch(`${SUPABASE_URL3}/storage/v1/object/trails/meta/global_trails_index.png`, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY3,
+            "Authorization": `Bearer ${SUPABASE_KEY3}`,
+            "Content-Type": "image/png",
+            "x-upsert": "true"
+          },
+          body: jsonBody
+        });
+      } catch (err) {
+        console.warn("[serverTrailsRegistry] Global storage index sync notice:", err);
+      }
+    })();
+  }
   return cleanRecord;
 }
-function deleteServerTrail(trailId) {
-  if (!trailsMap.has(trailId)) return false;
-  trailsMap.delete(trailId);
+async function deleteServerTrail(trailId) {
+  if (!trailId) return false;
+  const cleanId = String(trailId).trim();
+  const decodedId = decodeURIComponent(cleanId);
+  const encodedId = encodeURIComponent(cleanId);
+  trailsMap.delete(cleanId);
+  trailsMap.delete(decodedId);
+  trailsMap.delete(encodedId);
+  for (const [k] of trailsMap) {
+    if (k === cleanId || k === decodedId || k === encodedId || decodeURIComponent(k) === decodedId) {
+      trailsMap.delete(k);
+    }
+  }
   persistToDisk3();
+  const candidateDirs = [uploadsDir, publicUploadsDir, tmpUploadsDir];
+  for (const dir of candidateDirs) {
+    if (fs3.existsSync(dir)) {
+      try {
+        const files = fs3.readdirSync(dir);
+        for (const file of files) {
+          if (file.startsWith(`${cleanId}_`) || file.startsWith(`${cleanId}.`) || file.startsWith(`${decodedId}_`) || file.startsWith(`${decodedId}.`)) {
+            try {
+              fs3.unlinkSync(path3.join(dir, file));
+            } catch {
+            }
+          }
+        }
+      } catch {
+      }
+    }
+  }
+  try {
+    const prefixes = [
+      `media/${cleanId}.mp4`,
+      `media/${cleanId}.webm`,
+      `media/${cleanId}.png`,
+      `media/${cleanId}.jpg`,
+      `media/${cleanId}.mov`,
+      `posters/${cleanId}.jpg`,
+      `posters/${cleanId}.png`,
+      `media/${decodedId}.mp4`,
+      `media/${decodedId}.webm`,
+      `media/${decodedId}.png`,
+      `media/${decodedId}.jpg`,
+      `media/${decodedId}.mov`,
+      `posters/${decodedId}.jpg`,
+      `posters/${decodedId}.png`
+    ];
+    await fetch(`${SUPABASE_URL3}/storage/v1/object/trails`, {
+      method: "DELETE",
+      headers: {
+        "apikey": SUPABASE_KEY3,
+        "Authorization": `Bearer ${SUPABASE_KEY3}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prefixes })
+    });
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Supabase storage file remove warning:", err);
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        const filtered = list.filter((t) => t && t.id !== cleanId && t.id !== decodedId);
+        if (filtered.length !== list.length) {
+          await fetch(`${SUPABASE_URL3}/storage/v1/object/trails/meta/global_trails_index.png`, {
+            method: "POST",
+            headers: {
+              "apikey": SUPABASE_KEY3,
+              "Authorization": `Bearer ${SUPABASE_KEY3}`,
+              "Content-Type": "image/png",
+              "x-upsert": "true"
+            },
+            body: JSON.stringify(filtered)
+          });
+        }
+      }
+    }
+  } catch {
+  }
+  try {
+    await fetch(`${SUPABASE_URL3}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
+      method: "DELETE",
+      headers: {
+        "apikey": SUPABASE_KEY3,
+        "Authorization": `Bearer ${SUPABASE_KEY3}`
+      }
+    });
+  } catch (err) {
+    console.warn("[serverTrailsRegistry] Supabase table delete warning:", err);
+  }
   return true;
 }
 function toggleLikeServerTrail(trailId, increment, liker) {
@@ -3603,10 +4157,10 @@ function createExpressApp() {
       res.status(500).json({ error: "Failed to save trail" });
     }
   });
-  apiRouter.delete("/trails/:id", (req, res) => {
+  apiRouter.delete("/trails/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const success = deleteServerTrail(id);
+      const success = await deleteServerTrail(id);
       res.json({ success });
     } catch (err) {
       console.error("Error deleting trail:", err);

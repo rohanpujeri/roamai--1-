@@ -175,8 +175,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         setCurrentIndex(0);
       }
     };
+    const handleDeleted = (e: any) => {
+      const deletedId = e.detail?.trailId;
+      if (deletedId) {
+        setTrails((prev) => prev.filter((p) => p.id !== deletedId));
+      }
+    };
     window.addEventListener('roamai_trail_uploaded', handleUploaded);
-    return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
+    window.addEventListener('roamai_trail_deleted', handleDeleted);
+    return () => {
+      window.removeEventListener('roamai_trail_uploaded', handleUploaded);
+      window.removeEventListener('roamai_trail_deleted', handleDeleted);
+    };
   }, []);
 
   const [currentIndex, setCurrentIndex] = useState<number>(() => {

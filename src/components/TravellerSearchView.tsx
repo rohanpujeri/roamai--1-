@@ -475,9 +475,20 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     };
     syncTrails();
     const interval = setInterval(syncTrails, 8000);
+
+    const handleDeleted = (e: any) => {
+      const deletedId = e.detail?.trailId;
+      if (deletedId) {
+        setGlobalTrailsList((prev) => prev.filter((t: any) => t && t.id !== deletedId));
+        setActiveReelTrails((prev) => prev ? prev.filter((t: any) => t && t.id !== deletedId) : null);
+      }
+    };
+    window.addEventListener('roamai_trail_deleted', handleDeleted);
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      window.removeEventListener('roamai_trail_deleted', handleDeleted);
     };
   }, []);
 
@@ -570,8 +581,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return exploreTiles.filter((tile) =>
       (tile.title || '').toLowerCase().includes(q) ||
       (tile.destination || '').toLowerCase().includes(q) ||
-      (tile.creator?.username || '').toLowerCase().includes(q) ||
-      (tile.creator?.name || '').toLowerCase().includes(q)
+      (tile.creator?.username || '').toLowerCase().includes(q)
     );
   }, [exploreTiles, searchQuery]);
 
@@ -1688,6 +1698,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             onBack={() => {
               setActiveReelTrailId(null);
               setActiveReelTrails(null);
+            }}
+            onDeleteTrail={(deletedId) => {
+              setGlobalTrailsList((prev) => prev.filter((t: any) => t && t.id !== deletedId));
+              setActiveReelTrails((prev) => prev ? prev.filter((t: any) => t && t.id !== deletedId) : null);
             }}
             onStartPlanning={onStartPlanning}
             onRequireAuth={onRequireAuth}
