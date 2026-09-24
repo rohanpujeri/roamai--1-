@@ -202,7 +202,8 @@ export default function App() {
         target.closest('[data-theme-modal="true"]') ||
         target.closest('button[title*="theme" i]') ||
         target.closest('button[title*="Theme" i]') ||
-        target.closest('[data-cover-action="true"]')
+        target.closest('[data-cover-action="true"]') ||
+        target.closest('[data-location-action="true"]')
       );
 
       if (isExemptElement) {

@@ -66,6 +66,7 @@ import {
 } from '../services/sharedTrailsService';
 import { TrailsView } from './TrailsView';
 import { EditCoverModal } from './EditCoverModal';
+import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
@@ -268,6 +269,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [showLocationInputTrail, setShowLocationInputTrail] = useState<boolean>(false);
   const [showHashtagSuggestionsTrail, setShowHashtagSuggestionsTrail] = useState<boolean>(false);
   const [isPreviewPlayingTrail, setIsPreviewPlayingTrail] = useState<boolean>(false);
+  const [isTrailLocationModalOpen, setIsTrailLocationModalOpen] = useState<boolean>(false);
+  const [uploadLocationErrorTrail, setUploadLocationErrorTrail] = useState<string | null>(null);
   const trailUploadInputRef = useRef<HTMLInputElement | null>(null);
   const trailCoverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -312,6 +315,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setShowLocationInputTrail(false);
     setShowHashtagSuggestionsTrail(false);
     setIsPreviewPlayingTrail(false);
+    setIsTrailLocationModalOpen(false);
+    setUploadLocationErrorTrail(null);
     if (trailUploadInputRef.current) {
       trailUploadInputRef.current.value = '';
     }
@@ -344,6 +349,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const handlePublishTrail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trailFile && !trailPreviewUrl) return;
+
+    if (!trailDestination.trim()) {
+      setUploadLocationErrorTrail('Location is mandatory for sharing a trail. Please choose a location.');
+      setIsTrailLocationModalOpen(true);
+      return;
+    }
 
     try {
       setIsPublishingTrail(true);
@@ -1986,54 +1997,45 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </div>
 
                   {/* Row 2: Add location > */}
-                  <div>
+                  {/* Row 2: Add location > (Mandatory) */}
+                  <div className={`rounded-2xl transition-all ${uploadLocationErrorTrail && !trailDestination ? 'border border-rose-500/70 bg-rose-500/5 p-2' : ''}`}>
                     <button
                       type="button"
-                      onClick={() => setShowLocationInputTrail(!showLocationInputTrail)}
+                      onClick={() => {
+                        setUploadLocationErrorTrail(null);
+                        setIsTrailLocationModalOpen(true);
+                      }}
                       className="w-full py-2 flex items-center justify-between text-left hover:opacity-80 transition-opacity cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
-                        <MapPin className="w-5 h-5 text-white" />
-                        <span className="text-sm sm:text-base font-semibold text-white">Add location</span>
+                        <MapPin className={`w-5 h-5 ${trailDestination ? 'text-blue-400' : 'text-white'}`} />
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm sm:text-base font-semibold text-white">Add location</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                            Required
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 text-zinc-400">
-                        {trailDestination && <span className="text-xs text-blue-400 font-medium truncate max-w-[140px]">{trailDestination}</span>}
+                        {trailDestination ? (
+                          <span className="text-xs text-blue-400 font-semibold truncate max-w-[140px] bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-500/20">
+                            {trailDestination}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400">Select on map or search</span>
+                        )}
                         <ChevronRight className="w-4 h-4 text-zinc-500" />
                       </div>
                     </button>
 
-                    {showLocationInputTrail && (
-                      <div className="py-2 pl-8">
-                        <input
-                          type="text"
-                          value={trailDestination}
-                          onChange={(e) => setTrailDestination(e.target.value)}
-                          placeholder="Search location..."
-                          className="w-full bg-[#1c1c1e] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-blue-500"
-                        />
-                      </div>
+                    {uploadLocationErrorTrail && !trailDestination && (
+                      <p className="pt-1 pl-8 text-[11px] text-rose-400 font-medium">
+                        {uploadLocationErrorTrail}
+                      </p>
                     )}
 
-                    {/* Suggested Location Pills (Matching screenshot: Indian, Banglore, Sarjapur...) */}
-                    <div className="flex items-center gap-2 overflow-x-auto py-2 pl-8 scrollbar-none">
-                      {['Indian', 'Banglore', 'Sarjapur, Karnataka, India', 'Manali', 'Goa', 'Bali'].map((loc) => (
-                        <button
-                          key={loc}
-                          type="button"
-                          onClick={() => setTrailDestination(loc)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 cursor-pointer transition-colors ${
-                            trailDestination === loc
-                              ? 'bg-blue-600 text-white font-semibold'
-                              : 'bg-[#262626] hover:bg-zinc-800 text-zinc-200'
-                          }`}
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-
                     <p className="pl-8 pt-1 text-[11px] text-zinc-500 leading-snug">
-                      People you share this content with can see the location.
+                      Select on interactive map or search places. People you share with can see the location.
                     </p>
                   </div>
                 </div>
@@ -2441,6 +2443,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         initialPoster={trailPosterUrl}
         onClose={() => setIsEditCoverModalOpen(false)}
         onSave={(newPoster) => setTrailPosterUrl(newPoster)}
+      />
+
+      {/* Location Picker Modal (Interactive Map or Search) */}
+      <TrailLocationPickerModal
+        isOpen={isTrailLocationModalOpen}
+        onClose={() => setIsTrailLocationModalOpen(false)}
+        initialLocation={trailDestination}
+        onSelectLocation={(loc: SelectedTrailLocation) => {
+          const formatted = loc.name.trim() || loc.address.trim();
+          setTrailDestination(formatted);
+          setUploadLocationErrorTrail(null);
+        }}
       />
     </div>
   );

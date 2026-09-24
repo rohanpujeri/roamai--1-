@@ -17,6 +17,7 @@ import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseCli
 import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
 import { EditCoverModal } from './EditCoverModal';
+import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
 
 export interface UploadTrailViewProps {
   initialFile?: File | null;
@@ -44,6 +45,8 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -135,6 +138,12 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!videoFile && !videoPreview) return;
+
+    if (!destination.trim()) {
+      setLocationError('Location is mandatory for sharing a trail. Please choose a location.');
+      setIsLocationModalOpen(true);
+      return;
+    }
 
     setIsSubmitting(true);
     const trailId = `user-trail-${Date.now()}`;
@@ -464,51 +473,41 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
               )}
             </div>
 
-            {/* Row: Add location */}
-            <div className="bg-[#141419] border border-white/10 rounded-2xl px-4 py-1">
+            {/* Row: Add location (Mandatory) */}
+            <div className={`bg-[#141419] border ${locationError && !destination ? 'border-rose-500/70 bg-rose-500/5' : 'border-white/10'} rounded-2xl px-4 py-1 transition-all`}>
               <button
                 type="button"
-                onClick={() => setShowLocationInput(!showLocationInput)}
+                onClick={() => {
+                  setLocationError(null);
+                  setIsLocationModalOpen(true);
+                }}
                 className="w-full py-3 flex items-center justify-between text-left hover:opacity-80 transition-opacity cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-white" />
-                  <span className="text-sm font-semibold text-white">Add location</span>
+                  <MapPin className={`w-5 h-5 ${destination ? 'text-emerald-400' : 'text-zinc-300'}`} />
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white">Add location</span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                      Required
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-zinc-400">
-                  {destination && <span className="text-xs text-emerald-400 font-medium truncate max-w-[140px]">{destination}</span>}
+                <div className="flex items-center gap-2 text-zinc-400">
+                  {destination ? (
+                    <span className="text-xs text-emerald-400 font-semibold truncate max-w-[150px] bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20">
+                      {destination}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-zinc-400">Select on map or search</span>
+                  )}
                   <ChevronRight className="w-4 h-4 text-zinc-500" />
                 </div>
               </button>
 
-              {showLocationInput && (
-                <div className="py-2 border-t border-white/5 space-y-2">
-                  <input
-                    type="text"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="Search location..."
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-hidden focus:border-emerald-500"
-                  />
-
-                  {/* Suggested Location Pills */}
-                  <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
-                    {['India', 'Bangalore', 'Goa', 'Manali', 'Bali', 'Paris', 'Tokyo', 'Swiss Alps'].map((loc) => (
-                      <button
-                        key={loc}
-                        type="button"
-                        onClick={() => setDestination(loc)}
-                        className={`px-3 py-1 rounded-xl text-xs font-medium shrink-0 cursor-pointer transition-colors ${
-                          destination === loc
-                            ? 'bg-emerald-600 text-white font-semibold'
-                            : 'bg-white/10 hover:bg-white/15 text-zinc-200'
-                        }`}
-                      >
-                        {loc}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {locationError && !destination && (
+                <p className="pb-2 text-[11px] text-rose-400 font-medium">
+                  {locationError}
+                </p>
               )}
             </div>
           </div>
@@ -548,6 +547,18 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         initialPoster={posterPreview}
         onClose={() => setIsEditCoverModalOpen(false)}
         onSave={(newPoster) => setPosterPreview(newPoster)}
+      />
+
+      {/* Location Picker Modal (Interactive Map or Search) */}
+      <TrailLocationPickerModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        initialLocation={destination}
+        onSelectLocation={(loc: SelectedTrailLocation) => {
+          const formatted = loc.name.trim() || loc.address.trim();
+          setDestination(formatted);
+          setLocationError(null);
+        }}
       />
     </div>
   );
