@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  APIProvider,
-  Map,
-  AdvancedMarker,
-  InfoWindow,
-  useMap
-} from '@vis.gl/react-google-maps';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   X,
   Search,
@@ -18,7 +13,6 @@ import {
   Map as MapIcon
 } from 'lucide-react';
 import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion } from '../services/placesService';
-import { ErrorBoundary } from './ErrorBoundary';
 
 export interface SelectedTrailLocation {
   name: string;
@@ -34,7 +28,7 @@ interface TrailLocationPickerModalProps {
   initialLocation?: string;
 }
 
-// Popular quick picks for fast selection
+// Popular travel spots for quick 1-tap picking
 const POPULAR_LOCATIONS = [
   { name: 'Goa', address: 'Goa, India', lat: 15.2993, lng: 74.1240 },
   { name: 'Manali', address: 'Himachal Pradesh, India', lat: 32.2396, lng: 77.1887 },
@@ -50,34 +44,30 @@ const POPULAR_LOCATIONS = [
   { name: 'Kerala', address: 'India', lat: 9.4981, lng: 76.3388 }
 ];
 
-// Helper to smoothly fly/pan the map camera
-const MapCameraController: React.FC<{
-  target: { lat: number; lng: number } | null;
-  zoom?: number;
-}> = ({ target, zoom = 14 }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map || !target) return;
-    if (typeof target.lat !== 'number' || typeof target.lng !== 'number' || isNaN(target.lat) || isNaN(target.lng)) return;
-    try {
-      if (typeof map.panTo === 'function') {
-        map.panTo(target);
-      }
-      if (typeof map.setZoom === 'function') {
-        map.setZoom(zoom);
-      }
-    } catch (e) {
-      console.warn('MapCameraController pan error:', e);
-    }
-  }, [map, target, zoom]);
-
-  return null;
+// Custom styled SVG Pin Marker for Leaflet
+const createEmeraldMarkerIcon = () => {
+  return L.divIcon({
+    className: 'trail-custom-marker',
+    html: `
+      <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
+        <div style="position: absolute; inset: -4px; border-radius: 9999px; background: rgba(16, 185, 129, 0.4); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: relative; width: 38px; height: 38px; border-radius: 9999px; background: #059669; border: 2.5px solid #ffffff; box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; color: white;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3" fill="#059669"/>
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [38, 38],
+    iconAnchor: [19, 38],
+    popupAnchor: [0, -38]
+  });
 };
 
-// Robust reverse geocoding using Google Geocoder with Nominatim fallback
+// Robust reverse geocoding with Google Geocoder & Nominatim fallback
 async function reverseGeocode(lat: number, lng: number): Promise<{ name: string; address: string }> {
-  // 1. Google Maps Geocoder if loaded
+  // 1. Try Google Maps Geocoder if loaded in window
   if (typeof (window as any).google !== 'undefined' && (window as any).google.maps?.Geocoder) {
     try {
       const geocoder = new (window as any).google.maps.Geocoder();
@@ -112,11 +102,11 @@ async function reverseGeocode(lat: number, lng: number): Promise<{ name: string;
       });
       if (res) return res;
     } catch (e) {
-      console.warn('Google reverse geocoding failed:', e);
+      console.warn('Google reverse geocoding failed, trying Nominatim:', e);
     }
   }
 
-  // 2. Fallback to OpenStreetMap Nominatim
+  // 2. OpenStreetMap Nominatim reverse geocoder
   try {
     const resp = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
@@ -157,9 +147,7 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
   onSelectLocation,
   initialLocation = ''
 }) => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-  const [activeTab, setActiveTab] = useState<'search' | 'map'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'map'>('map');
   const [searchQuery, setSearchQuery] = useState(initialLocation);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -176,12 +164,16 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
     return null;
   });
 
-  // Map pin position
-  const [pinCoords, setPinCoords] = useState<{ lat: number; lng: number }>({
+  // Current Coordinates (defaults to Goa or initial)
+  const [coords, setCoords] = useState<{ lat: number; lng: number }>({
     lat: 15.2993,
-    lng: 74.1240 // Default to Goa
+    lng: 74.1240
   });
 
+  // Leaflet refs
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync initial location when modal opens
@@ -197,7 +189,125 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
     }
   }, [isOpen, initialLocation]);
 
-  // Handle place predictions autocomplete
+  // Reverse geocode and move marker
+  const handleCoordChange = useCallback(async (newLat: number, newLng: number, updateMap = true) => {
+    setCoords({ lat: newLat, lng: newLng });
+    setIsGeocoding(true);
+
+    if (mapInstanceRef.current && updateMap) {
+      if (!markerRef.current) {
+        markerRef.current = L.marker([newLat, newLng], {
+          icon: createEmeraldMarkerIcon(),
+          draggable: true
+        }).addTo(mapInstanceRef.current);
+
+        markerRef.current.on('dragend', (ev) => {
+          const m = ev.target;
+          const pos = m.getLatLng();
+          handleCoordChange(pos.lat, pos.lng, false);
+        });
+      } else {
+        markerRef.current.setLatLng([newLat, newLng]);
+      }
+      mapInstanceRef.current.panTo([newLat, newLng], { animate: true });
+    }
+
+    try {
+      const geo = await reverseGeocode(newLat, newLng);
+      setSelectedLocation({
+        name: geo.name,
+        address: geo.address,
+        latitude: newLat,
+        longitude: newLng
+      });
+      setSearchQuery(geo.name);
+    } catch {
+      setSelectedLocation({
+        name: 'Selected Pin Location',
+        address: `${newLat.toFixed(4)}, ${newLng.toFixed(4)}`,
+        latitude: newLat,
+        longitude: newLng
+      });
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, []);
+
+  // Initialize and mount Leaflet map when map tab is open
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'map' || !mapContainerRef.current) return;
+
+    // Avoid double initialization
+    if (mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 100);
+      return;
+    }
+
+    const map = L.map(mapContainerRef.current, {
+      center: [coords.lat, coords.lng],
+      zoom: 13,
+      zoomControl: false,
+      attributionControl: false
+    });
+
+    // Add CartoDB Voyager tiles (rich, ultra-reliable, crisp dark-compatible road tiles)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(map);
+
+    // Zoom controls top-right
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // Add marker
+    const marker = L.marker([coords.lat, coords.lng], {
+      icon: createEmeraldMarkerIcon(),
+      draggable: true
+    }).addTo(map);
+
+    marker.on('dragend', (ev) => {
+      const m = ev.target;
+      const pos = m.getLatLng();
+      handleCoordChange(pos.lat, pos.lng, false);
+    });
+
+    // Click anywhere on map to reposition marker
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const { lat, lng } = e.latlng;
+      handleCoordChange(lat, lng, true);
+    });
+
+    mapInstanceRef.current = map;
+    markerRef.current = marker;
+
+    // Invalidate size to ensure full-bleed rendering on mobile
+    const t = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    return () => {
+      clearTimeout(t);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, [isOpen, activeTab, coords.lat, coords.lng, handleCoordChange]);
+
+  // Re-invalidate size whenever tab changes to 'map'
+  useEffect(() => {
+    if (activeTab === 'map' && mapInstanceRef.current) {
+      const t = setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [activeTab]);
+
+  // Autocomplete predictions handler
   const fetchPredictions = useCallback(async (query: string) => {
     if (!query || query.trim().length < 2) {
       setSuggestions([]);
@@ -247,8 +357,25 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
             placeName = details.name || placeName;
           }
         } catch (err) {
-          console.warn('Place details fetch failed, continuing with suggestion coords:', err);
+          console.warn('Place details fetch failed:', err);
         }
+      }
+
+      // If still no coords, fallback search via Nominatim
+      if (!lat || !lng) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}&limit=1`, {
+            headers: { 'Accept-Language': 'en' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data[0]) {
+              lat = parseFloat(data[0].lat);
+              lng = parseFloat(data[0].lon);
+              fullAddress = data[0].display_name;
+            }
+          }
+        } catch {}
       }
 
       const loc: SelectedTrailLocation = {
@@ -259,11 +386,18 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
       };
 
       setSelectedLocation(loc);
-      if (lat && lng) {
-        setPinCoords({ lat, lng });
-      }
       setSearchQuery(placeName);
       setSuggestions([]);
+
+      if (lat && lng) {
+        setCoords({ lat, lng });
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([lat, lng], 14, { animate: true });
+          if (markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+          }
+        }
+      }
     } finally {
       setIsSearching(false);
     }
@@ -278,78 +412,33 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
       longitude: pop.lng
     };
     setSelectedLocation(loc);
-    setPinCoords({ lat: pop.lat, lng: pop.lng });
+    setCoords({ lat: pop.lat, lng: pop.lng });
     setSearchQuery(pop.name);
     setSuggestions([]);
-  };
 
-  // Map click handler to drop/move pin
-  const handleMapClick = async (e: any) => {
-    const latLng = e.detail?.latLng;
-    if (!latLng) return;
-
-    const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
-    const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
-
-    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
-
-    setPinCoords({ lat, lng });
-    setIsGeocoding(true);
-
-    try {
-      const geo = await reverseGeocode(lat, lng);
-      setSelectedLocation({
-        name: geo.name,
-        address: geo.address,
-        latitude: lat,
-        longitude: lng
-      });
-      setSearchQuery(geo.name);
-    } catch (err) {
-      console.warn('Reverse geocode error:', err);
-      setSelectedLocation({
-        name: 'Selected Pin Location',
-        address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        latitude: lat,
-        longitude: lng
-      });
-    } finally {
-      setIsGeocoding(false);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([pop.lat, pop.lng], 14, { animate: true });
+      if (markerRef.current) {
+        markerRef.current.setLatLng([pop.lat, pop.lng]);
+      }
     }
   };
 
   // Locate me button handler
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      alert('Geolocation is not supported by your device.');
       return;
     }
 
     setIsGeocoding(true);
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        setPinCoords({ lat, lng });
-
-        try {
-          const geo = await reverseGeocode(lat, lng);
-          setSelectedLocation({
-            name: geo.name,
-            address: geo.address,
-            latitude: lat,
-            longitude: lng
-          });
-          setSearchQuery(geo.name);
-        } catch {
-          setSelectedLocation({
-            name: 'Current Location',
-            address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-            latitude: lat,
-            longitude: lng
-          });
-        } finally {
-          setIsGeocoding(false);
+        handleCoordChange(lat, lng, true);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([lat, lng], 15, { animate: true });
         }
       },
       (err) => {
@@ -535,7 +624,7 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
                 <div className="flex items-center gap-2.5">
                   <Compass className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <p className="text-xs font-semibold text-white">Prefer using a map?</p>
+                    <p className="text-xs font-semibold text-white">Prefer using an interactive map?</p>
                     <p className="text-[11px] text-zinc-400">Pinpoint any specific beach, peak, or hidden spot.</p>
                   </div>
                 </div>
@@ -550,17 +639,17 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
             </div>
           ) : (
             /* MAP TAB */
-            <div className="relative flex-1 min-h-[340px] sm:min-h-[420px] flex flex-col">
+            <div className="relative flex-1 min-h-[360px] sm:min-h-[440px] flex flex-col">
               {/* Map Floating Search Bar & Locate Me */}
-              <div className="absolute top-3 inset-x-3 z-10 flex items-center gap-2 pointer-events-auto">
-                <div className="relative flex-1 shadow-xl">
+              <div className="absolute top-3 inset-x-3 z-[1000] flex items-center gap-2 pointer-events-auto">
+                <div className="relative flex-1 shadow-2xl">
                   <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchInputChange}
                     placeholder="Search place on map..."
-                    className="w-full bg-[#18181fb3] backdrop-blur-md border border-white/20 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder:text-zinc-400 focus:outline-hidden focus:border-emerald-500"
+                    className="w-full bg-[#18181fd9] backdrop-blur-md border border-white/20 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-white placeholder:text-zinc-400 focus:outline-hidden focus:border-emerald-500 shadow-xl"
                   />
                   {searchQuery && (
                     <button
@@ -569,7 +658,7 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
                         setSearchQuery('');
                         setSuggestions([]);
                       }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 text-zinc-300 flex items-center justify-center cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 text-zinc-300 flex items-center justify-center cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -577,7 +666,7 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
 
                   {/* Dropdown overlay on map search */}
                   {suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[#18181f] border border-white/15 rounded-xl shadow-2xl divide-y divide-white/10 z-20">
+                    <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[#18181f] border border-white/15 rounded-xl shadow-2xl divide-y divide-white/10 z-[1001]">
                       {suggestions.map((sug) => (
                         <button
                           key={sug.placeId}
@@ -602,64 +691,27 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
                 <button
                   type="button"
                   onClick={handleLocateMe}
-                  title="Use current location"
-                  className="w-9 h-9 rounded-xl bg-[#18181fb3] backdrop-blur-md border border-white/20 hover:bg-white/20 text-white flex items-center justify-center shadow-xl cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Use current GPS location"
+                  className="w-10 h-10 rounded-xl bg-[#18181fd9] backdrop-blur-md border border-white/20 hover:bg-white/20 text-white flex items-center justify-center shadow-xl cursor-pointer transition-all active:scale-95 shrink-0"
                 >
                   <Navigation className="w-4 h-4 text-emerald-400" />
                 </button>
               </div>
 
-              {/* Interactive Google Map */}
-              <div className="w-full h-full flex-1 min-h-[300px] bg-zinc-900">
-                <ErrorBoundary
-                  fallback={
-                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-zinc-400 space-y-2 bg-[#121216]">
-                      <MapPin className="w-10 h-10 text-rose-500" />
-                      <p className="text-sm font-semibold text-white">Interactive map is temporarily unavailable</p>
-                      <p className="text-xs max-w-xs">Please use the Search Place tab above to pick your location.</p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('search')}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold cursor-pointer"
-                      >
-                        Switch to Search
-                      </button>
-                    </div>
-                  }
-                >
-                  <APIProvider apiKey={apiKey} libraries={['places', 'marker', 'geometry']}>
-                    <Map
-                      defaultCenter={pinCoords}
-                      defaultZoom={13}
-                      mapId="TRAIL_LOCATION_PICKER_MAP"
-                      gestureHandling="greedy"
-                      disableDefaultUI={false}
-                      mapTypeControl={false}
-                      streetViewControl={false}
-                      fullscreenControl={false}
-                      className="w-full h-full"
-                      onClick={handleMapClick}
-                    >
-                      <MapCameraController target={pinCoords} zoom={14} />
+              {/* Leaflet Map Canvas Container with explicit dimensions */}
+              <div className="relative w-full h-[360px] sm:h-[440px] bg-zinc-950 overflow-hidden">
+                <div
+                  ref={mapContainerRef}
+                  style={{ width: '100%', height: '100%', minHeight: '360px' }}
+                  className="w-full h-full z-0"
+                />
 
-                      {/* Pin Marker */}
-                      <AdvancedMarker position={pinCoords}>
-                        <div className="relative flex items-center justify-center cursor-pointer group">
-                          <div className="absolute -inset-2 rounded-full bg-emerald-500/30 animate-ping" />
-                          <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg border-2 border-white ring-2 ring-emerald-500/40">
-                            <MapPin className="w-5 h-5 fill-white" />
-                          </div>
-                        </div>
-                      </AdvancedMarker>
-                    </Map>
-                  </APIProvider>
-                </ErrorBoundary>
-              </div>
-
-              {/* Pin instructions overlay */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none">
-                <div className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[11px] text-zinc-300 font-medium shadow-lg">
-                  Tap anywhere on the map to place pin
+                {/* Pin instructions floating pill */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none z-[1000]">
+                  <div className="px-3.5 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-white/15 text-[11px] text-zinc-200 font-medium shadow-2xl flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Tap anywhere on the map to place pin</span>
+                  </div>
                 </div>
               </div>
             </div>
