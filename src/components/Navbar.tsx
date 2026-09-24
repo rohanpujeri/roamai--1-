@@ -191,6 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               {/* Color Theme Selector */}
               <button
+                data-theme-action="true"
                 onClick={onOpenThemeModal}
                 className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 sm:py-1 rounded-lg bg-transparent border-0 shadow-none text-xs font-bold transition-all cursor-pointer hover:opacity-80 active:scale-95 ${
                   isDarkText

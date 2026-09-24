@@ -341,6 +341,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             {/* Theme Selector */}
             {onOpenThemeModal && (
               <button
+                data-theme-action="true"
                 onClick={() => {
                   onClose();
                   onOpenThemeModal();

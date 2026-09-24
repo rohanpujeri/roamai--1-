@@ -19,7 +19,11 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      data-theme-action="true"
+      id="theme-selector-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div
         className="rounded-3xl max-w-md w-full shadow-2xl border p-6 relative transition-colors duration-300 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
       >

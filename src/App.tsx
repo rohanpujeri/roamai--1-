@@ -173,13 +173,65 @@ export default function App() {
     });
   }, []);
 
-  // Global View Protection Guard
+  // Global View Protection Guard: If visiting protected views while logged out, redirect to auth
   useEffect(() => {
-    if (currentView === 'wizard' && session === null) {
-      setIntendedView('wizard');
+    if (['wizard', 'itinerary', 'trip_mode', 'my_trips', 'profile', 'upload_trail'].includes(currentView) && session === null) {
+      setIntendedView(currentView);
+      setInitialAuthMode('signin');
       setCurrentView('auth');
     }
   }, [currentView, session]);
+
+  // Global Button Click Auth Gate:
+  // When a visitor is not logged in, any button click across the website prompts them to log in first,
+  // EXCEPT the theme changing button and actions inside the theme selector modal.
+  useEffect(() => {
+    if (session) return; // Authenticated users can click everything freely
+
+    const handleGlobalClickCapture = (e: MouseEvent) => {
+      // If currently on auth page, allow all clicks so user can fill form, submit, switch tabs, or cancel
+      if (currentView === 'auth') return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Check if clicked element or any ancestor is a theme-related button or inside the theme modal
+      const isThemeElement = Boolean(
+        target.closest('[data-theme-action="true"]') ||
+        target.closest('#theme-selector-modal') ||
+        target.closest('[data-theme-modal="true"]') ||
+        target.closest('button[title*="theme" i]') ||
+        target.closest('button[title*="Theme" i]')
+      );
+
+      if (isThemeElement) {
+        // Theme changing is explicitly allowed!
+        return;
+      }
+
+      // Check if target or any ancestor is an interactive button, role=button, link, submit input, or action item
+      const interactiveButton = target.closest<HTMLElement>(
+        'button, [role="button"], a[href], input[type="submit"], input[type="button"], [data-action="true"]'
+      );
+
+      if (interactiveButton) {
+        // Stop the normal action immediately
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        // Prompt user to login first
+        setInitialAuthMode('signin');
+        setCurrentView('auth');
+      }
+    };
+
+    // Capture phase intercepts before any component's individual onClick fires
+    window.addEventListener('click', handleGlobalClickCapture, true);
+    return () => {
+      window.removeEventListener('click', handleGlobalClickCapture, true);
+    };
+  }, [session, currentView]);
 
   // Modals state
   const [selectedActivityForModal, setSelectedActivityForModal] = useState<Activity | null>(null);
@@ -208,6 +260,11 @@ export default function App() {
 
   // Open specific trip directly
   const handleOpenTrip = (tripId: string) => {
+    if (!session) {
+      setInitialAuthMode('signin');
+      setCurrentView('auth');
+      return;
+    }
     setActiveTripId(tripId);
     setActiveDayNumber(1);
     setCurrentView('itinerary');
@@ -1460,8 +1517,9 @@ export default function App() {
             <BottomNavBar
               currentView={currentView}
               onNavigate={(v) => {
-                if (v === 'trails' && !session) {
-                  setIntendedView('trails');
+                if (!session && v !== 'landing') {
+                  setIntendedView(v);
+                  setInitialAuthMode('signin');
                   setCurrentView('auth');
                   return;
                 }
@@ -1472,12 +1530,29 @@ export default function App() {
                   setCurrentView(v);
                 }
               }}
-              onStartPlanning={() => scrollToTab(2)}
-              onOpenTravellerSearch={() => scrollToTab(3)}
+              onStartPlanning={() => {
+                if (!session) {
+                  setIntendedView('wizard');
+                  setInitialAuthMode('signin');
+                  setCurrentView('auth');
+                  return;
+                }
+                scrollToTab(2);
+              }}
+              onOpenTravellerSearch={() => {
+                if (!session) {
+                  setIntendedView('travellers_search');
+                  setInitialAuthMode('signin');
+                  setCurrentView('auth');
+                  return;
+                }
+                scrollToTab(3);
+              }}
               session={session}
               currentTheme={currentTheme}
               onRequireAuth={() => {
                 setIntendedView('trails');
+                setInitialAuthMode('signin');
                 setCurrentView('auth');
               }}
             />
