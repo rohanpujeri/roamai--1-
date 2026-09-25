@@ -290,11 +290,12 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   // Silky-Smooth GPU Animation Loop with Inertia Physics (Zero React Re-renders!)
   useEffect(() => {
     let active = true;
+    let isVisible = true;
     let lastFrameTime = performance.now();
 
     const tick = (now: number) => {
-      if (!active) return;
-      const deltaSec = Math.min((now - lastFrameTime) / 1000, 0.06);
+      if (!active || !isVisible) return;
+      const deltaSec = Math.min((now - lastFrameTime) / 1000, 0.05);
       lastFrameTime = now;
 
       if (!isDraggingRef.current) {
@@ -315,12 +316,39 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
       animFrameIdRef.current = requestAnimationFrame(tick);
     };
 
+    // Pause animation when carousel scrolls out of view or user switches tabs
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined' && containerRef.current) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (entry.isIntersecting) {
+            if (!isVisible) {
+              isVisible = true;
+              lastFrameTime = performance.now();
+              animFrameIdRef.current = requestAnimationFrame(tick);
+            }
+          } else {
+            isVisible = false;
+            if (animFrameIdRef.current) {
+              cancelAnimationFrame(animFrameIdRef.current);
+              animFrameIdRef.current = null;
+            }
+          }
+        },
+        { threshold: 0.05 }
+      );
+      observer.observe(containerRef.current);
+    }
+
     renderTransform(angleRef.current);
     animFrameIdRef.current = requestAnimationFrame(tick);
 
     return () => {
       active = false;
+      isVisible = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
+      if (observer) observer.disconnect();
     };
   }, []);
 

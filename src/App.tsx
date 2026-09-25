@@ -924,6 +924,7 @@ export default function App() {
   const programmaticScrollTimer = useRef<any>(null);
   const isUserSwipeRef = useRef(false);
   const scrollSettleTimer = useRef<any>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
   const scrollToTab = (index: number, smooth = true) => {
     const targetView = BOTTOM_NAV_ORDER[index];
@@ -964,7 +965,7 @@ export default function App() {
     const width = sliderRef.current.clientWidth;
     const targetLeft = index * width;
 
-    // Smoothly or instantly scroll directly to the target slide (native snap-always allows programmatic scrollTo to pass)
+    // Smoothly or instantly scroll directly to the target slide
     sliderRef.current.scrollTo({
       left: targetLeft,
       behavior: smooth ? 'smooth' : 'instant',
@@ -974,21 +975,27 @@ export default function App() {
 
     programmaticScrollTimer.current = setTimeout(() => {
       isProgrammaticScroll.current = false;
-    }, smooth ? 450 : 50);
+    }, smooth ? 400 : 50);
   };
 
   const handleSliderScroll = () => {
     if (!sliderRef.current) return;
 
-    // Immediately cut off trails audio if user scrolls away from Slide 1 (Trails)
-    const { scrollLeft, clientWidth } = sliderRef.current;
-    if (clientWidth) {
-      const currentScrollRatio = scrollLeft / clientWidth;
-      // If user moved more than 15% away from slide 1, immediately pause trails
-      if (Math.abs(currentScrollRatio - 1) > 0.15) {
-        window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
-      }
+    // Throttle layout reading to animation frames to completely prevent layout thrashing
+    if (scrollRafRef.current) {
+      cancelAnimationFrame(scrollRafRef.current);
     }
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      if (!sliderRef.current) return;
+      const { scrollLeft, clientWidth } = sliderRef.current;
+      if (clientWidth) {
+        const currentScrollRatio = scrollLeft / clientWidth;
+        if (Math.abs(currentScrollRatio - 1) > 0.15) {
+          window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
+        }
+      }
+    });
 
     if (isProgrammaticScroll.current) return;
 
@@ -998,7 +1005,7 @@ export default function App() {
       clearTimeout(scrollSettleTimer.current);
     }
 
-    // Debounce state updates so App doesn't re-render mid-gesture
+    // Debounce state updates smoothly so App doesn't re-render mid-gesture
     scrollSettleTimer.current = setTimeout(() => {
       if (!sliderRef.current || isProgrammaticScroll.current) {
         isUserSwipeRef.current = false;
@@ -1023,8 +1030,8 @@ export default function App() {
       }
       setTimeout(() => {
         isUserSwipeRef.current = false;
-      }, 100);
-    }, 120);
+      }, 50);
+    }, 80);
   };
 
   // Modern scrollend listener for instantaneous and jitter-free settle detection
@@ -1348,12 +1355,15 @@ export default function App() {
             <div
               ref={sliderRef}
               onScroll={handleSliderScroll}
-              className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x"
+              className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x smooth-slider-container"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 overscrollBehaviorX: 'contain',
+                willChange: 'scroll-position',
+                transform: 'translate3d(0, 0, 0)',
+                scrollBehavior: 'smooth'
               }}
             >
               {/* SLIDE 0: LANDING PAGE */}

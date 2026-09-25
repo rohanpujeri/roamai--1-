@@ -206,9 +206,68 @@
 }
 
 /* Background Color and Canvas Transitions */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
 html, body {
   background-color: var(--color-canvas-bg);
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Eliminate 300ms mobile touch delay across all buttons, links, and cards */
+button,
+[role="button"],
+a,
+input,
+select,
+textarea,
+.cursor-pointer {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Snappy, GPU-accelerated tap response on all buttons */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: scale(0.97) translateZ(0);
+  transition: transform 0.08s ease-out;
+}
+
+/* Smooth Hardware-Accelerated Modals & Overlays */
+.animate-in {
+  animation-duration: 180ms !important;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* High-performance capped backdrop-filter to prevent mobile GPU thermal throttling */
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl,
+.backdrop-blur-2xl {
+  -webkit-backdrop-filter: blur(14px) !important;
+  backdrop-filter: blur(14px) !important;
+  transform: translateZ(0);
+}
+
+/* Silky smooth horizontal slider optimization */
+.smooth-slider-container {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  will-change: scroll-position;
+  transform: translate3d(0, 0, 0);
 }
 
 [data-theme] .bg-slate-50,

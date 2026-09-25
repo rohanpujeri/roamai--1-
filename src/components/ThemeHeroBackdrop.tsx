@@ -100,10 +100,11 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
       <AnimatePresence mode="wait">
         <motion.div
           key={themeId + photoUrl}
-          initial={{ opacity: 0, scale: 1.02 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.99 }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.28, ease: 'easeOut' }}
+          style={{ transform: 'translateZ(0)', willChange: 'opacity' }}
           className="absolute inset-0 w-full h-full"
         >
           {/* If Beach theme, render high-performance looping real aerial beach waves video with image fallback */}

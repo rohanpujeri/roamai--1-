@@ -303,6 +303,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isTrailLocationModalOpen, setIsTrailLocationModalOpen] = useState<boolean>(false);
   const [uploadLocationError, setUploadLocationError] = useState<string | null>(null);
+  const [slideState, setSlideState] = useState<'idle' | 'sliding-up' | 'sliding-down'>('idle');
+  const slideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
@@ -448,19 +450,31 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   }, []);
 
   const handleNextReel = () => {
-    if (currentIndex < trails.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-    } else {
-      setCurrentIndex(0); // loop back
-    }
+    if (slideState !== 'idle') return;
+    setSlideState('sliding-up');
+    if (slideTimeoutRef.current) clearTimeout(slideTimeoutRef.current);
+    slideTimeoutRef.current = setTimeout(() => {
+      if (currentIndex < trails.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      } else {
+        setCurrentIndex(0);
+      }
+      setSlideState('idle');
+    }, 150);
   };
 
   const handlePrevReel = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
-    } else {
-      setCurrentIndex(trails.length - 1);
-    }
+    if (slideState !== 'idle') return;
+    setSlideState('sliding-down');
+    if (slideTimeoutRef.current) clearTimeout(slideTimeoutRef.current);
+    slideTimeoutRef.current = setTimeout(() => {
+      if (currentIndex > 0) {
+        setCurrentIndex((prev) => prev - 1);
+      } else {
+        setCurrentIndex(trails.length - 1);
+      }
+      setSlideState('idle');
+    }, 150);
   };
 
   const togglePlay = () => {
@@ -1047,62 +1061,77 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               </div>
             </div>
           )}
-          {/* Ambient blurred backdrop for non-9:16 aspect ratios */}
+          {/* Ambient optimized backdrop for non-9:16 aspect ratios */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
               <img
                 src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                 alt=""
-                className="w-full h-full object-cover blur-2xl opacity-35 scale-110"
+                className="w-full h-full object-cover opacity-25 scale-105"
+                style={{ filter: 'blur(10px)', transform: 'translateZ(0)' }}
               />
             ) : (
               <img
                 src={activeReel.posterUrl || activeMediaUrl}
                 alt=""
-                className="w-full h-full object-cover blur-2xl opacity-35 scale-110"
+                className="w-full h-full object-cover opacity-25 scale-105"
+                style={{ filter: 'blur(10px)', transform: 'translateZ(0)' }}
               />
             )}
           </div>
 
-          {/* Video or Image Media Player - Sticking to original aspect ratio */}
-          {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
-            <img
-              src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
-              alt={activeReel.caption}
-              className="relative z-10 w-full h-full object-contain select-none"
-            />
-          ) : (
-            <video
-              ref={videoRef}
-              key={activeMediaUrl}
-              src={activeMediaUrl}
-              poster={activeReel.posterUrl}
-              playsInline
-              webkit-playsinline="true"
-              loop
-              autoPlay={isActive && !showUploadModal && !showLikesModal}
-              preload={isActive ? 'auto' : 'none'}
-              muted={isMuted}
-              className="relative z-10 w-full h-full object-contain"
-              onPlay={() => {
-                if (!isActive || showUploadModal || showLikesModal) {
-                  videoRef.current?.pause();
-                  setIsPlaying(false);
-                  return;
-                }
-                setIsPlaying(true);
-              }}
-              onPause={() => setIsPlaying(false)}
-              onError={() => {
-                setActiveMediaError(true);
-              }}
-              onTimeUpdate={() => {
-                if (videoRef.current && videoRef.current.duration) {
-                  setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-                }
-              }}
-            />
-          )}
+          {/* Video or Image Media Player with Smooth Slide Transition */}
+          <div
+            className="relative z-10 w-full h-full flex items-center justify-center transition-all duration-150 ease-out"
+            style={{
+              transform: slideState === 'sliding-up'
+                ? 'translate3d(0, -6%, 0) scale(0.97)'
+                : slideState === 'sliding-down'
+                ? 'translate3d(0, 6%, 0) scale(0.97)'
+                : 'translate3d(0, 0, 0) scale(1)',
+              opacity: slideState !== 'idle' ? 0.75 : 1,
+              willChange: 'transform, opacity'
+            }}
+          >
+            {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
+              <img
+                src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
+                alt={activeReel.caption}
+                className="w-full h-full object-contain select-none"
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                key={activeMediaUrl}
+                src={activeMediaUrl}
+                poster={activeReel.posterUrl}
+                playsInline
+                webkit-playsinline="true"
+                loop
+                autoPlay={isActive && !showUploadModal && !showLikesModal}
+                preload={isActive ? 'auto' : 'none'}
+                muted={isMuted}
+                className="w-full h-full object-contain"
+                onPlay={() => {
+                  if (!isActive || showUploadModal || showLikesModal) {
+                    videoRef.current?.pause();
+                    setIsPlaying(false);
+                    return;
+                  }
+                  setIsPlaying(true);
+                }}
+                onPause={() => setIsPlaying(false)}
+                onError={() => {
+                  setActiveMediaError(true);
+                }}
+                onTimeUpdate={() => {
+                  if (videoRef.current && videoRef.current.duration) {
+                    setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                  }
+                }}
+              />
+            )}
+          </div>
 
           {/* Recovery overlay if old session clip expired */}
           {activeMediaError && (
