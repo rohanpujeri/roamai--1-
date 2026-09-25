@@ -99,7 +99,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
 
   // Default initial map center (India or World Overview if no place is selected)
   const defaultCenter = { lat: 20.5937, lng: 78.9629 };
-  const currentCenter = selectedPlace && typeof selectedPlace.latitude === 'number' && typeof selectedPlace.longitude === 'number' && !isNaN(selectedPlace.latitude) && !isNaN(selectedPlace.longitude)
+  const currentCenter = selectedPlace && typeof selectedPlace.latitude === 'number' && typeof selectedPlace.longitude === 'number' && !isNaN(selectedPlace.latitude) && !isNaN(selectedPlace.longitude) && (selectedPlace.latitude !== 0 || selectedPlace.longitude !== 0)
     ? { lat: selectedPlace.latitude, lng: selectedPlace.longitude }
     : defaultCenter;
 
@@ -108,8 +108,29 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     if (selectedPlace) {
       setSearchInput(selectedPlace.name || '');
       setShowInfoWindow(true);
+
+      // If coordinates are missing (0, 0), resolve them dynamically
+      if (selectedPlace.latitude === 0 && selectedPlace.longitude === 0 && (selectedPlace.name || selectedPlace.address)) {
+        const query = selectedPlace.address || selectedPlace.name;
+        getGooglePlacesPredictions(query).then((preds) => {
+          if (preds && preds.length > 0) {
+            getGooglePlaceDetails(preds[0].placeId).then((details) => {
+              if (details && (details.latitude !== 0 || details.longitude !== 0)) {
+                onSelectPlace({
+                  ...selectedPlace,
+                  placeId: details.placeId || selectedPlace.placeId,
+                  latitude: details.latitude,
+                  longitude: details.longitude,
+                  address: details.address || selectedPlace.address,
+                  photoUrl: details.photoUrl || selectedPlace.photoUrl
+                });
+              }
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }
-  }, [selectedPlace]);
+  }, [selectedPlace?.name, selectedPlace?.address]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -221,7 +242,8 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     typeof selectedPlace.latitude === 'number' &&
     typeof selectedPlace.longitude === 'number' &&
     !isNaN(selectedPlace.latitude) &&
-    !isNaN(selectedPlace.longitude)
+    !isNaN(selectedPlace.longitude) &&
+    (selectedPlace.latitude !== 0 || selectedPlace.longitude !== 0)
   );
 
   return (

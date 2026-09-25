@@ -378,9 +378,10 @@ export function getCanonicalUsername(
   return '@traveler';
 }
 
-export async function updateUserProfileData(profile: UserProfileData): Promise<{ error?: string }> {
-  const user = await getCurrentUser();
-  if (!user) return { error: 'Not authenticated' };
+export async function updateUserProfileData(profile: UserProfileData, fallbackUserId?: string): Promise<{ error?: string }> {
+  let user = await getCurrentUser();
+  const userId = user?.id || fallbackUserId;
+  if (!userId) return { error: 'Not authenticated' };
 
   const sanitizedProfile: UserProfileData = {
     ...profile,
@@ -389,7 +390,9 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
 
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${user.id}`, JSON.stringify(sanitizedProfile));
+      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${userId}`, JSON.stringify(sanitizedProfile));
+      localStorage.setItem(`tripwise_user_profile_${userId}`, JSON.stringify(sanitizedProfile));
+      localStorage.setItem(`roamai_user_profile_${userId}`, JSON.stringify(sanitizedProfile));
     } catch (e) {
       console.warn('Failed to cache profile in localStorage:', e);
     }
@@ -398,30 +401,34 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          full_name: sanitizedProfile.name,
-          name: sanitizedProfile.name,
-          username: sanitizedProfile.username,
-          bio: sanitizedProfile.bio,
-          avatarUrl: sanitizedProfile.avatarUrl,
-          avatar_url: sanitizedProfile.avatarUrl,
-          dob: sanitizedProfile.dob,
-          place: sanitizedProfile.place,
-          travelDNA: sanitizedProfile.travelDNA,
-          travelPreferences: sanitizedProfile.travelPreferences
+      if (user) {
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            full_name: sanitizedProfile.name,
+            name: sanitizedProfile.name,
+            username: sanitizedProfile.username,
+            bio: typeof sanitizedProfile.bio === 'string' ? sanitizedProfile.bio : '',
+            avatarUrl: sanitizedProfile.avatarUrl,
+            avatar_url: sanitizedProfile.avatarUrl,
+            dob: sanitizedProfile.dob,
+            place: sanitizedProfile.place,
+            travelDNA: sanitizedProfile.travelDNA,
+            travelPreferences: sanitizedProfile.travelPreferences
+          }
+        });
+        if (error) {
+          console.warn('supabase.auth.updateUser notice:', error.message);
         }
-      });
-      if (error) return { error: error.message };
+      }
 
       // Also upsert public.profiles table so other users can search this profile immediately
       try {
         await supabase.from('profiles').upsert({
-          id: user.id,
+          id: userId,
           username: sanitizedProfile.username,
           name: sanitizedProfile.name,
           avatar_url: sanitizedProfile.avatarUrl,
-          bio: sanitizedProfile.bio,
+          bio: typeof sanitizedProfile.bio === 'string' ? sanitizedProfile.bio : '',
           place: sanitizedProfile.place,
           location: sanitizedProfile.place || 'Traveler',
           trips_count: sanitizedProfile.stats?.tripsCount || 0,
@@ -435,6 +442,10 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
     } catch (err: any) {
       return { error: err?.message || 'Failed to update profile' };
     }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('roamai_profile_updated', { detail: sanitizedProfile }));
   }
 
   return {};

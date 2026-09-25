@@ -1871,7 +1871,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               setGlobalTrailsList((prev) => prev.filter((t: any) => t && t.id !== deletedId));
               setActiveReelTrails((prev) => prev ? prev.filter((t: any) => t && t.id !== deletedId) : null);
             }}
-            onStartPlanning={onStartPlanning}
+            onStartPlanning={(dest) => {
+              setActiveReelTrailId(null);
+              setActiveReelTrails(null);
+              onStartPlanning?.(dest);
+            }}
             onRequireAuth={onRequireAuth}
             onOpenUserProfile={(traveller) => {
               setActiveReelTrailId(null);

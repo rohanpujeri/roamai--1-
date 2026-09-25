@@ -40,7 +40,7 @@ import {
   DestinationPreset,
   RealTripBudgetResult
 } from '../types';
-import { Step1DestinationSearch, SelectedDestinationPlace } from './Step1DestinationSearch';
+import { Step1DestinationSearch, SelectedDestinationPlace, POPULAR_QUICK_PICKS } from './Step1DestinationSearch';
 import { fetchAiRealTripBudget, calculateFallbackRealTripBudget, calculateTransitBenchmark } from '../services/aiBudgetEstimator';
 import { evaluateTripFeasibility, DestinationFeasibility } from '../utils/travelFeasibility';
 import { fetchAiDestinationTravelIntelligence, getGenericDynamicIntelligence, DestinationTravelIntelligence } from '../services/aiDestinationAdvisor';
@@ -225,12 +225,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     if (initialDestinationId && !initialTrip) {
       setSelectedDestId(initialDestinationId);
       const name = initialDestinationId.split(',')[0].trim();
+      const match = POPULAR_QUICK_PICKS.find(
+        (p) => p.name.toLowerCase() === name.toLowerCase() || initialDestinationId.toLowerCase().includes(p.name.toLowerCase())
+      );
       setSelectedDestinationPlace({
         placeId: `dest_${initialDestinationId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
         name: name,
         address: initialDestinationId,
-        latitude: 0,
-        longitude: 0
+        latitude: match ? match.lat : 0,
+        longitude: match ? match.lng : 0
       });
     }
   }, [initialDestinationId, initialTrip]);

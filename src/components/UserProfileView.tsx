@@ -43,7 +43,7 @@ import {
   Pause
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
-import { Trip, ThemeConfig, UserProfileData } from '../types';
+import { Trip, ThemeConfig, UserProfileData, SavedPlace } from '../types';
 import {
   getCachedUserProfile,
   updateUserProfileData,
@@ -51,6 +51,7 @@ import {
   sanitizeAvatarUrl,
   processAvatarImageFile
 } from '../services/supabaseClient';
+import { getSavedPlaces, removeSavedPlace } from '../services/placesService';
 import {
   resolveTrailMediaUrl,
   saveTrailMedia,
@@ -119,12 +120,34 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const user = session?.user;
   const userMeta = (user?.user_metadata || {}) as Record<string, any>;
 
-  // Tabs: trips (completed journeys), trails (reels), dna (travel personality profile)
-  const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna'>('trips');
+  // Tabs: trips (completed journeys), trails (reels), dna (travel personality profile), saved (saved places)
+  const [activeTab, setActiveTab] = useState<'trips' | 'trails' | 'dna' | 'saved'>('trips');
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>(() => getSavedPlaces());
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [shareToast, setShareToast] = useState(false);
+
+  // Sync saved places when modified from trails or storage
+  useEffect(() => {
+    const syncSaved = () => {
+      setSavedPlaces(getSavedPlaces());
+    };
+    window.addEventListener('roamai_saved_places_changed', syncSaved);
+    window.addEventListener('storage', syncSaved);
+    return () => {
+      window.removeEventListener('roamai_saved_places_changed', syncSaved);
+      window.removeEventListener('storage', syncSaved);
+    };
+  }, []);
+
+  const handleRemoveSavedPlace = (placeId: string) => {
+    const updated = removeSavedPlace(placeId);
+    setSavedPlaces(updated);
+    window.dispatchEvent(new CustomEvent('roamai_saved_places_changed'));
+    setAvatarToast('Removed from Saved Places');
+    setTimeout(() => setAvatarToast(null), 2500);
+  };
 
   // Instagram-style Profile Photo Action Modal & View Picture Modal states
   const [showPhotoOptionsModal, setShowPhotoOptionsModal] = useState(false);
@@ -663,7 +686,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return {
       name: cached?.name || getFallbackName(user, userMeta),
       username: cached?.username || getFallbackUsername(user, userMeta),
-      bio: cached?.bio || userMeta.bio || '',
+      bio: typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || ''),
       avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || ''),
       dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || '',
@@ -716,7 +739,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const username = cached?.username || getFallbackUsername(user, userMeta);
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
     const place = cached?.place || userMeta.place || '';
-    const bio = cached?.bio || userMeta.bio || '';
+    const bio = typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || '');
     const dob = cached?.dob || userMeta.dob || '';
 
     const synced: UserProfileData = {
@@ -863,20 +886,21 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setEditUsernameError(null);
+    setIsSavingProfile(true);
 
-    const currentClean = (profile.username || '').replace(/^@/, '').toLowerCase().trim();
-    const newClean = (editForm.username || '').replace(/^@/, '').toLowerCase().trim();
+    try {
+      const currentClean = (profile.username || '').replace(/^@/, '').toLowerCase().trim();
+      const newClean = (editForm.username || '').replace(/^@/, '').toLowerCase().trim();
 
-    // Check if username changed and validate uniqueness
-    if (newClean && newClean !== currentClean) {
-      const formatCheck = validateUsernameFormat(newClean);
-      if (!formatCheck.isValid) {
-        setEditUsernameError(formatCheck.error || 'Invalid username format.');
-        return;
-      }
+      // Check if username changed and validate uniqueness
+      if (newClean && newClean !== currentClean) {
+        const formatCheck = validateUsernameFormat(newClean);
+        if (!formatCheck.isValid) {
+          setEditUsernameError(formatCheck.error || 'Invalid username format.');
+          setIsSavingProfile(false);
+          return;
+        }
 
-      setIsSavingProfile(true);
-      try {
         const availability = await checkUsernameAvailability(newClean, user?.id);
         if (!availability.available) {
           setEditUsernameError(availability.error || 'This username is already taken by another account.');
@@ -886,30 +910,42 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         // Claim username across server and database
         await claimUsername(newClean, user?.id || 'local_user', user?.email || undefined);
-      } catch (err) {
-        console.error('Failed to verify username availability:', err);
       }
-    }
 
-    const updatedData: UserProfileData = {
-      ...editForm,
-      username: newClean ? `@${newClean}` : editForm.username
-    };
+      const updatedData: UserProfileData = {
+        ...profile,
+        ...editForm,
+        name: editForm.name?.trim() || profile.name,
+        bio: typeof editForm.bio === 'string' ? editForm.bio : '',
+        username: newClean ? `@${newClean}` : editForm.username
+      };
 
-    setProfile(updatedData);
-    setIsSavingProfile(false);
-    setIsEditModalOpen(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+      setProfile(updatedData);
 
-    if (user) {
-      await updateUserProfileData(updatedData);
-    } else {
-      try {
-        localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updatedData));
-      } catch {
-        // ignore
+      if (user?.id) {
+        try {
+          localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(updatedData));
+          localStorage.setItem(`roamai_user_profile_${user.id}`, JSON.stringify(updatedData));
+        } catch {}
+        const result = await updateUserProfileData(updatedData, user.id);
+        if (result?.error) {
+          console.warn('Update profile notice:', result.error);
+        }
+      } else {
+        try {
+          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updatedData));
+          localStorage.setItem('roamai_user_profile_guest', JSON.stringify(updatedData));
+        } catch {}
       }
+
+      setIsEditModalOpen(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Failed to save profile:', err);
+      setEditUsernameError(err?.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -1054,6 +1090,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div 
           onClick={() => {
             if (session) {
+              setEditForm(profile);
               setIsEditModalOpen(true);
             } else {
               onRequireAuth?.();
@@ -1419,6 +1456,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
             )}
           </button>
+
+          {/* 4. Saved Places Tab (MapPin location pin icon beside Travel DNA) */}
+          <button
+            onClick={() => setActiveTab('saved')}
+            className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
+              activeTab === 'saved' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+            title="Saved Places"
+          >
+            <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
+            {activeTab === 'saved' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
+            )}
+          </button>
         </div>
 
         {/* 4. CONTENT GRIDS */}
@@ -1725,6 +1776,119 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         )}
 
+        {/* --- TAB 4: SAVED PLACES (LOCATION PIN TAB BESIDE TRAVEL DNA) --- */}
+        {activeTab === 'saved' && (
+          <div className="py-4 space-y-4">
+            {savedPlaces.length === 0 ? (
+              <div className="py-16 sm:py-20 px-4 text-center space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+                  <MapPin className="w-8 h-8 stroke-[1.8]" />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">No saved places yet</h3>
+                  <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                    Save destinations directly from Trails reels or map search to build your personal travel wishlist and plan itineraries with 1-tap.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                  <button
+                    onClick={() => {
+                      if (onNavigate) {
+                        onNavigate('trails');
+                      } else {
+                        setActiveTab('trails');
+                      }
+                    }}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Explore Trails</span>
+                  </button>
+                  <button
+                    onClick={() => onStartPlanning()}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Compass className="w-4 h-4 text-emerald-400" />
+                    <span>Plan a Trip</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                    {savedPlaces.length} Saved {savedPlaces.length === 1 ? 'Place' : 'Places'}
+                  </span>
+                  <span className="text-[11px] text-zinc-500">
+                    Wishlist & trail pins
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {savedPlaces.map((place) => (
+                    <div
+                      key={place.placeId}
+                      className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 hover:border-zinc-700/80 transition-all group flex flex-col justify-between shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                            <MapPin className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-white truncate" title={place.name}>
+                              {place.name}
+                            </h4>
+                            <p className="text-xs text-zinc-400 line-clamp-2 mt-0.5 leading-relaxed" title={place.address}>
+                              {place.address}
+                            </p>
+                            {place.category && (
+                              <span className="inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                                {place.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSavedPlace(place.placeId)}
+                          className="p-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                          title="Remove from saved places"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onStartPlanning(place.address || place.name)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Plan Trip</span>
+                        </button>
+
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address || place.name)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all border border-zinc-700/60 cursor-pointer"
+                          title="Open in Google Maps"
+                        >
+                          <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Maps</span>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER (SHOWING ONLY TRAILS BY THIS USER) --- */}
@@ -1752,7 +1916,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 return updated;
               });
             }}
-            onStartPlanning={onStartPlanning}
+            onStartPlanning={(dest) => {
+              setActiveReelTrailId(null);
+              onStartPlanning(dest);
+            }}
             onRequireAuth={onRequireAuth}
             onOpenUploadPage={onOpenUploadPage}
             onOpenUserProfile={(traveller) => {
@@ -2169,7 +2336,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <label className="block text-zinc-400 font-semibold mb-1">Full Name</label>
                 <input
                   type="text"
-                  value={editForm.name}
+                  value={editForm.name || ''}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white"
                 />
@@ -2277,7 +2444,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <label className="block text-zinc-400 font-semibold mb-1">Bio</label>
                 <textarea
                   rows={3}
-                  value={editForm.bio}
+                  value={editForm.bio || ''}
                   onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-medium focus:outline-hidden focus:border-white resize-none"
                 />

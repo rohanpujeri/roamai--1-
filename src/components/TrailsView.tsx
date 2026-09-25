@@ -2180,6 +2180,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         setSavedPlaces(getSavedPlaces());
                         setLocationToast('Saved to your Places!');
                       }
+                      window.dispatchEvent(new CustomEvent('roamai_saved_places_changed'));
                       setTimeout(() => setLocationToast(null), 2500);
                     }}
                     className={`w-full p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 text-left cursor-pointer group ${
@@ -2227,7 +2228,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   if (videoRefs.current[currentIndex]) {
                     videoRefs.current[currentIndex]?.pause();
                   }
-                  onStartPlanning(dest);
+                  if (onStartPlanning) {
+                    onStartPlanning(dest);
+                  }
                 }}
                 className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-indigo-600/30 to-purple-600/30 hover:from-indigo-600/40 hover:to-purple-600/40 border border-indigo-500/40 hover:border-indigo-500/60 transition-all flex items-center justify-between gap-3 text-left cursor-pointer group shadow-lg"
               >

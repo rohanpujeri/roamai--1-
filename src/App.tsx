@@ -1516,7 +1516,7 @@ export default function App() {
                   onStartPlanning={(dest) => {
                     setWizardDestId(dest || '');
                     setWizardEditingTrip(null);
-                    scrollToTab(2);
+                    scrollToTab(2, true, Boolean(dest));
                   }}
                   onToggleTripCompleted={handleToggleTripCompleted}
                   onBack={() => scrollToTab(0)}
