@@ -25,9 +25,11 @@ import {
   Hash,
   UserPlus,
   Camera,
-  Trash2
+  Trash2,
+  Sparkles,
+  Compass
 } from 'lucide-react';
-import { ThemeConfig } from '../types';
+import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
 import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
 import { Session } from '@supabase/supabase-js';
@@ -53,6 +55,7 @@ import {
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
 import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser } from '../services/followService';
+import { getSavedPlaces, savePlaceToStorage, removeSavedPlace } from '../services/placesService';
 import { TrailLikesModal } from './TrailLikesModal';
 
 export type { TrailReel };
@@ -65,6 +68,15 @@ interface TrailsViewProps {
   onBack: () => void;
   onRequireAuth?: () => void;
   onOpenUploadPage?: (file?: File) => void;
+  onOpenUserProfile?: (traveller: {
+    id?: string;
+    username: string;
+    name?: string;
+    avatarUrl?: string;
+    location?: string;
+    isFollowing?: boolean;
+  }) => void;
+  onOpenOwnProfile?: () => void;
   customTrails?: TrailReel[];
   initialTrailId?: string;
   initialIndex?: number;
@@ -81,6 +93,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   onBack,
   onRequireAuth,
   onOpenUploadPage,
+  onOpenUserProfile,
+  onOpenOwnProfile,
   customTrails,
   initialTrailId,
   initialIndex,
@@ -264,6 +278,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [progress, setProgress] = useState<number>(0);
   const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
   const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
+  const [locationActionTrail, setLocationActionTrail] = useState<TrailReel | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>(() => getSavedPlaces());
+  const [locationToast, setLocationToast] = useState<string | null>(null);
   const lastTapRef = useRef<number>(0);
 
   const getCurrentUserLiker = (): TrailLiker | undefined => {
@@ -510,7 +527,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   // Mouse wheel scroll to change trails (with throttle)
   const lastWheelTimeRef = useRef<number>(0);
   const handleWheel = (e: React.WheelEvent) => {
-    if (showComments || showUploadModal || showLikesModal) return;
+    if (showComments || showUploadModal || showLikesModal || locationActionTrail) return;
     const now = Date.now();
     if (now - lastWheelTimeRef.current < 450) return;
 
@@ -525,7 +542,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   // Keyboard navigation for full screen reels (ArrowDown/Up, J/K, Space, M)
   useEffect(() => {
-    if (!isActive || showComments || showUploadModal || showLikesModal) return;
+    if (!isActive || showComments || showUploadModal || showLikesModal || locationActionTrail) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
@@ -552,7 +569,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, showComments, showUploadModal, showLikesModal, currentIndex, trails.length, isMuted, isPlaying]);
+  }, [isActive, showComments, showUploadModal, showLikesModal, locationActionTrail, currentIndex, trails.length, isMuted, isPlaying]);
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1285,29 +1302,46 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           );
           const isFollowed = isUserFollowing(currentUsername, creator.username) || !!creator.isFollowed;
 
+          const handleOpenCreatorProfile = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (isOwnTrail) {
+              if (onOpenOwnProfile) {
+                onOpenOwnProfile();
+              } else {
+                window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+              }
+              return;
+            }
+
+            const travellerData = {
+              id: creator.id,
+              username: creator.username,
+              name: creator.name,
+              avatarUrl: creator.avatarUrl,
+              location: activeReel?.destination || '',
+              isFollowing: isFollowed
+            };
+
+            if (onOpenUserProfile) {
+              onOpenUserProfile(travellerData);
+            } else {
+              window.dispatchEvent(
+                new CustomEvent('roamai_view_traveller', {
+                  detail: travellerData
+                })
+              );
+            }
+          };
+
           return (
             <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2.5 pointer-events-auto">
                 {/* Clean Circular Photo (Instagram Reels style - no ring) */}
                 <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(
-                      new CustomEvent('roamai_view_traveller', {
-                        detail: {
-                          id: creator.id,
-                          username: creator.username,
-                          name: creator.name,
-                          avatarUrl: creator.avatarUrl,
-                          location: activeReel?.destination || '',
-                          isFollowing: isFollowed
-                        }
-                      })
-                    );
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-                  title={`View ${creator.username}'s profile`}
+                  onClick={handleOpenCreatorProfile}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all"
+                  title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {creator.avatarUrl ? (
                     <img
@@ -1328,22 +1362,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
                 {/* Username only (no full name) */}
                 <span 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(
-                      new CustomEvent('roamai_view_traveller', {
-                        detail: {
-                          id: creator.id,
-                          username: creator.username,
-                          name: creator.name,
-                          avatarUrl: creator.avatarUrl,
-                          location: activeReel?.destination || '',
-                          isFollowing: isFollowed
-                        }
-                      })
-                    );
-                  }}
-                  className="text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline"
+                  onClick={handleOpenCreatorProfile}
+                  className="text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline hover:text-indigo-200 transition-colors"
+                  title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {creatorCleanDisplay}
                 </span>
@@ -1409,12 +1430,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {activeReel?.caption || ''}
               </p>
 
-              {/* Destination Badge */}
+              {/* Destination Badge - Interactive Button giving options (Save Place & Plan a Trip) */}
               <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-sm">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>{activeReel.destination}</span>
-                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (activeReel?.destination) {
+                      setLocationActionTrail(activeReel);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer group"
+                  title={`Options for ${activeReel?.destination}`}
+                >
+                  <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="truncate max-w-[200px] sm:max-w-xs">{activeReel?.destination}</span>
+                  <ChevronRight className="w-3 h-3 text-white/60 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </button>
               </div>
             </div>
           );
@@ -1504,20 +1536,65 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       <img 
                         src={comm.avatar} 
                         alt={comm.user} 
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
+                          if (currentUsername && cUser === currentUsername) {
+                            if (onOpenOwnProfile) onOpenOwnProfile();
+                            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+                          } else {
+                            const d = { username: comm.user, name: comm.user, avatarUrl: comm.avatar };
+                            if (onOpenUserProfile) onOpenUserProfile(d);
+                            else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
+                          }
+                          setShowComments(false);
+                        }}
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
                           (e.target as HTMLElement).style.display = 'none';
                         }}
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs shrink-0 ring-1 ring-white/15 select-none">
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
+                          if (currentUsername && cUser === currentUsername) {
+                            if (onOpenOwnProfile) onOpenOwnProfile();
+                            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+                          } else {
+                            const d = { username: comm.user, name: comm.user, avatarUrl: '' };
+                            if (onOpenUserProfile) onOpenUserProfile(d);
+                            else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
+                          }
+                          setShowComments(false);
+                        }}
+                        className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs shrink-0 ring-1 ring-white/15 select-none cursor-pointer hover:opacity-80 transition-opacity"
+                      >
                         {comm.user?.charAt(0).toUpperCase() || 'U'}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-white">{comm.user}</span>
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
+                            if (currentUsername && cUser === currentUsername) {
+                              if (onOpenOwnProfile) onOpenOwnProfile();
+                              else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+                            } else {
+                              const d = { username: comm.user, name: comm.user, avatarUrl: comm.avatar };
+                              if (onOpenUserProfile) onOpenUserProfile(d);
+                              else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
+                            }
+                            setShowComments(false);
+                          }}
+                          className="text-xs font-bold text-white cursor-pointer hover:underline"
+                        >
+                          {comm.user}
+                        </span>
                         <span className="text-[10px] text-neutral-500">{comm.time}</span>
                       </div>
                       <p className="text-xs text-neutral-300 mt-0.5 leading-relaxed">{comm.text}</p>
@@ -1954,6 +2031,198 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Trail Location Action Modal (Save Place & Plan a Trip) */}
+      {locationActionTrail && (
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+          onClick={() => setLocationActionTrail(null)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-[#121217] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl text-white space-y-4 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile drag bar */}
+            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto sm:hidden mb-1" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-white truncate">
+                    {locationActionTrail.destination}
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    Location tagged in this trail
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocationActionTrail(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Toast feedback if any */}
+            {locationToast && (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+                <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{locationToast}</span>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="space-y-2.5 pt-1">
+              {/* Option 1: Save Place / Saved Place */}
+              {(() => {
+                const dest = locationActionTrail.destination.trim();
+                const placeId = `trail_loc_${dest.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                const isSaved = savedPlaces.some(
+                  (p) =>
+                    p.placeId === placeId ||
+                    p.name.toLowerCase() === dest.toLowerCase() ||
+                    p.address.toLowerCase() === dest.toLowerCase()
+                );
+
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSaved) {
+                        removeSavedPlace(placeId);
+                        const updated = getSavedPlaces().filter(
+                          (p) =>
+                            p.placeId !== placeId &&
+                            p.name.toLowerCase() !== dest.toLowerCase() &&
+                            p.address.toLowerCase() !== dest.toLowerCase()
+                        );
+                        setSavedPlaces(updated);
+                        setLocationToast('Removed from your Saved Places');
+                      } else {
+                        savePlaceToStorage({
+                          placeId,
+                          name: dest.split(',')[0].trim(),
+                          address: dest,
+                          latitude: 0,
+                          longitude: 0,
+                          category: 'Trail Destination',
+                          source: 'manual'
+                        });
+                        setSavedPlaces(getSavedPlaces());
+                        setLocationToast('Saved to your Places!');
+                      }
+                      setTimeout(() => setLocationToast(null), 2500);
+                    }}
+                    className={`w-full p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 text-left cursor-pointer group ${
+                      isSaved
+                        ? 'bg-amber-500/15 border-amber-500/40 hover:bg-amber-500/20'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        isSaved ? 'bg-amber-500/25 text-amber-400' : 'bg-white/10 text-white'
+                      }`}>
+                        <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-amber-400' : ''}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>{isSaved ? 'Saved in Your Places' : 'Save Place'}</span>
+                          {isSaved && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold">
+                              Saved
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-400 truncate">
+                          {isSaved ? 'Tap to remove from saved places' : 'Add to your places to visit & explore later'}
+                        </p>
+                      </div>
+                    </div>
+                    {isSaved ? (
+                      <Check className="w-5 h-5 text-amber-400 shrink-0" />
+                    ) : (
+                      <Plus className="w-5 h-5 text-white/60 group-hover:text-white transition-colors shrink-0" />
+                    )}
+                  </button>
+                );
+              })()}
+
+              {/* Option 2: Plan a Trip to this Place */}
+              <button
+                type="button"
+                onClick={() => {
+                  const dest = locationActionTrail.destination.trim();
+                  setLocationActionTrail(null);
+                  setIsPlaying(false);
+                  if (videoRefs.current[currentIndex]) {
+                    videoRefs.current[currentIndex]?.pause();
+                  }
+                  onStartPlanning(dest);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-indigo-600/30 to-purple-600/30 hover:from-indigo-600/40 hover:to-purple-600/40 border border-indigo-500/40 hover:border-indigo-500/60 transition-all flex items-center justify-between gap-3 text-left cursor-pointer group shadow-lg"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Plan a Trip to this Place</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-300 font-semibold border border-indigo-400/30">
+                        AI Planner
+                      </span>
+                    </div>
+                    <p className="text-xs text-indigo-200/80 truncate">
+                      Create a personalized custom itinerary for this destination
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-indigo-300 group-hover:translate-x-0.5 transition-transform shrink-0" />
+              </button>
+
+              {/* Option 3: Explore on Google Maps */}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationActionTrail.destination)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setLocationActionTrail(null)}
+                className="w-full p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all flex items-center justify-between gap-3 text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
+                    <Compass className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">Explore on Google Maps</div>
+                    <p className="text-xs text-neutral-400 truncate">
+                      View real reviews, routes, and geographic satellite map
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0" />
+              </a>
+            </div>
+
+            {/* Cancel / Dismiss */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setLocationActionTrail(null)}
+                className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

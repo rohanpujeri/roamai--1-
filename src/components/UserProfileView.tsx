@@ -1684,6 +1684,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             onStartPlanning={onStartPlanning}
             onRequireAuth={onRequireAuth}
             onOpenUploadPage={onOpenUploadPage}
+            onOpenUserProfile={(traveller) => {
+              setActiveReelTrailId(null);
+              window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: traveller }));
+              onNavigate?.('search');
+            }}
+            onOpenOwnProfile={() => {
+              setActiveReelTrailId(null);
+            }}
           />
         </div>
       )}

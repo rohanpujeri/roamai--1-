@@ -157,28 +157,38 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   useEffect(() => {
     const handleViewTraveller = (e: any) => {
       if (e.detail) {
+        setActiveReelTrailId(null);
+        setActiveReelTrails(null);
         const d = e.detail;
         const cleanUname = (d.username || '').replace(/^@+/, '');
+        const cleanLower = cleanUname.toLowerCase();
+
+        // Match existing traveller from travellers list
+        const matched = travellers.find((t) => 
+          (t.username && t.username.replace(/^@+/, '').toLowerCase() === cleanLower) ||
+          (t.id && d.id && t.id === d.id)
+        );
+
         setViewingProfile({
-          id: d.id || `user_${cleanUname}`,
-          name: d.name || cleanUname,
-          username: d.username?.startsWith('@') ? d.username : `@${cleanUname}`,
-          avatarUrl: d.avatarUrl || '',
-          location: d.location || 'Traveler',
-          bio: d.bio || '',
-          level: d.level || 'Travel Explorer',
-          tripsCount: d.tripsCount || 0,
-          placesCount: d.placesCount || 0,
-          topDNA: d.topDNA || ['Adventure', 'Nature'],
-          recentPlaces: d.recentPlaces || [],
-          isFollowing: !!d.isFollowing
+          id: d.id || matched?.id || `user_${cleanUname}`,
+          name: d.name || matched?.name || cleanUname,
+          username: d.username?.startsWith('@') ? d.username : (matched?.username || `@${cleanUname}`),
+          avatarUrl: d.avatarUrl || matched?.avatarUrl || '',
+          location: d.location || matched?.location || 'Traveler',
+          bio: d.bio || matched?.bio || 'Passionate explorer sharing journey trails & travel adventures.',
+          level: d.level || matched?.level || 'Travel Explorer',
+          tripsCount: d.tripsCount ?? (matched?.tripsCount || 0),
+          placesCount: d.placesCount ?? (matched?.placesCount || 0),
+          topDNA: d.topDNA || matched?.topDNA || ['Adventure', 'Nature'],
+          recentPlaces: d.recentPlaces || matched?.recentPlaces || [],
+          isFollowing: !!(d.isFollowing ?? matched?.isFollowing)
         });
         setProfileTab('trips');
       }
     };
     window.addEventListener('roamai_view_traveller', handleViewTraveller);
     return () => window.removeEventListener('roamai_view_traveller', handleViewTraveller);
-  }, []);
+  }, [travellers]);
 
   // Fetch completed trips for currently viewed profile to display Completed Trips and Travel DNA
   useEffect(() => {
@@ -1717,6 +1727,16 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             }}
             onStartPlanning={onStartPlanning}
             onRequireAuth={onRequireAuth}
+            onOpenUserProfile={(traveller) => {
+              setActiveReelTrailId(null);
+              setActiveReelTrails(null);
+              window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: traveller }));
+            }}
+            onOpenOwnProfile={() => {
+              setActiveReelTrailId(null);
+              setActiveReelTrails(null);
+              onOpenOwnProfile?.();
+            }}
           />
         </div>
       )}

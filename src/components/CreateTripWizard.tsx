@@ -206,9 +206,34 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         photoUrl: initialTrip.heroImage
       };
     }
+    if (initialDestinationId) {
+      const name = initialDestinationId.split(',')[0].trim();
+      return {
+        placeId: `dest_${initialDestinationId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        name: name,
+        address: initialDestinationId,
+        latitude: 0,
+        longitude: 0
+      };
+    }
     return null;
   });
   const [selectedDestId, setSelectedDestId] = useState<string>(() => initialTrip?.destination || initialDestinationId);
+
+  // Sync initialDestinationId if passed dynamically (e.g. from trail location action)
+  useEffect(() => {
+    if (initialDestinationId && !initialTrip) {
+      setSelectedDestId(initialDestinationId);
+      const name = initialDestinationId.split(',')[0].trim();
+      setSelectedDestinationPlace({
+        placeId: `dest_${initialDestinationId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        name: name,
+        address: initialDestinationId,
+        latitude: 0,
+        longitude: 0
+      });
+    }
+  }, [initialDestinationId, initialTrip]);
 
   // Step 2: Starting Point / Departure Location & Geolocation
   const [startCity, setStartCity] = useState<string>(() => initialTrip?.startCity || '');

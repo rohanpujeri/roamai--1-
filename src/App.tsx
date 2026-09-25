@@ -926,7 +926,7 @@ export default function App() {
   const scrollSettleTimer = useRef<any>(null);
   const scrollRafRef = useRef<number | null>(null);
 
-  const scrollToTab = (index: number, smooth = true) => {
+  const scrollToTab = (index: number, smooth = true, keepWizardDest = false) => {
     const targetView = BOTTOM_NAV_ORDER[index];
     if (!targetView) return;
 
@@ -940,7 +940,7 @@ export default function App() {
       return;
     }
 
-    if (targetView === 'wizard') {
+    if (targetView === 'wizard' && !keepWizardDest) {
       setWizardDestId('');
       setWizardEditingTrip(null);
       setWizardInitialStep(1);
@@ -1116,6 +1116,22 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
     }
   }, [currentView]);
+
+  // Navigate to traveller profile or user profile via global event
+  useEffect(() => {
+    const handleViewTraveller = () => {
+      scrollToTab(3);
+    };
+    const handleViewOwnProfile = () => {
+      scrollToTab(4);
+    };
+    window.addEventListener('roamai_view_traveller', handleViewTraveller);
+    window.addEventListener('roamai_view_own_profile', handleViewOwnProfile);
+    return () => {
+      window.removeEventListener('roamai_view_traveller', handleViewTraveller);
+      window.removeEventListener('roamai_view_own_profile', handleViewOwnProfile);
+    };
+  }, []);
 
   // Keyboard navigation for desktop power users
   useEffect(() => {
@@ -1427,9 +1443,14 @@ export default function App() {
                   onStartPlanning={(dest) => {
                     setWizardDestId(dest || '');
                     setWizardEditingTrip(null);
-                    scrollToTab(2);
+                    scrollToTab(2, true, true);
                   }}
                   onBack={() => scrollToTab(0)}
+                  onOpenOwnProfile={() => scrollToTab(4)}
+                  onOpenUserProfile={(traveller) => {
+                    window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: traveller }));
+                    scrollToTab(3);
+                  }}
                 />
               </div>
 
@@ -1470,7 +1491,7 @@ export default function App() {
                   onStartPlanning={(destination) => {
                     setWizardDestId(destination || '');
                     setWizardEditingTrip(null);
-                    scrollToTab(2);
+                    scrollToTab(2, true, true);
                   }}
                   onBack={() => scrollToTab(0)}
                   onRequireAuth={() => {
