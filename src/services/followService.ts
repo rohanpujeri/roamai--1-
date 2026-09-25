@@ -42,6 +42,21 @@ export function isFakeMockUser(_username?: string | null): boolean {
 }
 
 /**
+ * Check if a relationship is a self-follow (same person with different identifier formats)
+ */
+export function isSelfRel(fId?: string, fUname?: string, tId?: string, tUname?: string): boolean {
+  if (fId && tId) {
+    const cFId = fId.replace(/^supa_/, '').replace(/^user_/, '');
+    const cTId = tId.replace(/^supa_/, '').replace(/^user_/, '');
+    if (cFId === cTId && cFId.length > 0) return true;
+  }
+  const cleanF = cleanHandle(fUname || '').replace(/^user_/, '').replace(/[._]/g, '');
+  const cleanT = cleanHandle(tUname || '').replace(/^user_/, '').replace(/[._]/g, '');
+  if (cleanF && cleanT && cleanF === cleanT) return true;
+  return false;
+}
+
+/**
  * Load locally cached follow relationships synchronously
  */
 export function getLocalFollowRelationships(): FollowRelationship[] {
@@ -51,13 +66,14 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Scrub any mock/seed fake accounts immediately
+        // Scrub any mock/seed fake accounts and self-follows immediately
         const cleaned = parsed.filter((r) => {
           if (!r || !r.followerUsername || !r.followingUsername) return false;
           const fol = cleanHandle(r.followerUsername);
           const fng = cleanHandle(r.followingUsername);
           if (isFakeMockUser(fol) || isFakeMockUser(fng)) return false;
           if (r.id?.startsWith('seed_') || r.id?.startsWith('rel_init_') || r.id?.startsWith('rel_follower_')) return false;
+          if (isSelfRel(r.followerId, r.followerUsername, r.followingId, r.followingUsername)) return false;
           return true;
         });
 
@@ -145,7 +161,65 @@ export async function syncFollowsFromServer(): Promise<void> {
       }
     });
 
-    // 1. Fetch from server API /api/follows
+    // 1. If Supabase is connected, treat Supabase follows as the single source of truth
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data: supabaseFollows, error: followsError } = await supabase.from('follows').select('*').limit(500);
+        if (!followsError && Array.isArray(supabaseFollows)) {
+          // Fetch Supabase registered profiles to map UUIDs to handles
+          const { data: supabaseProfiles } = await supabase.from('profiles').select('id, username, name, avatar_url, bio, location').limit(500);
+          const profMap = new Map<string, any>();
+          if (Array.isArray(supabaseProfiles)) {
+            supabaseProfiles.forEach((p) => {
+              const u = cleanHandle(p.username);
+              if (u) {
+                profMap.set(u, p);
+                profMap.set(u.replace(/[._]/g, ''), p);
+              }
+              if (p.id) {
+                profMap.set(p.id, p);
+                profMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
+              }
+            });
+          }
+
+          const authoritativeRels: FollowRelationship[] = [];
+          supabaseFollows.forEach((row: any) => {
+            const fProf = profMap.get(row.follower_id) || profMap.get(cleanHandle(row.follower_id));
+            const tProf = profMap.get(row.following_id) || profMap.get(cleanHandle(row.following_id));
+
+            const fClean = fProf ? cleanHandle(fProf.username) : cleanHandle(row.follower_id);
+            const tClean = tProf ? cleanHandle(tProf.username) : cleanHandle(row.following_id);
+
+            // Filter out self-follows
+            if (isSelfRel(row.follower_id, fClean, row.following_id, tClean)) return;
+            if (!fClean || !tClean) return;
+
+            authoritativeRels.push({
+              id: row.id,
+              followerId: row.follower_id,
+              followerUsername: fProf?.username || `@${fClean}`,
+              followerName: fProf?.name || (fClean.charAt(0).toUpperCase() + fClean.slice(1)),
+              followerAvatar: sanitizeAvatarUrl(fProf?.avatar_url || ''),
+              followingId: row.following_id,
+              followingUsername: tProf?.username || `@${tClean}`,
+              followingName: tProf?.name || (tClean.charAt(0).toUpperCase() + tClean.slice(1)),
+              followingAvatar: sanitizeAvatarUrl(tProf?.avatar_url || ''),
+              createdAt: row.created_at || new Date().toISOString()
+            });
+          });
+
+          // Supabase is authoritative: overwrite local storage immediately
+          saveLocalFollowRelationships(authoritativeRels);
+          return;
+        }
+      } catch (err) {
+        console.warn('Supabase follows sync error:', err);
+      }
+    }
+
+    // 2. Fallback: Fetch from server API /api/follows if Supabase is offline
     try {
       const res = await fetch('/api/follows');
       if (res.ok) {
@@ -157,6 +231,7 @@ export async function syncFollowsFromServer(): Promise<void> {
             const fngU = cleanHandle(serverRec.followingUsername);
             if (isFakeMockUser(folU) || isFakeMockUser(fngU)) return;
             if (serverRec.id?.startsWith('seed_') || serverRec.id?.startsWith('rel_init_') || serverRec.id?.startsWith('rel_follower_')) return;
+            if (isSelfRel(serverRec.followerId, folU, serverRec.followingId, fngU)) return;
 
             const key = makeRelKey(serverRec.followerUsername, serverRec.followingUsername);
             if (key && key !== '->') {
@@ -179,57 +254,6 @@ export async function syncFollowsFromServer(): Promise<void> {
       }
     } catch {
       // Backend offline or local fallback
-    }
-
-    // 2. Fetch from Supabase follows table if configured
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('follows').select('*').limit(300);
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const allProfiles = await searchRealTravellers().catch(() => []);
-          const profMap = new Map<string, any>();
-          allProfiles.forEach((p) => {
-            const cU = cleanHandle(p.username);
-            if (cU) {
-              profMap.set(cU, p);
-              profMap.set(cU.replace(/_/g, ''), p);
-            }
-            if (p.id) {
-              profMap.set(p.id, p);
-              profMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
-            }
-          });
-
-          data.forEach((row: any) => {
-            const fProf = profMap.get(row.follower_id) || profMap.get(cleanHandle(row.follower_id));
-            const tProf = profMap.get(row.following_id) || profMap.get(cleanHandle(row.following_id));
-
-            const fClean = fProf ? cleanHandle(fProf.username) : cleanHandle(row.follower_id);
-            const tClean = tProf ? cleanHandle(tProf.username) : cleanHandle(row.following_id);
-
-            if (fClean && tClean && !isFakeMockUser(fClean) && !isFakeMockUser(tClean)) {
-              const key = `${fClean}->${tClean}`;
-              if (!relsMap.has(key)) {
-                relsMap.set(key, {
-                  id: row.id,
-                  followerId: row.follower_id,
-                  followerUsername: fProf?.username || `@${fClean}`,
-                  followerName: fProf?.name || (fClean.charAt(0).toUpperCase() + fClean.slice(1)),
-                  followerAvatar: fProf?.avatarUrl || '',
-                  followingId: row.following_id,
-                  followingUsername: tProf?.username || `@${tClean}`,
-                  followingName: tProf?.name || (tClean.charAt(0).toUpperCase() + tClean.slice(1)),
-                  followingAvatar: tProf?.avatarUrl || '',
-                  createdAt: row.created_at || new Date().toISOString()
-                });
-              }
-            }
-          });
-        }
-      } catch {
-        // Supabase table not created or network failure
-      }
     }
 
     const merged = Array.from(relsMap.values());
@@ -274,6 +298,7 @@ export function getFollowCounts(identifier: string | { id?: string; username?: s
     const relFollowingId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return;
+    if (isSelfRel(rel.followerId, rel.followerUsername, rel.followingId, rel.followingUsername)) return;
 
     // Is identifier followed by someone?
     if (
@@ -419,6 +444,7 @@ export async function getFollowers(
     const cleanRelFollowingId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
+    if (isSelfRel(rel.followerId, rel.followerUsername, rel.followingId, rel.followingUsername)) return false;
     return (
       (targetId && (rel.followingId === targetId || (cleanTargetId && cleanRelFollowingId === cleanTargetId))) ||
       (tClean && followingUname === tClean) ||
@@ -499,6 +525,7 @@ export async function getFollowing(
     const cleanRelFollowerId = rel.followerId ? rel.followerId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
+    if (isSelfRel(rel.followerId, rel.followerUsername, rel.followingId, rel.followingUsername)) return false;
     return (
       (userId && (rel.followerId === userId || (cleanUserId && cleanRelFollowerId === cleanUserId))) ||
       (uClean && followerUname === uClean) ||
@@ -558,7 +585,8 @@ export async function followUser(
 ): Promise<boolean> {
   const fUname = cleanHandle(currentUser.username);
   const tUname = cleanHandle(targetUser.username);
-  if (!fUname || !tUname || fUname === tUname || isFakeMockUser(fUname) || isFakeMockUser(tUname)) return false;
+  if (!fUname || !tUname || isFakeMockUser(fUname) || isFakeMockUser(tUname)) return false;
+  if (isSelfRel(currentUser.id, fUname, targetUser.id, tUname)) return false;
 
   const fId = currentUser.id || `user_${fUname}`;
   const tId = targetUser.id || `user_${tUname}`;

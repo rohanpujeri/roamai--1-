@@ -22,6 +22,7 @@ import {
   toggleFollowUser,
   removeFollowerUser,
   isFakeMockUser,
+  isSelfRel,
   FollowUserProfile 
 } from '../services/followService';
 
@@ -173,7 +174,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   // Filter and sort active list
   const activeList = activeTab === 'followers' ? followersList : followingList;
   const filteredUsers = useMemo(() => {
-    let list = activeList.filter((u) => !isFakeMockUser(u.username));
+    let list = activeList.filter((u) => !isFakeMockUser(u.username) && !isSelf(u));
 
     const q = searchQuery.trim().toLowerCase().replace(/^@+/, '');
     if (q) {
@@ -191,17 +192,13 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     }
 
     return list;
-  }, [activeList, searchQuery, sortOrder]);
+  }, [activeList, searchQuery, sortOrder, isSelf]);
 
   // Helper to determine if a user row is the current viewer
-  const isSelf = (user: FollowUserProfile) => {
+  const isSelf = useCallback((user: FollowUserProfile) => {
     if (!currentUser) return false;
-    const selfUname = currentUser.username.toLowerCase().replace(/^@+/, '');
-    const userUname = user.username.toLowerCase().replace(/^@+/, '');
-    if (selfUname && (selfUname === userUname || selfUname.replace(/_/g, '') === userUname.replace(/_/g, ''))) return true;
-    if (currentUser.id && user.id && currentUser.id.replace(/^supa_/, '').replace(/^user_/, '') === user.id.replace(/^supa_/, '').replace(/^user_/, '')) return true;
-    return false;
-  };
+    return isSelfRel(currentUser.id, currentUser.username, user.id, user.username);
+  }, [currentUser]);
 
   // Execute Unfollow confirmation
   const handleConfirmUnfollow = async () => {
