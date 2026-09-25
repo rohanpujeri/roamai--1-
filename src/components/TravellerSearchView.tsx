@@ -15,6 +15,8 @@ import {
   Check,
   User,
   LayoutGrid,
+  Grid3X3,
+  Film,
   Compass,
   Mountain
 } from 'lucide-react';
@@ -980,43 +982,55 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             </div>
           </div>
 
-          {/* 4. Instagram Profile Tabs: Completed Trips | Trails | Travel DNA (NO Saved Places) */}
-          <div className="border-t border-neutral-800/80 pt-2">
-            <div className="flex items-center justify-around border-b border-neutral-800/80 pb-2">
-              {/* Tab 1: Completed Trips */}
+          {/* 4. Profile Tabs: Completed Trips | Trails | Travel DNA (Just symbols matching own profile) */}
+          <div className="border-t border-neutral-800 mt-2">
+            <div className="flex border-b border-neutral-800">
+              {/* Tab 1: Completed Trips (Grid icon) */}
               <button
                 type="button"
                 onClick={() => setProfileTab('trips')}
-                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                  profileTab === 'trips' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
+                  profileTab === 'trips' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
                 }`}
+                title="Completed Trips"
+                aria-label="Completed Trips"
               >
-                <LayoutGrid className="w-4 h-4" />
-                <span>TRIPS ({viewingProfileTripsCount})</span>
+                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6" />
+                {profileTab === 'trips' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
+                )}
               </button>
 
-              {/* Tab 2: Trails */}
+              {/* Tab 2: Trails (Film icon) */}
               <button
                 type="button"
                 onClick={() => setProfileTab('trails')}
-                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                  profileTab === 'trails' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
+                  profileTab === 'trails' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
                 }`}
+                title="Trails"
+                aria-label="Trails"
               >
-                <Video className="w-4 h-4" />
-                <span>TRAILS ({viewingProfileTrails.length})</span>
+                <Film className="w-5 h-5 sm:w-6 sm:h-6" />
+                {profileTab === 'trails' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
+                )}
               </button>
 
-              {/* Tab 3: Travel DNA Profile */}
+              {/* Tab 3: Travel DNA Profile (Sparkles icon) */}
               <button
                 type="button"
                 onClick={() => setProfileTab('dna')}
-                className={`flex items-center gap-1.5 text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                  profileTab === 'dna' ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+                className={`flex-1 py-3 flex items-center justify-center relative transition-colors cursor-pointer ${
+                  profileTab === 'dna' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
                 }`}
+                title="Travel DNA"
+                aria-label="Travel DNA"
               >
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>TRAVEL DNA</span>
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                {profileTab === 'dna' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
+                )}
               </button>
             </div>
 
