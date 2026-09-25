@@ -18,8 +18,19 @@ import {
   LayoutGrid,
   Film,
   Compass,
-  Mountain
+  Mountain,
+  Award
 } from 'lucide-react';
+
+const isFakeBio = (bio?: string): boolean => {
+  if (!bio) return true;
+  const b = bio.trim().toLowerCase();
+  return (
+    b === '' ||
+    b.includes('exploring new places, one trip at a time') ||
+    b.includes('passionate explorer sharing journey trails')
+  );
+};
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, Trip } from '../types';
 import { TrailsView } from './TrailsView';
@@ -205,12 +216,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           username: d.username?.startsWith('@') ? d.username : (matched?.username || (cachedStats?.username ? cachedStats.username : `@${cleanUname}`)),
           avatarUrl: d.avatarUrl || matched?.avatarUrl || cachedStats?.avatarUrl || '',
           location: d.location || matched?.location || cachedStats?.place || 'Traveler',
-          bio: d.bio || matched?.bio || cachedStats?.bio || 'Passionate explorer sharing journey trails & travel adventures.',
+          bio: !isFakeBio(d.bio) ? d.bio : (!isFakeBio(matched?.bio) ? matched?.bio : (!isFakeBio(cachedStats?.bio) ? cachedStats?.bio : '')),
           level: d.level || matched?.level || cachedStats?.stats?.level || 'Travel Explorer',
           tripsCount: d.tripsCount ?? (matched?.tripsCount ?? (cachedStats?.stats?.tripsCount || 0)),
           placesCount: d.placesCount ?? (matched?.placesCount ?? (cachedStats?.stats?.placesCount || 0)),
           countriesCount: d.countriesCount ?? (matched?.countriesCount ?? (cachedStats?.stats?.countriesCount || 0)),
-          topDNA: d.topDNA || matched?.topDNA || ['Adventure', 'Nature'],
+          topDNA: d.topDNA || matched?.topDNA || [],
           recentPlaces: d.recentPlaces || matched?.recentPlaces || [],
           isFollowing: !!(d.isFollowing ?? matched?.isFollowing)
         });
@@ -306,7 +317,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 ...prev,
                 name: pData.name || prev.name,
                 avatarUrl: pData.avatar_url || prev.avatarUrl,
-                bio: pData.bio || prev.bio,
+                bio: !isFakeBio(pData.bio) ? pData.bio : (!isFakeBio(prev.bio) ? prev.bio : ''),
                 tripsCount: pData.trips_count ?? prev.tripsCount,
                 placesCount: pData.places_count ?? prev.placesCount,
                 countriesCount: pData.countries_count ?? prev.countriesCount
@@ -766,9 +777,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 Follows you
               </span>
             )}
-            <span className="text-[10px] text-amber-400 bg-amber-950/70 border border-amber-800/60 px-1.5 py-0.2 rounded-md font-semibold">
-              {viewingProfile.level.split('—')[0].trim()}
-            </span>
           </div>
 
           <button
@@ -790,102 +798,113 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         )}
 
         {/* Profile Content Container */}
-        <div className="max-w-xl mx-auto px-4 sm:px-6 pt-5">
-          {/* 1. Header (Avatar + Stats) */}
-          <div className="flex items-center gap-6 sm:gap-10 pb-4 border-b border-neutral-900">
-            {/* Avatar (NO gradient ring) */}
-            {viewingProfile.avatarUrl ? (
-              <img
-                src={viewingProfile.avatarUrl}
-                alt={viewingProfile.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-neutral-700 shrink-0 shadow-md"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-2xl shrink-0 select-none shadow-md">
-                {viewingProfile.name?.charAt(0).toUpperCase() || viewingProfile.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+        <div className="max-w-2xl mx-auto px-4 pt-3">
+          {/* Header Row: Avatar on Left, Name + Stats on Right (matches UserProfileView) */}
+          <div className="flex items-center gap-5 sm:gap-8">
+            {/* Avatar on Left */}
+            <div className="relative shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-zinc-800 bg-zinc-900 shadow-md">
+                {viewingProfile.avatarUrl ? (
+                  <img
+                    src={viewingProfile.avatarUrl}
+                    alt={viewingProfile.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white font-bold text-2xl select-none">
+                    {viewingProfile.name?.charAt(0).toUpperCase() || viewingProfile.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Stats (Posts | Followers | Following) */}
-            <div className="flex-1 flex items-center justify-around text-center">
-              <button
-                type="button"
-                onClick={() => setProfileTab('trips')}
-                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
-                title="View posts"
-              >
-                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
-                  {viewingProfileTripsCount + viewingProfileTrails.length}
-                </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">
-                  {viewingProfileTripsCount + viewingProfileTrails.length === 1 ? 'post' : 'posts'}
-                </div>
-              </button>
+            {/* Right Column: Name & Level Badge, and Stats (post | followers | following) */}
+            <div className="flex-1 flex flex-col justify-center">
+              {/* User Full Name & Level Badge */}
+              <div className="flex items-center gap-2 flex-wrap mb-2.5">
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  {viewingProfile.name}
+                </h2>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Award className="w-3 h-3" />
+                  <span>Level {Math.max(1, Math.min(10, Math.floor(viewingProfileTripsCount / 2) + 1))}</span>
+                </span>
+              </div>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFollowModalTab('followers');
-                  setIsFollowModalOpen(true);
-                }}
-                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
-                title="View followers"
-                aria-label="View followers"
-              >
-                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
-                  {viewingFollowCounts.followersCount}
+              {/* STATS IN ONE STRAIGHT LINE: POST | FOLLOWERS | FOLLOWING */}
+              <div className="flex items-center justify-between text-center max-w-[280px] sm:max-w-[340px] pt-1">
+                {/* Posts */}
+                <div
+                  onClick={() => setProfileTab('trips')}
+                  className="cursor-pointer group flex-1"
+                >
+                  <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
+                    {viewingProfileTripsCount + viewingProfileTrails.length}
+                  </span>
+                  <span className="block text-xs text-zinc-300 font-normal mt-0.5">
+                    {viewingProfileTripsCount + viewingProfileTrails.length === 1 ? 'post' : 'posts'}
+                  </span>
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">followers</div>
-              </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFollowModalTab('following');
-                  setIsFollowModalOpen(true);
-                }}
-                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
-                title="View following"
-                aria-label="View following"
-              >
-                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
-                  {viewingFollowCounts.followingCount}
-                </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">following</div>
-              </button>
+                {/* Followers */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFollowModalTab('followers');
+                    setIsFollowModalOpen(true);
+                  }}
+                  className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
+                  title="View followers"
+                  aria-label="View followers"
+                >
+                  <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
+                    {viewingFollowCounts.followersCount}
+                  </span>
+                  <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
+                    followers
+                  </span>
+                </button>
+
+                {/* Following */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFollowModalTab('following');
+                    setIsFollowModalOpen(true);
+                  }}
+                  className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
+                  title="View following"
+                  aria-label="View following"
+                >
+                  <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
+                    {viewingFollowCounts.followingCount}
+                  </span>
+                  <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
+                    following
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* 2. Name, Bio, Location */}
-          <div className="space-y-1">
-            <h2 className="text-sm sm:text-base font-bold text-white">
-              {viewingProfile.name}
-            </h2>
-            {viewingProfile.bio && (
-              <p className="text-xs text-neutral-200 pt-1 leading-relaxed whitespace-pre-line">
+          {/* Bio & Details */}
+          <div className="mt-3 text-left">
+            {!isFakeBio(viewingProfile.bio) && (
+              <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line mb-1">
                 {viewingProfile.bio}
               </p>
             )}
-
-            {/* Travel DNA tags */}
-            {viewingProfile.topDNA && viewingProfile.topDNA.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap pt-2">
-                {viewingProfile.topDNA.map((dna, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-0.5 rounded-md bg-white/5 border border-white/5 text-neutral-300 text-[10px] font-semibold"
-                  >
-                    {dna}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium flex-wrap">
+              <span className="text-zinc-500 font-mono">
+                {viewingProfile.username}
+              </span>
+            </div>
 
             {/* Mutual Connections (Instagram: Followed by @user and N others) */}
             {mutuals.length > 0 && (
@@ -899,14 +918,14 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             )}
           </div>
 
-          {/* 3. Action Buttons (Follow / Following & Plan Trip) */}
-          <div className="flex items-center gap-2 pt-1">
+          {/* Action Buttons: Follow / Following & Plan a Trip (instead of Edit profile & Share profile) */}
+          <div className="flex items-center gap-2 mt-4">
             <button
               type="button"
               onClick={(e) => handleFollowAction(viewingProfile.id, viewingProfile.username, e)}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm text-center ${
+              className={`flex-1 py-1.5 sm:py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center ${
                 isFollowing
-                  ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
+                  ? 'bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-neutral-200 border border-neutral-700'
                   : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
               }`}
             >
@@ -917,10 +936,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               type="button"
               onClick={() => {
                 if (onStartPlanning) {
-                  onStartPlanning();
+                  onStartPlanning(viewingProfileCompletedTrips[0]?.destination);
                 }
               }}
-              className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#262626] hover:bg-[#333333] text-white border border-neutral-800 transition-colors cursor-pointer text-center"
+              className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold border border-neutral-800 transition-colors cursor-pointer text-center"
             >
               Plan a Trip
             </button>
@@ -1315,11 +1334,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               username: selectedUser.username,
               avatarUrl: selectedUser.avatarUrl || '',
               location: selectedUser.location || 'Traveler',
-              bio: selectedUser.bio || '',
+              bio: !isFakeBio(selectedUser.bio) ? selectedUser.bio : '',
               level: 'Travel Explorer',
               tripsCount: 0,
               placesCount: 0,
-              topDNA: ['Adventure', 'Photography'],
+              topDNA: [],
               recentPlaces: [],
               isFollowing: selectedUser.isFollowing
             });
