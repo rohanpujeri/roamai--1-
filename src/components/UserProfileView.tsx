@@ -701,8 +701,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: getFollowCounts(user?.id || cached?.username || getFallbackUsername(user, userMeta)).followersCount,
-        followingCount: getFollowCounts(user?.id || cached?.username || getFallbackUsername(user, userMeta)).followingCount,
+        followersCount: getFollowCounts({ id: user?.id, username: cached?.username || getFallbackUsername(user, userMeta) }).followersCount,
+        followingCount: getFollowCounts({ id: user?.id, username: cached?.username || getFallbackUsername(user, userMeta) }).followingCount,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -754,8 +754,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: getFollowCounts(user?.id || username).followersCount,
-        followingCount: getFollowCounts(user?.id || username).followingCount,
+        followersCount: getFollowCounts({ id: user?.id, username }).followersCount,
+        followingCount: getFollowCounts({ id: user?.id, username }).followingCount,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -803,7 +803,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   // Listen to real-time follow/unfollow actions across the app
   useEffect(() => {
     const handleFollowChanged = () => {
-      const counts = getFollowCounts(user?.id || profile.username);
+      const counts = getFollowCounts({ id: user?.id, username: profile.username });
       setProfile((prev) => ({
         ...prev,
         stats: {
@@ -1257,13 +1257,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
 
               {/* Followers */}
-              <div 
-                onClick={() => {
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setFollowModalTab('followers');
                   setIsFollowModalOpen(true);
                 }}
-                className="cursor-pointer group flex-1"
+                className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
                 title="View followers"
+                aria-label="View followers"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
                   {profile.stats?.followersCount ?? 0}
@@ -1271,16 +1274,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
                   followers
                 </span>
-              </div>
+              </button>
 
               {/* Following */}
-              <div 
-                onClick={() => {
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setFollowModalTab('following');
                   setIsFollowModalOpen(true);
                 }}
-                className="cursor-pointer group flex-1"
+                className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
                 title="View following"
+                aria-label="View following"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
                   {profile.stats?.followingCount ?? 0}
@@ -1288,7 +1294,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
                   following
                 </span>
-              </div>
+              </button>
             </div>
           </div>
         </div>

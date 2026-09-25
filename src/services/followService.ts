@@ -186,21 +186,41 @@ export async function syncFollowsFromServer(): Promise<void> {
     if (supabase) {
       try {
         const { data, error } = await supabase.from('follows').select('*').limit(300);
-        if (!error && Array.isArray(data)) {
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const allProfiles = await searchRealTravellers().catch(() => []);
+          const profMap = new Map<string, any>();
+          allProfiles.forEach((p) => {
+            const cU = cleanHandle(p.username);
+            if (cU) {
+              profMap.set(cU, p);
+              profMap.set(cU.replace(/_/g, ''), p);
+            }
+            if (p.id) {
+              profMap.set(p.id, p);
+              profMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
+            }
+          });
+
           data.forEach((row: any) => {
-            const fClean = cleanHandle(row.follower_id);
-            const tClean = cleanHandle(row.following_id);
+            const fProf = profMap.get(row.follower_id) || profMap.get(cleanHandle(row.follower_id));
+            const tProf = profMap.get(row.following_id) || profMap.get(cleanHandle(row.following_id));
+
+            const fClean = fProf ? cleanHandle(fProf.username) : cleanHandle(row.follower_id);
+            const tClean = tProf ? cleanHandle(tProf.username) : cleanHandle(row.following_id);
+
             if (fClean && tClean && !isFakeMockUser(fClean) && !isFakeMockUser(tClean)) {
               const key = `${fClean}->${tClean}`;
               if (!relsMap.has(key)) {
                 relsMap.set(key, {
                   id: row.id,
                   followerId: row.follower_id,
-                  followerUsername: `@${fClean}`,
-                  followerName: fClean.charAt(0).toUpperCase() + fClean.slice(1),
+                  followerUsername: fProf?.username || `@${fClean}`,
+                  followerName: fProf?.name || (fClean.charAt(0).toUpperCase() + fClean.slice(1)),
+                  followerAvatar: fProf?.avatarUrl || '',
                   followingId: row.following_id,
-                  followingUsername: `@${tClean}`,
-                  followingName: tClean.charAt(0).toUpperCase() + tClean.slice(1),
+                  followingUsername: tProf?.username || `@${tClean}`,
+                  followingName: tProf?.name || (tClean.charAt(0).toUpperCase() + tClean.slice(1)),
+                  followingAvatar: tProf?.avatarUrl || '',
                   createdAt: row.created_at || new Date().toISOString()
                 });
               }
@@ -232,9 +252,14 @@ if (typeof window !== 'undefined') {
 /**
  * Get follower and following counts synchronously for an ID or username
  */
-export function getFollowCounts(identifier: string): { followersCount: number; followingCount: number } {
+export function getFollowCounts(identifier: string | { id?: string; username?: string }): { followersCount: number; followingCount: number } {
   if (!identifier) return { followersCount: 0, followingCount: 0 };
-  const clean = cleanHandle(identifier);
+  const targetId = typeof identifier === 'string' ? identifier : identifier.id;
+  const targetUsername = typeof identifier === 'string' ? identifier : identifier.username;
+
+  const clean = cleanHandle(targetUsername || targetId || '');
+  const cleanNoUnderscore = clean.replace(/_/g, '');
+  const cleanId = targetId ? targetId.replace(/^supa_/, '').replace(/^user_/, '') : '';
   const rels = getLocalFollowRelationships();
 
   let followersCount = 0;
@@ -242,16 +267,29 @@ export function getFollowCounts(identifier: string): { followersCount: number; f
 
   rels.forEach((rel) => {
     const followerUname = cleanHandle(rel.followerUsername);
+    const followerUnameNoUnderscore = followerUname.replace(/_/g, '');
     const followingUname = cleanHandle(rel.followingUsername);
+    const followingUnameNoUnderscore = followingUname.replace(/_/g, '');
+    const relFollowerId = rel.followerId ? rel.followerId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+    const relFollowingId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return;
 
     // Is identifier followed by someone?
-    if (rel.followingId === identifier || (clean && followingUname === clean)) {
+    if (
+      (targetId && (rel.followingId === targetId || (cleanId && relFollowingId === cleanId))) ||
+      (clean && followingUname === clean) ||
+      (cleanNoUnderscore && followingUnameNoUnderscore === cleanNoUnderscore)
+    ) {
       followersCount++;
     }
 
     // Is identifier following someone?
-    if (rel.followerId === identifier || (clean && followerUname === clean)) {
+    if (
+      (targetId && (rel.followerId === targetId || (cleanId && relFollowerId === cleanId))) ||
+      (clean && followerUname === clean) ||
+      (cleanNoUnderscore && followerUnameNoUnderscore === cleanNoUnderscore)
+    ) {
       followingCount++;
     }
   });
@@ -262,61 +300,88 @@ export function getFollowCounts(identifier: string): { followersCount: number; f
 /**
  * Check whether followerIdentifier is currently following targetIdentifier
  */
-export function isUserFollowing(followerIdentifier: string, targetIdentifier: string): boolean {
-  if (!followerIdentifier || !targetIdentifier) return false;
-  const fClean = cleanHandle(followerIdentifier);
-  const tClean = cleanHandle(targetIdentifier);
-  if (!fClean || !tClean || fClean === tClean || isFakeMockUser(fClean) || isFakeMockUser(tClean)) return false;
+export function isUserFollowing(
+  follower: string | { id?: string; username?: string },
+  target: string | { id?: string; username?: string }
+): boolean {
+  if (!follower || !target) return false;
+  const fId = typeof follower === 'string' ? follower : follower.id;
+  const fUname = cleanHandle(typeof follower === 'string' ? follower : follower.username || fId || '');
+  const fUnameNoUnderscore = fUname.replace(/_/g, '');
+  const fCleanId = fId ? fId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  const tId = typeof target === 'string' ? target : target.id;
+  const tUname = cleanHandle(typeof target === 'string' ? target : target.username || tId || '');
+  const tCleanNoUnderscore = tUname.replace(/_/g, '');
+  const tCleanId = tId ? tId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
   const rels = getLocalFollowRelationships();
-
   return rels.some((rel) => {
-    const relFollowerUname = cleanHandle(rel.followerUsername);
-    const relFollowingUname = cleanHandle(rel.followingUsername);
-    if (isFakeMockUser(relFollowerUname) || isFakeMockUser(relFollowingUname)) return false;
+    const relFolU = cleanHandle(rel.followerUsername);
+    const relFolUNoUnderscore = relFolU.replace(/_/g, '');
+    const relFolId = rel.followerId ? rel.followerId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
-    const matchesFollower = rel.followerId === followerIdentifier || (fClean && relFollowerUname === fClean);
-    const matchesTarget = rel.followingId === targetIdentifier || (tClean && relFollowingUname === tClean);
+    const relFngU = cleanHandle(rel.followingUsername);
+    const relFngUNoUnderscore = relFngU.replace(/_/g, '');
+    const relFngId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
 
-    return matchesFollower && matchesTarget;
+    const followerMatches =
+      (fId && (rel.followerId === fId || (fCleanId && relFolId === fCleanId))) ||
+      (fUname && relFolU === fUname) ||
+      (fUnameNoUnderscore && relFolUNoUnderscore === fUnameNoUnderscore);
+
+    const targetMatches =
+      (tId && (rel.followingId === tId || (tCleanId && relFngId === tCleanId))) ||
+      (tUname && relFngU === tUname) ||
+      (tCleanNoUnderscore && relFngUNoUnderscore === tCleanNoUnderscore);
+
+    return followerMatches && targetMatches;
   });
 }
 
 /**
- * Check whether targetIdentifier is following userIdentifier ("Follows you" / "Follow back")
+ * Check whether followerIdentifier is followed by targetIdentifier
  */
-export function isFollowedBy(userIdentifier: string, targetIdentifier: string): boolean {
-  return isUserFollowing(targetIdentifier, userIdentifier);
+export function isFollowedBy(
+  currentViewer: string | { id?: string; username?: string },
+  targetUser: string | { id?: string; username?: string }
+): boolean {
+  return isUserFollowing(targetUser, currentViewer);
 }
 
 /**
  * Get mutual followers between viewer and target
  */
-export function getMutualFollowers(currentViewer: string, targetIdentifier: string): string[] {
-  if (!currentViewer || !targetIdentifier) return [];
-  const vClean = cleanHandle(currentViewer);
-  const tClean = cleanHandle(targetIdentifier);
-  if (!vClean || !tClean || vClean === tClean) return [];
-
+export function getMutualFollowers(
+  viewerIdentifier: string | { id?: string; username?: string },
+  targetIdentifier: string | { id?: string; username?: string }
+): string[] {
+  if (!viewerIdentifier || !targetIdentifier) return [];
   const rels = getLocalFollowRelationships();
-  // People who viewer follows
-  const viewerFollowing = new Set<string>();
-  rels.forEach((r) => {
-    const fFol = cleanHandle(r.followerUsername);
-    const fTgt = cleanHandle(r.followingUsername);
-    if (isFakeMockUser(fFol) || isFakeMockUser(fTgt)) return;
-    if (fFol === vClean || r.followerId === currentViewer) {
-      viewerFollowing.add(fTgt);
+  const targetFollowers: string[] = [];
+
+  const tId = typeof targetIdentifier === 'string' ? targetIdentifier : targetIdentifier.id;
+  const tU = cleanHandle(typeof targetIdentifier === 'string' ? targetIdentifier : targetIdentifier.username || tId || '');
+  const tCleanNoUnderscore = tU.replace(/_/g, '');
+  const tCleanId = tId ? tId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  rels.forEach((rel) => {
+    const folU = cleanHandle(rel.followerUsername);
+    const fngU = cleanHandle(rel.followingUsername);
+    const relFngId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+    if (isFakeMockUser(folU) || isFakeMockUser(fngU)) return;
+    if (
+      (tId && (rel.followingId === tId || (tCleanId && relFngId === tCleanId))) ||
+      (tU && fngU === tU) ||
+      (tCleanNoUnderscore && fngU.replace(/_/g, '') === tCleanNoUnderscore)
+    ) {
+      if (!targetFollowers.includes(folU)) targetFollowers.push(folU);
     }
   });
 
-  // People who also follow target
   const mutuals: string[] = [];
-  rels.forEach((r) => {
-    const folU = cleanHandle(r.followerUsername);
-    const tgtU = cleanHandle(r.followingUsername);
-    if (isFakeMockUser(folU) || isFakeMockUser(tgtU)) return;
-    if ((tgtU === tClean || r.followingId === targetIdentifier) && folU !== vClean && viewerFollowing.has(folU)) {
+  targetFollowers.forEach((folU) => {
+    if (isUserFollowing(viewerIdentifier, folU)) {
       if (!mutuals.includes(folU)) mutuals.push(folU);
     }
   });
@@ -327,27 +392,53 @@ export function getMutualFollowers(currentViewer: string, targetIdentifier: stri
 /**
  * Get list of all profiles following the given user
  */
-export async function getFollowers(targetIdentifier: string, currentViewerIdentifier?: string): Promise<FollowUserProfile[]> {
-  if (!targetIdentifier) return [];
-  const tClean = cleanHandle(targetIdentifier);
-  const vClean = currentViewerIdentifier ? cleanHandle(currentViewerIdentifier) : '';
+export async function getFollowers(
+  target: string | { id?: string; username?: string },
+  currentViewer?: string | { id?: string; username?: string }
+): Promise<FollowUserProfile[]> {
+  if (!target) return [];
+  await syncFollowsFromServer().catch(() => {});
+
+  const targetId = typeof target === 'string' ? target : target.id;
+  const targetUsername = typeof target === 'string' ? target : target.username;
+  const tClean = cleanHandle(targetUsername || targetId || '');
+  const tCleanNoUnderscore = tClean.replace(/_/g, '');
+  const cleanTargetId = targetId ? targetId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  const viewerId = typeof currentViewer === 'string' ? currentViewer : currentViewer?.id;
+  const viewerUsername = typeof currentViewer === 'string' ? currentViewer : currentViewer?.username;
+  const vClean = cleanHandle(viewerUsername || viewerId || '');
+
   const rels = getLocalFollowRelationships();
 
   // Find relationships where the target is the one being followed
   const followerRels = rels.filter((rel) => {
     const followingUname = cleanHandle(rel.followingUsername);
+    const followingUnameNoUnderscore = followingUname.replace(/_/g, '');
     const followerUname = cleanHandle(rel.followerUsername);
+    const cleanRelFollowingId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
-    return rel.followingId === targetIdentifier || (tClean && followingUname === tClean);
+    return (
+      (targetId && (rel.followingId === targetId || (cleanTargetId && cleanRelFollowingId === cleanTargetId))) ||
+      (tClean && followingUname === tClean) ||
+      (tCleanNoUnderscore && followingUnameNoUnderscore === tCleanNoUnderscore)
+    );
   });
 
   // Fetch all known registered profiles to enrich details
-  const allProfiles = await searchRealTravellers();
+  const allProfiles = await searchRealTravellers().catch(() => []);
   const profilesMap = new Map<string, any>();
   allProfiles.forEach((p) => {
     const cleanU = cleanHandle(p.username);
-    if (cleanU && !isFakeMockUser(cleanU)) profilesMap.set(cleanU, p);
-    if (p.id) profilesMap.set(p.id, p);
+    if (cleanU && !isFakeMockUser(cleanU)) {
+      profilesMap.set(cleanU, p);
+      profilesMap.set(cleanU.replace(/_/g, ''), p);
+    }
+    if (p.id) {
+      profilesMap.set(p.id, p);
+      profilesMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
+    }
   });
 
   const results: FollowUserProfile[] = [];
@@ -359,9 +450,9 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
     if (!key || seen.has(key) || isFakeMockUser(fUname)) return;
     seen.add(key);
 
-    const enriched = (fUname && profilesMap.get(fUname)) || profilesMap.get(rel.followerId);
-    const isF = currentViewerIdentifier ? isUserFollowing(currentViewerIdentifier, rel.followerId || fUname) : false;
-    const followsViewer = currentViewerIdentifier ? isUserFollowing(rel.followerId || fUname, currentViewerIdentifier) : false;
+    const enriched = (fUname && (profilesMap.get(fUname) || profilesMap.get(fUname.replace(/_/g, '')))) || profilesMap.get(rel.followerId);
+    const isF = vClean ? isUserFollowing(viewerUsername || viewerId || '', rel.followerId || fUname) : false;
+    const followsViewer = vClean ? isUserFollowing(rel.followerId || fUname, viewerUsername || viewerId || '') : false;
 
     results.push({
       id: rel.followerId || enriched?.id || `user_${fUname}`,
@@ -381,26 +472,53 @@ export async function getFollowers(targetIdentifier: string, currentViewerIdenti
 /**
  * Get list of all profiles that the given user is following
  */
-export async function getFollowing(userIdentifier: string, currentViewerIdentifier?: string): Promise<FollowUserProfile[]> {
-  if (!userIdentifier) return [];
-  const uClean = cleanHandle(userIdentifier);
+export async function getFollowing(
+  user: string | { id?: string; username?: string },
+  currentViewer?: string | { id?: string; username?: string }
+): Promise<FollowUserProfile[]> {
+  if (!user) return [];
+  await syncFollowsFromServer().catch(() => {});
+
+  const userId = typeof user === 'string' ? user : user.id;
+  const userUsername = typeof user === 'string' ? user : user.username;
+  const uClean = cleanHandle(userUsername || userId || '');
+  const uCleanNoUnderscore = uClean.replace(/_/g, '');
+  const cleanUserId = userId ? userId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  const viewerId = typeof currentViewer === 'string' ? currentViewer : currentViewer?.id;
+  const viewerUsername = typeof currentViewer === 'string' ? currentViewer : currentViewer?.username;
+  const vClean = cleanHandle(viewerUsername || viewerId || '');
+
   const rels = getLocalFollowRelationships();
 
-  // Find relationships where userIdentifier is the follower
+  // Find relationships where user is the follower
   const followingRels = rels.filter((rel) => {
     const followerUname = cleanHandle(rel.followerUsername);
+    const followerUnameNoUnderscore = followerUname.replace(/_/g, '');
     const followingUname = cleanHandle(rel.followingUsername);
+    const cleanRelFollowerId = rel.followerId ? rel.followerId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
     if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
-    return rel.followerId === userIdentifier || (uClean && followerUname === uClean);
+    return (
+      (userId && (rel.followerId === userId || (cleanUserId && cleanRelFollowerId === cleanUserId))) ||
+      (uClean && followerUname === uClean) ||
+      (uCleanNoUnderscore && followerUnameNoUnderscore === uCleanNoUnderscore)
+    );
   });
 
   // Fetch all known registered profiles to enrich details
-  const allProfiles = await searchRealTravellers();
+  const allProfiles = await searchRealTravellers().catch(() => []);
   const profilesMap = new Map<string, any>();
   allProfiles.forEach((p) => {
     const cleanU = cleanHandle(p.username);
-    if (cleanU && !isFakeMockUser(cleanU)) profilesMap.set(cleanU, p);
-    if (p.id) profilesMap.set(p.id, p);
+    if (cleanU && !isFakeMockUser(cleanU)) {
+      profilesMap.set(cleanU, p);
+      profilesMap.set(cleanU.replace(/_/g, ''), p);
+    }
+    if (p.id) {
+      profilesMap.set(p.id, p);
+      profilesMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
+    }
   });
 
   const results: FollowUserProfile[] = [];
@@ -412,9 +530,9 @@ export async function getFollowing(userIdentifier: string, currentViewerIdentifi
     if (!key || seen.has(key) || isFakeMockUser(tUname)) return;
     seen.add(key);
 
-    const enriched = (tUname && profilesMap.get(tUname)) || profilesMap.get(rel.followingId);
-    const isF = currentViewerIdentifier ? isUserFollowing(currentViewerIdentifier, rel.followingId || tUname) : true;
-    const followsViewer = currentViewerIdentifier ? isUserFollowing(rel.followingId || tUname, currentViewerIdentifier) : false;
+    const enriched = (tUname && (profilesMap.get(tUname) || profilesMap.get(tUname.replace(/_/g, '')))) || profilesMap.get(rel.followingId);
+    const isF = vClean ? isUserFollowing(viewerUsername || viewerId || '', rel.followingId || tUname) : true;
+    const followsViewer = vClean ? isUserFollowing(rel.followingId || tUname, viewerUsername || viewerId || '') : false;
 
     results.push({
       id: rel.followingId || enriched?.id || `user_${tUname}`,

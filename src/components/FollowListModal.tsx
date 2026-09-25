@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ChevronLeft, 
   UserPlus, 
@@ -104,13 +105,10 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     if (!profileUser?.username && !profileUser?.id) return;
     setIsLoading(true);
 
-    const viewerId = currentUser?.id || currentUser?.username;
-    const targetIdentifier = profileUser.username || profileUser.id || '';
-
     try {
       const [followers, following] = await Promise.all([
-        getFollowers(targetIdentifier, viewerId),
-        getFollowing(targetIdentifier, viewerId)
+        getFollowers(profileUser, currentUser || undefined),
+        getFollowing(profileUser, currentUser || undefined)
       ]);
 
       setFollowersList(followers.filter((u) => !isFakeMockUser(u.username)));
@@ -120,7 +118,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [profileUser?.username, profileUser?.id, currentUser?.id, currentUser?.username]);
+  }, [profileUser, currentUser]);
 
   useEffect(() => {
     if (isOpen) {
@@ -200,8 +198,8 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     if (!currentUser) return false;
     const selfUname = currentUser.username.toLowerCase().replace(/^@+/, '');
     const userUname = user.username.toLowerCase().replace(/^@+/, '');
-    if (selfUname && selfUname === userUname) return true;
-    if (currentUser.id && currentUser.id === user.id) return true;
+    if (selfUname && (selfUname === userUname || selfUname.replace(/_/g, '') === userUname.replace(/_/g, ''))) return true;
+    if (currentUser.id && user.id && currentUser.id.replace(/^supa_/, '').replace(/^user_/, '') === user.id.replace(/^supa_/, '').replace(/^user_/, '')) return true;
     return false;
   };
 
@@ -261,15 +259,15 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     showToast(`Opening chat with ${target.username}...`);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black text-white flex flex-col justify-start animate-in fade-in duration-200 select-none overflow-hidden font-sans">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black text-white flex flex-col justify-start animate-in fade-in duration-200 select-none overflow-hidden font-sans">
       <div className="w-full max-w-md sm:max-w-lg mx-auto h-full flex flex-col bg-black overflow-hidden relative shadow-2xl">
         
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-70 bg-[#262626] border border-neutral-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[130] bg-[#262626] border border-neutral-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
             <Check className="w-3.5 h-3.5 text-emerald-400" />
             <span>{toastMessage}</span>
           </div>
@@ -600,7 +598,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         {/* 6. INSTAGRAM ACTION SHEET MODAL (When clicking Three Dots •••) */}
         {optionsUser && !unfollowConfirmUser && !removeFollowerConfirmUser && (
           <div 
-            className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center animate-in fade-in duration-150"
+            className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center animate-in fade-in duration-150"
             onClick={() => setOptionsUser(null)}
           >
             <div 
@@ -686,7 +684,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         {/* 7. INSTAGRAM UNFOLLOW CONFIRMATION DIALOG */}
         {unfollowConfirmUser && (
           <div 
-            className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+            className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
             onClick={() => setUnfollowConfirmUser(null)}
           >
             <div 
@@ -736,7 +734,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         {/* 8. INSTAGRAM REMOVE FOLLOWER CONFIRMATION DIALOG */}
         {removeFollowerConfirmUser && (
           <div 
-            className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+            className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
             onClick={() => setRemoveFollowerConfirmUser(null)}
           >
             <div 
@@ -784,6 +782,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

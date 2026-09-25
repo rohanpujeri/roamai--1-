@@ -759,7 +759,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   if (viewingProfile) {
     const cleanUser = viewingProfile.username.replace(/^@+/, '').toLowerCase();
     const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || isUserFollowing(currentUserProfile.username, viewingProfile.username) || !!viewingProfile.isFollowing;
-    const viewingFollowCounts = getFollowCounts(viewingProfile.username || viewingProfile.id);
+    const viewingFollowCounts = getFollowCounts({ id: viewingProfile.id, username: viewingProfile.username });
     const followsYou = isFollowedBy(currentUserProfile.username, viewingProfile.username);
     const mutuals = getMutualFollowers(currentUserProfile.username, viewingProfile.username);
 
@@ -851,33 +851,39 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trails</div>
               </div>
 
-              <div
-                onClick={() => {
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setFollowModalTab('followers');
                   setIsFollowModalOpen(true);
                 }}
-                className="cursor-pointer group flex flex-col items-center"
+                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
                 title="View followers"
+                aria-label="View followers"
               >
                 <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
                   {viewingFollowCounts.followersCount}
                 </div>
                 <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">followers</div>
-              </div>
+              </button>
 
-              <div
-                onClick={() => {
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setFollowModalTab('following');
                   setIsFollowModalOpen(true);
                 }}
-                className="cursor-pointer group flex flex-col items-center"
+                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
                 title="View following"
+                aria-label="View following"
               >
                 <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
                   {viewingFollowCounts.followingCount}
                 </div>
                 <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">following</div>
-              </div>
+              </button>
             </div>
           </div>
 
