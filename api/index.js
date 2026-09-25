@@ -3547,9 +3547,9 @@ async function isUsernameAvailable(rawUsername, currentUserId) {
   if (clean.length > 20) {
     return { available: false, error: "Username cannot exceed 20 characters." };
   }
-  const validRegex = /^[a-z0-9_]+$/;
+  const validRegex = /^[a-z0-9_.]+$/;
   if (!validRegex.test(clean)) {
-    return { available: false, error: "Only lowercase letters, numbers, and underscores are allowed." };
+    return { available: false, error: "Only letters, numbers, periods, and underscores are allowed." };
   }
   if (RESERVED_USERNAMES.has(clean)) {
     return { available: false, error: "This username is reserved. Please choose another." };
