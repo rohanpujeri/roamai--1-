@@ -85,9 +85,9 @@ export async function isUsernameAvailable(
     return { available: false, error: 'Username cannot exceed 20 characters.' };
   }
 
-  const validRegex = /^[a-z0-9_]+$/;
+  const validRegex = /^[a-z0-9_.]+$/;
   if (!validRegex.test(clean)) {
-    return { available: false, error: 'Only lowercase letters, numbers, and underscores are allowed.' };
+    return { available: false, error: 'Only letters, numbers, periods, and underscores are allowed.' };
   }
 
   if (RESERVED_USERNAMES.has(clean)) {

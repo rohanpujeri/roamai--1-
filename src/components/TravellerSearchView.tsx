@@ -341,10 +341,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
     if (session?.user) {
       if (session.user.id) ids.add(session.user.id);
-      if (session.user.email) {
-        const emUname = session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-        if (emUname) unames.add(emUname);
-      }
       const meta = (session.user.user_metadata || {}) as Record<string, any>;
       if (meta.username) {
         unames.add(meta.username.toLowerCase().replace(/^@+/, ''));
@@ -365,10 +361,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               const data = JSON.parse(raw);
               if (data.id) ids.add(data.id);
               if (data.username) unames.add(data.username.toLowerCase().replace(/^@+/, ''));
-              if (data.email) {
-                const em = data.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-                if (em) unames.add(em);
-              }
             }
           }
         }
@@ -378,14 +370,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     }
 
     return { ids, unames };
-  }, [session?.user?.id, session?.user?.email, session?.user?.user_metadata]);
+  }, [session?.user?.id, session?.user?.user_metadata]);
 
   // Current logged in user profile object for follow relationships
   const currentUserProfile = useMemo(() => {
     const cached = session?.user?.id ? getCachedUserProfile(session.user.id) : null;
     const meta = (session?.user?.user_metadata || {}) as Record<string, any>;
-    const rawEmailPrefix = session?.user?.email ? session.user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() : '';
-    const uName = cached?.username || meta.username || (rawEmailPrefix ? `@${rawEmailPrefix}` : '@traveler');
+    const uName = cached?.username || meta.username || '@traveler';
     const name = cached?.name || meta.full_name || meta.name || uName.replace(/^@/, '');
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '');
     return {

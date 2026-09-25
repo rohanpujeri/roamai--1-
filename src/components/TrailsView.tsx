@@ -334,13 +334,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (!session?.user) return undefined;
     const cached = getCachedUserProfile(session.user.id);
     const meta = session.user.user_metadata || {};
-    const fallbackU = session.user.email 
-      ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
-      : `user_${session.user.id.slice(0, 8)}`;
+    const uName = cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : `@user_${session.user.id.slice(0, 8)}`);
     return {
       id: session.user.id,
-      name: cached?.name || meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Traveller',
-      username: cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : `@${fallbackU}`),
+      name: cached?.name || meta.full_name || meta.name || uName.replace(/^@/, ''),
+      username: uName,
       avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '')
     };
   };
@@ -828,7 +826,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const isImg = uploadVideoFile?.type.startsWith('image/');
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
     const meta = session?.user?.user_metadata || {};
-    const creatorName = cached?.name || meta.full_name || meta.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
+    const creatorName = cached?.name || meta.full_name || meta.name || cached?.username?.replace(/^@/, '') || 'Traveller';
     const username = getCanonicalUsername(session?.user, cached);
     const rawAvatar = cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '';
     const avatarUrl = sanitizeAvatarUrl(rawAvatar);

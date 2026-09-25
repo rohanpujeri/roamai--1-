@@ -372,10 +372,6 @@ export function getCanonicalUsername(
     const u = meta.username.trim();
     return u.startsWith('@') ? u : `@${u}`;
   }
-  if (user?.email) {
-    const prefix = user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
-    return `@${prefix}`;
-  }
   if (user?.id) {
     return `@user_${user.id.slice(0, 8)}`;
   }

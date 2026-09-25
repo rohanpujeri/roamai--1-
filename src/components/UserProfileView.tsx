@@ -653,21 +653,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return calculateTravelDNA(completedTrips);
   }, [completedTrips]);
 
-  const getFallbackUsername = (u?: typeof user, meta?: Record<string, any>) => {
-    if (meta?.username?.trim()) return meta.username.trim();
-    if (u?.email) {
-      return `@${u.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  const getFallbackUsername = (_u?: typeof user, meta?: Record<string, any>) => {
+    if (meta?.username?.trim()) {
+      const u = meta.username.trim();
+      return u.startsWith('@') ? u : `@${u}`;
     }
     return '@traveler';
   };
 
-  const getFallbackName = (u?: typeof user, meta?: Record<string, any>) => {
+  const getFallbackName = (_u?: typeof user, meta?: Record<string, any>) => {
     if (meta?.full_name?.trim()) return meta.full_name.trim();
     if (meta?.name?.trim()) return meta.name.trim();
-    if (u?.email) {
-      const emailPrefix = u.email.split('@')[0].replace(/[._]/g, ' ');
-      return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-    }
+    if (meta?.username?.trim()) return meta.username.trim().replace(/^@/, '');
     return 'Traveler';
   };
 
@@ -1076,7 +1073,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           className="flex items-center gap-1 cursor-pointer select-none group"
         >
           <span className="font-bold text-base sm:text-lg text-white tracking-tight group-hover:text-zinc-300 transition-colors">
-            {session ? (profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_') : 'profile')) : 'Profile'}
+            {session ? (profile.username?.replace('@', '') || 'profile') : 'Profile'}
           </span>
           {session && <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />}
         </div>

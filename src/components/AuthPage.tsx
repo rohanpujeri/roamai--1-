@@ -225,19 +225,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
           if (signInData?.user) {
             const u = signInData.user;
             const meta = u.user_metadata || {};
-            const emailPrefix = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
-            const uname = meta.username || (meta.name ? `@${meta.name.toLowerCase().replace(/\s+/g, '_')}` : `@${emailPrefix}`);
-            const name = meta.full_name || meta.name || emailPrefix;
             try {
-              await supabase.from('profiles').upsert({
-                id: u.id,
-                username: uname.startsWith('@') ? uname : `@${uname}`,
-                name: name,
-                avatar_url: meta.avatar_url || meta.avatarUrl || '',
-                place: meta.place || '',
-                location: meta.place || 'Traveler',
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'id' });
+              const { data: existingProfile } = await supabase.from('profiles').select('id, username, name').eq('id', u.id).maybeSingle();
+              if (!existingProfile && meta.username) {
+                const uname = meta.username.startsWith('@') ? meta.username : `@${meta.username}`;
+                await supabase.from('profiles').insert({
+                  id: u.id,
+                  username: uname,
+                  name: meta.full_name || meta.name || uname.replace(/^@/, ''),
+                  avatar_url: meta.avatar_url || meta.avatarUrl || '',
+                  place: meta.place || '',
+                  location: meta.place || 'Traveler',
+                  updated_at: new Date().toISOString()
+                });
+              }
             } catch {
               // ignore
             }

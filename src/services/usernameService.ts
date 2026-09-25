@@ -64,12 +64,12 @@ export function validateUsernameFormat(rawInput: string): UsernameValidationResu
     };
   }
 
-  const validCharsRegex = /^[a-z0-9_]+$/;
+  const validCharsRegex = /^[a-z0-9_.]+$/;
   if (!validCharsRegex.test(cleanUsername)) {
     return {
       isValid: false,
       cleanUsername,
-      error: 'Only lowercase letters, numbers, and underscores are allowed.'
+      error: 'Only letters, numbers, periods, and underscores are allowed.'
     };
   }
 
