@@ -171,6 +171,12 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     });
   };
 
+  // Helper to determine if a user row is the current viewer
+  const isSelf = useCallback((user: FollowUserProfile) => {
+    if (!currentUser) return false;
+    return isSelfRel(currentUser.id, currentUser.username, user.id, user.username);
+  }, [currentUser]);
+
   // Filter and sort active list
   const activeList = activeTab === 'followers' ? followersList : followingList;
   const filteredUsers = useMemo(() => {
@@ -193,12 +199,6 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
 
     return list;
   }, [activeList, searchQuery, sortOrder, isSelf]);
-
-  // Helper to determine if a user row is the current viewer
-  const isSelf = useCallback((user: FollowUserProfile) => {
-    if (!currentUser) return false;
-    return isSelfRel(currentUser.id, currentUser.username, user.id, user.username);
-  }, [currentUser]);
 
   // Execute Unfollow confirmation
   const handleConfirmUnfollow = async () => {
