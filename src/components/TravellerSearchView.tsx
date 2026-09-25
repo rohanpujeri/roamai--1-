@@ -22,15 +22,6 @@ import {
   Award
 } from 'lucide-react';
 
-const isFakeBio = (bio?: string): boolean => {
-  if (!bio) return true;
-  const b = bio.trim().toLowerCase();
-  return (
-    b === '' ||
-    b.includes('exploring new places, one trip at a time') ||
-    b.includes('passionate explorer sharing journey trails')
-  );
-};
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, Trip } from '../types';
 import { TrailsView } from './TrailsView';
@@ -216,7 +207,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           username: d.username?.startsWith('@') ? d.username : (matched?.username || (cachedStats?.username ? cachedStats.username : `@${cleanUname}`)),
           avatarUrl: d.avatarUrl || matched?.avatarUrl || cachedStats?.avatarUrl || '',
           location: d.location || matched?.location || cachedStats?.place || 'Traveler',
-          bio: !isFakeBio(d.bio) ? d.bio : (!isFakeBio(matched?.bio) ? matched?.bio : (!isFakeBio(cachedStats?.bio) ? cachedStats?.bio : '')),
+          bio: d.bio || matched?.bio || cachedStats?.bio || '',
           level: d.level || matched?.level || cachedStats?.stats?.level || 'Travel Explorer',
           tripsCount: d.tripsCount ?? (matched?.tripsCount ?? (cachedStats?.stats?.tripsCount || 0)),
           placesCount: d.placesCount ?? (matched?.placesCount ?? (cachedStats?.stats?.placesCount || 0)),
@@ -317,7 +308,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 ...prev,
                 name: pData.name || prev.name,
                 avatarUrl: pData.avatar_url || prev.avatarUrl,
-                bio: !isFakeBio(pData.bio) ? pData.bio : (!isFakeBio(prev.bio) ? prev.bio : ''),
+                bio: pData.bio || prev.bio || '',
                 tripsCount: pData.trips_count ?? prev.tripsCount,
                 placesCount: pData.places_count ?? prev.placesCount,
                 countriesCount: pData.countries_count ?? prev.countriesCount
@@ -895,7 +886,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
           {/* Bio & Details */}
           <div className="mt-3 text-left">
-            {!isFakeBio(viewingProfile.bio) && (
+            {viewingProfile.bio && (
               <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line mb-1">
                 {viewingProfile.bio}
               </p>
@@ -1334,7 +1325,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               username: selectedUser.username,
               avatarUrl: selectedUser.avatarUrl || '',
               location: selectedUser.location || 'Traveler',
-              bio: !isFakeBio(selectedUser.bio) ? selectedUser.bio : '',
+              bio: selectedUser.bio || '',
               level: 'Travel Explorer',
               tripsCount: 0,
               placesCount: 0,

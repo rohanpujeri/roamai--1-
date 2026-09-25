@@ -324,29 +324,17 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
   const q = (searchQuery || '').trim().toLowerCase().replace(/^@+/, '');
   const profilesMap = new Map<string, RealTravellerResult>();
 
-  // Helper to add or merge a real profile record
-const isFakeBio = (bio?: string): boolean => {
-  if (!bio) return true;
-  const b = bio.trim().toLowerCase();
-  return (
-    b === '' ||
-    b.includes('exploring new places, one trip at a time') ||
-    b.includes('passionate explorer sharing journey trails')
-  );
-};
-
   const recordProfile = (p: Partial<RealTravellerResult> & { username: string }) => {
     const cleanUser = cleanUsernameInput(p.username);
     if (!cleanUser || isFakeMockUser(cleanUser)) return;
     const existing = profilesMap.get(cleanUser);
-    const resolvedBio = !isFakeBio(p.bio) ? p.bio! : (!isFakeBio(existing?.bio) ? existing!.bio : '');
     const updated: RealTravellerResult = {
       id: p.id || existing?.id || `user_${cleanUser}`,
       name: p.name || existing?.name || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
       username: `@${cleanUser}`,
       avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
       location: '',
-      bio: resolvedBio,
+      bio: p.bio || existing?.bio || '',
       level: p.level || existing?.level || 'Travel Explorer',
       tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
       placesCount: p.placesCount ?? existing?.placesCount ?? 0,
