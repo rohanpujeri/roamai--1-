@@ -384,7 +384,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const currentUserProfile = useMemo(() => {
     const cached = session?.user?.id ? getCachedUserProfile(session.user.id) : null;
     const meta = (session?.user?.user_metadata || {}) as Record<string, any>;
-    const uName = cached?.username || meta.username || (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '@traveler');
+    const rawEmailPrefix = session?.user?.email ? session.user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() : '';
+    const uName = cached?.username || meta.username || (rawEmailPrefix ? `@${rawEmailPrefix}` : '@traveler');
     const name = cached?.name || meta.full_name || meta.name || uName.replace(/^@/, '');
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '');
     return {

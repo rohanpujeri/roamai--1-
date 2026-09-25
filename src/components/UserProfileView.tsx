@@ -1076,7 +1076,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           className="flex items-center gap-1 cursor-pointer select-none group"
         >
           <span className="font-bold text-base sm:text-lg text-white tracking-tight group-hover:text-zinc-300 transition-colors">
-            {session ? (profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0] : 'profile')) : 'Profile'}
+            {session ? (profile.username?.replace('@', '') || (user?.email ? user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_') : 'profile')) : 'Profile'}
           </span>
           {session && <ChevronDown className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />}
         </div>

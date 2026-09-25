@@ -225,8 +225,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ currentTheme, initialAuthMod
           if (signInData?.user) {
             const u = signInData.user;
             const meta = u.user_metadata || {};
-            const uname = meta.username || (meta.name ? `@${meta.name.toLowerCase().replace(/\s+/g, '_')}` : `@${email.split('@')[0]}`);
-            const name = meta.full_name || meta.name || email.split('@')[0];
+            const emailPrefix = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+            const uname = meta.username || (meta.name ? `@${meta.name.toLowerCase().replace(/\s+/g, '_')}` : `@${emailPrefix}`);
+            const name = meta.full_name || meta.name || emailPrefix;
             try {
               await supabase.from('profiles').upsert({
                 id: u.id,
