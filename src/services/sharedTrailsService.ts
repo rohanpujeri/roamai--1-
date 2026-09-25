@@ -475,6 +475,46 @@ export async function fetchGlobalTrails(): Promise<TrailReel[]> {
     }
   });
 
+  // 5. Always hydrate trail creator username and details from live profiles
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data: liveProfiles } = await supabase.from('profiles').select('id, username, name, avatar_url').limit(500);
+      if (liveProfiles && Array.isArray(liveProfiles)) {
+        const profMap = new Map<string, any>();
+        liveProfiles.forEach((p) => {
+          if (p.id) profMap.set(p.id, p);
+          const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
+          if (clean) {
+            profMap.set(clean, p);
+            profMap.set(clean.replace(/[._]/g, ''), p);
+          }
+        });
+
+        trailMap.forEach((t) => {
+          if (t.creator) {
+            const cId = t.creator.id;
+            const cUname = (t.creator.username || '').toLowerCase().replace(/^@+/, '');
+            const matched = (cId && profMap.get(cId)) || (cUname && (profMap.get(cUname) || profMap.get(cUname.replace(/[._]/g, ''))));
+            if (matched) {
+              if (matched.username) {
+                t.creator.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
+              }
+              if (matched.name) {
+                t.creator.name = matched.name;
+              }
+              if (matched.avatar_url) {
+                t.creator.avatarUrl = matched.avatar_url;
+              }
+            }
+          }
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   // Convert map to sorted array (newest first)
   const combined = Array.from(trailMap.values()).map(sanitizeTrail).sort((a, b) => {
     const timeA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id.replace(/\D/g, '')) || 0;
