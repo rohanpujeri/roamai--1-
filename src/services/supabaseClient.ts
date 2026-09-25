@@ -428,6 +428,9 @@ export async function updateUserProfileData(profile: UserProfileData): Promise<{
           bio: sanitizedProfile.bio,
           place: sanitizedProfile.place,
           location: sanitizedProfile.place || 'Traveler',
+          trips_count: sanitizedProfile.stats?.tripsCount || 0,
+          places_count: sanitizedProfile.stats?.placesCount || 0,
+          countries_count: sanitizedProfile.stats?.countriesCount || 0,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       } catch (upsertErr) {

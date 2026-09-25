@@ -152,6 +152,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const currentUname = (userMeta.username || '').toLowerCase().replace(/^@/, '');
+          const currentUnameNoUnderscore = currentUname.replace(/_/g, '');
           const currentUid = user?.id;
           if (!currentUname && !currentUid) return [];
 
@@ -162,8 +163,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 !t.id?.startsWith('sample-trail-') &&
                 !isFakeMockUser(t.creator?.username) &&
                 (
-                  (currentUname && (t.creator?.username || '').toLowerCase().replace(/^@/, '') === currentUname) ||
-                  (currentUid && t.creator?.id === currentUid)
+                  (currentUname && (
+                    (t.creator?.username || '').toLowerCase().replace(/^@/, '') === currentUname ||
+                    (t.creator?.username || '').toLowerCase().replace(/^@/, '').replace(/_/g, '') === currentUnameNoUnderscore
+                  )) ||
+                  (currentUid && (t.creator?.id === currentUid || String(t.creator?.id).replace(/^supa_/, '') === currentUid))
                 )
             )
             .map((t: any) => ({
@@ -176,7 +180,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               posterUrl: t.posterUrl,
               duration: t.duration,
               mediaType: t.mediaType || 'video',
-              caption: t.caption || t.title || ''
+              caption: t.caption || t.title || '',
+              rawTrail: t
             }));
         }
       }
@@ -253,6 +258,45 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       window.removeEventListener('roamai_trail_deleted', handleDeleted);
     };
   }, []);
+
+  // Fetch latest trails from backend/storage and sync user's trails
+  useEffect(() => {
+    fetchGlobalTrails().then((trails) => {
+      if (!Array.isArray(trails)) return;
+      const currentUname = (userMeta.username || '').toLowerCase().replace(/^@/, '');
+      const currentUnameNoUnderscore = currentUname.replace(/_/g, '');
+      const currentUid = user?.id;
+      if (!currentUname && !currentUid) return;
+
+      const myTrails = trails.filter((t: any) => {
+        if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
+        const cUname = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
+        const cUnameNoUnderscore = cUname.replace(/_/g, '');
+        const cUid = t.creator?.id ? String(t.creator.id).replace(/^supa_/, '').replace(/^user_/, '') : '';
+        return (
+          (currentUname && (cUname === currentUname || (cUnameNoUnderscore && cUnameNoUnderscore === currentUnameNoUnderscore))) ||
+          (currentUid && (cUid === currentUid || t.creator?.id === currentUid))
+        );
+      });
+
+      if (myTrails.length > 0) {
+        setProfileFullTrails(myTrails);
+        setUserTrails(myTrails.map((t: any) => ({
+          id: t.id,
+          title: t.title || t.caption || t.destination || '',
+          destination: t.destination || '',
+          viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
+          likesCount: t.likesCount ? String(t.likesCount) : '0',
+          videoUrl: t.videoUrl,
+          posterUrl: t.posterUrl,
+          duration: t.duration || '0:30',
+          mediaType: t.mediaType || 'video',
+          caption: t.caption || t.title || '',
+          rawTrail: t
+        })));
+      }
+    }).catch(() => {});
+  }, [user?.id, userMeta.username]);
 
   // Trail Reel Upload Modal states
   const [isUploadTrailModalOpen, setIsUploadTrailModalOpen] = useState(false);
@@ -559,7 +603,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return trips.filter((t) => isTripCompleted(t));
   }, [trips]);
 
-  // Calculate unique places ONLY from completed trips
+  // Calculate unique places from completed trips and uploaded trails
   const calculatedPlacesCount = React.useMemo(() => {
     const places = new Set<string>();
     completedTrips.forEach((t) => {
@@ -570,10 +614,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         });
       });
     });
+    userTrails.forEach((tr) => {
+      if (tr.destination) places.add(tr.destination.trim().toLowerCase());
+    });
     return places.size;
-  }, [completedTrips]);
+  }, [completedTrips, userTrails]);
 
-  // Calculate unique countries ONLY from completed trips
+  // Calculate unique countries from completed trips and uploaded trails
   const calculatedCountriesCount = React.useMemo(() => {
     const countries = new Set<string>();
     completedTrips.forEach((t) => {
@@ -588,8 +635,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         }
       }
     });
+    userTrails.forEach((tr) => {
+      if (tr.destination) {
+        const parts = tr.destination.split(',');
+        if (parts.length > 1) {
+          countries.add(parts[parts.length - 1].trim().toLowerCase());
+        } else {
+          countries.add(tr.destination.trim().toLowerCase());
+        }
+      }
+    });
     return countries.size;
-  }, [completedTrips]);
+  }, [completedTrips, userTrails]);
 
   // Dynamically compute Travel DNA and Archetype based on completed trips
   const travelDNAAnalysis = React.useMemo(() => {
@@ -706,6 +763,28 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
     setProfile(synced);
     setEditForm(synced);
+
+    if (user?.id) {
+      try {
+        localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(synced));
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          supabase.from('profiles').upsert({
+            id: user.id,
+            username: synced.username,
+            name: synced.name,
+            avatar_url: synced.avatarUrl,
+            bio: synced.bio,
+            place: synced.place,
+            location: synced.place || 'Traveler',
+            trips_count: completedTrips.length,
+            places_count: calculatedPlacesCount,
+            countries_count: calculatedCountriesCount,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+        }
+      } catch {}
+    }
   }, [
     user?.id,
     user?.email,

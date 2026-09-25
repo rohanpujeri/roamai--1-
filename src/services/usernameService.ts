@@ -310,6 +310,7 @@ export interface RealTravellerResult {
   level: string;
   tripsCount: number;
   placesCount: number;
+  countriesCount?: number;
   topDNA: string[];
   recentPlaces: string[];
   isFollowing?: boolean;
@@ -338,6 +339,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       level: p.level || existing?.level || 'Travel Explorer',
       tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
       placesCount: p.placesCount ?? existing?.placesCount ?? 0,
+      countriesCount: p.countriesCount ?? existing?.countriesCount ?? 0,
       topDNA: p.topDNA || existing?.topDNA || ['Adventure', 'Nature', 'Photography'],
       recentPlaces: p.recentPlaces || existing?.recentPlaces || [],
       isFollowing: p.isFollowing ?? existing?.isFollowing ?? false
@@ -366,6 +368,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
                   bio: data.bio,
                   tripsCount: data.stats?.tripsCount || 0,
                   placesCount: data.stats?.placesCount || 0,
+                  countriesCount: data.stats?.countriesCount || 0,
                   level: data.stats?.level || 'Travel Explorer'
                 });
               }
@@ -438,7 +441,8 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
                 location: row.location || row.place,
                 level: row.level || 'Travel Explorer',
                 tripsCount: row.trips_count || 0,
-                placesCount: row.places_count || 0
+                placesCount: row.places_count || 0,
+                countriesCount: row.countries_count || 0
               });
             }
           }

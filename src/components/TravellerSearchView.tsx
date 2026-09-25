@@ -14,7 +14,9 @@ import {
   Share2,
   Check,
   User,
-  LayoutGrid
+  LayoutGrid,
+  Compass,
+  Mountain
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, Trip } from '../types';
@@ -48,6 +50,7 @@ export interface TravellerProfile {
   level: string;
   tripsCount: number;
   placesCount: number;
+  countriesCount?: number;
   topDNA: string[];
   recentPlaces: string[];
   isFollowing?: boolean;
@@ -164,21 +167,47 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         const cleanLower = cleanUname.toLowerCase();
 
         // Match existing traveller from travellers list
-        const matched = travellers.find((t) => 
-          (t.username && t.username.replace(/^@+/, '').toLowerCase() === cleanLower) ||
-          (t.id && d.id && t.id === d.id)
-        );
+        const matched = travellers.find((t) => {
+          const tClean = (t.username || '').replace(/^@+/, '').toLowerCase();
+          return (
+            tClean === cleanLower ||
+            tClean.replace(/_/g, '') === cleanLower.replace(/_/g, '') ||
+            (t.id && d.id && (t.id === d.id || t.id.replace(/^supa_/, '') === String(d.id).replace(/^supa_/, '')))
+          );
+        });
+
+        // Also check cached profiles in localStorage if available
+        let cachedStats: any = null;
+        if (typeof window !== 'undefined') {
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith('tripwise_user_profile_')) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                  const p = JSON.parse(raw);
+                  const pU = (p.username || '').toLowerCase().replace(/^@+/, '');
+                  if (pU === cleanLower || pU.replace(/_/g, '') === cleanLower.replace(/_/g, '') || (d.id && p.id === d.id)) {
+                    cachedStats = p;
+                    break;
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
 
         setViewingProfile({
-          id: d.id || matched?.id || `user_${cleanUname}`,
-          name: d.name || matched?.name || cleanUname,
-          username: d.username?.startsWith('@') ? d.username : (matched?.username || `@${cleanUname}`),
-          avatarUrl: d.avatarUrl || matched?.avatarUrl || '',
-          location: d.location || matched?.location || 'Traveler',
-          bio: d.bio || matched?.bio || 'Passionate explorer sharing journey trails & travel adventures.',
-          level: d.level || matched?.level || 'Travel Explorer',
-          tripsCount: d.tripsCount ?? (matched?.tripsCount || 0),
-          placesCount: d.placesCount ?? (matched?.placesCount || 0),
+          id: d.id || matched?.id || cachedStats?.id || `user_${cleanUname}`,
+          name: d.name || matched?.name || cachedStats?.name || cleanUname,
+          username: d.username?.startsWith('@') ? d.username : (matched?.username || (cachedStats?.username ? cachedStats.username : `@${cleanUname}`)),
+          avatarUrl: d.avatarUrl || matched?.avatarUrl || cachedStats?.avatarUrl || '',
+          location: d.location || matched?.location || cachedStats?.place || 'Traveler',
+          bio: d.bio || matched?.bio || cachedStats?.bio || 'Passionate explorer sharing journey trails & travel adventures.',
+          level: d.level || matched?.level || cachedStats?.stats?.level || 'Travel Explorer',
+          tripsCount: d.tripsCount ?? (matched?.tripsCount ?? (cachedStats?.stats?.tripsCount || 0)),
+          placesCount: d.placesCount ?? (matched?.placesCount ?? (cachedStats?.stats?.placesCount || 0)),
+          countriesCount: d.countriesCount ?? (matched?.countriesCount ?? (cachedStats?.stats?.countriesCount || 0)),
           topDNA: d.topDNA || matched?.topDNA || ['Adventure', 'Nature'],
           recentPlaces: d.recentPlaces || matched?.recentPlaces || [],
           isFollowing: !!(d.isFollowing ?? matched?.isFollowing)
@@ -203,6 +232,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     const loadCompletedTrips = async () => {
       const vId = viewingProfile.id;
       const cleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
+      const cleanUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+      const cleanUnameNoUnderscore = cleanUname.replace(/_/g, '');
       const foundTrips: Trip[] = [];
 
       // 1. Search local storage for cached trips under this user ID or general trips
@@ -211,6 +242,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           const keysToTry = [
             `tripwise_user_trips_v2_${cleanId}`,
             `tripwise_user_trips_v2_${vId}`,
+            `tripwise_user_trips_v2_${cleanUname}`,
+            `tripwise_user_trips_v2_${cleanUnameNoUnderscore}`,
             'tripwise_user_trips_v2'
           ];
           for (const key of keysToTry) {
@@ -254,6 +287,32 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           }
         } catch (err) {
           console.warn('Error fetching user trips from Supabase:', err);
+        }
+
+        // 3. Also pull latest stats from public profiles table
+        try {
+          const { data: pData } = await supabase
+            .from('profiles')
+            .select('*')
+            .or(`id.eq.${cleanId},username.ilike.@${cleanUname},username.ilike.${cleanUname}`)
+            .maybeSingle();
+
+          if (pData && isMounted) {
+            setViewingProfile((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                name: pData.name || prev.name,
+                avatarUrl: pData.avatar_url || prev.avatarUrl,
+                bio: pData.bio || prev.bio,
+                tripsCount: pData.trips_count ?? prev.tripsCount,
+                placesCount: pData.places_count ?? prev.placesCount,
+                countriesCount: pData.countries_count ?? prev.countriesCount
+              };
+            });
+          }
+        } catch (err) {
+          console.warn('Error fetching profile from Supabase:', err);
         }
       }
 
@@ -540,16 +599,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const viewingProfileTrails = useMemo(() => {
     if (!viewingProfile) return [];
     const vUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+    const vUnameNoUnderscore = vUname.replace(/_/g, '');
     const vName = viewingProfile.name.toLowerCase();
     const vId = viewingProfile.id;
+    const vCleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
 
     return exploreTiles.filter((tile) => {
       const creatorUname = (tile.creator?.username || '').toLowerCase().replace(/^@+/, '');
+      const creatorUnameNoUnderscore = creatorUname.replace(/_/g, '');
       const creatorName = (tile.creator?.name || '').toLowerCase();
+      const creatorId = tile.creator?.id ? String(tile.creator.id).replace(/^supa_/, '').replace(/^user_/, '') : '';
       return (
         creatorUname === vUname ||
+        (creatorUnameNoUnderscore && creatorUnameNoUnderscore === vUnameNoUnderscore) ||
         creatorName === vName ||
-        (tile.creator?.id && tile.creator.id === vId)
+        (creatorId && (creatorId === vCleanId || creatorId === vId))
       );
     });
   }, [viewingProfile, exploreTiles]);
@@ -558,20 +622,75 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const viewingProfileFullTrails = useMemo<TrailReel[]>(() => {
     if (!viewingProfile || !globalTrailsList) return [];
     const vUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+    const vUnameNoUnderscore = vUname.replace(/_/g, '');
     const vName = viewingProfile.name.toLowerCase();
     const vId = viewingProfile.id;
+    const vCleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
 
     return (globalTrailsList as TrailReel[]).filter((t: any) => {
       if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
       const creatorUname = (t.creator?.username || '').toLowerCase().replace(/^@+/, '');
+      const creatorUnameNoUnderscore = creatorUname.replace(/_/g, '');
       const creatorName = (t.creator?.name || '').toLowerCase();
+      const creatorId = t.creator?.id ? String(t.creator.id).replace(/^supa_/, '').replace(/^user_/, '') : '';
       return (
         creatorUname === vUname ||
+        (creatorUnameNoUnderscore && creatorUnameNoUnderscore === vUnameNoUnderscore) ||
         creatorName === vName ||
-        (t.creator?.id && t.creator.id === vId)
+        (creatorId && (creatorId === vCleanId || creatorId === vId))
       );
     });
   }, [viewingProfile, globalTrailsList]);
+
+  // Unique places visited by the viewed traveller (from completed trips, trails, or profile stats)
+  const viewingProfilePlacesCount = useMemo(() => {
+    const places = new Set<string>();
+    viewingProfileCompletedTrips.forEach((t) => {
+      if (t.destination) places.add(t.destination.trim().toLowerCase());
+      t.days?.forEach((d) => {
+        d.activities?.forEach((a) => {
+          if ((a as any).placeName) places.add((a as any).placeName.trim().toLowerCase());
+        });
+      });
+    });
+    viewingProfileTrails.forEach((t) => {
+      if (t.destination) places.add(t.destination.trim().toLowerCase());
+    });
+    return Math.max(places.size, viewingProfile?.placesCount || 0);
+  }, [viewingProfileCompletedTrips, viewingProfileTrails, viewingProfile?.placesCount]);
+
+  // Unique countries visited by the viewed traveller (from completed trips, trails, or profile stats)
+  const viewingProfileCountriesCount = useMemo(() => {
+    const countries = new Set<string>();
+    viewingProfileCompletedTrips.forEach((t) => {
+      if ((t as any).destinationPlace?.country) {
+        countries.add((t as any).destinationPlace.country.trim().toLowerCase());
+      } else if (t.destination) {
+        const parts = t.destination.split(',');
+        if (parts.length > 1) {
+          countries.add(parts[parts.length - 1].trim().toLowerCase());
+        } else {
+          countries.add(t.destination.trim().toLowerCase());
+        }
+      }
+    });
+    viewingProfileTrails.forEach((t) => {
+      if (t.destination) {
+        const parts = t.destination.split(',');
+        if (parts.length > 1) {
+          countries.add(parts[parts.length - 1].trim().toLowerCase());
+        } else {
+          countries.add(t.destination.trim().toLowerCase());
+        }
+      }
+    });
+    return Math.max(countries.size, viewingProfile?.countriesCount || 0);
+  }, [viewingProfileCompletedTrips, viewingProfileTrails, viewingProfile?.countriesCount]);
+
+  // Trips count
+  const viewingProfileTripsCount = useMemo(() => {
+    return Math.max(viewingProfileCompletedTrips.length, viewingProfile?.tripsCount || 0);
+  }, [viewingProfileCompletedTrips.length, viewingProfile?.tripsCount]);
 
   // Suggested profiles for discover people section: ONLY shown for logged-in users, excluding yourself
   const suggestedProfiles = useMemo(() => {
@@ -716,7 +835,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 title="View Completed Trips"
               >
                 <div className="font-bold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
-                  {viewingProfileCompletedTrips.length}
+                  {viewingProfileTripsCount}
                 </div>
                 <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trips</div>
               </div>
@@ -826,6 +945,62 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             </button>
           </div>
 
+          {/* Dedicated Travel Footprint Counter Section (Public for all users to see) */}
+          <div className="mt-3.5 mb-2 p-3 sm:p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-md">
+            <div className="flex items-center justify-around text-center divide-x divide-zinc-800">
+              {/* Trips */}
+              <div 
+                onClick={() => setProfileTab('trips')}
+                className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+                title="Trips"
+              >
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <Compass className="w-4 h-4 text-emerald-400 group-hover:rotate-45 transition-transform" />
+                  <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors leading-tight">
+                    {viewingProfileTripsCount}
+                  </span>
+                </div>
+                <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                  trips
+                </span>
+              </div>
+
+              {/* Countries Visited */}
+              <div 
+                onClick={() => setProfileTab('trips')}
+                className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+                title="Countries visited"
+              >
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <MapPin className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
+                  <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-teal-400 transition-colors leading-tight">
+                    {viewingProfileCountriesCount}
+                  </span>
+                </div>
+                <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                  countries
+                </span>
+              </div>
+
+              {/* Places Visited */}
+              <div 
+                onClick={() => setProfileTab('trips')}
+                className="flex-1 px-2 cursor-pointer group transition-transform active:scale-95"
+                title="Places visited"
+              >
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <Mountain className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                  <span className="font-extrabold text-base sm:text-lg text-white group-hover:text-cyan-400 transition-colors leading-tight">
+                    {viewingProfilePlacesCount}
+                  </span>
+                </div>
+                <span className="block text-[11px] sm:text-xs text-zinc-400 font-medium tracking-wide">
+                  places
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* 4. Instagram Profile Tabs: Completed Trips | Trails | Travel DNA (NO Saved Places) */}
           <div className="border-t border-neutral-800/80 pt-2">
             <div className="flex items-center justify-around border-b border-neutral-800/80 pb-2">
@@ -838,7 +1013,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 }`}
               >
                 <LayoutGrid className="w-4 h-4" />
-                <span>TRIPS ({viewingProfileCompletedTrips.length})</span>
+                <span>TRIPS ({viewingProfileTripsCount})</span>
               </button>
 
               {/* Tab 2: Trails */}
