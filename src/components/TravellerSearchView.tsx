@@ -13,9 +13,9 @@ import {
   ArrowLeft,
   Share2,
   Check,
+  CheckCircle2,
   User,
   LayoutGrid,
-  Grid3X3,
   Film,
   Compass,
   Mountain
@@ -995,7 +995,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 title="Completed Trips"
                 aria-label="Completed Trips"
               >
-                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6" />
+                <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
                 {profileTab === 'trips' && (
                   <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-white" />
                 )}
@@ -1065,11 +1065,11 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="py-16 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto text-emerald-400">
-                    <LayoutGrid className="w-5 h-5" />
+                <div className="py-20 px-4 text-center space-y-3">
+                  <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-emerald-400">
+                    <CheckCircle2 className="w-7 h-7" />
                   </div>
-                  <h3 className="text-sm font-bold text-white">No Completed Trips Yet</h3>
+                  <h4 className="text-sm sm:text-base font-bold text-white">No Completed Trips Yet</h4>
                   <p className="text-xs text-neutral-400 max-w-xs mx-auto">
                     When {viewingProfile.name} completes journeys, their travel footprints will appear here.
                   </p>
