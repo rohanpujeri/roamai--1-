@@ -1377,8 +1377,6 @@ export default function App() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 overscrollBehaviorX: 'contain',
-                willChange: 'scroll-position',
-                transform: 'translate3d(0, 0, 0)',
                 scrollBehavior: 'smooth'
               }}
             >

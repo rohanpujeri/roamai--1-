@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Heart, 
   MessageCircle, 
@@ -2021,9 +2022,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       )}
 
       {/* Instagram Unfollow Confirmation Dialog for Trail Creator */}
-      {unfollowConfirmCreator && (
+      {unfollowConfirmCreator && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
           onClick={() => setUnfollowConfirmCreator(null)}
         >
           <div 
@@ -2092,17 +2093,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Trail Location Action Modal (Save Place & Plan a Trip) */}
-      {locationActionTrail && (
+      {locationActionTrail && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fade-in pb-20 sm:pb-4"
           onClick={() => setLocationActionTrail(null)}
         >
           <div
-            className="w-full sm:max-w-md bg-[#121217] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl text-white space-y-4 animate-slide-up"
+            className="w-full sm:max-w-md bg-[#16161c] border border-white/15 rounded-3xl p-5 sm:p-6 shadow-2xl text-white space-y-4 animate-slide-up max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Mobile drag bar */}
@@ -2287,7 +2289,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit Cover Modal */}
