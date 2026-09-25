@@ -109,20 +109,6 @@ function saveFollowedUserIds(followed: Set<string>) {
   try {
     const arr = Array.from(followed);
     localStorage.setItem(FOLLOWING_STORAGE_KEY, JSON.stringify(arr));
-    // Update local profile stats followingCount if cached
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('tripwise_user_profile_')) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const profile = JSON.parse(raw);
-          if (profile && profile.stats) {
-            profile.stats.followingCount = arr.length;
-            localStorage.setItem(key, JSON.stringify(profile));
-          }
-        }
-      }
-    }
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('roamai_follow_changed', { detail: { count: arr.length } }));
   } catch (e) {
@@ -338,7 +324,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return calculateTravelDNA(viewingProfileCompletedTrips);
   }, [viewingProfileCompletedTrips]);
 
-  // Collect all identifiers for currently logged-in user to prevent suggesting oneself
+  // Collect identifiers for the actively logged-in user only
   const currentIdentifiers = useMemo(() => {
     const ids = new Set<string>();
     const unames = new Set<string>();
@@ -352,24 +338,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       const cached = getCachedUserProfile(session.user.id);
       if (cached?.username) {
         unames.add(cached.username.toLowerCase().replace(/^@+/, ''));
-      }
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('tripwise_user_profile_')) {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const data = JSON.parse(raw);
-              if (data.id) ids.add(data.id);
-              if (data.username) unames.add(data.username.toLowerCase().replace(/^@+/, ''));
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Error reading local user profile identifiers:', err);
       }
     }
 
