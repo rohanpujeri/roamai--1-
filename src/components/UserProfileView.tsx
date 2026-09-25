@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Camera,
@@ -682,7 +683,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Profile data states - dynamically mapped to current authenticated user
   const [profile, setProfile] = useState<UserProfileData>(() => {
-    const cached = user ? getCachedUserProfile(user.id) : null;
+    const cached = getCachedUserProfile(user?.id);
     return {
       name: cached?.name || getFallbackName(user, userMeta),
       username: cached?.username || getFallbackUsername(user, userMeta),
@@ -734,7 +735,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
-    const cached = user ? getCachedUserProfile(user.id) : null;
+    const cached = getCachedUserProfile(user?.id);
     const name = cached?.name || getFallbackName(user, userMeta);
     const username = cached?.username || getFallbackUsername(user, userMeta);
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
@@ -771,7 +772,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     };
 
     setProfile(synced);
-    setEditForm(synced);
+    if (!isEditModalOpen) {
+      setEditForm(synced);
+    }
 
     if (user?.id) {
       try {
@@ -926,6 +929,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         try {
           localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(updatedData));
           localStorage.setItem(`roamai_user_profile_${user.id}`, JSON.stringify(updatedData));
+          localStorage.setItem('tripwise_user_profile', JSON.stringify(updatedData));
+          localStorage.setItem('roamai_user_profile', JSON.stringify(updatedData));
         } catch {}
         const result = await updateUserProfileData(updatedData, user.id);
         if (result?.error) {
@@ -935,9 +940,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         try {
           localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updatedData));
           localStorage.setItem('roamai_user_profile_guest', JSON.stringify(updatedData));
+          localStorage.setItem('tripwise_user_profile', JSON.stringify(updatedData));
+          localStorage.setItem('roamai_user_profile', JSON.stringify(updatedData));
         } catch {}
       }
 
+      window.dispatchEvent(new CustomEvent('roamai_profile_updated', { detail: updatedData }));
       setIsEditModalOpen(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -1339,8 +1347,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         {/* Action Buttons: Edit profile | Share profile */}
         <div className="flex items-center gap-2 mt-4">
           <button
+            type="button"
             onClick={() => {
-              setEditForm(profile);
+              setEditForm({
+                ...profile,
+                bio: typeof profile.bio === 'string' ? profile.bio : '',
+                username: profile.username || getFallbackUsername(user, userMeta),
+                name: profile.name || getFallbackName(user, userMeta)
+              });
+              setEditUsernameError(null);
               setIsEditModalOpen(true);
             }}
             className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center"
@@ -2318,8 +2333,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
 
       {/* --- EDIT PROFILE MODAL --- */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      {isEditModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-zinc-950 rounded-3xl border border-white/15 max-h-[90vh] overflow-y-auto text-left shadow-2xl">
             <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-md px-6 py-4 border-b border-zinc-800 flex items-center justify-between z-10">
               <h3 className="text-base font-bold text-white">Edit Profile</h3>
@@ -2470,13 +2485,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Instagram-style Profile Photo Action Modal */}
-      {showPhotoOptionsModal && (
+      {showPhotoOptionsModal && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
           onClick={() => setShowPhotoOptionsModal(false)}
         >
           <div 
@@ -2540,13 +2556,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Instagram-style Full Screen View Profile Picture Modal */}
-      {showViewPhotoModal && (
+      {showViewPhotoModal && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in"
           onClick={() => setShowViewPhotoModal(false)}
         >
           {/* Top Bar */}
@@ -2607,7 +2624,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       </>
       )}

@@ -343,14 +343,25 @@ export function processAvatarImageFile(file: File, maxDimension = 512, quality =
 }
 
 export function getCachedUserProfile(userId?: string): UserProfileData | null {
-  if (typeof window === 'undefined' || !userId) return null;
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(`${PROFILE_STORAGE_KEY}_${userId}`);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed) {
-        parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
-        return parsed;
+    const keys = [
+      userId ? `${PROFILE_STORAGE_KEY}_${userId}` : null,
+      userId ? `roamai_user_profile_${userId}` : null,
+      'tripwise_user_profile_guest',
+      'roamai_user_profile_guest',
+      PROFILE_STORAGE_KEY,
+      'roamai_user_profile'
+    ].filter(Boolean) as string[];
+
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
+          return parsed;
+        }
       }
     }
   } catch (e) {
