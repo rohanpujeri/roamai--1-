@@ -603,8 +603,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return trips.filter((t) => isTripCompleted(t));
   }, [trips]);
 
-  // Calculate unique places from completed trips and uploaded trails
+  // Calculate unique places strictly from completed trips
   const calculatedPlacesCount = React.useMemo(() => {
+    if (completedTrips.length === 0) return 0;
     const places = new Set<string>();
     completedTrips.forEach((t) => {
       if (t.destination) places.add(t.destination.trim().toLowerCase());
@@ -614,14 +615,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         });
       });
     });
-    userTrails.forEach((tr) => {
-      if (tr.destination) places.add(tr.destination.trim().toLowerCase());
-    });
     return places.size;
-  }, [completedTrips, userTrails]);
+  }, [completedTrips]);
 
-  // Calculate unique countries from completed trips and uploaded trails
+  // Calculate unique countries strictly from completed trips
   const calculatedCountriesCount = React.useMemo(() => {
+    if (completedTrips.length === 0) return 0;
     const countries = new Set<string>();
     completedTrips.forEach((t) => {
       if ((t as any).destinationPlace?.country) {
@@ -635,18 +634,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         }
       }
     });
-    userTrails.forEach((tr) => {
-      if (tr.destination) {
-        const parts = tr.destination.split(',');
-        if (parts.length > 1) {
-          countries.add(parts[parts.length - 1].trim().toLowerCase());
-        } else {
-          countries.add(tr.destination.trim().toLowerCase());
-        }
-      }
-    });
     return countries.size;
-  }, [completedTrips, userTrails]);
+  }, [completedTrips]);
 
   // Dynamically compute Travel DNA and Archetype based on completed trips
   const travelDNAAnalysis = React.useMemo(() => {

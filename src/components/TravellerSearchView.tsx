@@ -634,8 +634,9 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     });
   }, [viewingProfile, globalTrailsList]);
 
-  // Unique places visited by the viewed traveller (from completed trips, trails, or profile stats)
+  // Unique places visited by the viewed traveller (strictly from completed trips)
   const viewingProfilePlacesCount = useMemo(() => {
+    if (viewingProfileCompletedTrips.length === 0) return 0;
     const places = new Set<string>();
     viewingProfileCompletedTrips.forEach((t) => {
       if (t.destination) places.add(t.destination.trim().toLowerCase());
@@ -645,14 +646,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         });
       });
     });
-    viewingProfileTrails.forEach((t) => {
-      if (t.destination) places.add(t.destination.trim().toLowerCase());
-    });
-    return Math.max(places.size, viewingProfile?.placesCount || 0);
-  }, [viewingProfileCompletedTrips, viewingProfileTrails, viewingProfile?.placesCount]);
+    return places.size;
+  }, [viewingProfileCompletedTrips]);
 
-  // Unique countries visited by the viewed traveller (from completed trips, trails, or profile stats)
+  // Unique countries visited by the viewed traveller (strictly from completed trips)
   const viewingProfileCountriesCount = useMemo(() => {
+    if (viewingProfileCompletedTrips.length === 0) return 0;
     const countries = new Set<string>();
     viewingProfileCompletedTrips.forEach((t) => {
       if ((t as any).destinationPlace?.country) {
@@ -666,23 +665,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         }
       }
     });
-    viewingProfileTrails.forEach((t) => {
-      if (t.destination) {
-        const parts = t.destination.split(',');
-        if (parts.length > 1) {
-          countries.add(parts[parts.length - 1].trim().toLowerCase());
-        } else {
-          countries.add(t.destination.trim().toLowerCase());
-        }
-      }
-    });
-    return Math.max(countries.size, viewingProfile?.countriesCount || 0);
-  }, [viewingProfileCompletedTrips, viewingProfileTrails, viewingProfile?.countriesCount]);
+    return countries.size;
+  }, [viewingProfileCompletedTrips]);
 
-  // Trips count
+  // Trips count (strictly from completed trips)
   const viewingProfileTripsCount = useMemo(() => {
-    return Math.max(viewingProfileCompletedTrips.length, viewingProfile?.tripsCount || 0);
-  }, [viewingProfileCompletedTrips.length, viewingProfile?.tripsCount]);
+    return viewingProfileCompletedTrips.length;
+  }, [viewingProfileCompletedTrips.length]);
 
   // Suggested profiles for discover people section: ONLY shown for logged-in users, excluding yourself
   const suggestedProfiles = useMemo(() => {
@@ -819,29 +808,21 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               </div>
             )}
 
-            {/* Stats (Trips | Trails | Followers | Following) */}
+            {/* Stats (Posts | Followers | Following) */}
             <div className="flex-1 flex items-center justify-around text-center">
-              <div
+              <button
+                type="button"
                 onClick={() => setProfileTab('trips')}
-                className="cursor-pointer group flex flex-col items-center"
-                title="View Completed Trips"
+                className="cursor-pointer group flex flex-col items-center bg-transparent border-0 p-0 active:scale-95 transition-transform"
+                title="View posts"
               >
-                <div className="font-bold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
-                  {viewingProfileTripsCount}
+                <div className="font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors">
+                  {viewingProfileTripsCount + viewingProfileTrails.length}
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trips</div>
-              </div>
-
-              <div
-                onClick={() => setProfileTab('trails')}
-                className="cursor-pointer group flex flex-col items-center"
-                title="View Trails"
-              >
-                <div className="font-bold text-base sm:text-lg text-white group-hover:text-emerald-400 transition-colors">
-                  {viewingProfileTrails.length}
+                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">
+                  {viewingProfileTripsCount + viewingProfileTrails.length === 1 ? 'post' : 'posts'}
                 </div>
-                <div className="text-[11px] sm:text-xs text-neutral-400 group-hover:text-white transition-colors">trails</div>
-              </div>
+              </button>
 
               <button
                 type="button"
