@@ -359,6 +359,29 @@ export function getCachedUserProfile(userId?: string): UserProfileData | null {
   return null;
 }
 
+export function getCanonicalUsername(
+  user?: { id?: string; email?: string; user_metadata?: Record<string, any> } | null,
+  cachedProfile?: { username?: string } | null
+): string {
+  if (cachedProfile?.username?.trim()) {
+    const u = cachedProfile.username.trim();
+    return u.startsWith('@') ? u : `@${u}`;
+  }
+  const meta = user?.user_metadata || {};
+  if (meta?.username?.trim()) {
+    const u = meta.username.trim();
+    return u.startsWith('@') ? u : `@${u}`;
+  }
+  if (user?.email) {
+    const prefix = user.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    return `@${prefix}`;
+  }
+  if (user?.id) {
+    return `@user_${user.id.slice(0, 8)}`;
+  }
+  return '@traveler';
+}
+
 export async function updateUserProfileData(profile: UserProfileData): Promise<{ error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: 'Not authenticated' };

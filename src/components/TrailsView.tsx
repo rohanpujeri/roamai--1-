@@ -33,7 +33,7 @@ import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
 import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
 import { Session } from '@supabase/supabase-js';
-import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
+import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import {
   saveTrailMedia,
   resolveTrailMediaUrl,
@@ -104,11 +104,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 }) => {
   const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
   const currentUsername = useMemo(() => {
-    return (
-      cachedUser?.username ||
-      (session?.user?.email ? `@${session.user.email.split('@')[0]}` : '')
-    ).toLowerCase().replace(/^@/, '');
-  }, [cachedUser?.username, session?.user?.email]);
+    return getCanonicalUsername(session?.user, cachedUser).toLowerCase().replace(/^@/, '');
+  }, [cachedUser, session?.user]);
 
   // Load trails: either customTrails (user-specific) or all global trails
   const [trails, setTrails] = useState<TrailReel[]>(() => {
@@ -267,6 +264,56 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     window.addEventListener('roamai_trail_liked', handleTrailLiked);
     return () => window.removeEventListener('roamai_trail_liked', handleTrailLiked);
   }, [currentUsername]);
+
+  // Auto-sync user's uploaded trails with their latest canonical profile username and avatar
+  useEffect(() => {
+    if (!session?.user) return;
+    const canonicalUname = getCanonicalUsername(session.user, cachedUser);
+    const cleanCanonical = canonicalUname.toLowerCase().replace(/^@/, '');
+    const cleanNoUnderscore = cleanCanonical.replace(/_/g, '');
+    const canonicalAvatar = sanitizeAvatarUrl(cachedUser?.avatarUrl || session.user.user_metadata?.avatar_url || session.user.user_metadata?.avatarUrl || '');
+
+    setTrails((prev) => {
+      let changed = false;
+      const updated = prev.map((t) => {
+        if (!t) return t;
+        const cUname = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
+        const cNoUnderscore = cUname.replace(/_/g, '');
+        const isUserTrail = Boolean(
+          (t.creator?.id && (t.creator.id === session.user.id || t.creator.id === `user_${session.user.id}`)) ||
+          (cleanCanonical && cUname && cUname === cleanCanonical) ||
+          (cleanNoUnderscore && cNoUnderscore && cNoUnderscore === cleanNoUnderscore)
+        );
+
+        if (isUserTrail) {
+          if (t.creator?.username !== canonicalUname || (canonicalAvatar && t.creator?.avatarUrl !== canonicalAvatar)) {
+            changed = true;
+            return {
+              ...t,
+              creator: {
+                ...t.creator,
+                id: session.user.id,
+                username: canonicalUname,
+                avatarUrl: canonicalAvatar || t.creator?.avatarUrl || ''
+              }
+            };
+          }
+        }
+        return t;
+      });
+
+      if (changed) {
+        try {
+          localStorage.setItem('roamai_user_trails', JSON.stringify(updated));
+          localStorage.setItem('tripwise_user_trails', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      }
+      return prev;
+    });
+  }, [session?.user, cachedUser]);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(Boolean(isActive));
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -780,12 +827,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
     const isImg = uploadVideoFile?.type.startsWith('image/');
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-    const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
-    const fallbackUploadU = session?.user?.email 
-      ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
-      : (session?.user?.id ? `user_${session.user.id.slice(0, 8)}` : 'traveller');
-    const username = cached?.username || `@${fallbackUploadU}`;
-    const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+    const meta = session?.user?.user_metadata || {};
+    const creatorName = cached?.name || meta.full_name || meta.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
+    const username = getCanonicalUsername(session?.user, cached);
+    const rawAvatar = cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '';
     const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
     const extractedHashtags = (uploadCaption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
@@ -915,9 +960,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           {(() => {
             const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
             const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
+            const cleanCreatorNoUnderscore = creatorUsername.replace(/_/g, '');
+            const cleanCurrentNoUnderscore = currentUsername.replace(/_/g, '');
             const isOwnTrail = Boolean(
+              (session?.user?.id && creator.id && (creator.id === session.user.id || creator.id === `user_${session.user.id}`)) ||
               (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
-              (session?.user?.id && creator.id && creator.id === session.user.id)
+              (currentUsername && cleanCreatorNoUnderscore && cleanCreatorNoUnderscore === cleanCurrentNoUnderscore)
             );
             if (isOwnTrail) {
               return (
@@ -1295,11 +1343,25 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {(() => {
           const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
           const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
-          const creatorCleanDisplay = (creator.username || creator.name || 'creator').replace(/^@/, '');
+          const cleanCreatorNoUnderscore = creatorUsername.replace(/_/g, '');
+          const cleanCurrentNoUnderscore = currentUsername.replace(/_/g, '');
+
           const isOwnTrail = Boolean(
+            (session?.user?.id && creator.id && (creator.id === session.user.id || creator.id === `user_${session.user.id}`)) ||
             (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
-            (session?.user?.id && creator.id && creator.id === session.user.id)
+            (currentUsername && cleanCreatorNoUnderscore && cleanCreatorNoUnderscore === cleanCurrentNoUnderscore)
           );
+
+          const canonicalOwnUsername = getCanonicalUsername(session?.user, cachedUser);
+          const effectiveUsername = isOwnTrail
+            ? canonicalOwnUsername
+            : (creator.id ? getCachedUserProfile(creator.id)?.username : null) || creator.username || creator.name || 'creator';
+
+          const creatorCleanDisplay = effectiveUsername.replace(/^@/, '');
+          const effectiveAvatarUrl = (isOwnTrail && (cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl))
+            ? sanitizeAvatarUrl(cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl)
+            : creator.avatarUrl;
+
           const isFollowed = isUserFollowing(currentUsername, creator.username) || !!creator.isFollowed;
 
           const handleOpenCreatorProfile = (e: React.MouseEvent) => {
@@ -1315,9 +1377,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
             const travellerData = {
               id: creator.id,
-              username: creator.username,
+              username: effectiveUsername,
               name: creator.name,
-              avatarUrl: creator.avatarUrl,
+              avatarUrl: effectiveAvatarUrl,
               location: activeReel?.destination || '',
               isFollowing: isFollowed
             };
@@ -1343,10 +1405,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all"
                   title={`View ${creatorCleanDisplay}'s profile`}
                 >
-                  {creator.avatarUrl ? (
+                  {effectiveAvatarUrl ? (
                     <img
-                      src={creator.avatarUrl}
-                      alt={creator.username}
+                      src={effectiveAvatarUrl}
+                      alt={creatorCleanDisplay}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => {

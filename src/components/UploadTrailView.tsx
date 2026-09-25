@@ -13,7 +13,7 @@ import {
   Check
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
-import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
+import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
 import { EditCoverModal } from './EditCoverModal';
@@ -162,12 +162,10 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
       const isImg = videoFile?.type.startsWith('image/');
       const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-      const creatorName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
-      const fallbackUname = session?.user?.email 
-        ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
-        : (session?.user?.id ? `user_${session.user.id.slice(0, 8)}` : 'traveller');
-      const username = cached?.username || `@${fallbackUname}`;
-      const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+      const meta = session?.user?.user_metadata || {};
+      const creatorName = cached?.name || meta.full_name || meta.name || (session?.user?.email ? session.user.email.split('@')[0] : 'Traveller');
+      const username = getCanonicalUsername(session?.user, cached);
+      const rawAvatar = cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '';
       const avatarUrl = sanitizeAvatarUrl(rawAvatar);
 
       const extractedHashtags = (caption.match(/#([a-zA-Z0-9_\u0080-\uFFFF]+)/g) || []).map((t) => t.trim());
