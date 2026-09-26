@@ -49,7 +49,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
-  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
+  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('cover');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);

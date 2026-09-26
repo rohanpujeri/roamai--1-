@@ -34,7 +34,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         transform: 'translate3d(-50%, 0, 0)', 
         willChange: 'transform',
         bottom: currentView === 'trails'
-          ? 'calc(env(safe-area-inset-bottom, 0px) + 8px)'
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 4px)'
           : 'calc(env(safe-area-inset-bottom, 0px) + 16px)'
       }}
       className="fixed left-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-[bottom,padding] duration-200 ease-out"

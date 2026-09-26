@@ -367,7 +367,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [isTrailLocationModalOpen, setIsTrailLocationModalOpen] = useState<boolean>(false);
   const [uploadLocationError, setUploadLocationError] = useState<string | null>(null);
   const [uploadAspectRatio, setUploadAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
-  const [uploadFitMode, setUploadFitMode] = useState<'contain' | 'cover'>('contain');
+  const [uploadFitMode, setUploadFitMode] = useState<'contain' | 'cover'>('cover');
   const [slideState, setSlideState] = useState<'idle' | 'sliding-up' | 'sliding-down'>('idle');
   const slideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -935,13 +935,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   return (
     <div 
       onWheel={handleWheel}
-      className="relative w-full h-full max-h-full bg-black overflow-hidden flex flex-col justify-start select-none"
+      className="relative w-full h-full max-h-full bg-black overflow-hidden select-none"
     >
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
         className="absolute inset-0 bg-cover bg-center blur-3xl opacity-25 scale-110 pointer-events-none transition-all duration-700"
         style={{ backgroundImage: activeReel?.posterUrl ? `url(${activeReel.posterUrl})` : 'none' }}
       />
+
+      {/* Top Status Bar Vignette Gradient (Guarantees clock, battery, & TRAILS header are clear over video) */}
+      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/70 via-black/25 to-transparent pointer-events-none z-20" />
+
+      {/* Bottom Vignette Gradient (Guarantees caption, creator, & playline are clear over video) */}
+      <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none z-10" />
 
       {/* Top Floating Action Bar */}
       <div 
@@ -1099,12 +1105,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             lastTapRef.current = now;
             togglePlay();
           }}
-          className="relative w-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group shrink-0"
-          style={{
-            height: hasBottomNav
-              ? 'calc(100% - env(safe-area-inset-bottom, 0px) - 54px)'
-              : '100%'
-          }}
+          className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group shrink-0"
         >
           {/* Instagram Double-Tap Heart Burst Animation */}
           {showHeartBurst && (
@@ -1148,18 +1149,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           >
             {(() => {
               const reelAspect = activeReel?.aspectRatio;
-              const reelFit = activeReel?.fitMode || (reelAspect && reelAspect !== 'original' ? 'cover' : 'contain');
-              const isCustomAspect = Boolean(reelAspect && reelAspect !== 'original');
-              const aspectClass = isCustomAspect
-                ? (reelAspect === '9:16' ? 'aspect-[9/16]' : reelAspect === '1:1' ? 'aspect-square' : reelAspect === '4:5' ? 'aspect-[4/5]' : 'aspect-[16/9]')
-                : '';
-              const objectClass = isCustomAspect && reelFit === 'cover' ? 'object-cover' : 'object-contain';
+              const reelFit = activeReel?.fitMode;
+              // Reels standard: Cover entire viewport and status bar unless explicitly contain
+              const isContain = reelFit === 'contain' && reelAspect === 'original';
 
               return activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
                 <img
                   src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                   alt={activeReel.caption}
-                  className={`${aspectClass} ${objectClass} ${isCustomAspect ? 'max-h-full max-w-full' : 'w-full h-full'} select-none`}
+                  className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'} select-none`}
                 />
               ) : (
                 <video
@@ -1173,7 +1171,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   autoPlay={isActive && !showUploadModal && !showLikesModal}
                   preload={isActive ? 'auto' : 'none'}
                   muted={isMuted}
-                  className={`${aspectClass} ${objectClass} ${isCustomAspect ? 'max-h-full max-w-full' : 'w-full h-full'}`}
+                  className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'}`}
                   onPlay={() => {
                     if (!isActive || showUploadModal || showLikesModal) {
                       videoRef.current?.pause();
@@ -1250,8 +1248,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
-          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2.5 sm:gap-3.5 pointer-events-auto"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 68px)' : 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2 sm:gap-3 pointer-events-auto"
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 52px)' : 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-1 group/btn">
@@ -1398,15 +1396,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           return (
             <div 
-              className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-2 pointer-events-none max-w-xl"
-              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 68px)' : 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+              className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
+              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 52px)' : 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
-              <div className="flex items-center gap-2.5 pointer-events-auto">
+              <div className="flex items-center gap-2 pointer-events-auto">
                 {/* Clean Circular Photo (Instagram Reels style - no ring) */}
                 <div 
                   onClick={handleOpenCreatorProfile}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all"
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all"
                   title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {effectiveAvatarUrl ? (
@@ -1429,7 +1427,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {/* Username only (no full name) */}
                 <span 
                   onClick={handleOpenCreatorProfile}
-                  className="text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline hover:text-indigo-200 transition-colors"
+                  className="text-xs sm:text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline hover:text-indigo-200 transition-colors"
                   title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {creatorCleanDisplay}
@@ -1437,7 +1435,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
                 {/* Verified Badge (only if creator is verified) */}
                 {creator.isVerified && (
-                  <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs" title="Verified Creator">
+                  <span className="w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-black shrink-0 shadow-xs" title="Verified Creator">
                     ✓
                   </span>
                 )}
@@ -1478,7 +1476,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         );
                       }
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
                       isFollowed
                         ? 'bg-white/20 border-white/30 text-white'
                         : isFollowedBy(currentUsername, creator.username)
@@ -1492,12 +1490,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               </div>
 
               {/* Caption */}
-              <p className="text-xs sm:text-sm text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-sm font-medium">
+              <p className="text-xs text-neutral-100 line-clamp-2 leading-snug drop-shadow-sm font-medium">
                 {activeReel?.caption || ''}
               </p>
 
               {/* Destination Badge - Interactive Button giving options (Save Place & Plan a Trip) */}
-              <div className="flex items-center gap-2 flex-wrap pointer-events-auto pt-0.5">
+              <div className="flex items-center gap-1.5 flex-wrap pointer-events-auto">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1506,12 +1504,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       setLocationActionTrail(activeReel);
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer group"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/45 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-[11px] font-semibold shadow-sm transition-all cursor-pointer group"
                   title={`Options for ${activeReel?.destination}`}
                 >
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
-                  <span className="truncate max-w-[200px] sm:max-w-xs">{activeReel?.destination}</span>
-                  <ChevronRight className="w-3 h-3 text-white/60 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  <MapPin className="w-3 h-3 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="truncate max-w-[180px] sm:max-w-xs">{activeReel?.destination}</span>
+                  <ChevronRight className="w-2.5 h-2.5 text-white/60 group-hover:translate-x-0.5 transition-transform shrink-0" />
                 </button>
               </div>
             </div>
@@ -1521,8 +1519,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Video Playline directly above low Bottom Navigation Bar (matches Instagram Reels design) */}
         <div 
           onClick={handlePlaylineClick}
-          className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3.5 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 54px)' : 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+          className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 44px)' : 'calc(env(safe-area-inset-bottom, 0px) + 6px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
