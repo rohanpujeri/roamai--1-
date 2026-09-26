@@ -26,7 +26,6 @@ import {
   Hash,
   UserPlus,
   Camera,
-  Trash2,
   Sparkles,
   Compass
 } from 'lucide-react';
@@ -936,7 +935,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       />
 
       {/* Top Floating Action Bar */}
-      <div className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto">
+      <div 
+        className="absolute top-4 sm:top-6 left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 14px)' }}
+      >
         <div className="flex items-center gap-2.5">
           {(showBackButton || customTrails) && (
             <button
@@ -955,33 +957,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* If own trail, show delete button */}
-          {(() => {
-            const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
-            const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
-            const cleanCreatorNoUnderscore = creatorUsername.replace(/_/g, '');
-            const cleanCurrentNoUnderscore = currentUsername.replace(/_/g, '');
-            const isOwnTrail = Boolean(
-              (session?.user?.id && creator.id && (creator.id === session.user.id || creator.id === `user_${session.user.id}`)) ||
-              (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
-              (currentUsername && cleanCreatorNoUnderscore && cleanCreatorNoUnderscore === cleanCurrentNoUnderscore)
-            );
-            if (isOwnTrail) {
-              return (
-                <button
-                  type="button"
-                  onClick={handleDeleteActiveTrail}
-                  className="w-10 h-10 rounded-full bg-black/60 hover:bg-rose-600/90 backdrop-blur-md border border-white/20 text-rose-300 hover:text-white flex items-center justify-center cursor-pointer shadow-xl transition-all hover:scale-105 active:scale-95"
-                  title="Delete Trail"
-                  aria-label="Delete Trail"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              );
-            }
-            return null;
-          })()}
-
           {/* Upload Trail '+' Button (Upload Video or Photo - hidden in user profile reels view) */}
           {!customTrails && (
             <button
@@ -1161,7 +1136,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               <img
                 src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                 alt={activeReel.caption}
-                className="w-full h-full object-contain select-none"
+                className="w-full h-full object-cover sm:object-contain select-none"
               />
             ) : (
               <video
@@ -1175,7 +1150,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 autoPlay={isActive && !showUploadModal && !showLikesModal}
                 preload={isActive ? 'auto' : 'none'}
                 muted={isMuted}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover sm:object-contain"
                 onPlay={() => {
                   if (!isActive || showUploadModal || showLikesModal) {
                     videoRef.current?.pause();
@@ -1250,7 +1225,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
-        <div className="absolute right-4 sm:right-8 bottom-[160px] sm:bottom-[170px] z-20 flex flex-col items-center gap-3.5 sm:gap-4 pointer-events-auto">
+        <div 
+          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2.5 sm:gap-3.5 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }}
+        >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-1 group/btn">
             <button
@@ -1395,7 +1373,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           };
 
           return (
-            <div className="absolute left-4 sm:left-8 right-20 sm:right-28 bottom-[160px] sm:bottom-[170px] z-20 space-y-2.5 pointer-events-none max-w-xl">
+            <div 
+              className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-2 pointer-events-none max-w-xl"
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }}
+            >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2.5 pointer-events-auto">
                 {/* Clean Circular Photo (Instagram Reels style - no ring) */}
@@ -1516,7 +1497,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Video Playline directly above low Bottom Navigation Bar (matches Instagram Reels design) */}
         <div 
           onClick={handlePlaylineClick}
-          className="absolute bottom-[114px] sm:bottom-[122px] left-4 right-4 sm:left-8 sm:right-8 z-30 h-4 flex items-center cursor-pointer pointer-events-auto group/playline"
+          className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3.5 flex items-center cursor-pointer pointer-events-auto group/playline"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
