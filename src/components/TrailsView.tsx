@@ -935,7 +935,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   return (
     <div 
       onWheel={handleWheel}
-      className="relative w-full h-full max-h-full bg-black overflow-hidden select-none"
+      className="relative w-full h-full bg-black overflow-hidden select-none"
     >
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
@@ -1136,7 +1136,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           {/* Video or Image Media Player with Smooth Slide Transition */}
           <div
-            className="relative z-10 w-full h-full flex items-center justify-center transition-all duration-150 ease-out"
+            className="absolute inset-0 z-10 w-full h-full flex items-center justify-center transition-all duration-150 ease-out"
             style={{
               transform: slideState === 'sliding-up'
                 ? 'translate3d(0, -6%, 0) scale(0.97)'
@@ -1148,7 +1148,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }}
           >
             {(() => {
-              const reelAspect = activeReel?.aspectRatio;
               const reelFit = activeReel?.fitMode;
               // Reels standard: Cover entire viewport from status bar to bottom nav unless creator explicitly chose contain
               const isContain = reelFit === 'contain';
@@ -1158,6 +1157,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                   alt={activeReel.caption}
                   className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'} select-none`}
+                  style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
                 />
               ) : (
                 <video
@@ -1172,6 +1172,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   preload={isActive ? 'auto' : 'none'}
                   muted={isMuted}
                   className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'}`}
+                  style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
                   onPlay={() => {
                     if (!isActive || showUploadModal || showLikesModal) {
                       videoRef.current?.pause();
@@ -1249,7 +1250,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
           className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2 sm:gap-3 pointer-events-auto"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 68px)' : 'calc(env(safe-area-inset-bottom, 0px) + 18px)' }}
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 80px)' : 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-1 group/btn">
@@ -1397,7 +1398,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           return (
             <div 
               className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
-              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 68px)' : 'calc(env(safe-area-inset-bottom, 0px) + 18px)' }}
+              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 80px)' : 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2 pointer-events-auto">
@@ -1520,7 +1521,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div 
           onClick={handlePlaylineClick}
           className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 58px)' : 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 68px)' : 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">

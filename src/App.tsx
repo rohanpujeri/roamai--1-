@@ -1321,7 +1321,7 @@ export default function App() {
   return (
     <div 
       className={`font-sans antialiased text-slate-900 flex flex-col relative ${
-        isBottomNavView ? 'h-[100dvh] h-screen w-full overflow-hidden' : 'min-h-screen'
+        isBottomNavView ? 'h-[100dvh] min-h-[100dvh] w-full overflow-hidden' : 'min-h-screen'
       }`}
       style={{
         backgroundColor: currentView === 'trails' || currentView === 'upload_trail'
@@ -1393,7 +1393,7 @@ export default function App() {
             <div
               ref={sliderRef}
               onScroll={handleSliderScroll}
-              className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x smooth-slider-container"
+              className="flex-1 w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory touch-pan-x smooth-slider-container"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',

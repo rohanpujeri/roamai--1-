@@ -120,7 +120,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     setPosterPreview('');
     setIsPreviewPlaying(false);
     setAspectRatio('original');
-    setFitMode('contain');
+    setFitMode('cover');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (coverInputRef.current) coverInputRef.current.value = '';
   };

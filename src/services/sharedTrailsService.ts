@@ -68,7 +68,7 @@ export function sanitizeTrail(t: any): TrailReel {
     likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
     creator,
     aspectRatio: t.aspectRatio || 'original',
-    fitMode: t.fitMode || (t.aspectRatio && t.aspectRatio !== 'original' ? 'cover' : 'contain'),
+    fitMode: t.fitMode === 'contain' ? 'contain' : 'cover',
   };
 }
 
