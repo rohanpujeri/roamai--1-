@@ -340,7 +340,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     alt="Trail preview"
                     className={`relative z-10 max-h-[380px] mx-auto ${
                       aspectRatio === 'original'
-                        ? 'w-auto max-w-full object-contain'
+                        ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
                         : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
                     }`}
                   />
@@ -364,7 +364,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     muted
                     className={`relative z-10 max-h-[380px] mx-auto ${
                       aspectRatio === 'original'
-                        ? 'w-auto max-w-full object-contain'
+                        ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
                         : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
                     }`}
                   />
@@ -403,17 +403,15 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                   <Crop className="w-3.5 h-3.5 text-emerald-400" />
                   Video Ratio
                 </span>
-                {aspectRatio !== 'original' && (
-                  <button
-                    type="button"
-                    onClick={() => setFitMode(fitMode === 'cover' ? 'contain' : 'cover')}
-                    className="text-[11px] font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Toggle between fill (crop) and fit (original letterbox)"
-                  >
-                    <span>Mode:</span>
-                    <span className="text-emerald-400 font-bold">{fitMode === 'cover' ? 'Fill (Crop)' : 'Fit (Original)'}</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setFitMode(fitMode === 'cover' ? 'contain' : 'cover')}
+                  className="text-[11px] font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Toggle between fill (crop full screen) and fit (original letterbox)"
+                >
+                  <span>Mode:</span>
+                  <span className="text-emerald-400 font-bold">{fitMode === 'cover' ? 'Fill (Crop)' : 'Fit (Original)'}</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-5 gap-1.5">
@@ -430,7 +428,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     onClick={() => {
                       const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
                       setAspectRatio(next);
-                      if (next === 'original') setFitMode('contain');
                     }}
                     className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
                       aspectRatio === item.id

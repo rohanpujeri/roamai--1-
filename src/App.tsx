@@ -1125,15 +1125,20 @@ export default function App() {
 
   // Synchronize mobile status bar theme-color and background seamlessly
   useEffect(() => {
-    let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
-    if (!themeMeta) {
-      themeMeta = document.createElement('meta');
-      themeMeta.name = 'theme-color';
-      document.head.appendChild(themeMeta);
-    }
     const isDarkView = currentView === 'trails' || currentView === 'upload_trail' || currentView === 'profile' || isNoThemeBgView;
     const targetBg = isDarkView ? '#000000' : (currentTheme?.isDark ? '#09090b' : (currentTheme?.canvasBg || '#000000'));
-    themeMeta.content = targetBg;
+    
+    // Update all theme-color metas (including media-query specific ones) to ensure mobile status bar matches
+    const metas = document.querySelectorAll('meta[name="theme-color"]');
+    if (metas.length > 0) {
+      metas.forEach((meta) => meta.setAttribute('content', targetBg));
+    } else {
+      const themeMeta = document.createElement('meta');
+      themeMeta.name = 'theme-color';
+      themeMeta.content = targetBg;
+      document.head.appendChild(themeMeta);
+    }
+
     document.documentElement.style.backgroundColor = targetBg;
     document.body.style.backgroundColor = targetBg;
   }, [currentView, currentTheme, isNoThemeBgView]);
@@ -1319,7 +1324,9 @@ export default function App() {
         isBottomNavView ? 'h-[100dvh] h-screen w-full overflow-hidden' : 'min-h-screen'
       }`}
       style={{
-        backgroundColor: isBottomNavView
+        backgroundColor: currentView === 'trails' || currentView === 'upload_trail'
+          ? '#000000'
+          : isBottomNavView
           ? '#09090b'
           : currentView === 'profile'
           ? '#09090b'
@@ -1440,7 +1447,7 @@ export default function App() {
               </div>
 
               {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
-              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
+              <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-black relative">
                 <TrailsView
                   currentTheme={currentTheme}
                   session={session}
