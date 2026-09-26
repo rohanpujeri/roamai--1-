@@ -1523,11 +1523,12 @@ export default function App() {
                     setCurrentView('auth');
                   }}
                   onNavigate={(view) => {
-                    const idx = BOTTOM_NAV_ORDER.indexOf(view as any);
+                    const normalized = (view === 'search' || view === 'travellers') ? 'travellers_search' : view;
+                    const idx = BOTTOM_NAV_ORDER.indexOf(normalized as any);
                     if (idx !== -1) {
                       scrollToTab(idx);
                     } else {
-                      setCurrentView(view);
+                      setCurrentView(normalized);
                     }
                   }}
                   onOpenThemeModal={() => setIsThemeModalOpen(true)}
@@ -1553,11 +1554,12 @@ export default function App() {
                   setCurrentView('auth');
                   return;
                 }
-                const idx = BOTTOM_NAV_ORDER.indexOf(v);
+                const normalized = (v === 'search' || v === 'travellers') ? 'travellers_search' : v;
+                const idx = BOTTOM_NAV_ORDER.indexOf(normalized as any);
                 if (idx !== -1) {
                   scrollToTab(idx);
                 } else {
-                  setCurrentView(v);
+                  setCurrentView(normalized);
                 }
               }}
               onStartPlanning={() => {

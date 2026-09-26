@@ -210,8 +210,24 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           isFollowing: !!(d.isFollowing ?? matched?.isFollowing)
         });
         setProfileTab('trips');
+        try {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        } catch {}
       }
     };
+
+    // Check pending view from sessionStorage if redirected across components
+    try {
+      const pendingRaw = sessionStorage.getItem('roamai_pending_view_traveller');
+      if (pendingRaw) {
+        sessionStorage.removeItem('roamai_pending_view_traveller');
+        const parsed = JSON.parse(pendingRaw);
+        if (parsed && (parsed.username || parsed.id)) {
+          handleViewTraveller({ detail: parsed });
+        }
+      }
+    } catch {}
+
     window.addEventListener('roamai_view_traveller', handleViewTraveller);
     return () => window.removeEventListener('roamai_view_traveller', handleViewTraveller);
   }, [travellers]);
@@ -1289,21 +1305,43 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           onSelectUser={(selectedUser) => {
             setIsFollowModalOpen(false);
             const cleanU = selectedUser.username.replace(/^@+/, '');
+            const cleanLower = cleanU.toLowerCase();
+
+            // If selected user is self, redirect to own profile tab
+            if (currentUserProfile && isSelfRel(currentUserProfile.id, currentUserProfile.username, selectedUser.id, selectedUser.username)) {
+              setViewingProfile(null);
+              onOpenOwnProfile?.();
+              return;
+            }
+
+            const matched = travellers.find((t) => {
+              const tClean = (t.username || '').replace(/^@+/, '').toLowerCase();
+              return (
+                tClean === cleanLower ||
+                tClean.replace(/_/g, '') === cleanLower.replace(/_/g, '') ||
+                (t.id && selectedUser.id && (t.id === selectedUser.id || t.id.replace(/^supa_/, '') === String(selectedUser.id).replace(/^supa_/, '')))
+              );
+            });
+
             setViewingProfile({
-              id: selectedUser.id,
-              name: selectedUser.name,
-              username: selectedUser.username,
-              avatarUrl: selectedUser.avatarUrl || '',
-              location: selectedUser.location || 'Traveler',
-              bio: selectedUser.bio || '',
-              level: 'Travel Explorer',
-              tripsCount: 0,
-              placesCount: 0,
-              topDNA: [],
-              recentPlaces: [],
-              isFollowing: selectedUser.isFollowing
+              id: selectedUser.id || matched?.id || `user_${cleanU}`,
+              name: selectedUser.name || matched?.name || cleanU,
+              username: selectedUser.username?.startsWith('@') ? selectedUser.username : (matched?.username || `@${cleanU}`),
+              avatarUrl: selectedUser.avatarUrl || matched?.avatarUrl || '',
+              location: selectedUser.location || matched?.location || 'Traveler',
+              bio: selectedUser.bio || matched?.bio || '',
+              level: matched?.level || 'Travel Explorer',
+              tripsCount: matched?.tripsCount || 0,
+              placesCount: matched?.placesCount || 0,
+              countriesCount: matched?.countriesCount || 0,
+              topDNA: matched?.topDNA || [],
+              recentPlaces: matched?.recentPlaces || [],
+              isFollowing: selectedUser.isFollowing ?? matched?.isFollowing
             });
             setProfileTab('trips');
+            try {
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            } catch {}
           }}
         />
       </div>

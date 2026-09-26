@@ -2680,19 +2680,24 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         currentUser={followModalUser}
         onSelectUser={(selectedUser) => {
           setIsFollowModalOpen(false);
+          const detail = {
+            id: selectedUser.id,
+            username: selectedUser.username,
+            name: selectedUser.name,
+            avatarUrl: selectedUser.avatarUrl,
+            location: selectedUser.location,
+            bio: selectedUser.bio,
+            isFollowing: selectedUser.isFollowing
+          };
+          try {
+            sessionStorage.setItem('roamai_pending_view_traveller', JSON.stringify(detail));
+          } catch {}
           window.dispatchEvent(
             new CustomEvent('roamai_view_traveller', {
-              detail: {
-                id: selectedUser.id,
-                username: selectedUser.username,
-                name: selectedUser.name,
-                avatarUrl: selectedUser.avatarUrl,
-                location: selectedUser.location,
-                bio: selectedUser.bio
-              }
+              detail
             })
           );
-          onNavigate?.('search');
+          onNavigate?.('travellers_search');
         }}
       />
 
