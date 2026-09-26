@@ -800,9 +800,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     const mutuals = getMutualFollowers(currentUserProfile.username, viewingProfile.username);
 
     return (
-      <div className="min-h-screen bg-black text-white pb-32 select-none animate-in fade-in duration-200">
+      <div className="min-h-screen bg-black text-white pb-40 select-none animate-in fade-in duration-200">
         {/* Top Sticky Profile Header Bar */}
-        <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-neutral-900 px-3 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between">
+        <div 
+          className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-neutral-900 px-3 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between"
+          style={{ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 8px)' }}
+        >
           <button
             type="button"
             onClick={() => setViewingProfile(null)}
@@ -1413,9 +1416,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   // VIEW B: MAIN SEARCH & EXPLORE FEED (When no profile is actively opened)
   // =========================================================================
   return (
-    <div className="min-h-screen bg-black text-white pb-32 select-none">
+    <div className="min-h-screen bg-black text-white pb-40 select-none">
       {/* 1. Sleek Instagram Search Bar (Sticky Top) */}
-      <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-neutral-900 px-3 py-2.5 sm:px-6 sm:py-3">
+      <div 
+        className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-neutral-900 px-3 py-2.5 sm:px-6 sm:py-3"
+        style={{ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 8px)' }}
+      >
         <div className="max-w-md sm:max-w-3xl mx-auto">
           <div className="relative flex items-center">
             <Search className="absolute left-3.5 w-4 h-4 text-neutral-400 pointer-events-none" />

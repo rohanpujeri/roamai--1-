@@ -1442,7 +1442,7 @@ export default function App() {
                     onOpenMapSearch={() => setCurrentView('map_search')}
                     onNavigateToWhyTripWise={() => setCurrentView('why_roamai')}
                   />
-                  <div className="h-28" />
+                  <div className="h-36 sm:h-40" />
                 </div>
               </div>
 
@@ -1497,7 +1497,7 @@ export default function App() {
                     }}
                   />
                 </div>
-                <div className="h-28" />
+                <div className="h-36 sm:h-40" />
               </div>
 
               {/* SLIDE 3: TRAVELLERS SEARCH */}
@@ -1519,7 +1519,7 @@ export default function App() {
                     setCurrentView('auth');
                   }}
                 />
-                <div className="h-28" />
+                <div className="h-36 sm:h-40" />
               </div>
 
               {/* SLIDE 4: USER TRAVEL PROFILE */}
@@ -1556,7 +1556,7 @@ export default function App() {
                   onOpenThemeModal={() => setIsThemeModalOpen(true)}
                   onOpenUploadPage={() => setCurrentView('upload_trail')}
                 />
-                <div className="h-28" />
+                <div className="h-36 sm:h-40" />
               </div>
             </div>
           ) : (

@@ -1052,7 +1052,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-
 /* ========================================================================= */
 .rotating-carousel-wrapper {
   width: 100%;
-  height: 320px;
+  height: 290px;
   position: relative;
   text-align: center;
   display: flex;
@@ -1072,9 +1072,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-
 }
 
 .rotating-carousel-inner {
-  --w: 125px;
-  --h: 185px;
-  --translateZ: 175px;
+  --w: 120px;
+  --h: 175px;
+  --translateZ: 165px;
   --rotateX: -8deg;
   --perspective: 1100px;
   position: absolute;

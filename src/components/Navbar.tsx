@@ -89,6 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       <header 
         className="sticky top-0 z-40 transition-colors duration-300 relative bg-transparent pt-2.5 sm:pt-1"
+        style={{ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 4px)' }}
       >
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 relative z-10">
           <div className="flex items-center justify-between h-14 sm:h-18">

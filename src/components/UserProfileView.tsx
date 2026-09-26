@@ -1067,7 +1067,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }));
 
   return (
-    <div className="w-full min-h-screen bg-black text-white pb-32">
+    <div className="w-full min-h-screen bg-black text-white pb-40">
       {/* Toast feedback */}
       {shareToast && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-zinc-800 text-white text-xs font-semibold shadow-2xl border border-white/20 flex items-center gap-2 animate-fade-in">
@@ -1091,7 +1091,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
 
       {/* 1. TOP INSTAGRAM APP BAR */}
-      <header className="sticky top-0 z-30 bg-black/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between border-b border-zinc-900">
+      <header 
+        className="sticky top-0 z-30 bg-black/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between border-b border-zinc-900"
+        style={{ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 8px)' }}
+      >
         {/* Left: + Create / Plan */}
         <button
           onClick={() => onStartPlanning()}
@@ -1499,7 +1502,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         {activeTab === 'trips' && (
           <div>
             {displayTrips.length === 0 ? (
-              <div className="py-20 px-4 text-center space-y-3">
+              <div className="py-10 sm:py-14 px-4 text-center space-y-3 pb-24">
                 <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-emerald-400">
                   <CheckCircle2 className="w-7 h-7" />
                 </div>

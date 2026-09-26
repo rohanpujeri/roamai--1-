@@ -952,7 +952,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       {/* Top Floating Action Bar */}
       <div 
         className="absolute left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+        style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 10px)' }}
       >
         <div className="flex items-center gap-2.5">
           {(showBackButton || customTrails) && (
@@ -1252,21 +1252,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
-          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2 sm:gap-3 pointer-events-auto"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 112px)' : 'calc(env(safe-area-inset-bottom, 0px) + 52px)' }}
+          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-1.5 sm:gap-2.5 pointer-events-auto"
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 100px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 48px)' }}
         >
           {/* Like Button & Likes Count */}
-          <div className="flex flex-col items-center gap-1 group/btn">
+          <div className="flex flex-col items-center gap-0.5 group/btn">
             <button
               type="button"
               onClick={handleLike}
               className="flex flex-col items-center cursor-pointer transition-transform active:scale-75"
               title={activeReel.isLiked ? 'Unlike' : 'Like'}
             >
-              <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
+              <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
                 activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/50 hover:bg-black/70 text-white'
               }`}>
-                <Heart className={`w-6 h-6 transition-transform ${
+                <Heart className={`w-5 h-5 transition-transform ${
                   activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white hover:scale-105'
                 }`} />
               </div>
@@ -1277,7 +1277,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 e.stopPropagation();
                 setShowLikesModal(true);
               }}
-              className="text-xs font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1.5 py-0.5 rounded-md hover:bg-black/40"
+              className="text-[11px] font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1 py-0.5 rounded-md hover:bg-black/40"
               title="View profiles who liked this trail"
             >
               {activeReel.likesCount}
@@ -1291,12 +1291,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               e.stopPropagation();
               setShowComments(true);
             }}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
-              <MessageCircle className="w-6 h-6" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
+              <MessageCircle className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-white drop-shadow-md">
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
               {activeReel.commentsCount}
             </span>
           </button>
@@ -1305,14 +1305,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl ${
+            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl ${
               activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/50 hover:bg-black/70 text-white'
             }`}>
-              <Bookmark className={`w-6 h-6 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
+              <Bookmark className={`w-5 h-5 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
             </div>
-            <span className="text-xs font-bold text-white drop-shadow-md">
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
               Save
             </span>
           </button>
@@ -1321,12 +1321,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={handleShare}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
-              <Share2 className="w-5 h-5" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
+              <Share2 className="w-4 h-4" />
             </div>
-            <span className="text-xs font-bold text-white drop-shadow-md">
+            <span className="text-[11px] font-bold text-white drop-shadow-md">
               Share
             </span>
           </button>
@@ -1335,10 +1335,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={toggleMute}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? <VolumeX className="w-5 h-5 text-neutral-300" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
+            {isMuted ? <VolumeX className="w-4 h-4 text-neutral-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
         </div>
 
@@ -1401,7 +1401,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           return (
             <div 
               className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
-              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 112px)' : 'calc(env(safe-area-inset-bottom, 0px) + 52px)' }}
+              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 100px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 48px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2 pointer-events-auto">
@@ -1524,7 +1524,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div 
           onClick={handlePlaylineClick}
           className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 80px)' : 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 74px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 18px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
