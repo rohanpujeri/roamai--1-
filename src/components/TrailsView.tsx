@@ -923,10 +923,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     );
   }
 
+  const hasBottomNav = !customTrails && !showBackButton;
+
   return (
     <div 
       onWheel={handleWheel}
-      className="relative w-full h-full max-h-full bg-black overflow-hidden flex items-center justify-center select-none"
+      className="relative w-full h-full max-h-full bg-black overflow-hidden flex flex-col justify-start select-none"
     >
       {/* Background Ambience (Blurred Video Frame) */}
       <div 
@@ -1090,7 +1092,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             lastTapRef.current = now;
             togglePlay();
           }}
-          className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group"
+          className="relative w-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group shrink-0"
+          style={{
+            height: hasBottomNav
+              ? 'calc(100% - env(safe-area-inset-bottom, 0px) - 64px)'
+              : '100%'
+          }}
         >
           {/* Instagram Double-Tap Heart Burst Animation */}
           {showHeartBurst && (
@@ -1136,7 +1143,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               <img
                 src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                 alt={activeReel.caption}
-                className="w-full h-full object-contain select-none"
+                className="w-full h-full object-cover select-none sm:object-contain"
               />
             ) : (
               <video
@@ -1150,7 +1157,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 autoPlay={isActive && !showUploadModal && !showLikesModal}
                 preload={isActive ? 'auto' : 'none'}
                 muted={isMuted}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover sm:object-contain"
                 onPlay={() => {
                   if (!isActive || showUploadModal || showLikesModal) {
                     videoRef.current?.pause();
@@ -1227,7 +1234,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
           className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2.5 sm:gap-3.5 pointer-events-auto"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 98px)' }}
+          style={{ bottom: hasBottomNav ? '28px' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-1 group/btn">
@@ -1375,7 +1382,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           return (
             <div 
               className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-2 pointer-events-none max-w-xl"
-              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 98px)' }}
+              style={{ bottom: hasBottomNav ? '28px' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2.5 pointer-events-auto">
@@ -1498,7 +1505,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div 
           onClick={handlePlaylineClick}
           className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3.5 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 82px)' }}
+          style={{ bottom: hasBottomNav ? '8px' : 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
