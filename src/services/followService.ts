@@ -93,10 +93,14 @@ export function getLocalFollowRelationships(): FollowRelationship[] {
 /**
  * Save relationships locally, sync legacy key, and broadcast events
  */
-function saveLocalFollowRelationships(relationships: FollowRelationship[], currentUserId?: string, currentUsername?: string) {
+function saveLocalFollowRelationships(relationships: FollowRelationship[], currentUserId?: string, currentUsername?: string, shouldBroadcast = true) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_RELATIONSHIPS, JSON.stringify(relationships));
+    const prevRaw = localStorage.getItem(STORAGE_KEY_RELATIONSHIPS);
+    const nextRaw = JSON.stringify(relationships);
+    const hasChanged = prevRaw !== nextRaw;
+
+    localStorage.setItem(STORAGE_KEY_RELATIONSHIPS, nextRaw);
 
     // Update legacy following users set
     const cUname = currentUsername ? cleanHandle(currentUsername) : '';
@@ -133,33 +137,40 @@ function saveLocalFollowRelationships(relationships: FollowRelationship[], curre
       }
     }
 
-    // Broadcast global events for instant reactivity across all views
-    window.dispatchEvent(new Event('storage'));
-    window.dispatchEvent(new CustomEvent('roamai_follow_changed', { 
-      detail: { 
-        totalRelationships: relationships.length 
-      } 
-    }));
+    // Broadcast global events ONLY if data has actually changed to prevent infinite loops
+    if (hasChanged && shouldBroadcast) {
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('roamai_follow_changed', { 
+        detail: { 
+          totalRelationships: relationships.length 
+        } 
+      }));
+    }
   } catch (e) {
     console.warn('Failed to save follow relationships:', e);
   }
 }
+
+let inFlightSyncPromise: Promise<void> | null = null;
 
 /**
  * Sync follows from backend server API and Supabase database, merging with local storage
  */
 export async function syncFollowsFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
-  try {
-    const localRels = getLocalFollowRelationships();
-    const relsMap = new Map<string, FollowRelationship>();
+  if (inFlightSyncPromise) return inFlightSyncPromise;
 
-    localRels.forEach((r) => {
-      const key = makeRelKey(r.followerUsername, r.followingUsername);
-      if (key && key !== '->' && !isFakeMockUser(r.followerUsername) && !isFakeMockUser(r.followingUsername)) {
-        relsMap.set(key, r);
-      }
-    });
+  inFlightSyncPromise = (async () => {
+    try {
+      const localRels = getLocalFollowRelationships();
+      const relsMap = new Map<string, FollowRelationship>();
+
+      localRels.forEach((r) => {
+        const key = makeRelKey(r.followerUsername, r.followingUsername);
+        if (key && key !== '->' && !isFakeMockUser(r.followerUsername) && !isFakeMockUser(r.followingUsername)) {
+          relsMap.set(key, r);
+        }
+      });
 
     // 1. If Supabase is connected, treat Supabase follows as the single source of truth
     const supabase = getSupabaseClient();
@@ -262,7 +273,12 @@ export async function syncFollowsFromServer(): Promise<void> {
     }
   } catch (err) {
     console.warn('Sync follows error:', err);
+  } finally {
+    inFlightSyncPromise = null;
   }
+  })();
+
+  return inFlightSyncPromise;
 }
 
 // Initial sync and listener for tab focus
@@ -415,6 +431,68 @@ export function getMutualFollowers(
 }
 
 /**
+ * Synchronous local retrieval of followers for immediate instant UI display
+ */
+export function getFollowersSync(
+  target: string | { id?: string; username?: string },
+  currentViewer?: string | { id?: string; username?: string }
+): FollowUserProfile[] {
+  if (!target) return [];
+  const targetId = typeof target === 'string' ? target : target.id;
+  const targetUsername = typeof target === 'string' ? target : target.username;
+  const tClean = cleanHandle(targetUsername || targetId || '');
+  const tCleanNoUnderscore = tClean.replace(/_/g, '');
+  const cleanTargetId = targetId ? targetId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  const viewerId = typeof currentViewer === 'string' ? currentViewer : currentViewer?.id;
+  const viewerUsername = typeof currentViewer === 'string' ? currentViewer : currentViewer?.username;
+  const vClean = cleanHandle(viewerUsername || viewerId || '');
+
+  const rels = getLocalFollowRelationships();
+
+  const followerRels = rels.filter((rel) => {
+    const followingUname = cleanHandle(rel.followingUsername);
+    const followingUnameNoUnderscore = followingUname.replace(/_/g, '');
+    const followerUname = cleanHandle(rel.followerUsername);
+    const cleanRelFollowingId = rel.followingId ? rel.followingId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+    if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
+    if (isSelfRel(rel.followerId, rel.followerUsername, rel.followingId, rel.followingUsername)) return false;
+    return (
+      (targetId && (rel.followingId === targetId || (cleanTargetId && cleanRelFollowingId === cleanTargetId))) ||
+      (tClean && followingUname === tClean) ||
+      (tCleanNoUnderscore && followingUnameNoUnderscore === tCleanNoUnderscore)
+    );
+  });
+
+  const results: FollowUserProfile[] = [];
+  const seen = new Set<string>();
+
+  followerRels.forEach((rel) => {
+    const fUname = cleanHandle(rel.followerUsername);
+    const key = fUname || rel.followerId;
+    if (!key || seen.has(key) || isFakeMockUser(fUname)) return;
+    seen.add(key);
+
+    const isF = vClean ? isUserFollowing(viewerUsername || viewerId || '', rel.followerId || fUname) : false;
+    const followsViewer = vClean ? isUserFollowing(rel.followerId || fUname, viewerUsername || viewerId || '') : false;
+
+    results.push({
+      id: rel.followerId || `user_${fUname}`,
+      username: rel.followerUsername.startsWith('@') ? rel.followerUsername : `@${rel.followerUsername}`,
+      name: rel.followerName || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
+      avatarUrl: sanitizeAvatarUrl(rel.followerAvatar || ''),
+      bio: '',
+      location: '',
+      isFollowing: isF,
+      followsYou: followsViewer
+    });
+  });
+
+  return results;
+}
+
+/**
  * Get list of all profiles following the given user
  */
 export async function getFollowers(
@@ -486,6 +564,68 @@ export async function getFollowers(
       name: enriched?.name || rel.followerName || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followerAvatar || ''),
       bio: enriched?.bio || '',
+      location: '',
+      isFollowing: isF,
+      followsYou: followsViewer
+    });
+  });
+
+  return results;
+}
+
+/**
+ * Synchronous local retrieval of following list for immediate instant UI display
+ */
+export function getFollowingSync(
+  user: string | { id?: string; username?: string },
+  currentViewer?: string | { id?: string; username?: string }
+): FollowUserProfile[] {
+  if (!user) return [];
+  const userId = typeof user === 'string' ? user : user.id;
+  const userUsername = typeof user === 'string' ? user : user.username;
+  const uClean = cleanHandle(userUsername || userId || '');
+  const uCleanNoUnderscore = uClean.replace(/_/g, '');
+  const cleanUserId = userId ? userId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+  const viewerId = typeof currentViewer === 'string' ? currentViewer : currentViewer?.id;
+  const viewerUsername = typeof currentViewer === 'string' ? currentViewer : currentViewer?.username;
+  const vClean = cleanHandle(viewerUsername || viewerId || '');
+
+  const rels = getLocalFollowRelationships();
+
+  const followingRels = rels.filter((rel) => {
+    const followerUname = cleanHandle(rel.followerUsername);
+    const followerUnameNoUnderscore = followerUname.replace(/_/g, '');
+    const followingUname = cleanHandle(rel.followingUsername);
+    const cleanRelFollowerId = rel.followerId ? rel.followerId.replace(/^supa_/, '').replace(/^user_/, '') : '';
+
+    if (isFakeMockUser(followerUname) || isFakeMockUser(followingUname)) return false;
+    if (isSelfRel(rel.followerId, rel.followerUsername, rel.followingId, rel.followingUsername)) return false;
+    return (
+      (userId && (rel.followerId === userId || (cleanUserId && cleanRelFollowerId === cleanUserId))) ||
+      (uClean && followerUname === uClean) ||
+      (uCleanNoUnderscore && followerUnameNoUnderscore === uCleanNoUnderscore)
+    );
+  });
+
+  const results: FollowUserProfile[] = [];
+  const seen = new Set<string>();
+
+  followingRels.forEach((rel) => {
+    const tUname = cleanHandle(rel.followingUsername);
+    const key = tUname || rel.followingId;
+    if (!key || seen.has(key) || isFakeMockUser(tUname)) return;
+    seen.add(key);
+
+    const isF = vClean ? isUserFollowing(viewerUsername || viewerId || '', rel.followingId || tUname) : false;
+    const followsViewer = vClean ? isUserFollowing(rel.followingId || tUname, viewerUsername || viewerId || '') : false;
+
+    results.push({
+      id: rel.followingId || `user_${tUname}`,
+      username: rel.followingUsername.startsWith('@') ? rel.followingUsername : `@${rel.followingUsername}`,
+      name: rel.followingName || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
+      avatarUrl: sanitizeAvatarUrl(rel.followingAvatar || ''),
+      bio: '',
       location: '',
       isFollowing: isF,
       followsYou: followsViewer

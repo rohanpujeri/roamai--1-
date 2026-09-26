@@ -17,6 +17,8 @@ import {
 import { 
   getFollowers, 
   getFollowing, 
+  getFollowersSync,
+  getFollowingSync,
   followUser,
   unfollowUser,
   toggleFollowUser,
@@ -62,7 +64,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [followersList, setFollowersList] = useState<EnrichedFollowUser[]>([]);
   const [followingList, setFollowingList] = useState<EnrichedFollowUser[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [sortOrder, setSortOrder] = useState<'Default' | 'Latest' | 'Earliest'>('Default');
   
   // Instagram Dialog States
@@ -101,15 +103,53 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     setTimeout(() => setToastMessage(null), 2400);
   };
 
+  // Stable primitives for dependencies
+  const targetId = profileUser?.id;
+  const targetUsername = profileUser?.username;
+  const targetName = profileUser?.name;
+  const targetAvatar = profileUser?.avatarUrl;
+
+  const viewerId = currentUser?.id;
+  const viewerUsername = currentUser?.username;
+  const viewerName = currentUser?.name;
+  const viewerAvatar = currentUser?.avatarUrl;
+
   // Load followers & following
-  const loadData = useCallback(async () => {
-    if (!profileUser?.username && !profileUser?.id) return;
-    setIsLoading(true);
+  const loadData = useCallback(async (isSilent = false) => {
+    if (!targetUsername && !targetId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const pUser = {
+      id: targetId,
+      username: targetUsername || '',
+      name: targetName,
+      avatarUrl: targetAvatar
+    };
+    const cUser = viewerUsername || viewerId ? {
+      id: viewerId,
+      username: viewerUsername || '',
+      name: viewerName,
+      avatarUrl: viewerAvatar
+    } : undefined;
+
+    // 1. Instant synchronous render from local storage
+    const localFollowers = getFollowersSync(pUser, cUser);
+    const localFollowing = getFollowingSync(pUser, cUser);
+
+    if (localFollowers.length > 0 || localFollowing.length > 0) {
+      setFollowersList(localFollowers);
+      setFollowingList(localFollowing);
+      setIsLoading(false);
+    } else if (!isSilent) {
+      setIsLoading(true);
+    }
 
     try {
       const [followers, following] = await Promise.all([
-        getFollowers(profileUser, currentUser || undefined),
-        getFollowing(profileUser, currentUser || undefined)
+        getFollowers(pUser, cUser),
+        getFollowing(pUser, cUser)
       ]);
 
       setFollowersList(followers.filter((u) => !isFakeMockUser(u.username)));
@@ -119,19 +159,29 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [profileUser, currentUser]);
+  }, [targetId, targetUsername, targetName, targetAvatar, viewerId, viewerUsername, viewerName, viewerAvatar]);
 
+  // Initial load when opened
   useEffect(() => {
     if (isOpen) {
-      loadData();
+      loadData(false);
     }
   }, [isOpen, loadData]);
 
-  // Listen for global follow changes to keep items updated in real time
+  // Safety fallback: Never keep spinning for more than 2.5s
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  // Listen for global follow changes to keep items updated in real time (silent update)
   useEffect(() => {
     if (!isOpen) return;
     const handleFollowChanged = () => {
-      loadData();
+      loadData(true);
     };
     window.addEventListener('roamai_follow_changed', handleFollowChanged);
     return () => {

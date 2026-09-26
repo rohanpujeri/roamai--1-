@@ -146,6 +146,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
   const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
 
+  const followModalViewingUser = useMemo(() => ({
+    id: viewingProfile?.id,
+    username: viewingProfile?.username || '',
+    name: viewingProfile?.name,
+    avatarUrl: viewingProfile?.avatarUrl
+  }), [viewingProfile?.id, viewingProfile?.username, viewingProfile?.name, viewingProfile?.avatarUrl]);
+
   // Listen for navigation event to open a traveller's profile
   useEffect(() => {
     const handleViewTraveller = (e: any) => {
@@ -1277,12 +1284,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           isOpen={isFollowModalOpen}
           onClose={() => setIsFollowModalOpen(false)}
           initialTab={followModalTab}
-          profileUser={{
-            id: viewingProfile.id,
-            username: viewingProfile.username,
-            name: viewingProfile.name,
-            avatarUrl: viewingProfile.avatarUrl
-          }}
+          profileUser={followModalViewingUser}
           currentUser={currentUserProfile}
           onSelectUser={(selectedUser) => {
             setIsFollowModalOpen(false);

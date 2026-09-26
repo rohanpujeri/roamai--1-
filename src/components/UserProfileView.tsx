@@ -732,6 +732,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const headerFileInputRef = useRef<HTMLInputElement | null>(null);
   const modalFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const followModalUser = React.useMemo(() => ({
+    id: user?.id,
+    username: profile.username || getFallbackUsername(user, userMeta),
+    name: profile.name || getFallbackName(user, userMeta),
+    avatarUrl: profile.avatarUrl
+  }), [user?.id, profile.username, profile.name, profile.avatarUrl, userMeta?.username, userMeta?.name, userMeta?.full_name]);
+
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
@@ -2669,18 +2676,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         isOpen={isFollowModalOpen}
         onClose={() => setIsFollowModalOpen(false)}
         initialTab={followModalTab}
-        profileUser={{
-          id: user?.id,
-          username: profile.username || getFallbackUsername(user, userMeta),
-          name: profile.name || getFallbackName(user, userMeta),
-          avatarUrl: profile.avatarUrl
-        }}
-        currentUser={{
-          id: user?.id,
-          username: profile.username || getFallbackUsername(user, userMeta),
-          name: profile.name || getFallbackName(user, userMeta),
-          avatarUrl: profile.avatarUrl
-        }}
+        profileUser={followModalUser}
+        currentUser={followModalUser}
         onSelectUser={(selectedUser) => {
           setIsFollowModalOpen(false);
           window.dispatchEvent(
