@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   MapPin, 
@@ -525,6 +526,65 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
   // Backwards compatible toggleFollow
   const toggleFollow = handleFollowAction;
+
+  // Instagram Unfollow Confirmation Dialog (Portaled to document.body)
+  const renderUnfollowDialog = () => {
+    if (!unfollowConfirmUser || typeof document === 'undefined') return null;
+    return createPortal(
+      <div 
+        className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        onClick={() => setUnfollowConfirmUser(null)}
+      >
+        <div 
+          className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            {unfollowConfirmUser.avatarUrl ? (
+              <img
+                src={unfollowConfirmUser.avatarUrl}
+                alt={unfollowConfirmUser.username}
+                className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                {unfollowConfirmUser.name?.charAt(0).toUpperCase() || unfollowConfirmUser.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
+              </div>
+            )}
+            <h3 className="text-base font-bold text-white leading-tight">
+              Unfollow @{unfollowConfirmUser.username.replace(/^@/, '')}?
+            </h3>
+            <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+              Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (unfollowConfirmUser) {
+                executeUnfollow(unfollowConfirmUser);
+                setUnfollowConfirmUser(null);
+              }
+            }}
+            className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
+          >
+            Unfollow
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUnfollowConfirmUser(null)}
+            className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  };
 
   // Global user trails list synced across all profiles
   const [globalTrailsList, setGlobalTrailsList] = useState<any[]>(() => getLocalTrails());
@@ -1344,6 +1404,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             } catch {}
           }}
         />
+        {renderUnfollowDialog()}
       </div>
     );
   }
@@ -1838,59 +1899,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       )}
 
       {/* Instagram Unfollow Confirmation Dialog */}
-      {unfollowConfirmUser && (
-        <div 
-          className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setUnfollowConfirmUser(null)}
-        >
-          <div 
-            className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
-              {unfollowConfirmUser.avatarUrl ? (
-                <img
-                  src={unfollowConfirmUser.avatarUrl}
-                  alt={unfollowConfirmUser.username}
-                  className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-                  {unfollowConfirmUser.name?.charAt(0).toUpperCase() || unfollowConfirmUser.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
-                </div>
-              )}
-              <h3 className="text-base font-bold text-white leading-tight">
-                Unfollow @{unfollowConfirmUser.username.replace(/^@/, '')}?
-              </h3>
-              <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (unfollowConfirmUser) {
-                  executeUnfollow(unfollowConfirmUser);
-                  setUnfollowConfirmUser(null);
-                }
-              }}
-              className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
-            >
-              Unfollow
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setUnfollowConfirmUser(null)}
-              className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {renderUnfollowDialog()}
 
       {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER --- */}
       {activeReelTrailId && (

@@ -792,12 +792,23 @@ export async function unfollowUser(
   const fId = currentUser.id || `user_${fUname}`;
   const tId = targetUser.id || `user_${tUname}`;
 
+  const cleanFId = fId.replace(/^supa_/, '');
+  const cleanTId = tId.replace(/^supa_/, '');
+
   const currentRels = getLocalFollowRelationships();
   const nextRels = currentRels.filter((rel) => {
     const rFollowerU = cleanHandle(rel.followerUsername);
     const rTargetU = cleanHandle(rel.followingUsername);
-    const matchF = rel.followerId === fId || rFollowerU === fUname;
-    const matchT = rel.followingId === tId || rTargetU === tUname;
+    const matchF = 
+      rel.followerId === fId || 
+      rel.followerId === cleanFId ||
+      rFollowerU === fUname || 
+      rFollowerU.replace(/_/g, '') === fUname.replace(/_/g, '');
+    const matchT = 
+      rel.followingId === tId || 
+      rel.followingId === cleanTId ||
+      rTargetU === tUname || 
+      rTargetU.replace(/_/g, '') === tUname.replace(/_/g, '');
     return !(matchF && matchT);
   });
 
@@ -816,6 +827,10 @@ export async function unfollowUser(
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
+      await supabase.from('follows').delete().match({
+        follower_id: cleanFId,
+        following_id: cleanTId
+      });
       await supabase.from('follows').delete().match({
         follower_id: fId,
         following_id: tId
