@@ -67,6 +67,8 @@ export function sanitizeTrail(t: any): TrailReel {
     comments: Array.isArray(t.comments) ? t.comments : [],
     likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
     creator,
+    aspectRatio: t.aspectRatio || 'original',
+    fitMode: t.fitMode || (t.aspectRatio && t.aspectRatio !== 'original' ? 'cover' : 'contain'),
   };
 }
 
@@ -107,6 +109,8 @@ export interface TrailReel {
   comments?: TrailComment[];
   likedBy?: TrailLiker[];
   createdAt?: string;
+  aspectRatio?: 'original' | '9:16' | '1:1' | '4:5' | '16:9';
+  fitMode?: 'contain' | 'cover';
 }
 
 const LOCAL_STORAGE_KEY = 'roamai_user_trails';

@@ -27,7 +27,8 @@ import {
   UserPlus,
   Camera,
   Sparkles,
-  Compass
+  Compass,
+  Crop
 } from 'lucide-react';
 import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
@@ -365,6 +366,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isTrailLocationModalOpen, setIsTrailLocationModalOpen] = useState<boolean>(false);
   const [uploadLocationError, setUploadLocationError] = useState<string | null>(null);
+  const [uploadAspectRatio, setUploadAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
+  const [uploadFitMode, setUploadFitMode] = useState<'contain' | 'cover'>('contain');
   const [slideState, setSlideState] = useState<'idle' | 'sliding-up' | 'sliding-down'>('idle');
   const slideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -790,6 +793,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setIsPreviewPlaying(false);
     setIsTrailLocationModalOpen(false);
     setUploadLocationError(null);
+    setUploadAspectRatio('original');
+    setUploadFitMode('contain');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -858,7 +863,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       viewsCount: 0,
       isLiked: false,
       likedBy: [],
-      comments: []
+      comments: [],
+      aspectRatio: uploadAspectRatio,
+      fitMode: uploadFitMode
     };
 
     // 3. Publish to global server and Supabase so anyone / other profiles can view it immediately
@@ -1139,44 +1146,54 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               willChange: 'transform, opacity'
             }}
           >
-            {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
-              <img
-                src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
-                alt={activeReel.caption}
-                className="w-full h-full object-cover select-none sm:object-contain"
-              />
-            ) : (
-              <video
-                ref={videoRef}
-                key={activeMediaUrl}
-                src={activeMediaUrl}
-                poster={activeReel.posterUrl}
-                playsInline
-                webkit-playsinline="true"
-                loop
-                autoPlay={isActive && !showUploadModal && !showLikesModal}
-                preload={isActive ? 'auto' : 'none'}
-                muted={isMuted}
-                className="w-full h-full object-cover sm:object-contain"
-                onPlay={() => {
-                  if (!isActive || showUploadModal || showLikesModal) {
-                    videoRef.current?.pause();
-                    setIsPlaying(false);
-                    return;
-                  }
-                  setIsPlaying(true);
-                }}
-                onPause={() => setIsPlaying(false)}
-                onError={() => {
-                  setActiveMediaError(true);
-                }}
-                onTimeUpdate={() => {
-                  if (videoRef.current && videoRef.current.duration) {
-                    setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-                  }
-                }}
-              />
-            )}
+            {(() => {
+              const reelAspect = activeReel?.aspectRatio;
+              const reelFit = activeReel?.fitMode || (reelAspect && reelAspect !== 'original' ? 'cover' : 'contain');
+              const isCustomAspect = Boolean(reelAspect && reelAspect !== 'original');
+              const aspectClass = isCustomAspect
+                ? (reelAspect === '9:16' ? 'aspect-[9/16]' : reelAspect === '1:1' ? 'aspect-square' : reelAspect === '4:5' ? 'aspect-[4/5]' : 'aspect-[16/9]')
+                : '';
+              const objectClass = isCustomAspect && reelFit === 'cover' ? 'object-cover' : 'object-contain';
+
+              return activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
+                <img
+                  src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
+                  alt={activeReel.caption}
+                  className={`${aspectClass} ${objectClass} ${isCustomAspect ? 'max-h-full max-w-full' : 'w-full h-full'} select-none`}
+                />
+              ) : (
+                <video
+                  ref={videoRef}
+                  key={activeMediaUrl}
+                  src={activeMediaUrl}
+                  poster={activeReel.posterUrl}
+                  playsInline
+                  webkit-playsinline="true"
+                  loop
+                  autoPlay={isActive && !showUploadModal && !showLikesModal}
+                  preload={isActive ? 'auto' : 'none'}
+                  muted={isMuted}
+                  className={`${aspectClass} ${objectClass} ${isCustomAspect ? 'max-h-full max-w-full' : 'w-full h-full'}`}
+                  onPlay={() => {
+                    if (!isActive || showUploadModal || showLikesModal) {
+                      videoRef.current?.pause();
+                      setIsPlaying(false);
+                      return;
+                    }
+                    setIsPlaying(true);
+                  }}
+                  onPause={() => setIsPlaying(false)}
+                  onError={() => {
+                    setActiveMediaError(true);
+                  }}
+                  onTimeUpdate={() => {
+                    if (videoRef.current && videoRef.current.duration) {
+                      setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                    }
+                  }}
+                />
+              );
+            })()}
           </div>
 
           {/* Recovery overlay if old session clip expired */}
@@ -1234,7 +1251,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
           className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-2.5 sm:gap-3.5 pointer-events-auto"
-          style={{ bottom: hasBottomNav ? '28px' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 94px)' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-1 group/btn">
@@ -1382,7 +1399,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           return (
             <div 
               className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-2 pointer-events-none max-w-xl"
-              style={{ bottom: hasBottomNav ? '28px' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
+              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 94px)' : 'calc(env(safe-area-inset-bottom, 0px) + 36px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2.5 pointer-events-auto">
@@ -1505,7 +1522,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         <div 
           onClick={handlePlaylineClick}
           className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3.5 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: hasBottomNav ? '8px' : 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
+          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 78px)' : 'calc(env(safe-area-inset-bottom, 0px) + 18px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
@@ -1773,8 +1790,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
                 {/* Scrollable Form Body */}
                 <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
-                  {/* Centered Preview Card sticking to original aspect ratio */}
-                  <div className="relative w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px] mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center group">
+                  {/* Centered Preview Card with dynamic aspect ratio */}
+                  <div 
+                    className={`relative mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center group transition-all duration-300 ${
+                      uploadAspectRatio === '9:16'
+                        ? 'aspect-[9/16] w-full max-w-[230px] sm:max-w-[250px]'
+                        : uploadAspectRatio === '1:1'
+                        ? 'aspect-square w-full max-w-[270px] sm:max-w-[290px]'
+                        : uploadAspectRatio === '4:5'
+                        ? 'aspect-[4/5] w-full max-w-[250px] sm:max-w-[270px]'
+                        : uploadAspectRatio === '16:9'
+                        ? 'aspect-[16/9] w-full max-w-[340px] sm:max-w-[370px]'
+                        : 'w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px]'
+                    }`}
+                  >
                     {uploadVideoFile?.type.startsWith('image/') ? (
                       <>
                         <img
@@ -1786,7 +1815,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         <img
                           src={uploadPosterPreview || uploadVideoPreview}
                           alt="Trail preview"
-                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                          className={`relative z-10 max-h-[380px] mx-auto ${
+                            uploadAspectRatio === 'original'
+                              ? 'w-auto max-w-full object-contain'
+                              : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
+                          }`}
                         />
                       </>
                     ) : (
@@ -1806,7 +1839,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                           loop
                           autoPlay={isPreviewPlaying}
                           muted
-                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                          className={`relative z-10 max-h-[380px] mx-auto ${
+                            uploadAspectRatio === 'original'
+                              ? 'w-auto max-w-full object-contain'
+                              : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
+                          }`}
                         />
                       </>
                     )}
@@ -1815,7 +1852,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
-                      className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5"
+                      className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5 z-20"
                     >
                       {isPreviewPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
                       <span>Preview</span>
@@ -1829,10 +1866,59 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         e.stopPropagation();
                         setIsEditCoverModalOpen(true);
                       }}
-                      className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95"
+                      className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 z-20"
                     >
                       Edit cover
                     </button>
+                  </div>
+
+                  {/* Aspect Ratio & Framing Controls */}
+                  <div className="bg-[#141419] border border-white/10 rounded-2xl p-3 space-y-2.5 max-w-md mx-auto w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Crop className="w-3.5 h-3.5 text-emerald-400" />
+                        Video Ratio
+                      </span>
+                      {uploadAspectRatio !== 'original' && (
+                        <button
+                          type="button"
+                          onClick={() => setUploadFitMode(uploadFitMode === 'cover' ? 'contain' : 'cover')}
+                          className="text-[11px] font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Toggle between fill (crop) and fit (original letterbox)"
+                        >
+                          <span>Mode:</span>
+                          <span className="text-emerald-400 font-bold">{uploadFitMode === 'cover' ? 'Fill (Crop)' : 'Fit (Original)'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { id: 'original', label: 'Original', sub: 'Natural' },
+                        { id: '9:16', label: '9:16', sub: 'Reels' },
+                        { id: '1:1', label: '1:1', sub: 'Square' },
+                        { id: '4:5', label: '4:5', sub: 'Portrait' },
+                        { id: '16:9', label: '16:9', sub: 'Wide' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
+                            setUploadAspectRatio(next);
+                            if (next === 'original') setUploadFitMode('contain');
+                          }}
+                          className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            uploadAspectRatio === item.id
+                              ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-950/40 scale-[1.02]'
+                              : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
+                          }`}
+                        >
+                          <span className="text-xs">{item.label}</span>
+                          <span className={`text-[9px] ${uploadAspectRatio === item.id ? 'text-emerald-100' : 'text-zinc-500'}`}>{item.sub}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Caption Input: "Add a caption..." */}
