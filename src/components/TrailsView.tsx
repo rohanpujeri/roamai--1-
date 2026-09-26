@@ -1136,7 +1136,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               <img
                 src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
                 alt={activeReel.caption}
-                className="w-full h-full object-cover sm:object-contain select-none"
+                className="w-full h-full object-contain select-none"
               />
             ) : (
               <video
@@ -1150,7 +1150,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 autoPlay={isActive && !showUploadModal && !showLikesModal}
                 preload={isActive ? 'auto' : 'none'}
                 muted={isMuted}
-                className="w-full h-full object-cover sm:object-contain"
+                className="w-full h-full object-contain"
                 onPlay={() => {
                   if (!isActive || showUploadModal || showLikesModal) {
                     videoRef.current?.pause();
