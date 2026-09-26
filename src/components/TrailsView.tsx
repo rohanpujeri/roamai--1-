@@ -1150,8 +1150,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             {(() => {
               const reelAspect = activeReel?.aspectRatio;
               const reelFit = activeReel?.fitMode;
-              // Full screen trail is only applicable to 16:9 / 9:16 ratio videos; all other aspects stay original and fill black screen
-              const is16by9 = reelAspect === '16:9' || reelAspect === '9:16';
+              // Full screen trail is strictly only applicable to 16:9 ratio videos; all other aspects stay original and fill black screen
+              const is16by9 = reelAspect === '16:9';
               const shouldCover = is16by9 && reelFit !== 'contain';
               const isContain = !shouldCover;
 

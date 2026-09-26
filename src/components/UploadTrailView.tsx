@@ -428,7 +428,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     onClick={() => {
                       const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
                       setAspectRatio(next);
-                      setFitMode((next === '16:9' || next === '9:16') ? 'cover' : 'contain');
+                      setFitMode(next === '16:9' ? 'cover' : 'contain');
                     }}
                     className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
                       aspectRatio === item.id
