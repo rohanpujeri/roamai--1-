@@ -1117,6 +1117,21 @@ export default function App() {
     }
   }, [currentView]);
 
+  // Synchronize mobile status bar theme-color and background seamlessly
+  useEffect(() => {
+    let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!themeMeta) {
+      themeMeta = document.createElement('meta');
+      themeMeta.name = 'theme-color';
+      document.head.appendChild(themeMeta);
+    }
+    const isDarkView = currentView === 'trails' || currentView === 'upload_trail' || currentView === 'profile' || isNoThemeBgView;
+    const targetBg = isDarkView ? '#000000' : (currentTheme?.isDark ? '#09090b' : (currentTheme?.canvasBg || '#000000'));
+    themeMeta.content = targetBg;
+    document.documentElement.style.backgroundColor = targetBg;
+    document.body.style.backgroundColor = targetBg;
+  }, [currentView, currentTheme, isNoThemeBgView]);
+
   // Navigate to traveller profile or user profile via global event
   useEffect(() => {
     const handleViewTraveller = () => {

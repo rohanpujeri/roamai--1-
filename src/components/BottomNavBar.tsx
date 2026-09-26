@@ -30,8 +30,14 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 
   return (
     <div 
-      style={{ transform: 'translate3d(-50%, 0, 0)', willChange: 'transform' }}
-      className={`fixed ${currentView === 'trails' ? 'bottom-2 sm:bottom-3' : 'bottom-4 sm:bottom-6'} left-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-[bottom,padding] duration-200 ease-out`}
+      style={{ 
+        transform: 'translate3d(-50%, 0, 0)', 
+        willChange: 'transform',
+        bottom: currentView === 'trails'
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 8px)'
+          : 'calc(env(safe-area-inset-bottom, 0px) + 16px)'
+      }}
+      className="fixed left-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-[bottom,padding] duration-200 ease-out"
     >
       <nav 
         aria-label="Quick Navigation"
