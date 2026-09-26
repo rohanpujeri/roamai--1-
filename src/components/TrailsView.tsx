@@ -1148,12 +1148,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }}
           >
             {(() => {
-              const reelAspect = activeReel?.aspectRatio;
               const reelFit = activeReel?.fitMode;
-              // Cover full screen only if ratio is 16:9 (or 9:16 reels ratio)
-              const is16by9 = reelAspect === '16:9' || reelAspect === '9:16';
-              const shouldCover = is16by9 && reelFit !== 'contain';
-              const isContain = !shouldCover;
+              // Reels standard: Cover entire viewport from status bar to bottom nav unless creator explicitly chose contain
+              const isContain = reelFit === 'contain';
 
               return activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
                 <img
