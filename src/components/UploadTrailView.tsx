@@ -49,7 +49,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
-  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('cover');
+  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -120,7 +120,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     setPosterPreview('');
     setIsPreviewPlaying(false);
     setAspectRatio('original');
-    setFitMode('cover');
+    setFitMode('contain');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (coverInputRef.current) coverInputRef.current.value = '';
   };
@@ -428,6 +428,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                     onClick={() => {
                       const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
                       setAspectRatio(next);
+                      setFitMode((next === '16:9' || next === '9:16') ? 'cover' : 'contain');
                     }}
                     className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
                       aspectRatio === item.id
