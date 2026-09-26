@@ -919,6 +919,12 @@ export default function App() {
 
   const isBottomNavView = BOTTOM_NAV_ORDER.includes(currentView as any);
 
+  const isNoThemeBgView = 
+    currentView === 'trails' || 
+    currentView === 'profile' || 
+    currentView === 'travellers_search' ||
+    currentView === 'upload_trail';
+
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
   const programmaticScrollTimer = useRef<any>(null);
@@ -1165,12 +1171,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentView, isBottomNavView]);
-
-  const isNoThemeBgView = 
-    currentView === 'trails' || 
-    currentView === 'profile' || 
-    currentView === 'travellers_search' ||
-    currentView === 'upload_trail';
 
   const renderNonBottomNavView = () => {
     switch (currentView) {
