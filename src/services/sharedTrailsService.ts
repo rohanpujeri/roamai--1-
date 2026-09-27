@@ -403,139 +403,179 @@ export async function saveStorageTrailsIndex(trails: TrailReel[]): Promise<boole
   }
 }
 
+// In-memory cache & request deduplication for instant response
+let cachedGlobalTrails: TrailReel[] | null = null;
+let lastGlobalTrailsFetchTime = 0;
+let inFlightGlobalTrailsPromise: Promise<TrailReel[]> | null = null;
+const GLOBAL_TRAILS_CACHE_TTL = 30000; // 30 seconds fresh cache
+
+export function invalidateGlobalTrailsCache(): void {
+  cachedGlobalTrails = null;
+  lastGlobalTrailsFetchTime = 0;
+}
+
 /**
  * Fetch all shared trails globally from Supabase and the backend API,
  * merging with local cache so all profiles see everyone's trails in real time.
  */
-export async function fetchGlobalTrails(): Promise<TrailReel[]> {
-  const deletedIds = new Set(getDeletedTrailIds());
-  const localList = getLocalTrails();
-  const trailMap = new Map<string, TrailReel>();
+export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel[]> {
+  const now = Date.now();
+  if (!forceRefresh && cachedGlobalTrails && cachedGlobalTrails.length > 0 && (now - lastGlobalTrailsFetchTime < GLOBAL_TRAILS_CACHE_TTL)) {
+    return cachedGlobalTrails;
+  }
 
-  // 1. Primary: Fetch from Supabase Storage global registry index
-  try {
-    const storageTrails = await fetchStorageTrailsIndex();
-    storageTrails.forEach((t) => {
-      if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
-        trailMap.set(t.id, t);
+  if (inFlightGlobalTrailsPromise) {
+    return inFlightGlobalTrailsPromise;
+  }
+
+  inFlightGlobalTrailsPromise = (async () => {
+    const deletedIds = new Set(getDeletedTrailIds());
+    const localList = getLocalTrails();
+    const trailMap = new Map<string, TrailReel>();
+
+    // 1. Immediately seed with existing local trails so UI is never blocked or empty
+    localList.forEach((t) => {
+      if (t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
+        trailMap.set(t.id, sanitizeTrail(t));
       }
     });
-  } catch (err) {
-    console.warn('[sharedTrailsService] storage index fetch:', err);
-  }
 
-  // 2. Fetch from Supabase public.trails table
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('trails')
-        .select('*')
-        .order('created_at', { ascending: false });
+    // 2. Fetch remote sources concurrently in parallel
+    const [storageResult, supabaseResult, serverResult, profilesResult] = await Promise.allSettled([
+      // Storage registry index
+      fetchStorageTrailsIndex(),
+      // Supabase public.trails table
+      (async () => {
+        const supabase = getSupabaseClient();
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('trails')
+          .select('*')
+          .order('created_at', { ascending: false });
+        return (!error && Array.isArray(data)) ? data : [];
+      })(),
+      // Backend Express server API
+      (async () => {
+        try {
+          const res = await fetch('/api/trails');
+          if (res.ok) {
+            const data = await res.json();
+            return Array.isArray(data.trails) ? data.trails : [];
+          }
+        } catch {}
+        return [];
+      })(),
+      // Live user profiles
+      (async () => {
+        try {
+          const supabase = getSupabaseClient();
+          if (!supabase) return [];
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, username, name, avatar_url')
+            .limit(500);
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      })()
+    ]);
 
-      if (!error && Array.isArray(data)) {
-        data.forEach((row: any) => {
-          const rawTrail = row.trail_data || row;
-          if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-')) {
-            const t = sanitizeTrail({
-              ...rawTrail,
-              createdAt: row.created_at || rawTrail.createdAt,
-            });
-            if (!isFakeMockUser(t.creator?.username)) {
-              trailMap.set(t.id, t);
+    // Process storage index trails
+    if (storageResult.status === 'fulfilled' && Array.isArray(storageResult.value)) {
+      storageResult.value.forEach((t) => {
+        if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
+          trailMap.set(t.id, t);
+        }
+      });
+    }
+
+    // Process Supabase trails
+    if (supabaseResult.status === 'fulfilled' && Array.isArray(supabaseResult.value)) {
+      supabaseResult.value.forEach((row: any) => {
+        const rawTrail = row.trail_data || row;
+        if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-')) {
+          const t = sanitizeTrail({
+            ...rawTrail,
+            createdAt: row.created_at || rawTrail.createdAt,
+          });
+          if (!isFakeMockUser(t.creator?.username)) {
+            trailMap.set(t.id, t);
+          }
+        }
+      });
+    }
+
+    // Process server trails
+    if (serverResult.status === 'fulfilled' && Array.isArray(serverResult.value)) {
+      serverResult.value.forEach((tRaw: any) => {
+        if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && !trailMap.has(tRaw.id)) {
+          const t = sanitizeTrail(tRaw);
+          if (!isFakeMockUser(t.creator?.username)) {
+            trailMap.set(t.id, t);
+          }
+        }
+      });
+    }
+
+    // Hydrate creator profiles
+    if (profilesResult.status === 'fulfilled' && Array.isArray(profilesResult.value) && profilesResult.value.length > 0) {
+      const liveProfiles = profilesResult.value;
+      const profMap = new Map<string, any>();
+      liveProfiles.forEach((p: any) => {
+        if (p.id) profMap.set(p.id, p);
+        const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
+        if (clean) {
+          profMap.set(clean, p);
+          profMap.set(clean.replace(/[._]/g, ''), p);
+        }
+      });
+
+      trailMap.forEach((t) => {
+        if (t.creator) {
+          const cId = t.creator.id;
+          const cUname = (t.creator.username || '').toLowerCase().replace(/^@+/, '');
+          const matched = (cId && profMap.get(cId)) || (cUname && (profMap.get(cUname) || profMap.get(cUname.replace(/[._]/g, ''))));
+          if (matched) {
+            if (matched.username) {
+              t.creator.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
+            }
+            if (matched.name) {
+              t.creator.name = matched.name;
+            }
+            if (matched.avatar_url) {
+              t.creator.avatarUrl = matched.avatar_url;
             }
           }
-        });
+        }
+      });
+    }
+
+    // Convert map to sorted array (newest first)
+    const combined = Array.from(trailMap.values()).map(sanitizeTrail).sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id.replace(/\D/g, '')) || 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id.replace(/\D/g, '')) || 0;
+      return timeB - timeA;
+    });
+
+    // Update in-memory cache & local storage
+    cachedGlobalTrails = combined;
+    lastGlobalTrailsFetchTime = Date.now();
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(combined));
+      } catch {
+        // ignore
       }
     }
-  } catch (err) {
-    console.warn('[sharedTrailsService] Supabase trails query:', err);
-  }
 
-  // 3. Secondary: Fetch from backend server API /api/trails
-  try {
-    const res = await fetch('/api/trails');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.trails)) {
-        data.trails.forEach((tRaw: any) => {
-          if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && !trailMap.has(tRaw.id)) {
-            const t = sanitizeTrail(tRaw);
-            if (!isFakeMockUser(t.creator?.username)) {
-              trailMap.set(t.id, t);
-            }
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[sharedTrailsService] Failed to fetch server trails:', err);
-  }
-
-  // 4. Fallback: Merge local trails so un-synced or offline trails are preserved
-  localList.forEach((t) => {
-    if (t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && !trailMap.has(t.id)) {
-      trailMap.set(t.id, sanitizeTrail(t));
-    }
+    return combined;
+  })().finally(() => {
+    inFlightGlobalTrailsPromise = null;
   });
 
-  // 5. Always hydrate trail creator username and details from live profiles
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data: liveProfiles } = await supabase.from('profiles').select('id, username, name, avatar_url').limit(500);
-      if (liveProfiles && Array.isArray(liveProfiles)) {
-        const profMap = new Map<string, any>();
-        liveProfiles.forEach((p) => {
-          if (p.id) profMap.set(p.id, p);
-          const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
-          if (clean) {
-            profMap.set(clean, p);
-            profMap.set(clean.replace(/[._]/g, ''), p);
-          }
-        });
-
-        trailMap.forEach((t) => {
-          if (t.creator) {
-            const cId = t.creator.id;
-            const cUname = (t.creator.username || '').toLowerCase().replace(/^@+/, '');
-            const matched = (cId && profMap.get(cId)) || (cUname && (profMap.get(cUname) || profMap.get(cUname.replace(/[._]/g, ''))));
-            if (matched) {
-              if (matched.username) {
-                t.creator.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
-              }
-              if (matched.name) {
-                t.creator.name = matched.name;
-              }
-              if (matched.avatar_url) {
-                t.creator.avatarUrl = matched.avatar_url;
-              }
-            }
-          }
-        });
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // Convert map to sorted array (newest first)
-  const combined = Array.from(trailMap.values()).map(sanitizeTrail).sort((a, b) => {
-    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id.replace(/\D/g, '')) || 0;
-    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id.replace(/\D/g, '')) || 0;
-    return timeB - timeA;
-  });
-
-  // Sync unified list back to localStorage
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(combined));
-    } catch {
-      // ignore
-    }
-  }
-
-  return combined;
+  return inFlightGlobalTrailsPromise;
 }
 
 /**
@@ -550,6 +590,7 @@ export async function publishGlobalTrail(
 
   // Clear tombstone if previously deleted
   removeDeletedTrailId(trail.id);
+  invalidateGlobalTrailsCache();
 
   // 1. Save binary file to IndexedDB for instant, zero-lag local playback on this device
   if (file) {
@@ -731,6 +772,7 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
 
   // 1. Mark as deleted locally so it never resurfaces in this session
   addDeletedTrailId(cleanId);
+  invalidateGlobalTrailsCache();
 
   // 2. Delete binary media from IndexedDB
   try {

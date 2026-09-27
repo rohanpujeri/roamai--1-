@@ -343,8 +343,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     };
   };
 
-  // Active media resolution states
-  const [activeMediaUrl, setActiveMediaUrl] = useState<string>('');
+  const activeReel = trails[currentIndex] || trails[0];
+
+  // Active media resolution states - initialized immediately so media/background is instantly visible
+  const [activeMediaUrl, setActiveMediaUrl] = useState<string>(() => {
+    const reel = trails[currentIndex] || trails[0];
+    if (reel?.videoUrl && !reel.videoUrl.startsWith('blob:')) {
+      return reel.videoUrl;
+    }
+    return reel?.posterUrl || '';
+  });
   const [activeMediaError, setActiveMediaError] = useState<boolean>(false);
   const [isMediaLoading, setIsMediaLoading] = useState<boolean>(false);
 
@@ -381,8 +389,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dragDistanceRef = useRef<number>(0);
-
-  const activeReel = trails[currentIndex] || trails[0];
 
   // Record view count strictly for signed-up users
   useEffect(() => {

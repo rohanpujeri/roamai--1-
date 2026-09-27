@@ -154,30 +154,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [showPhotoOptionsModal, setShowPhotoOptionsModal] = useState(false);
   const [showViewPhotoModal, setShowViewPhotoModal] = useState(false);
 
-  // Active trail ID for full-screen Instagram Reels playback (same user only)
-  const [activeReelTrailId, setActiveReelTrailId] = useState<string | null>(null);
-  const [profileFullTrails, setProfileFullTrails] = useState<TrailReel[]>([]);
-  const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
-  const [isModalMuted, setIsModalMuted] = useState(true);
-  const [modalMediaUrl, setModalMediaUrl] = useState<string>('');
-  const [modalMediaError, setModalMediaError] = useState<boolean>(false);
-  const [isModalMediaLoading, setIsModalMediaLoading] = useState<boolean>(false);
-  const [isModalPlaying, setIsModalPlaying] = useState<boolean>(true);
-  const modalVideoRef = useRef<HTMLVideoElement | null>(null);
-  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [trailToDelete, setTrailToDelete] = useState<UserTrailItem | null>(null);
-  const [isDeletingTrail, setIsDeletingTrail] = useState<boolean>(false);
-
-  // User uploaded trails from local storage - strictly filtered to this authenticated user
+  // User uploaded trails from local storage - strictly filtered to this authenticated user (loads immediately 0ms)
   const [userTrails, setUserTrails] = useState<UserTrailItem[]>(() => {
     try {
-      const raw = localStorage.getItem('roamai_user_trails') || localStorage.getItem('tripwise_user_trails');
+      const cachedUser = getCachedUserProfile(user?.id);
+      const currentUname = (cachedUser?.username || userMeta.username || '').toLowerCase().replace(/^@/, '');
+      const currentUnameNoUnderscore = currentUname.replace(/_/g, '');
+      const currentUid = user?.id;
+
+      // Check both user trails storage and global trails cache
+      const raw = localStorage.getItem('roamai_user_trails') || 
+                  localStorage.getItem('tripwise_user_trails') ||
+                  localStorage.getItem('roamai_global_trails');
+
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          const currentUname = (userMeta.username || '').toLowerCase().replace(/^@/, '');
-          const currentUnameNoUnderscore = currentUname.replace(/_/g, '');
-          const currentUid = user?.id;
           if (!currentUname && !currentUid) return [];
 
           return parsed
@@ -214,6 +206,23 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
     return [];
   });
+
+  // Active trail ID for full-screen Instagram Reels playback (same user only)
+  const [activeReelTrailId, setActiveReelTrailId] = useState<string | null>(null);
+  // Initialized directly with userTrails so full-screen playback is instant with zero fetch delay
+  const [profileFullTrails, setProfileFullTrails] = useState<TrailReel[]>(() => {
+    return userTrails.map((u) => u.rawTrail).filter(Boolean) as TrailReel[];
+  });
+  const [selectedTrail, setSelectedTrail] = useState<UserTrailItem | null>(null);
+  const [isModalMuted, setIsModalMuted] = useState(true);
+  const [modalMediaUrl, setModalMediaUrl] = useState<string>('');
+  const [modalMediaError, setModalMediaError] = useState<boolean>(false);
+  const [isModalMediaLoading, setIsModalMediaLoading] = useState<boolean>(false);
+  const [isModalPlaying, setIsModalPlaying] = useState<boolean>(true);
+  const modalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [trailToDelete, setTrailToDelete] = useState<UserTrailItem | null>(null);
+  const [isDeletingTrail, setIsDeletingTrail] = useState<boolean>(false);
 
   // Listen for newly published trails from separate UploadTrailView page
   useEffect(() => {
@@ -288,45 +297,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       window.removeEventListener('roamai_close_active_reel', handleCloseActiveReel);
     };
   }, []);
-
-  // Fetch latest trails from backend/storage and sync user's trails
-  useEffect(() => {
-    fetchGlobalTrails().then((trails) => {
-      if (!Array.isArray(trails)) return;
-      const currentUname = (userMeta.username || '').toLowerCase().replace(/^@/, '');
-      const currentUnameNoUnderscore = currentUname.replace(/_/g, '');
-      const currentUid = user?.id;
-      if (!currentUname && !currentUid) return;
-
-      const myTrails = trails.filter((t: any) => {
-        if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
-        const cUname = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
-        const cUnameNoUnderscore = cUname.replace(/_/g, '');
-        const cUid = t.creator?.id ? String(t.creator.id).replace(/^supa_/, '').replace(/^user_/, '') : '';
-        return (
-          (currentUname && (cUname === currentUname || (cUnameNoUnderscore && cUnameNoUnderscore === currentUnameNoUnderscore))) ||
-          (currentUid && (cUid === currentUid || t.creator?.id === currentUid))
-        );
-      });
-
-      if (myTrails.length > 0) {
-        setProfileFullTrails(myTrails);
-        setUserTrails(myTrails.map((t: any) => ({
-          id: t.id,
-          title: t.title || t.caption || t.destination || '',
-          destination: t.destination || '',
-          viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-          likesCount: t.likesCount ? String(t.likesCount) : '0',
-          videoUrl: t.videoUrl,
-          posterUrl: t.posterUrl,
-          duration: t.duration || '0:30',
-          mediaType: t.mediaType || 'video',
-          caption: t.caption || t.title || '',
-          rawTrail: t
-        })));
-      }
-    }).catch(() => {});
-  }, [user?.id, userMeta.username]);
 
   // Trail Reel Upload Modal states
   const [isUploadTrailModalOpen, setIsUploadTrailModalOpen] = useState(false);
@@ -797,7 +767,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       try {
         localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(synced));
         const supabase = getSupabaseClient();
-        if (supabase) {
+        const hasChanged = !cached || 
+          cached.name !== synced.name || 
+          cached.username !== synced.username || 
+          cached.avatarUrl !== synced.avatarUrl || 
+          cached.place !== synced.place ||
+          cached.bio !== synced.bio;
+
+        if (supabase && hasChanged) {
           supabase.from('profiles').upsert({
             id: user.id,
             username: synced.username,
@@ -826,7 +803,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     completedTrips.length,
     calculatedPlacesCount,
     calculatedCountriesCount,
-    travelDNAAnalysis
+    travelDNAAnalysis.hasCompletedTrips
   ]);
 
   // Listen to real-time follow/unfollow actions across the app
@@ -1240,6 +1217,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <img
                   src={profile.avatarUrl}
                   alt={profile.name}
+                  loading="eager"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
@@ -1538,6 +1516,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     <img
                       src={trip.imageUrl}
                       alt={trip.destination}
+                      loading="eager"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
 
@@ -1644,6 +1623,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       <img
                         src={trail.posterUrl}
                         alt={trail.title || trail.destination}
+                        loading="eager"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
