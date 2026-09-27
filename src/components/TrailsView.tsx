@@ -908,7 +908,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     );
   }
 
-  const hasBottomNav = !customTrails && !showBackButton;
+  const hasBottomNav = true;
 
   return (
     <div 
@@ -930,7 +930,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       {/* Top Floating Action Bar */}
       <div 
         className="absolute left-4 sm:left-8 right-4 sm:right-8 z-30 flex items-center justify-between pointer-events-auto"
-        style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 10px)' }}
+        style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 16px) + 8px)' }}
       >
         <div className="flex items-center gap-2.5">
           {(showBackButton || customTrails) && (
@@ -1232,8 +1232,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
-          className="absolute right-3 sm:right-8 z-20 flex flex-col items-center gap-1.5 sm:gap-2.5 pointer-events-auto"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 100px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 48px)' }}
+          className="absolute right-3 sm:right-6 z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-0.5 group/btn">
@@ -1378,8 +1378,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           return (
             <div 
-              className="absolute left-3.5 sm:left-8 right-18 sm:right-28 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
-              style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 100px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 48px)' }}
+              className="absolute left-3.5 sm:left-6 right-16 sm:right-24 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
             >
               {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
               <div className="flex items-center gap-2 pointer-events-auto">
@@ -1501,8 +1501,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Video Playline directly above low Bottom Navigation Bar (matches Instagram Reels design) */}
         <div 
           onClick={handlePlaylineClick}
-          className="absolute left-3.5 right-3.5 sm:left-8 sm:right-8 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom, 0px) + 74px)' : 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 18px)' }}
+          className="absolute left-3.5 right-3.5 sm:left-6 sm:right-6 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
           title="Video playback progress"
         >
           <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">

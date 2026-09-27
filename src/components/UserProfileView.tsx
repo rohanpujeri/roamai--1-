@@ -273,13 +273,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setUserTrails((prev) => prev.filter((u) => u.id !== trailId));
     };
 
+    const handleCloseActiveReel = () => {
+      setActiveReelTrailId(null);
+    };
+
     window.addEventListener('roamai_trail_liked', handleLiked);
     window.addEventListener('roamai_trail_viewed', handleViewed);
     window.addEventListener('roamai_trail_deleted', handleDeleted);
+    window.addEventListener('roamai_close_active_reel', handleCloseActiveReel);
     return () => {
       window.removeEventListener('roamai_trail_liked', handleLiked);
       window.removeEventListener('roamai_trail_viewed', handleViewed);
       window.removeEventListener('roamai_trail_deleted', handleDeleted);
+      window.removeEventListener('roamai_close_active_reel', handleCloseActiveReel);
     };
   }, []);
 

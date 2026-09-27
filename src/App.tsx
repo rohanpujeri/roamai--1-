@@ -939,6 +939,7 @@ export default function App() {
     if (targetView !== 'trails') {
       window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
     }
+    window.dispatchEvent(new CustomEvent('roamai_close_active_reel'));
 
     if (targetView === 'trails' && !session) {
       setIntendedView('trails');

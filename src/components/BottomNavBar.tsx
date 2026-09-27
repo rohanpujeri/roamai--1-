@@ -33,15 +33,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
       style={{ 
         transform: 'translate3d(-50%, 0, 0)', 
         willChange: 'transform',
-        bottom: currentView === 'trails'
-          ? 'calc(env(safe-area-inset-bottom, 0px) + 6px)'
-          : 'calc(env(safe-area-inset-bottom, 0px) + 16px)'
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)'
       }}
-      className="fixed left-1/2 z-50 pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-[bottom,padding] duration-200 ease-out"
+      className="fixed left-1/2 z-[120] pointer-events-auto w-[92vw] max-w-[460px] sm:max-w-[500px] transition-[bottom,padding] duration-200 ease-out"
     >
       <nav 
         aria-label="Quick Navigation"
-        className={`w-full flex items-center justify-between ${currentView === 'trails' ? 'px-4 sm:px-6 py-1.5 sm:py-2' : 'px-5 sm:px-7 py-2.5 sm:py-3.5'} bg-[#141419]/95 hover:bg-[#141419]/98 backdrop-blur-md border border-white/15 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.65),0_4px_12px_rgba(0,0,0,0.4)] transition-[padding] duration-200 ease-out`}
+        className="w-full flex items-center justify-between px-4 sm:px-6 py-1.5 sm:py-2 bg-[#141419]/95 hover:bg-[#141419]/98 backdrop-blur-md border border-white/15 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.65),0_4px_12px_rgba(0,0,0,0.4)] transition-[padding] duration-200 ease-out"
       >
         {/* 1. Home Button */}
         <button
@@ -49,7 +47,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onClick={() => onNavigate('landing')}
           aria-label="Home"
           title="Home"
-          className={`relative ${currentView === 'trails' ? 'p-2 sm:p-2.5' : 'p-2.5 sm:p-3'} rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative p-2 sm:p-2.5 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'landing'
               ? 'text-white'
               : 'text-neutral-400 hover:text-white'
@@ -79,7 +77,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           }}
           aria-label="Trails Video Feed"
           title="Trails"
-          className={`relative ${currentView === 'trails' ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'} rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative p-1.5 sm:p-2 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'trails'
               ? 'text-white'
               : 'text-neutral-400 hover:text-white'
@@ -109,13 +107,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
             background: currentTheme?.heroGradient || currentTheme?.primaryColor || 'linear-gradient(135deg, #0284c7, #0d9488)',
             boxShadow: `0 4px 18px ${currentTheme?.primaryColor || '#0284c7'}70`
           }}
-          className={`relative p-2.5 sm:p-3 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group active:scale-95 text-white ${
+          className={`relative p-2 sm:p-2.5 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group active:scale-95 text-white ${
             currentView === 'wizard'
               ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-900 scale-105'
               : 'hover:brightness-110 hover:scale-105'
           }`}
         >
-          <Plus className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5] transition-transform group-hover:rotate-90 group-hover:scale-110" />
+          <Plus className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5] transition-transform group-hover:rotate-90 group-hover:scale-110" />
           <span className="sr-only">Plan New Trip</span>
         </button>
 
@@ -125,13 +123,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onClick={() => onNavigate('travellers_search')}
           aria-label="Search Travellers"
           title="Search Travellers"
-          className={`relative p-2.5 sm:p-3 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
+          className={`relative p-2 sm:p-2.5 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center group ${
             currentView === 'travellers_search'
               ? 'text-white'
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <Search className={`w-6 h-6 sm:w-7 sm:h-7 transition-transform group-hover:scale-110 ${
+          <Search className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110 ${
             currentView === 'travellers_search' ? 'stroke-[2.5]' : 'stroke-2'
           }`} />
           {currentView === 'travellers_search' && (

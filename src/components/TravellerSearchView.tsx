@@ -609,12 +609,20 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         setActiveReelTrails((prev) => prev ? prev.filter((t: any) => t && t.id !== deletedId) : null);
       }
     };
+
+    const handleCloseActiveReel = () => {
+      setActiveReelTrailId(null);
+      setActiveReelTrails(null);
+    };
+
     window.addEventListener('roamai_trail_deleted', handleDeleted);
+    window.addEventListener('roamai_close_active_reel', handleCloseActiveReel);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
       window.removeEventListener('roamai_trail_deleted', handleDeleted);
+      window.removeEventListener('roamai_close_active_reel', handleCloseActiveReel);
     };
   }, []);
 
