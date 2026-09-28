@@ -8,38 +8,48 @@ export interface PlanTripIconProps {
 }
 
 /**
- * PlanTripIcon - Two location pins connected through a travel route
- * Matching Option 3 from the design showcase.
+ * PlanTripIcon - Two location pins connected through an S-curve route
+ * Exactly matching the Option 3 "ROUTE" travel button design from the showcase.
  */
 export const PlanTripIcon: React.FC<PlanTripIconProps> = ({
   className = 'w-6 h-6',
   size = 24,
   color = 'currentColor',
-  strokeWidth = 2.2
+  strokeWidth = 7
 }) => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
       fill="none"
-      stroke={color}
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
       className={className}
     >
-      {/* S-curved route connecting start pin to destination pin */}
-      <path d="M 6 18.5 C 11.5 18.5, 12 11.5, 18 11.5" />
+      {/* S-curve Route line */}
+      <path
+        d="M 36 71.5 L 53.5 71.5 A 7.75 7.75 0 0 0 53.5 56 L 47.5 56 A 7.75 7.75 0 0 1 47.5 40.5 L 61 40.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
 
-      {/* Start Location Pin (Bottom-Left) */}
-      <path d="M 6 10.5 A 3.2 3.2 0 0 1 9.2 13.7 C 9.2 15.9, 6 18.5, 6 18.5 C 6 18.5, 2.8 15.9, 2.8 13.7 A 3.2 3.2 0 0 1 6 10.5 Z" />
-      <circle cx="6" cy="13.7" r="1.1" fill={color} stroke="none" />
+      {/* Bottom-Left Location Pin (Hollow center hole) */}
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M 34 46.5 A 8.5 8.5 0 0 1 42.5 55 C 42.5 61.5 34 72 34 72 C 34 72 25.5 61.5 25.5 55 A 8.5 8.5 0 0 1 34 46.5 Z M 34 51.5 A 3.5 3.5 0 1 0 34 58.5 A 3.5 3.5 0 1 0 34 51.5 Z"
+        fill={color}
+      />
 
-      {/* Destination Location Pin (Top-Right) */}
-      <path d="M 18 3.5 A 3.2 3.2 0 0 1 21.2 6.7 C 21.2 8.9, 18 11.5, 18 11.5 C 18 11.5, 14.8 8.9, 14.8 6.7 A 3.2 3.2 0 0 1 18 3.5 Z" />
-      <circle cx="18" cy="6.7" r="1.1" fill={color} stroke="none" />
+      {/* Top-Right Location Pin (Hollow center hole) */}
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M 61 15 A 8.5 8.5 0 0 1 69.5 23.5 C 69.5 30 61 40.5 61 40.5 C 61 40.5 52.5 30 52.5 23.5 A 8.5 8.5 0 0 1 61 15 Z M 61 20 A 3.5 3.5 0 1 0 61 27 A 3.5 3.5 0 1 0 61 20 Z"
+        fill={color}
+      />
     </svg>
   );
 };
