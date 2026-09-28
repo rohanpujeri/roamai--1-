@@ -78,6 +78,12 @@ export interface TrailComment {
   avatar: string;
   text: string;
   time: string;
+  likesCount?: number;
+  isLiked?: boolean;
+  isAuthor?: boolean;
+  isAuthorLiked?: boolean;
+  replyToUser?: string;
+  replies?: TrailComment[];
 }
 
 export interface TrailLiker {

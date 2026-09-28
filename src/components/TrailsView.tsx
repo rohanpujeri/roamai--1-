@@ -28,7 +28,10 @@ import {
   Camera,
   Sparkles,
   Compass,
-  Crop
+  Crop,
+  Smile,
+  Info,
+  CornerDownRight
 } from 'lucide-react';
 import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
@@ -49,13 +52,14 @@ import {
   isTrailLikedByUser,
   TrailLiker,
   TrailReel,
+  TrailComment,
   recordTrailView,
   deleteGlobalTrail,
   sanitizeTrail,
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
-import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser } from '../services/followService';
+import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser, cleanBio } from '../services/followService';
 import { getSavedPlaces, savePlaceToStorage, removeSavedPlace } from '../services/placesService';
 import { TrailLikesModal } from './TrailLikesModal';
 
@@ -106,6 +110,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const cachedUser = session?.user ? getCachedUserProfile(session.user.id) : null;
   const currentUsername = useMemo(() => {
     return getCanonicalUsername(session?.user, cachedUser).toLowerCase().replace(/^@/, '');
+  }, [cachedUser, session?.user]);
+
+  const currentUserAvatar = useMemo(() => {
+    const raw = cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
+    return sanitizeAvatarUrl(raw);
   }, [cachedUser, session?.user]);
 
   // Load trails: either customTrails (user-specific) or all global trails
@@ -320,6 +329,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [showComments, setShowComments] = useState<boolean>(false);
   const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
+  const [replyingTo, setReplyingTo] = useState<{ id: string; user: string } | null>(null);
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [likedComments, setLikedComments] = useState<Record<string, boolean>>({});
+  const commentInputRef = useRef<HTMLInputElement | null>(null);
+  const QUICK_EMOJIS = ['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
@@ -684,21 +698,37 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
-  const handleAddComment = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddComment = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newCommentText.trim() || !activeReel) return;
 
+    if (!session?.user && onRequireAuth) {
+      onRequireAuth();
+      return;
+    }
+
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-    const userDisplayName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'You';
+    const userDisplayName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || currentUsername || 'You';
     const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
     const userAvatar = sanitizeAvatarUrl(rawAvatar);
 
-    const newComment = {
-      id: `comm-${Date.now()}`,
+    const isAuthor = Boolean(
+      (session?.user?.id && activeReel.creator.id && session.user.id === activeReel.creator.id) ||
+      (currentUsername && activeReel.creator.username && currentUsername === activeReel.creator.username.toLowerCase().replace(/^@/, ''))
+    );
+
+    const newCommentId = `comm-${Date.now()}`;
+    const newComment: TrailComment = {
+      id: newCommentId,
       user: userDisplayName,
       avatar: userAvatar,
       text: newCommentText.trim(),
-      time: 'Just now'
+      time: 'Just now',
+      likesCount: 0,
+      isLiked: false,
+      isAuthor: isAuthor,
+      isAuthorLiked: false,
+      replyToUser: replyingTo?.user
     };
 
     commentOnGlobalTrail(activeReel.id, newComment);
@@ -706,17 +736,144 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
-          return {
-            ...t,
-            commentsCount: t.commentsCount + 1,
-            comments: [newComment, ...(t.comments || [])]
-          };
+          const existingComments = Array.isArray(t.comments) ? [...t.comments] : [];
+          if (replyingTo) {
+            const updated = existingComments.map((c) => {
+              if (c.id === replyingTo.id) {
+                return {
+                  ...c,
+                  replies: [...(c.replies || []), newComment]
+                };
+              }
+              return c;
+            });
+            setExpandedReplies((exp) => ({ ...exp, [replyingTo.id]: true }));
+            return {
+              ...t,
+              commentsCount: t.commentsCount + 1,
+              comments: updated
+            };
+          } else {
+            return {
+              ...t,
+              commentsCount: t.commentsCount + 1,
+              comments: [newComment, ...existingComments]
+            };
+          }
         }
         return t;
       })
     );
 
     setNewCommentText('');
+    setReplyingTo(null);
+  };
+
+  const handleToggleCommentLike = (commentId: string, parentCommentId?: string) => {
+    if (!session?.user && onRequireAuth) {
+      onRequireAuth();
+      return;
+    }
+    const isCurrentlyLiked = !!likedComments[commentId];
+    setLikedComments((prev) => ({ ...prev, [commentId]: !isCurrentlyLiked }));
+
+    const isAuthor = Boolean(
+      (session?.user?.id && activeReel?.creator?.id && session.user.id === activeReel.creator.id) ||
+      (currentUsername && activeReel?.creator?.username && currentUsername === activeReel.creator.username.toLowerCase().replace(/^@/, ''))
+    );
+
+    setTrails((prev) =>
+      prev.map((t, idx) => {
+        if (idx === currentIndex && t.comments) {
+          const updated = t.comments.map((c) => {
+            if (!parentCommentId && c.id === commentId) {
+              const currentCount = c.likesCount || 0;
+              const nextCount = isCurrentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
+              return {
+                ...c,
+                likesCount: nextCount,
+                isLiked: !isCurrentlyLiked,
+                isAuthorLiked: isAuthor ? !isCurrentlyLiked : c.isAuthorLiked
+              };
+            }
+            if (parentCommentId && c.id === parentCommentId && c.replies) {
+              const updatedReplies = c.replies.map((r) => {
+                if (r.id === commentId) {
+                  const currentCount = r.likesCount || 0;
+                  const nextCount = isCurrentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
+                  return {
+                    ...r,
+                    likesCount: nextCount,
+                    isLiked: !isCurrentlyLiked,
+                    isAuthorLiked: isAuthor ? !isCurrentlyLiked : r.isAuthorLiked
+                  };
+                }
+                return r;
+              });
+              return { ...c, replies: updatedReplies };
+            }
+            return c;
+          });
+          return { ...t, comments: updated };
+        }
+        return t;
+      })
+    );
+  };
+
+  const handleReplyClick = (comm: { id: string; user: string }) => {
+    const rawClean = comm.user.replace(/^@/, '');
+    setReplyingTo({ id: comm.id, user: rawClean });
+    setNewCommentText(`@${rawClean} `);
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 60);
+  };
+
+  const handleInsertEmoji = (emoji: string) => {
+    setNewCommentText((prev) => prev + emoji);
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 60);
+  };
+
+  const handleCommentUserClick = (userName: string, avatarUrl?: string) => {
+    const cleanU = (userName || '').toLowerCase().replace(/^@/, '');
+    if (currentUsername && cleanU === currentUsername) {
+      if (onOpenOwnProfile) onOpenOwnProfile();
+      else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+    } else {
+      const d = { 
+        username: userName.startsWith('@') ? userName : `@${userName}`, 
+        name: userName, 
+        avatarUrl: avatarUrl || '' 
+      };
+      if (onOpenUserProfile) onOpenUserProfile(d);
+      else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
+    }
+    setShowComments(false);
+  };
+
+  const renderCommentText = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span 
+            key={i} 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCommentUserClick(part);
+            }}
+            className="text-blue-400 font-semibold cursor-pointer hover:underline"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   // Video / Photo File Selection Handler
@@ -1238,8 +1395,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
         {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
         <div 
-          className="absolute right-3 sm:right-6 z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
+          className="absolute right-3 sm:right-6 z-20 flex flex-col items-center gap-2 sm:gap-2.5 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 116px)' }}
         >
           {/* Like Button & Likes Count */}
           <div className="flex flex-col items-center gap-0.5 group/btn">
@@ -1249,10 +1406,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               className="flex flex-col items-center cursor-pointer transition-transform active:scale-75"
               title={activeReel.isLiked ? 'Unlike' : 'Like'}
             >
-              <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl ${
-                activeReel.isLiked ? 'bg-red-500/20 text-red-500 scale-110' : 'bg-black/50 hover:bg-black/70 text-white'
+              <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl border border-white/15 ${
+                activeReel.isLiked ? 'bg-red-500/25 text-red-500 scale-110 border-red-500/40' : 'bg-black/60 hover:bg-black/80 text-white'
               }`}>
-                <Heart className={`w-5 h-5 transition-transform ${
+                <Heart className={`w-6 h-6 sm:w-6.5 sm:h-6.5 transition-transform ${
                   activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white hover:scale-105'
                 }`} />
               </div>
@@ -1263,7 +1420,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 e.stopPropagation();
                 setShowLikesModal(true);
               }}
-              className="text-[11px] font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1 py-0.5 rounded-md hover:bg-black/40"
+              className="text-xs sm:text-sm font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1 py-0.5 rounded-md hover:bg-black/40"
               title="View profiles who liked this trail"
             >
               {activeReel.likesCount}
@@ -1279,10 +1436,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             }}
             className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
-              <MessageCircle className="w-5 h-5" />
+            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all shadow-xl">
+              <MessageCircle className="w-6 h-6 sm:w-6.5 sm:h-6.5" />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
               {activeReel.commentsCount}
             </span>
           </button>
@@ -1293,12 +1450,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleSave}
             className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl ${
-              activeReel.isSaved ? 'bg-amber-500/20 text-amber-400' : 'bg-black/50 hover:bg-black/70 text-white'
+            <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl border border-white/15 ${
+              activeReel.isSaved ? 'bg-amber-500/25 text-amber-400 border-amber-500/40' : 'bg-black/60 hover:bg-black/80 text-white'
             }`}>
-              <Bookmark className={`w-5 h-5 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
+              <Bookmark className={`w-6 h-6 sm:w-6.5 sm:h-6.5 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
               Save
             </span>
           </button>
@@ -1309,24 +1466,22 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             onClick={handleShare}
             className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-xl">
-              <Share2 className="w-4 h-4" />
+            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all shadow-xl">
+              <Share2 className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
             </div>
-            <span className="text-[11px] font-bold text-white drop-shadow-md">
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
               Share
             </span>
           </button>
-
-          
 
           {/* Sound Mute/Unmute Toggle */}
           <button
             type="button"
             onClick={toggleMute}
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
+            className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-neutral-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+            {isMuted ? <VolumeX className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-neutral-300" /> : <Volume2 className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-emerald-400" />}
           </button>
         </div>
 
@@ -1384,15 +1539,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
           return (
             <div 
-              className="absolute left-3.5 sm:left-6 right-16 sm:right-24 z-20 space-y-1 sm:space-y-1.5 pointer-events-none max-w-xl"
-              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
+              className="absolute left-3.5 sm:left-6 right-16 sm:right-24 z-20 space-y-2 pointer-events-none max-w-xl"
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 116px)' }}
             >
-              {/* Creator Row: Photo beside Profile Username (Only Username, No Full Name) + Follow Button */}
-              <div className="flex items-center gap-2 pointer-events-auto">
-                {/* Clean Circular Photo (Instagram Reels style - no ring) */}
+              {/* Creator Row: Photo beside Profile Username + Follow Button */}
+              <div className="flex items-center gap-2.5 pointer-events-auto flex-wrap">
+                {/* Clean Circular Photo (Instagram Reels style) */}
                 <div 
                   onClick={handleOpenCreatorProfile}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden shadow-md shrink-0 bg-neutral-900 border border-white/15 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all"
+                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-lg shrink-0 bg-neutral-900 border border-white/20 flex items-center justify-center cursor-pointer hover:opacity-85 hover:scale-105 transition-all ring-1 ring-white/15"
                   title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {effectiveAvatarUrl ? (
@@ -1406,7 +1561,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs select-none">
+                    <div className="w-full h-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-sm sm:text-base select-none">
                       {creatorCleanDisplay.charAt(0).toUpperCase() || 'T'}
                     </div>
                   )}
@@ -1415,15 +1570,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {/* Username only (no full name) */}
                 <span 
                   onClick={handleOpenCreatorProfile}
-                  className="text-xs sm:text-sm font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline hover:text-indigo-200 transition-colors"
+                  className="text-base sm:text-lg font-bold text-white tracking-wide drop-shadow-md cursor-pointer hover:underline hover:text-indigo-200 transition-colors"
                   title={`View ${creatorCleanDisplay}'s profile`}
                 >
                   {creatorCleanDisplay}
                 </span>
 
-                {/* Verified Badge (only if creator is verified) */}
+                {/* Verified Badge */}
                 {creator.isVerified && (
-                  <span className="w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-black shrink-0 shadow-xs" title="Verified Creator">
+                  <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs" title="Verified Creator">
                     ✓
                   </span>
                 )}
@@ -1464,7 +1619,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         );
                       }
                     }}
-                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg text-xs sm:text-sm font-bold border transition-all cursor-pointer ${
                       isFollowed
                         ? 'bg-white/20 border-white/30 text-white'
                         : isFollowedBy(currentUsername, creator.username)
@@ -1477,41 +1632,50 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 )}
               </div>
 
-              {/* Caption */}
-              <p className="text-xs text-neutral-100 line-clamp-2 leading-snug drop-shadow-sm font-medium">
-                {activeReel?.caption || ''}
-              </p>
+              {/* Creator Bio (if available on creator profile) */}
+              {cleanBio(creator.bio) && (
+                <p className="text-xs sm:text-sm text-neutral-300 font-normal drop-shadow-md line-clamp-1">
+                  {cleanBio(creator.bio)}
+                </p>
+              )}
 
-              {/* Destination Badge - Interactive Button giving options (Save Place & Plan a Trip) */}
-              <div className="flex items-center gap-1.5 flex-wrap pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (activeReel?.destination) {
+              {/* Caption / Trail Details */}
+              {activeReel?.caption && (
+                <p className="text-sm sm:text-base text-neutral-100 line-clamp-2 leading-relaxed drop-shadow-md font-medium">
+                  {activeReel.caption}
+                </p>
+              )}
+
+              {/* Destination Badge / Location */}
+              {activeReel?.destination && (
+                <div className="flex items-center gap-1.5 flex-wrap pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setLocationActionTrail(activeReel);
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/45 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-[11px] font-semibold shadow-sm transition-all cursor-pointer group"
-                  title={`Options for ${activeReel?.destination}`}
-                >
-                  <MapPin className="w-3 h-3 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
-                  <span className="truncate max-w-[180px] sm:max-w-xs">{activeReel?.destination}</span>
-                  <ChevronRight className="w-2.5 h-2.5 text-white/60 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                </button>
-              </div>
+                    }}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/60 hover:bg-black/80 active:scale-95 backdrop-blur-md border border-white/25 hover:border-white/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer group"
+                    title={`Options for ${activeReel?.destination}`}
+                  >
+                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span className="truncate max-w-[200px] sm:max-w-xs">{activeReel?.destination}</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-white/70 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* Video Playline directly above low Bottom Navigation Bar (matches Instagram Reels design) */}
+        {/* Video Playline directly above Bottom Navigation Bar with doubled gap */}
         <div 
           onClick={handlePlaylineClick}
-          className="absolute left-3.5 right-3.5 sm:left-6 sm:right-6 z-30 h-3 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
+          className="absolute left-3.5 right-3.5 sm:left-6 sm:right-6 z-30 h-4 flex items-center cursor-pointer pointer-events-auto group/playline"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)' }}
           title="Video playback progress"
         >
-          <div className="w-full h-[2.5px] sm:h-[3px] bg-white/35 group-hover/playline:h-[4px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
+          <div className="w-full h-[3px] sm:h-[4px] bg-white/40 group-hover/playline:h-[6px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
             <div
               className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
               style={{ width: `${progress}%` }}
@@ -1589,127 +1753,362 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         }}
       />
 
-      {/* Comments Drawer / Sheet */}
-      {showComments && (
-        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-3xl h-[70vh] max-h-[600px] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
-            {/* Drawer Header */}
-            <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-emerald-400" />
-                <span>Comments ({activeReel?.comments?.length || 0})</span>
+      {/* Instagram-Style Comments Drawer / Sheet (Rendered at top-level body via createPortal) */}
+      {showComments && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex justify-center items-end animate-in fade-in duration-200"
+          onClick={() => setShowComments(false)}
+        >
+          <div 
+            className="w-full max-w-lg bg-[#121212] border-t border-neutral-800 rounded-t-[26px] h-[75vh] max-h-[640px] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Grab Handle */}
+            <div className="w-full flex justify-center pt-2.5 pb-1">
+              <div className="w-10 h-1 bg-neutral-600 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="px-4 py-2 border-b border-neutral-800/80 flex items-center justify-between">
+              <div className="w-8" />
+              <h3 className="text-sm font-bold text-white text-center tracking-wide">
+                Comments
               </h3>
               <button
                 type="button"
                 onClick={() => setShowComments(false)}
-                className="w-7 h-7 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                aria-label="Close comments"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Comments List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 divide-y divide-neutral-800/40">
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {activeReel?.comments && activeReel.comments.length > 0 ? (
-                activeReel.comments.map((comm) => (
-                  <div key={comm.id} className="pt-3 first:pt-0 flex items-start gap-3">
-                    {comm.avatar ? (
-                      <img 
-                        src={comm.avatar} 
-                        alt={comm.user} 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
-                          if (currentUsername && cUser === currentUsername) {
-                            if (onOpenOwnProfile) onOpenOwnProfile();
-                            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
-                          } else {
-                            const d = { username: comm.user, name: comm.user, avatarUrl: comm.avatar };
-                            if (onOpenUserProfile) onOpenUserProfile(d);
-                            else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
-                          }
-                          setShowComments(false);
-                        }}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
-                          if (currentUsername && cUser === currentUsername) {
-                            if (onOpenOwnProfile) onOpenOwnProfile();
-                            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
-                          } else {
-                            const d = { username: comm.user, name: comm.user, avatarUrl: '' };
-                            if (onOpenUserProfile) onOpenUserProfile(d);
-                            else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
-                          }
-                          setShowComments(false);
-                        }}
-                        className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs shrink-0 ring-1 ring-white/15 select-none cursor-pointer hover:opacity-80 transition-opacity"
-                      >
-                        {comm.user?.charAt(0).toUpperCase() || 'U'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const cUser = (comm.user || '').toLowerCase().replace(/^@/, '');
-                            if (currentUsername && cUser === currentUsername) {
-                              if (onOpenOwnProfile) onOpenOwnProfile();
-                              else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
-                            } else {
-                              const d = { username: comm.user, name: comm.user, avatarUrl: comm.avatar };
-                              if (onOpenUserProfile) onOpenUserProfile(d);
-                              else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
-                            }
-                            setShowComments(false);
-                          }}
-                          className="text-xs font-bold text-white cursor-pointer hover:underline"
+                activeReel.comments.map((comm) => {
+                  const isAuthorComment = comm.isAuthor || Boolean(
+                    activeReel.creator?.username && 
+                    comm.user?.toLowerCase().replace(/^@/, '') === activeReel.creator.username.toLowerCase().replace(/^@/, '')
+                  );
+                  const isCommentLiked = Boolean(comm.isLiked || likedComments[comm.id]);
+                  const hasReplies = Boolean(comm.replies && comm.replies.length > 0);
+                  const areRepliesExpanded = Boolean(expandedReplies[comm.id]);
+
+                  return (
+                    <div key={comm.id} className="space-y-2">
+                      {/* Main Comment Row */}
+                      <div className="flex items-start justify-between gap-3 group">
+                        {/* Avatar */}
+                        <div 
+                          onClick={() => handleCommentUserClick(comm.user, comm.avatar)}
+                          className="shrink-0 cursor-pointer pt-0.5"
                         >
-                          {comm.user}
-                        </span>
-                        <span className="text-[10px] text-neutral-500">{comm.time}</span>
+                          {comm.avatar ? (
+                            <img 
+                              src={comm.avatar} 
+                              alt={comm.user} 
+                              className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85 transition-opacity"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/10 hover:opacity-85 transition-opacity">
+                              {comm.user?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Text & Meta */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center flex-wrap gap-1.5 leading-tight">
+                            <span 
+                              onClick={() => handleCommentUserClick(comm.user, comm.avatar)}
+                              className="text-xs sm:text-sm font-bold text-white hover:underline cursor-pointer"
+                            >
+                              {comm.user}
+                            </span>
+                            {/* Blue Verified Badge */}
+                            <svg className="w-3.5 h-3.5 fill-[#1d9bf0] shrink-0 inline-block" viewBox="0 0 24 24">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                            {/* Time */}
+                            <span className="text-xs text-neutral-400">
+                              {comm.time || '1w'}
+                            </span>
+                            {/* Author Badge */}
+                            {isAuthorComment && (
+                              <span className="text-xs text-neutral-400 font-medium flex items-center gap-0.5">
+                                · Author <span className="text-[11px]">📌</span>
+                              </span>
+                            )}
+                            {/* Liked by Author Badge */}
+                            {comm.isAuthorLiked && (
+                              <span className="text-[11px] text-neutral-400 flex items-center gap-1 font-medium">
+                                · <Heart className="w-3 h-3 fill-red-500 text-red-500 inline-block" /> by author
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Comment Body */}
+                          <div className="text-xs sm:text-sm text-neutral-100 mt-1 leading-snug break-words">
+                            {renderCommentText(comm.text)}
+                          </div>
+
+                          {/* Reply Action */}
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleReplyClick(comm)}
+                              className="text-xs font-semibold text-neutral-400 hover:text-white cursor-pointer transition-colors"
+                            >
+                              Reply
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Like Button & Count */}
+                        <div className="flex flex-col items-center shrink-0 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCommentLike(comm.id)}
+                            className="p-1 cursor-pointer transition-transform active:scale-125"
+                            aria-label="Like comment"
+                          >
+                            <Heart 
+                              className={`w-4 h-4 transition-colors ${
+                                isCommentLiked
+                                  ? 'fill-red-500 text-red-500' 
+                                  : 'text-neutral-400 hover:text-white'
+                              }`} 
+                            />
+                          </button>
+                          {Boolean((comm.likesCount || 0) > 0 || isCommentLiked) && (
+                            <span className="text-[11px] text-neutral-400 font-medium">
+                              {(comm.likesCount || 0) + (isCommentLiked && !comm.isLiked ? 1 : 0)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-neutral-300 mt-0.5 leading-relaxed">{comm.text}</p>
+
+                      {/* Nested Replies Toggle */}
+                      {hasReplies && (
+                        <div className="pl-12">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedReplies((prev) => ({ ...prev, [comm.id]: !prev[comm.id] }))}
+                            className="text-xs text-neutral-400 font-semibold flex items-center gap-2 hover:text-neutral-200 cursor-pointer py-1"
+                          >
+                            <span className="w-6 h-[1px] bg-neutral-600 inline-block" />
+                            <span>
+                              {areRepliesExpanded 
+                                ? 'Hide replies' 
+                                : `View ${comm.replies!.length} more ${comm.replies!.length === 1 ? 'reply' : 'replies'}`}
+                            </span>
+                          </button>
+
+                          {/* Expanded Replies */}
+                          {areRepliesExpanded && (
+                            <div className="mt-2 space-y-3 pl-2 border-l border-neutral-800">
+                              {comm.replies!.map((reply) => {
+                                const isReplyLiked = Boolean(reply.isLiked || likedComments[reply.id]);
+                                const isReplyAuthor = reply.isAuthor || Boolean(
+                                  activeReel.creator?.username && 
+                                  reply.user?.toLowerCase().replace(/^@/, '') === activeReel.creator.username.toLowerCase().replace(/^@/, '')
+                                );
+
+                                return (
+                                  <div key={reply.id} className="flex items-start justify-between gap-2.5">
+                                    <div 
+                                      onClick={() => handleCommentUserClick(reply.user, reply.avatar)}
+                                      className="shrink-0 cursor-pointer pt-0.5"
+                                    >
+                                      {reply.avatar ? (
+                                        <img 
+                                          src={reply.avatar} 
+                                          alt={reply.user} 
+                                          className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85"
+                                          referrerPolicy="no-referrer"
+                                          onError={(e) => {
+                                            (e.target as HTMLElement).style.display = 'none';
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-[10px] ring-1 ring-white/10 hover:opacity-85">
+                                          {reply.user?.charAt(0).toUpperCase() || 'U'}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center flex-wrap gap-1.5 leading-tight">
+                                        <span 
+                                          onClick={() => handleCommentUserClick(reply.user, reply.avatar)}
+                                          className="text-xs font-bold text-white hover:underline cursor-pointer"
+                                        >
+                                          {reply.user}
+                                        </span>
+                                        <svg className="w-3 h-3 fill-[#1d9bf0] shrink-0 inline-block" viewBox="0 0 24 24">
+                                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                        </svg>
+                                        <span className="text-[11px] text-neutral-400">
+                                          {reply.time || '1w'}
+                                        </span>
+                                        {isReplyAuthor && (
+                                          <span className="text-[11px] text-neutral-400 font-medium">
+                                            · Author
+                                          </span>
+                                        )}
+                                        {reply.isAuthorLiked && (
+                                          <span className="text-[10px] text-neutral-400 flex items-center gap-0.5">
+                                            · <Heart className="w-2.5 h-2.5 fill-red-500 text-red-500 inline-block" /> by author
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="text-xs text-neutral-200 mt-1 leading-snug break-words">
+                                        {renderCommentText(reply.text)}
+                                      </div>
+
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleReplyClick({ id: comm.id, user: reply.user })}
+                                          className="text-[11px] font-semibold text-neutral-400 hover:text-white cursor-pointer"
+                                        >
+                                          Reply
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col items-center shrink-0 pt-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleCommentLike(reply.id, comm.id)}
+                                        className="p-1 cursor-pointer transition-transform active:scale-125"
+                                        aria-label="Like reply"
+                                      >
+                                        <Heart 
+                                          className={`w-3.5 h-3.5 transition-colors ${
+                                            isReplyLiked
+                                              ? 'fill-red-500 text-red-500' 
+                                              : 'text-neutral-400 hover:text-white'
+                                          }`} 
+                                        />
+                                      </button>
+                                      {Boolean((reply.likesCount || 0) > 0 || isReplyLiked) && (
+                                        <span className="text-[10px] text-neutral-400 font-medium">
+                                          {(reply.likesCount || 0) + (isReplyLiked && !reply.isLiked ? 1 : 0)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-neutral-500">
-                  <MessageCircle className="w-8 h-8 mb-2 stroke-1" />
-                  <p className="text-xs">No comments yet. Be the first to share your thoughts!</p>
+                <div className="h-48 flex flex-col items-center justify-center text-center p-6 text-neutral-500">
+                  <MessageCircle className="w-10 h-10 mb-2 stroke-1 text-neutral-600" />
+                  <p className="text-sm font-semibold text-neutral-400">No comments yet</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">Start the conversation.</p>
                 </div>
               )}
             </div>
 
-            {/* Comment Input */}
-            <form onSubmit={handleAddComment} className="p-3 border-t border-neutral-800 flex items-center gap-2 bg-neutral-950">
-              <input
-                type="text"
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                placeholder="Add a travel comment..."
-                className="flex-1 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-emerald-500"
-              />
-              <button
-                type="submit"
-                disabled={!newCommentText.trim()}
-                className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
+            {/* Quick Emoji Bar (Matching Instagram Reel Comments Image 3) */}
+            <div className="px-4 py-2 border-t border-neutral-800/60 bg-[#121212] flex items-center justify-between select-none">
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => handleInsertEmoji(emoji)}
+                  className="text-xl sm:text-2xl hover:scale-125 active:scale-95 transition-transform cursor-pointer p-1"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+
+            {/* Replying banner if active */}
+            {replyingTo && (
+              <div className="px-4 py-1.5 bg-neutral-800/90 flex items-center justify-between text-xs text-neutral-300">
+                <span className="flex items-center gap-1.5">
+                  <CornerDownRight className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Replying to <strong className="text-white">@{replyingTo.user}</strong></span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyingTo(null);
+                    setNewCommentText('');
+                  }}
+                  className="text-neutral-400 hover:text-white cursor-pointer p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Bottom Input Area (Matching Image 3) */}
+            <div className="p-3 border-t border-neutral-800 bg-[#121212] pb-[calc(env(safe-area-inset-bottom,0px)+12px)]">
+              <form onSubmit={handleAddComment} className="flex items-center gap-2.5">
+                {/* User Avatar */}
+                <div className="shrink-0">
+                  {currentUserAvatar ? (
+                    <img 
+                      src={currentUserAvatar} 
+                      alt="You" 
+                      className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/10">
+                      {currentUsername ? currentUsername.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pill Input */}
+                <div className="flex-1 bg-[#1e1e1e] border border-neutral-800 focus-within:border-neutral-700 rounded-full px-4 py-2 flex items-center gap-2">
+                  <input
+                    ref={commentInputRef}
+                    type="text"
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    placeholder={
+                      replyingTo 
+                        ? `Reply to @${replyingTo.user}...` 
+                        : `Add a comment for ${activeReel?.creator?.username?.replace(/^@/, '') || 'creator'}...`
+                    }
+                    className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder:text-neutral-500 focus:outline-hidden"
+                  />
+                  <Smile className="w-4 h-4 text-neutral-400 shrink-0" />
+                </div>
+
+                {/* Post Button */}
+                <button
+                  type="submit"
+                  disabled={!newCommentText.trim()}
+                  className="text-sm font-bold text-blue-500 hover:text-blue-400 disabled:opacity-30 disabled:pointer-events-none px-2 cursor-pointer transition-colors"
+                >
+                  Post
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
 
       {/* Instagram Reel Style Upload Modal */}
       {showUploadModal && (
