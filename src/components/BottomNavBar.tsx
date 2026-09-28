@@ -1,5 +1,6 @@
 import React from 'react';
-import { Home, Play, Plus, Search, User, Route } from 'lucide-react';
+import { Home, Play, Plus, Search, User } from 'lucide-react';
+import { PlanTripIcon } from './PlanTripIcon';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 import { ThemeConfig } from '../types';
@@ -113,7 +114,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
               : 'hover:brightness-110 hover:scale-105'
           }`}
         >
-          <Route className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.3] transition-transform group-hover:scale-110" />
+          <PlanTripIcon className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
           <span className="sr-only">Plan New Trip</span>
         </button>
 
