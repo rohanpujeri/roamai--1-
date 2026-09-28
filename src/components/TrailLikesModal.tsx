@@ -18,7 +18,7 @@ import {
   cleanHandle,
   isFakeMockUser
 } from '../services/followService';
-import { sanitizeAvatarUrl } from '../services/supabaseClient';
+import { sanitizeAvatarUrl, getSupabaseClient } from '../services/supabaseClient';
 
 interface TrailLikesModalProps {
   isOpen: boolean;
@@ -34,7 +34,7 @@ interface TrailLikesModalProps {
     avatarUrl?: string;
   } | null;
   onLikeTrail?: () => void;
-  onSelectUser?: (username: string) => void;
+  onSelectUser?: (username: string, liker?: TrailLiker) => void;
 }
 
 export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
@@ -99,6 +99,88 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
           }
         }
 
+        // Live hydrate likers from Supabase profiles table
+        try {
+          const supabase = getSupabaseClient();
+          if (supabase && likersMap.size > 0) {
+            const unames: string[] = [];
+            const ids: string[] = [];
+            likersMap.forEach((l) => {
+              const u = cleanHandle(l.username);
+              if (u) unames.push(u);
+              if (l.id && !l.id.startsWith('user_') && !l.id.startsWith('claimed_')) {
+                ids.push(l.id.replace(/^supa_/, ''));
+              }
+            });
+
+            const orClauses: string[] = [];
+            if (ids.length > 0) orClauses.push(`id.in.(${ids.join(',')})`);
+            if (unames.length > 0) {
+              orClauses.push(`username.in.(${unames.map((u) => `@${u}`).join(',')})`);
+              orClauses.push(`username.in.(${unames.join(',')})`);
+            }
+
+            if (orClauses.length > 0) {
+              const { data: liveProfiles } = await supabase
+                .from('profiles')
+                .select('id, username, name, avatar_url')
+                .or(orClauses.join(','));
+
+              if (Array.isArray(liveProfiles) && liveProfiles.length > 0) {
+                const profMap = new Map<string, any>();
+                liveProfiles.forEach((p) => {
+                  if (p.id) profMap.set(p.id, p);
+                  const clean = cleanHandle(p.username || '');
+                  if (clean) {
+                    profMap.set(clean, p);
+                    profMap.set(clean.replace(/[._]/g, ''), p);
+                  }
+                });
+
+                likersMap.forEach((liker) => {
+                  const cleanU = cleanHandle(liker.username);
+                  const cleanId = (liker.id || '').replace(/^supa_/, '');
+                  const matched = (cleanId && profMap.get(cleanId)) ||
+                                  (cleanU && (profMap.get(cleanU) || profMap.get(cleanU.replace(/[._]/g, ''))));
+                  if (matched) {
+                    if (matched.name) liker.name = matched.name;
+                    if (matched.username) liker.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
+                    if (matched.avatar_url) liker.avatarUrl = matched.avatar_url;
+                    if (matched.id) liker.id = matched.id;
+                  }
+                });
+              }
+            }
+          }
+        } catch (enrichErr) {
+          console.warn('Failed to enrich likers in modal:', enrichErr);
+        }
+
+        // Also check any cached profiles in localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && (key.startsWith('tripwise_user_profile_') || key.startsWith('roamai_user_profile_'))) {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                  const p = JSON.parse(raw);
+                  if (p && p.username) {
+                    const u = cleanHandle(p.username);
+                    likersMap.forEach((liker) => {
+                      const cleanU = cleanHandle(liker.username);
+                      if (cleanU === u || cleanU.replace(/[._]/g, '') === u.replace(/[._]/g, '')) {
+                        if (p.name) liker.name = p.name;
+                        if (p.avatarUrl) liker.avatarUrl = p.avatarUrl;
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
+
         const finalList = Array.from(likersMap.values());
 
         if (isMounted) {
@@ -125,8 +207,30 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
 
     loadLikers();
 
+    const handleProfileUpdated = (e: any) => {
+      const updated = e?.detail;
+      if (updated && updated.username) {
+        const uClean = cleanHandle(updated.username);
+        setLikers((prev) =>
+          prev.map((l) => {
+            const lClean = cleanHandle(l.username);
+            if (lClean === uClean || lClean.replace(/[._]/g, '') === uClean.replace(/[._]/g, '')) {
+              return {
+                ...l,
+                name: updated.name || l.name,
+                avatarUrl: updated.avatarUrl || l.avatarUrl
+              };
+            }
+            return l;
+          })
+        );
+      }
+    };
+    window.addEventListener('roamai_profile_updated', handleProfileUpdated);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('roamai_profile_updated', handleProfileUpdated);
     };
   }, [isOpen, trailId, likesCount, currentUser?.username]);
 
@@ -330,7 +434,7 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
                     {/* User Info */}
                     <div 
                       className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer pr-3"
-                      onClick={() => onSelectUser && onSelectUser(liker.username)}
+                      onClick={() => onSelectUser && onSelectUser(liker.username, liker)}
                     >
                       <div className="relative w-10 h-10 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center text-xs font-bold text-white">
                         {liker.avatarUrl ? (

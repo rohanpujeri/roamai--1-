@@ -41,7 +41,9 @@ import {
   followUser,
   unfollowUser,
   isFakeMockUser,
-  isSelfRel
+  isSelfRel,
+  cleanBio,
+  isFakeBio
 } from '../services/followService';
 
 
@@ -202,7 +204,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           username: d.username?.startsWith('@') ? d.username : (matched?.username || (cachedStats?.username ? cachedStats.username : `@${cleanUname}`)),
           avatarUrl: d.avatarUrl || matched?.avatarUrl || cachedStats?.avatarUrl || '',
           location: d.location || matched?.location || cachedStats?.place || 'Traveler',
-          bio: d.bio || matched?.bio || cachedStats?.bio || '',
+          bio: cleanBio(d.bio) || cleanBio(matched?.bio) || cleanBio(cachedStats?.bio) || '',
           level: d.level || matched?.level || cachedStats?.stats?.level || 'Travel Explorer',
           tripsCount: d.tripsCount ?? (matched?.tripsCount ?? (cachedStats?.stats?.tripsCount || 0)),
           placesCount: d.placesCount ?? (matched?.placesCount ?? (cachedStats?.stats?.placesCount || 0)),
@@ -319,7 +321,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 ...prev,
                 name: pData.name || prev.name,
                 avatarUrl: pData.avatar_url || prev.avatarUrl,
-                bio: pData.bio || prev.bio || '',
+                bio: cleanBio(pData.bio) || cleanBio(prev.bio) || '',
                 tripsCount: pData.trips_count ?? prev.tripsCount,
                 placesCount: pData.places_count ?? prev.placesCount,
                 countriesCount: pData.countries_count ?? prev.countriesCount
@@ -949,9 +951,9 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
           {/* Bio & Details */}
           <div className="mt-3 text-left">
-            {viewingProfile.bio && (
+            {cleanBio(viewingProfile.bio) && (
               <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line mb-1">
-                {viewingProfile.bio}
+                {cleanBio(viewingProfile.bio)}
               </p>
             )}
             <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium flex-wrap">
@@ -1401,7 +1403,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               username: selectedUser.username?.startsWith('@') ? selectedUser.username : (matched?.username || `@${cleanU}`),
               avatarUrl: selectedUser.avatarUrl || matched?.avatarUrl || '',
               location: selectedUser.location || matched?.location || 'Traveler',
-              bio: selectedUser.bio || matched?.bio || '',
+              bio: cleanBio(selectedUser.bio) || cleanBio(matched?.bio) || '',
               level: matched?.level || 'Travel Explorer',
               tripsCount: matched?.tripsCount || 0,
               placesCount: matched?.placesCount || 0,
@@ -1517,9 +1519,9 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                             <p className="text-xs text-neutral-400 truncate">
                               {tr.name}
                             </p>
-                            {tr.bio && (
+                            {cleanBio(tr.bio) && (
                               <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
-                                {tr.bio}
+                                {cleanBio(tr.bio)}
                               </p>
                             )}
                           </div>

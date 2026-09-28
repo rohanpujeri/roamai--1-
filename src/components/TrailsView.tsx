@@ -1559,6 +1559,34 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             handleLike({ stopPropagation: () => {} } as React.MouseEvent);
           }
         }}
+        onSelectUser={(likerUsername, likerObj) => {
+          setShowLikesModal(false);
+          const rawU = typeof likerUsername === 'string' ? likerUsername : (likerObj?.username || '');
+          const cleanU = rawU.toLowerCase().replace(/^@+/, '');
+          
+          if (currentUsername && cleanU === currentUsername) {
+            if (onOpenOwnProfile) onOpenOwnProfile();
+            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
+          } else {
+            const travellerData = {
+              id: likerObj?.id,
+              username: rawU.startsWith('@') ? rawU : `@${rawU}`,
+              name: likerObj?.name || rawU,
+              avatarUrl: likerObj?.avatarUrl || '',
+              location: 'Traveler',
+              isFollowing: !!likerObj?.isFollowing
+            };
+            if (onOpenUserProfile) {
+              onOpenUserProfile(travellerData);
+            } else {
+              window.dispatchEvent(
+                new CustomEvent('roamai_view_traveller', {
+                  detail: travellerData
+                })
+              );
+            }
+          }
+        }}
       />
 
       {/* Comments Drawer / Sheet */}

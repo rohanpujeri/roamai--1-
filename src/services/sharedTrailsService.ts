@@ -267,6 +267,88 @@ export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
     // ignore
   }
 
+  // 4. Enrich likers with live profiles from Supabase profiles table
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase && likersMap.size > 0) {
+      const unames: string[] = [];
+      const ids: string[] = [];
+      likersMap.forEach((l) => {
+        const u = (l.username || '').toLowerCase().replace(/^@+/, '');
+        if (u) unames.push(u);
+        if (l.id && !l.id.startsWith('user_') && !l.id.startsWith('claimed_')) {
+          ids.push(l.id.replace(/^supa_/, ''));
+        }
+      });
+
+      const orClauses: string[] = [];
+      if (ids.length > 0) orClauses.push(`id.in.(${ids.join(',')})`);
+      if (unames.length > 0) {
+        orClauses.push(`username.in.(${unames.map((u) => `@${u}`).join(',')})`);
+        orClauses.push(`username.in.(${unames.join(',')})`);
+      }
+
+      if (orClauses.length > 0) {
+        const { data: liveProfiles } = await supabase
+          .from('profiles')
+          .select('id, username, name, avatar_url')
+          .or(orClauses.join(','));
+
+        if (Array.isArray(liveProfiles) && liveProfiles.length > 0) {
+          const profMap = new Map<string, any>();
+          liveProfiles.forEach((p) => {
+            if (p.id) profMap.set(p.id, p);
+            const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
+            if (clean) {
+              profMap.set(clean, p);
+              profMap.set(clean.replace(/[._]/g, ''), p);
+            }
+          });
+
+          likersMap.forEach((liker) => {
+            const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+            const cleanId = (liker.id || '').replace(/^supa_/, '');
+            const matched = (cleanId && profMap.get(cleanId)) ||
+                            (cleanU && (profMap.get(cleanU) || profMap.get(cleanU.replace(/[._]/g, ''))));
+            if (matched) {
+              if (matched.name) liker.name = matched.name;
+              if (matched.username) liker.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
+              if (matched.avatar_url) liker.avatarUrl = matched.avatar_url;
+              if (matched.id) liker.id = matched.id;
+            }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to hydrate likers from profiles table:', err);
+  }
+
+  // 5. Also check any cached profiles in localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('tripwise_user_profile_') || key.startsWith('roamai_user_profile_'))) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p && p.username) {
+              const u = (p.username || '').toLowerCase().replace(/^@+/, '');
+              likersMap.forEach((liker) => {
+                const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+                if (cleanU === u || cleanU.replace(/[._]/g, '') === u.replace(/[._]/g, '')) {
+                  if (p.name) liker.name = p.name;
+                  if (p.avatarUrl) liker.avatarUrl = p.avatarUrl;
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
   const list = Array.from(likersMap.values());
   setLocalTrailLikers(trailId, list);
   return list;
@@ -547,6 +629,26 @@ export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel
               t.creator.avatarUrl = matched.avatar_url;
             }
           }
+        }
+
+        // Hydrate likedBy likers with live profiles
+        if (Array.isArray(t.likedBy) && t.likedBy.length > 0) {
+          t.likedBy.forEach((liker) => {
+            const lId = liker.id;
+            const lUname = (liker.username || '').toLowerCase().replace(/^@+/, '');
+            const matched = (lId && profMap.get(lId)) || (lUname && (profMap.get(lUname) || profMap.get(lUname.replace(/[._]/g, ''))));
+            if (matched) {
+              if (matched.username) {
+                liker.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
+              }
+              if (matched.name) {
+                liker.name = matched.name;
+              }
+              if (matched.avatar_url) {
+                liker.avatarUrl = matched.avatar_url;
+              }
+            }
+          });
         }
       });
     }

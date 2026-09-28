@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, MapPin, Compass, Sparkles, UserCheck, UserPlus, Award } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { searchRealTravellers } from '../services/usernameService';
+import { cleanBio } from '../services/followService';
 
 export interface TravellerSearchResult {
   id: string;
@@ -205,9 +206,11 @@ export const TravellerSearchModal: React.FC<TravellerSearchModalProps> = ({
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-neutral-300 mt-1 line-clamp-2 leading-relaxed">
-                    {traveller.bio}
-                  </p>
+                  {cleanBio(traveller.bio) && (
+                    <p className="text-[11px] text-neutral-300 mt-1 line-clamp-2 leading-relaxed">
+                      {cleanBio(traveller.bio)}
+                    </p>
+                  )}
 
                   <div className="flex items-center gap-2 mt-2 flex-wrap text-[10px]">
                     <span className="flex items-center gap-1 text-amber-400 font-bold">

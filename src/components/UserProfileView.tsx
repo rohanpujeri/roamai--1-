@@ -74,7 +74,7 @@ import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
 import { FollowListModal } from './FollowListModal';
-import { getFollowCounts, isFakeMockUser } from '../services/followService';
+import { getFollowCounts, isFakeMockUser, cleanBio } from '../services/followService';
 
 
 interface UserProfileViewProps {
@@ -667,7 +667,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return {
       name: cached?.name || getFallbackName(user, userMeta),
       username: cached?.username || getFallbackUsername(user, userMeta),
-      bio: typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || ''),
+      bio: cleanBio(typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || '')),
       avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || ''),
       dob: cached?.dob || userMeta.dob || '',
       place: cached?.place || userMeta.place || '',
@@ -727,7 +727,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const username = cached?.username || getFallbackUsername(user, userMeta);
     const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
     const place = cached?.place || userMeta.place || '';
-    const bio = typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || '');
+    const bio = cleanBio(typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || ''));
     const dob = cached?.dob || userMeta.dob || '';
 
     const synced: UserProfileData = {
@@ -913,7 +913,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         ...profile,
         ...editForm,
         name: editForm.name?.trim() || profile.name,
-        bio: typeof editForm.bio === 'string' ? editForm.bio : '',
+        bio: typeof editForm.bio === 'string' ? cleanBio(editForm.bio) : '',
         username: newClean ? `@${newClean}` : editForm.username
       };
 
@@ -1330,9 +1330,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         {/* Bio & Details */}
         <div className="mt-3 text-left">
-          {profile.bio && (
+          {cleanBio(profile.bio) && (
             <p className="text-xs sm:text-sm text-zinc-200 font-normal leading-relaxed whitespace-pre-line mb-1">
-              {profile.bio}
+              {cleanBio(profile.bio)}
             </p>
           )}
           <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium flex-wrap">

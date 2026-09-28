@@ -1,5 +1,5 @@
 import { getSupabaseClient, sanitizeAvatarUrl } from './supabaseClient';
-import { isFakeMockUser } from './followService';
+import { isFakeMockUser, cleanBio } from './followService';
 
 const RESERVED_USERNAMES = new Set([
   'admin',
@@ -334,7 +334,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
       username: `@${cleanUser}`,
       avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
       location: '',
-      bio: p.bio || existing?.bio || '',
+      bio: cleanBio(p.bio) || cleanBio(existing?.bio) || '',
       level: p.level || existing?.level || 'Travel Explorer',
       tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
       placesCount: p.placesCount ?? existing?.placesCount ?? 0,
@@ -364,7 +364,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
                   username: `@${u}`,
                   avatarUrl: data.avatarUrl,
                   location: data.place,
-                  bio: data.bio,
+                  bio: cleanBio(data.bio),
                   tripsCount: data.stats?.tripsCount || 0,
                   placesCount: data.stats?.placesCount || 0,
                   countriesCount: data.stats?.countriesCount || 0,
@@ -436,7 +436,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
                 username: `@${clean}`,
                 name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
                 avatarUrl: row.avatar_url,
-                bio: row.bio,
+                bio: cleanBio(row.bio),
                 location: row.location || row.place,
                 level: row.level || 'Travel Explorer',
                 tripsCount: row.trips_count || 0,

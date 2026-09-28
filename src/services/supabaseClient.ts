@@ -405,13 +405,32 @@ export function getCanonicalUsername(
   return '@traveler';
 }
 
+function cleanBioText(bio?: string | null): string {
+  if (!bio) return '';
+  const b = bio.trim().toLowerCase();
+  if (
+    !b ||
+    b.includes('exploring new places') ||
+    b.includes('passionate explorer') ||
+    b.includes('sharing journey trails') ||
+    b.includes('one trip at a time') ||
+    b === 'traveler' ||
+    b === 'travel explorer'
+  ) {
+    return '';
+  }
+  return bio.trim();
+}
+
 export async function updateUserProfileData(profile: UserProfileData, fallbackUserId?: string): Promise<{ error?: string }> {
   let user = await getCurrentUser();
   const userId = user?.id || fallbackUserId;
   if (!userId) return { error: 'Not authenticated' };
 
+  const sanitizedBio = cleanBioText(profile.bio);
   const sanitizedProfile: UserProfileData = {
     ...profile,
+    bio: sanitizedBio,
     avatarUrl: sanitizeAvatarUrl(profile.avatarUrl)
   };
 
@@ -434,7 +453,7 @@ export async function updateUserProfileData(profile: UserProfileData, fallbackUs
             full_name: sanitizedProfile.name,
             name: sanitizedProfile.name,
             username: sanitizedProfile.username,
-            bio: typeof sanitizedProfile.bio === 'string' ? sanitizedProfile.bio : '',
+            bio: sanitizedBio,
             avatarUrl: sanitizedProfile.avatarUrl,
             avatar_url: sanitizedProfile.avatarUrl,
             dob: sanitizedProfile.dob,
@@ -455,7 +474,7 @@ export async function updateUserProfileData(profile: UserProfileData, fallbackUs
           username: sanitizedProfile.username,
           name: sanitizedProfile.name,
           avatar_url: sanitizedProfile.avatarUrl,
-          bio: typeof sanitizedProfile.bio === 'string' ? sanitizedProfile.bio : '',
+          bio: sanitizedBio,
           place: sanitizedProfile.place,
           location: sanitizedProfile.place || 'Traveler',
           trips_count: sanitizedProfile.stats?.tripsCount || 0,

@@ -41,6 +41,25 @@ export function isFakeMockUser(_username?: string | null): boolean {
   return false;
 }
 
+export function isFakeBio(bio?: string | null): boolean {
+  if (!bio) return true;
+  const b = bio.trim().toLowerCase();
+  if (!b) return true;
+  return (
+    b.includes('exploring new places') ||
+    b.includes('passionate explorer') ||
+    b.includes('sharing journey trails') ||
+    b.includes('one trip at a time') ||
+    b === 'traveler' ||
+    b === 'travel explorer'
+  );
+}
+
+export function cleanBio(bio?: string | null): string {
+  if (!bio || isFakeBio(bio)) return '';
+  return bio.trim();
+}
+
 /**
  * Check if a relationship is a self-follow (same person with different identifier formats)
  */
@@ -563,7 +582,7 @@ export async function getFollowers(
       username: rel.followerUsername.startsWith('@') ? rel.followerUsername : `@${rel.followerUsername}`,
       name: enriched?.name || rel.followerName || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followerAvatar || ''),
-      bio: enriched?.bio || '',
+      bio: cleanBio(enriched?.bio),
       location: '',
       isFollowing: isF,
       followsYou: followsViewer
@@ -706,7 +725,7 @@ export async function getFollowing(
       username: rel.followingUsername.startsWith('@') ? rel.followingUsername : `@${rel.followingUsername}`,
       name: enriched?.name || rel.followingName || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
       avatarUrl: sanitizeAvatarUrl(enriched?.avatarUrl || rel.followingAvatar || ''),
-      bio: enriched?.bio || '',
+      bio: cleanBio(enriched?.bio),
       location: '',
       isFollowing: isF,
       followsYou: followsViewer
