@@ -698,6 +698,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
+  const getDisplayUsername = (rawUser: string): string => {
+    if (!rawUser) return 'user';
+    return rawUser.toLowerCase().replace(/^@/, '').replace(/\s+/g, '_');
+  };
+
   const handleAddComment = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newCommentText.trim() || !activeReel) return;
@@ -708,7 +713,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
 
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-    const userDisplayName = cached?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || currentUsername || 'You';
+    const userHandle = getDisplayUsername(
+      currentUsername ||
+      cached?.username ||
+      session?.user?.user_metadata?.username ||
+      session?.user?.email?.split('@')[0] ||
+      'user'
+    );
     const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
     const userAvatar = sanitizeAvatarUrl(rawAvatar);
 
@@ -720,7 +731,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const newCommentId = `comm-${Date.now()}`;
     const newComment: TrailComment = {
       id: newCommentId,
-      user: userDisplayName,
+      user: userHandle,
       avatar: userAvatar,
       text: newCommentText.trim(),
       time: 'Just now',
@@ -822,7 +833,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   const handleReplyClick = (comm: { id: string; user: string }) => {
-    const rawClean = comm.user.replace(/^@/, '');
+    const rawClean = getDisplayUsername(comm.user);
     setReplyingTo({ id: comm.id, user: rawClean });
     setNewCommentText(`@${rawClean} `);
     setTimeout(() => {
@@ -838,14 +849,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   const handleCommentUserClick = (userName: string, avatarUrl?: string) => {
-    const cleanU = (userName || '').toLowerCase().replace(/^@/, '');
+    const cleanU = getDisplayUsername(userName);
     if (currentUsername && cleanU === currentUsername) {
       if (onOpenOwnProfile) onOpenOwnProfile();
       else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
     } else {
       const d = { 
-        username: userName.startsWith('@') ? userName : `@${userName}`, 
-        name: userName, 
+        username: `@${cleanU}`, 
+        name: cleanU, 
         avatarUrl: avatarUrl || '' 
       };
       if (onOpenUserProfile) onOpenUserProfile(d);
@@ -1393,26 +1404,26 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Gradient Overlays for readable text */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-        {/* Right Action Sidebar (Instagram Reels style - Above playline) */}
+        {/* Right Action Sidebar (Pure symbols without background shade, Instagram Reels style) */}
         <div 
-          className="absolute right-3 sm:right-6 z-20 flex flex-col items-center gap-2 sm:gap-2.5 pointer-events-auto"
+          className="absolute right-3.5 sm:right-6 z-20 flex flex-col items-center gap-4 sm:gap-5 pointer-events-auto select-none"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 116px)' }}
         >
           {/* Like Button & Likes Count */}
-          <div className="flex flex-col items-center gap-0.5 group/btn">
+          <div className="flex flex-col items-center gap-1 group/btn">
             <button
               type="button"
               onClick={handleLike}
-              className="flex flex-col items-center cursor-pointer transition-transform active:scale-75"
+              className="flex items-center justify-center cursor-pointer transition-transform active:scale-75 hover:scale-110"
               title={activeReel.isLiked ? 'Unlike' : 'Like'}
             >
-              <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 shadow-xl border border-white/15 ${
-                activeReel.isLiked ? 'bg-red-500/25 text-red-500 scale-110 border-red-500/40' : 'bg-black/60 hover:bg-black/80 text-white'
-              }`}>
-                <Heart className={`w-6 h-6 sm:w-6.5 sm:h-6.5 transition-transform ${
-                  activeReel.isLiked ? 'fill-red-500 stroke-red-500' : 'stroke-white hover:scale-105'
-                }`} />
-              </div>
+              <Heart 
+                className={`w-7 h-7 sm:w-8 sm:h-8 transition-all ${
+                  activeReel.isLiked 
+                    ? 'fill-red-500 text-red-500 scale-105 drop-shadow-[0_2px_12px_rgba(239,68,68,0.7)]' 
+                    : 'text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]'
+                }`} 
+              />
             </button>
             <button
               type="button"
@@ -1420,7 +1431,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 e.stopPropagation();
                 setShowLikesModal(true);
               }}
-              className="text-xs sm:text-sm font-bold text-white drop-shadow-md hover:text-emerald-400 hover:underline transition-all cursor-pointer px-1 py-0.5 rounded-md hover:bg-black/40"
+              className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] hover:text-emerald-400 hover:underline transition-all cursor-pointer"
               title="View profiles who liked this trail"
             >
               {activeReel.likesCount}
@@ -1434,12 +1445,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               e.stopPropagation();
               setShowComments(true);
             }}
-            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
           >
-            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all shadow-xl">
-              <MessageCircle className="w-6 h-6 sm:w-6.5 sm:h-6.5" />
-            </div>
-            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
+            <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
               {activeReel.commentsCount}
             </span>
           </button>
@@ -1448,14 +1457,16 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
           >
-            <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center backdrop-blur-md transition-all shadow-xl border border-white/15 ${
-              activeReel.isSaved ? 'bg-amber-500/25 text-amber-400 border-amber-500/40' : 'bg-black/60 hover:bg-black/80 text-white'
-            }`}>
-              <Bookmark className={`w-6 h-6 sm:w-6.5 sm:h-6.5 ${activeReel.isSaved ? 'fill-amber-400 stroke-amber-400' : 'stroke-white'}`} />
-            </div>
-            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
+            <Bookmark 
+              className={`w-7 h-7 sm:w-8 sm:h-8 transition-all ${
+                activeReel.isSaved 
+                  ? 'fill-amber-400 text-amber-400 drop-shadow-[0_2px_12px_rgba(251,191,36,0.7)]' 
+                  : 'text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]'
+              }`} 
+            />
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
               Save
             </span>
           </button>
@@ -1464,12 +1475,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={handleShare}
-            className="flex flex-col items-center gap-0.5 group/btn cursor-pointer"
+            className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
           >
-            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all shadow-xl">
-              <Share2 className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
-            </div>
-            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-md">
+            <Share2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
               Share
             </span>
           </button>
@@ -1478,10 +1487,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <button
             type="button"
             onClick={toggleMute}
-            className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xl"
+            className="flex items-center justify-center transition-transform active:scale-75 hover:scale-110 cursor-pointer pt-0.5"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? <VolumeX className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-neutral-300" /> : <Volume2 className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-emerald-400" />}
+            {isMuted ? (
+              <VolumeX className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-neutral-300 stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+            ) : (
+              <Volume2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+            )}
           </button>
         </div>
 
@@ -1575,13 +1588,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 >
                   {creatorCleanDisplay}
                 </span>
-
-                {/* Verified Badge */}
-                {creator.isVerified && (
-                  <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-black shrink-0 shadow-xs" title="Verified Creator">
-                    ✓
-                  </span>
-                )}
 
                 {/* Follow / Following Button (hidden for own profile) */}
                 {!isOwnTrail && (
@@ -1788,9 +1794,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {activeReel?.comments && activeReel.comments.length > 0 ? (
                 activeReel.comments.map((comm) => {
+                  const commentDisplayUser = getDisplayUsername(comm.user);
                   const isAuthorComment = comm.isAuthor || Boolean(
                     activeReel.creator?.username && 
-                    comm.user?.toLowerCase().replace(/^@/, '') === activeReel.creator.username.toLowerCase().replace(/^@/, '')
+                    commentDisplayUser === getDisplayUsername(activeReel.creator.username)
                   );
                   const isCommentLiked = Boolean(comm.isLiked || likedComments[comm.id]);
                   const hasReplies = Boolean(comm.replies && comm.replies.length > 0);
@@ -1802,13 +1809,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       <div className="flex items-start justify-between gap-3 group">
                         {/* Avatar */}
                         <div 
-                          onClick={() => handleCommentUserClick(comm.user, comm.avatar)}
+                          onClick={() => handleCommentUserClick(commentDisplayUser, comm.avatar)}
                           className="shrink-0 cursor-pointer pt-0.5"
                         >
                           {comm.avatar ? (
                             <img 
                               src={comm.avatar} 
-                              alt={comm.user} 
+                              alt={commentDisplayUser} 
                               className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85 transition-opacity"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
@@ -1817,7 +1824,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                             />
                           ) : (
                             <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/10 hover:opacity-85 transition-opacity">
-                              {comm.user?.charAt(0).toUpperCase() || 'U'}
+                              {commentDisplayUser.charAt(0).toUpperCase() || 'U'}
                             </div>
                           )}
                         </div>
@@ -1826,23 +1833,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center flex-wrap gap-1.5 leading-tight">
                             <span 
-                              onClick={() => handleCommentUserClick(comm.user, comm.avatar)}
+                              onClick={() => handleCommentUserClick(commentDisplayUser, comm.avatar)}
                               className="text-xs sm:text-sm font-bold text-white hover:underline cursor-pointer"
                             >
-                              {comm.user}
+                              {commentDisplayUser}
                             </span>
-                            {/* Blue Verified Badge */}
-                            <svg className="w-3.5 h-3.5 fill-[#1d9bf0] shrink-0 inline-block" viewBox="0 0 24 24">
-                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                            </svg>
                             {/* Time */}
                             <span className="text-xs text-neutral-400">
                               {comm.time || '1w'}
                             </span>
-                            {/* Author Badge */}
+                            {/* Author Badge (No pin symbol) */}
                             {isAuthorComment && (
-                              <span className="text-xs text-neutral-400 font-medium flex items-center gap-0.5">
-                                · Author <span className="text-[11px]">📌</span>
+                              <span className="text-xs text-neutral-400 font-medium">
+                                · Author
                               </span>
                             )}
                             {/* Liked by Author Badge */}
@@ -1914,22 +1917,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                           {areRepliesExpanded && (
                             <div className="mt-2 space-y-3 pl-2 border-l border-neutral-800">
                               {comm.replies!.map((reply) => {
+                                const replyDisplayUser = getDisplayUsername(reply.user);
                                 const isReplyLiked = Boolean(reply.isLiked || likedComments[reply.id]);
                                 const isReplyAuthor = reply.isAuthor || Boolean(
                                   activeReel.creator?.username && 
-                                  reply.user?.toLowerCase().replace(/^@/, '') === activeReel.creator.username.toLowerCase().replace(/^@/, '')
+                                  replyDisplayUser === getDisplayUsername(activeReel.creator.username)
                                 );
 
                                 return (
                                   <div key={reply.id} className="flex items-start justify-between gap-2.5">
                                     <div 
-                                      onClick={() => handleCommentUserClick(reply.user, reply.avatar)}
+                                      onClick={() => handleCommentUserClick(replyDisplayUser, reply.avatar)}
                                       className="shrink-0 cursor-pointer pt-0.5"
                                     >
                                       {reply.avatar ? (
                                         <img 
                                           src={reply.avatar} 
-                                          alt={reply.user} 
+                                          alt={replyDisplayUser} 
                                           className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85"
                                           referrerPolicy="no-referrer"
                                           onError={(e) => {
@@ -1938,7 +1942,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                                         />
                                       ) : (
                                         <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-[10px] ring-1 ring-white/10 hover:opacity-85">
-                                          {reply.user?.charAt(0).toUpperCase() || 'U'}
+                                          {replyDisplayUser.charAt(0).toUpperCase() || 'U'}
                                         </div>
                                       )}
                                     </div>
@@ -1946,14 +1950,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center flex-wrap gap-1.5 leading-tight">
                                         <span 
-                                          onClick={() => handleCommentUserClick(reply.user, reply.avatar)}
+                                          onClick={() => handleCommentUserClick(replyDisplayUser, reply.avatar)}
                                           className="text-xs font-bold text-white hover:underline cursor-pointer"
                                         >
-                                          {reply.user}
+                                          {replyDisplayUser}
                                         </span>
-                                        <svg className="w-3 h-3 fill-[#1d9bf0] shrink-0 inline-block" viewBox="0 0 24 24">
-                                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                                        </svg>
                                         <span className="text-[11px] text-neutral-400">
                                           {reply.time || '1w'}
                                         </span>
@@ -1976,7 +1977,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                                       <div className="flex items-center gap-3 mt-1">
                                         <button
                                           type="button"
-                                          onClick={() => handleReplyClick({ id: comm.id, user: reply.user })}
+                                          onClick={() => handleReplyClick({ id: comm.id, user: replyDisplayUser })}
                                           className="text-[11px] font-semibold text-neutral-400 hover:text-white cursor-pointer"
                                         >
                                           Reply
@@ -2087,7 +2088,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     placeholder={
                       replyingTo 
                         ? `Reply to @${replyingTo.user}...` 
-                        : `Add a comment for ${activeReel?.creator?.username?.replace(/^@/, '') || 'creator'}...`
+                        : `Add a comment for ${getDisplayUsername(activeReel?.creator?.username || 'creator')}...`
                     }
                     className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder:text-neutral-500 focus:outline-hidden"
                   />
