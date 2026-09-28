@@ -9,13 +9,13 @@ export interface PlanTripIconProps {
 
 /**
  * PlanTripIcon - Two location pins connected through an S-curve route
- * Exactly matching the Option 3 "ROUTE" travel button design from the showcase.
+ * Large, bold, and distinct with clean separation (route does NOT touch pins).
  */
 export const PlanTripIcon: React.FC<PlanTripIconProps> = ({
-  className = 'w-6 h-6',
-  size = 24,
+  className = 'w-6.5 h-6.5 sm:w-7.5 sm:h-7.5',
+  size = 28,
   color = 'currentColor',
-  strokeWidth = 7
+  strokeWidth = 8
 }) => {
   return (
     <svg
@@ -25,29 +25,30 @@ export const PlanTripIcon: React.FC<PlanTripIconProps> = ({
       height={size}
       fill="none"
       className={className}
+      aria-hidden="true"
     >
-      {/* S-curve Route line */}
+      {/* S-curve Route line with clear separation (does not touch pins) */}
       <path
-        d="M 36 71.5 L 53.5 71.5 A 7.75 7.75 0 0 0 53.5 56 L 47.5 56 A 7.75 7.75 0 0 1 47.5 40.5 L 61 40.5"
+        d="M 43 78 L 64 78 A 12 12 0 0 0 64 54 L 46 54 A 12 12 0 0 1 46 30 L 61 30"
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Bottom-Left Location Pin (Hollow center hole) */}
+      {/* Bottom-Left Location Pin (Large, bold with hollow center) */}
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M 34 46.5 A 8.5 8.5 0 0 1 42.5 55 C 42.5 61.5 34 72 34 72 C 34 72 25.5 61.5 25.5 55 A 8.5 8.5 0 0 1 34 46.5 Z M 34 51.5 A 3.5 3.5 0 1 0 34 58.5 A 3.5 3.5 0 1 0 34 51.5 Z"
+        d="M 24 45 A 13 13 0 0 1 37 58 C 37 68 24 81 24 81 C 24 81 11 68 11 58 A 13 13 0 0 1 24 45 Z M 24 53 A 5 5 0 1 0 24 63 A 5 5 0 1 0 24 53 Z"
         fill={color}
       />
 
-      {/* Top-Right Location Pin (Hollow center hole) */}
+      {/* Top-Right Location Pin (Large, bold with hollow center) */}
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M 61 15 A 8.5 8.5 0 0 1 69.5 23.5 C 69.5 30 61 40.5 61 40.5 C 61 40.5 52.5 30 52.5 23.5 A 8.5 8.5 0 0 1 61 15 Z M 61 20 A 3.5 3.5 0 1 0 61 27 A 3.5 3.5 0 1 0 61 20 Z"
+        d="M 76 13 A 13 13 0 0 1 89 26 C 89 36 76 49 76 49 C 76 49 63 36 63 26 A 13 13 0 0 1 76 13 Z M 76 21 A 5 5 0 1 0 76 31 A 5 5 0 1 0 76 21 Z"
         fill={color}
       />
     </svg>

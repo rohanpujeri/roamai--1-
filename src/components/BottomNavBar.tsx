@@ -114,7 +114,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
               : 'hover:brightness-110 hover:scale-105'
           }`}
         >
-          <PlanTripIcon className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
+          <PlanTripIcon className="w-6.5 h-6.5 sm:w-7 sm:h-7 transition-transform group-hover:scale-110" />
           <span className="sr-only">Plan New Trip</span>
         </button>
 
