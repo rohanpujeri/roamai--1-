@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Play, Plus, Search, User } from 'lucide-react';
+import { Home, Play, Plus, Search, User, Route } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl } from '../services/supabaseClient';
 import { ThemeConfig } from '../types';
@@ -97,7 +97,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           )}
         </button>
 
-        {/* 3. + Plan New Trip Button (Center with Theme Background) */}
+        {/* 3. Route Plan New Trip Button (Center with Theme Background) */}
         <button
           type="button"
           onClick={onStartPlanning}
@@ -113,7 +113,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
               : 'hover:brightness-110 hover:scale-105'
           }`}
         >
-          <Plus className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5] transition-transform group-hover:rotate-90 group-hover:scale-110" />
+          <Route className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.3] transition-transform group-hover:scale-110" />
           <span className="sr-only">Plan New Trip</span>
         </button>
 
