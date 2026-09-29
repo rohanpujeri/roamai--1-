@@ -703,6 +703,67 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     return rawUser.toLowerCase().replace(/^@/, '').replace(/\s+/g, '_');
   };
 
+  const formatInstagramTime = (timeStr?: string, timestamp?: number, id?: string): string => {
+    let timeMs: number | null = null;
+
+    if (typeof timestamp === 'number' && !isNaN(timestamp) && timestamp > 0) {
+      timeMs = timestamp;
+    } else if (id && typeof id === 'string') {
+      const match = id.match(/(\d{12,14})/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > 1500000000000 && parsed <= Date.now() + 10000) {
+          timeMs = parsed;
+        }
+      }
+    }
+
+    if (timeStr && /^\d+[smhdwy]$/i.test(String(timeStr).trim())) {
+      return String(timeStr).trim().toLowerCase();
+    }
+
+    if (!timeMs && timeStr && timeStr !== 'Just now') {
+      const parsedDate = Date.parse(timeStr);
+      if (!isNaN(parsedDate) && parsedDate > 1500000000000) {
+        timeMs = parsedDate;
+      } else {
+        const agoMatch = String(timeStr).match(/(\d+)\s*(minute|min|hour|hr|day|week|month|year)s?\s*(ago)?/i);
+        if (agoMatch) {
+          const val = agoMatch[1];
+          const unit = agoMatch[2].toLowerCase();
+          if (unit.startsWith('min')) return `${val}m`;
+          if (unit.startsWith('h')) return `${val}h`;
+          if (unit.startsWith('d')) return `${val}d`;
+          if (unit.startsWith('w')) return `${val}w`;
+          if (unit.startsWith('m')) return `${val}w`;
+          if (unit.startsWith('y')) return `${val}y`;
+        }
+      }
+    }
+
+    if (timeMs) {
+      const diffSec = Math.max(0, Math.floor((Date.now() - timeMs) / 1000));
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHr / 24);
+      const diffWeeks = Math.floor(diffDays / 7);
+      const diffYears = Math.floor(diffDays / 365);
+
+      if (diffMin < 1) return '1m';
+      if (diffMin < 60) return `${diffMin}m`;
+      if (diffHr < 24) return `${diffHr}h`;
+      if (diffDays < 7) return `${diffDays}d`;
+      if (diffWeeks < 52) return `${diffWeeks}w`;
+      return `${diffYears}y`;
+    }
+
+    if (timeStr === 'Just now' || !timeStr) {
+      return '1m';
+    }
+
+    return String(timeStr);
+  };
+
   const handleAddComment = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newCommentText.trim() || !activeReel) return;
@@ -728,13 +789,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       (currentUsername && activeReel.creator.username && currentUsername === activeReel.creator.username.toLowerCase().replace(/^@/, ''))
     );
 
-    const newCommentId = `comm-${Date.now()}`;
+    const now = Date.now();
+    const newCommentId = `comm-${now}`;
     const newComment: TrailComment = {
       id: newCommentId,
       user: userHandle,
       avatar: userAvatar,
       text: newCommentText.trim(),
-      time: 'Just now',
+      time: '1m',
+      timestamp: now,
       likesCount: 0,
       isLiked: false,
       isAuthor: isAuthor,
@@ -1840,7 +1903,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                             </span>
                             {/* Time */}
                             <span className="text-xs text-neutral-400">
-                              {comm.time || '1w'}
+                              {formatInstagramTime(comm.time, comm.timestamp, comm.id)}
                             </span>
                             {/* Author Badge (No pin symbol) */}
                             {isAuthorComment && (
@@ -1956,7 +2019,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                                           {replyDisplayUser}
                                         </span>
                                         <span className="text-[11px] text-neutral-400">
-                                          {reply.time || '1w'}
+                                          {formatInstagramTime(reply.time, reply.timestamp, reply.id)}
                                         </span>
                                         {isReplyAuthor && (
                                           <span className="text-[11px] text-neutral-400 font-medium">

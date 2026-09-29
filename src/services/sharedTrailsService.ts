@@ -78,6 +78,7 @@ export interface TrailComment {
   avatar: string;
   text: string;
   time: string;
+  timestamp?: number;
   likesCount?: number;
   isLiked?: boolean;
   isAuthor?: boolean;
@@ -1185,14 +1186,16 @@ export async function recordTrailView(
  */
 export async function commentOnGlobalTrail(
   trailId: string,
-  comment: { user: string; avatar: string; text: string }
+  comment: { user: string; avatar: string; text: string; time?: string; timestamp?: number }
 ): Promise<void> {
-  const newCommentObj = {
-    id: `comment-${Date.now()}`,
+  const now = comment.timestamp || Date.now();
+  const newCommentObj: TrailComment = {
+    id: `comment-${now}`,
     user: comment.user,
     avatar: comment.avatar,
     text: comment.text,
-    time: 'Just now'
+    time: comment.time || '1m',
+    timestamp: now
   };
 
   // 1. Update local cache immediately
