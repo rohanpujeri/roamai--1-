@@ -444,7 +444,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     };
   }, [activeReel?.id, activeReel?.videoUrl]);
 
-  // Auto-play when active reel changes, but strictly only when on the trails page!
+  // Auto-play unmuted when active reel changes or when trails page opens
   useEffect(() => {
     if (!isActive || showUploadModal || showLikesModal) {
       if (videoRef.current) {
@@ -454,22 +454,46 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       return;
     }
 
+    // Explicitly ensure unmuted playback when on Trails page
+    setIsMuted(false);
+    setIsPlaying(true);
+
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
-      if (isPlaying) {
-        videoRef.current.play().catch(() => {
-          // If browser restricts unmuted autoplay before interaction, fallback to mute and play
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            setIsMuted(true);
-            videoRef.current.play().catch(() => {});
-          }
-        });
-      }
+      videoRef.current.muted = false;
+      videoRef.current.play().catch(() => {
+        // Fallback only if browser strictly requires interaction for audio
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          videoRef.current.play().catch(() => {});
+        }
+      });
     }
   }, [currentIndex, isActive, showUploadModal, showLikesModal]);
 
-  // Pause video whenever user is NOT actively on Trails tab or when an overlay modal is open
+  // Unmute automatically on first tap/interaction if browser temporarily muted it
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleUnlockAudio = () => {
+      if (videoRef.current) {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+        if (videoRef.current.paused) {
+          videoRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', handleUnlockAudio, { passive: true });
+    window.addEventListener('click', handleUnlockAudio, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleUnlockAudio);
+      window.removeEventListener('click', handleUnlockAudio);
+    };
+  }, [isActive]);
+
+  // Play/pause video according to Trails page active status and modal overlays
   useEffect(() => {
     if (!isActive || showUploadModal || showLikesModal) {
       if (videoRef.current) {
@@ -477,11 +501,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       }
       setIsPlaying(false);
     } else {
+      setIsMuted(false);
       if (videoRef.current) {
+        videoRef.current.muted = false;
         videoRef.current.play().catch(() => {
           if (videoRef.current) {
             videoRef.current.muted = true;
-            setIsMuted(true);
             videoRef.current.play().catch(() => {});
           }
         });
