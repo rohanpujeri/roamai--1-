@@ -49,6 +49,43 @@ export async function fetchUserTrips(): Promise<Trip[]> {
   const user = await getCurrentUser();
   const storageKey = getTripsStorageKey(user?.id);
 
+  const localTripsMap = new Map<string, Trip>();
+
+  if (typeof window !== 'undefined') {
+    try {
+      // 1. Read user-specific storage key
+      const currentRaw = localStorage.getItem(storageKey);
+      if (currentRaw) {
+        const parsed = JSON.parse(currentRaw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((t: any) => {
+            if (t && t.id) localTripsMap.set(t.id, t);
+          });
+        }
+      }
+
+      // 2. Also read general / guest storage key to migrate newly planned trips
+      const guestRaw = localStorage.getItem(TRIPS_LOCAL_STORAGE_KEY);
+      if (guestRaw) {
+        const parsedGuest = JSON.parse(guestRaw);
+        if (Array.isArray(parsedGuest)) {
+          parsedGuest.forEach((t: any) => {
+            if (t && t.id && !localTripsMap.has(t.id)) {
+              localTripsMap.set(t.id, t);
+              // Migrate guest trip to user account in the cloud if signed in
+              if (user) {
+                saveTripToBackend(t).catch(() => {});
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading local trips:', e);
+    }
+  }
+
+  // 3. Fetch from Supabase if logged in
   if (user) {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -60,14 +97,21 @@ export async function fetchUserTrips(): Promise<Trip[]> {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.warn('Supabase fetch trips error, falling back to local storage:', error.message);
-        } else if (data) {
-          const trips = data.map((row: any) => row.trip_data || row);
-          // Sync successful fetch (even if empty) to local storage
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(storageKey, JSON.stringify(trips));
-          }
-          return trips;
+          console.warn('Supabase fetch trips error, using local trips:', error.message);
+        } else if (data && data.length > 0) {
+          const remoteTrips: Trip[] = data.map((row: any) => row.trip_data || row);
+          
+          // Merge remote trips into the map (remote versions take precedence)
+          remoteTrips.forEach((t) => {
+            if (t && t.id) localTripsMap.set(t.id, t);
+          });
+
+          // Upload any local-only trips to cloud so they are never lost
+          localTripsMap.forEach((localTrip) => {
+            if (!remoteTrips.some((r) => r.id === localTrip.id)) {
+              saveTripToBackend(localTrip).catch(() => {});
+            }
+          });
         }
       } catch (err) {
         console.warn('Supabase fetch trips failed:', err);
@@ -75,32 +119,47 @@ export async function fetchUserTrips(): Promise<Trip[]> {
     }
   }
 
-  // Local storage fallback
-  if (typeof window !== 'undefined') {
+  const combined = Array.from(localTripsMap.values());
+
+  // Keep local storage up-to-date with merged trips
+  if (typeof window !== 'undefined' && combined.length > 0) {
     try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) return JSON.parse(raw);
+      localStorage.setItem(storageKey, JSON.stringify(combined));
     } catch (e) {
-      console.error('Error reading local trips:', e);
+      console.warn('Could not persist merged trips to local storage:', e);
     }
   }
-  return [];
+
+  return combined;
 }
 
 export async function saveTripToBackend(trip: Trip): Promise<Trip> {
   const user = await getCurrentUser();
   const storageKey = getTripsStorageKey(user?.id);
 
-  // Save locally first
+  // Ensure trip has a valid UUID id (required by Supabase uuid column type)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trip.id);
+  const validatedTrip: Trip = isUuid ? trip : { ...trip, id: crypto.randomUUID() };
+
+  // Save locally first to user key and general trips key
   if (typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem(storageKey);
       const current: Trip[] = raw ? JSON.parse(raw) : [];
-      const idx = current.findIndex((t) => t.id === trip.id);
-      const updated = idx >= 0 ? current.map((t) => (t.id === trip.id ? trip : t)) : [trip, ...current];
+      const idx = current.findIndex((t) => t.id === validatedTrip.id);
+      const updated = idx >= 0 ? current.map((t) => (t.id === validatedTrip.id ? validatedTrip : t)) : [validatedTrip, ...current];
       localStorage.setItem(storageKey, JSON.stringify(updated));
+
+      // Also ensure it is present in general TRIPS_LOCAL_STORAGE_KEY as backup
+      if (storageKey !== TRIPS_LOCAL_STORAGE_KEY) {
+        const guestRaw = localStorage.getItem(TRIPS_LOCAL_STORAGE_KEY);
+        const guestCurrent: Trip[] = guestRaw ? JSON.parse(guestRaw) : [];
+        const gIdx = guestCurrent.findIndex((t) => t.id === validatedTrip.id);
+        const gUpdated = gIdx >= 0 ? guestCurrent.map((t) => (t.id === validatedTrip.id ? validatedTrip : t)) : [validatedTrip, ...guestCurrent];
+        localStorage.setItem(TRIPS_LOCAL_STORAGE_KEY, JSON.stringify(gUpdated));
+      }
     } catch (e) {
-      console.warn('Local storage error:', e);
+      console.warn('Local storage error while saving trip:', e);
     }
   }
 
@@ -112,32 +171,30 @@ export async function saveTripToBackend(trip: Trip): Promise<Trip> {
           .from(config.db.tables.trips)
           .upsert(
             {
-              id: trip.id,
+              id: validatedTrip.id,
               user_id: user.id,
-              title: trip.title,
-              destination: trip.destination,
-              trip_data: trip,
+              title: validatedTrip.title,
+              destination: validatedTrip.destination,
+              trip_data: validatedTrip,
               updated_at: new Date().toISOString()
             },
             { onConflict: 'id' }
           );
 
         if (error) {
-          console.warn('Supabase upsert trip error:', error.message);
-          throw new Error('Cloud sync failed: Could not save trip to your account. (Trip saved locally)');
+          console.warn('Supabase upsert trip notice (saved locally):', error.message);
         }
       } catch (err: any) {
-        console.warn('Supabase save trip failed:', err);
-        // Rethrow a safe error string if it is the one we threw above, otherwise wrap it
-        if (err.message && err.message.includes('Cloud sync failed')) {
-          throw err;
-        }
-        throw new Error('Cloud sync failed: Unexpected error saving trip. (Trip saved locally)');
+        console.warn('Supabase save trip notice (saved locally):', err);
       }
     }
   }
 
-  return trip;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('roamai_trips_changed', { detail: validatedTrip }));
+  }
+
+  return validatedTrip;
 }
 
 export async function deleteTripFromBackend(tripId: string): Promise<void> {
@@ -165,6 +222,10 @@ export async function deleteTripFromBackend(tripId: string): Promise<void> {
         console.warn('Supabase delete trip failed:', err);
       }
     }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('roamai_trips_changed', { detail: { deletedId: tripId } }));
   }
 }
 
