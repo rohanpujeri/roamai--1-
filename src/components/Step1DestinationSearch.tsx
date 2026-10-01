@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   APIProvider,
   Map,
@@ -12,9 +12,9 @@ import {
   X,
   Loader2,
   Navigation,
-  Sparkles,
   Compass,
-  MapPinned
+  MapPinned,
+  Check
 } from 'lucide-react';
 import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion } from '../services/placesService';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -35,6 +35,7 @@ export interface PopularDestinationQuickPick {
   lng: number;
 }
 
+// Retained for programmatic fallback matching
 export const POPULAR_QUICK_PICKS: PopularDestinationQuickPick[] = [
   { name: 'Goa', region: 'India', lat: 15.2993, lng: 74.1240 },
   { name: 'Manali', region: 'Himachal Pradesh, India', lat: 32.2396, lng: 77.1887 },
@@ -54,11 +55,87 @@ interface Step1DestinationSearchProps {
   onClearPlace: () => void;
 }
 
+// Robust reverse geocoding with Google Geocoder & Nominatim fallback
+async function reverseGeocode(lat: number, lng: number): Promise<{ name: string; address: string }> {
+  // 1. Google Maps Geocoder if available in window
+  if (typeof (window as any).google !== 'undefined' && (window as any).google.maps?.Geocoder) {
+    try {
+      const geocoder = new (window as any).google.maps.Geocoder();
+      const res = await new Promise<{ name: string; address: string } | null>((resolve) => {
+        geocoder.geocode({ location: { lat, lng } }, (results: any[], status: any) => {
+          if (status === 'OK' && results && results.length > 0) {
+            const best = results[0];
+            let placeName = '';
+            for (const comp of best.address_components || []) {
+              if (
+                comp.types.includes('point_of_interest') ||
+                comp.types.includes('establishment') ||
+                comp.types.includes('natural_feature') ||
+                comp.types.includes('sublocality') ||
+                comp.types.includes('locality')
+              ) {
+                placeName = comp.long_name;
+                break;
+              }
+            }
+            if (!placeName) {
+              placeName = best.formatted_address.split(',')[0].trim();
+            }
+            resolve({
+              name: placeName || 'Pinned Destination',
+              address: best.formatted_address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+            });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+      if (res) return res;
+    } catch (e) {
+      console.warn('Google reverse geocoding failed, trying Nominatim fallback:', e);
+    }
+  }
+
+  // 2. OpenStreetMap Nominatim reverse geocoder fallback
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      const addr = data.address || {};
+      const name =
+        addr.tourism ||
+        addr.amenity ||
+        addr.leisure ||
+        addr.building ||
+        addr.suburb ||
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        data.display_name?.split(',')[0] ||
+        'Pinned Destination';
+      return {
+        name,
+        address: data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+      };
+    }
+  } catch (err) {
+    console.warn('Nominatim reverse geocode error:', err);
+  }
+
+  return {
+    name: 'Pinned Destination',
+    address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+  };
+}
+
 // Camera controller component to smoothly pan & zoom map when destination changes
 const MapCameraUpdater: React.FC<{
   targetLocation: { lat: number; lng: number } | null;
   zoomLevel?: number;
-}> = ({ targetLocation, zoomLevel = 14 }) => {
+}> = ({ targetLocation, zoomLevel = 13 }) => {
   const map = useMap();
 
   useEffect(() => {
@@ -90,6 +167,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [showInfoWindow, setShowInfoWindow] = useState<boolean>(true);
   const [isResolvingDetails, setIsResolvingDetails] = useState<boolean>(false);
+  const [isLocatingUser, setIsLocatingUser] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<any>(null);
@@ -108,27 +186,6 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     if (selectedPlace) {
       setSearchInput(selectedPlace.name || '');
       setShowInfoWindow(true);
-
-      // If coordinates are missing (0, 0), resolve them dynamically
-      if (selectedPlace.latitude === 0 && selectedPlace.longitude === 0 && (selectedPlace.name || selectedPlace.address)) {
-        const query = selectedPlace.address || selectedPlace.name;
-        getGooglePlacesPredictions(query).then((preds) => {
-          if (preds && preds.length > 0) {
-            getGooglePlaceDetails(preds[0].placeId).then((details) => {
-              if (details && (details.latitude !== 0 || details.longitude !== 0)) {
-                onSelectPlace({
-                  ...selectedPlace,
-                  placeId: details.placeId || selectedPlace.placeId,
-                  latitude: details.latitude,
-                  longitude: details.longitude,
-                  address: details.address || selectedPlace.address,
-                  photoUrl: details.photoUrl || selectedPlace.photoUrl
-                });
-              }
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
     }
   }, [selectedPlace?.name, selectedPlace?.address]);
 
@@ -181,7 +238,6 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     setIsResolvingDetails(true);
 
     try {
-      // If prediction already has lat/lng (e.g. from fallback geocoder), use it directly
       if (typeof suggestion.lat === 'number' && typeof suggestion.lng === 'number' && !isNaN(suggestion.lat) && !isNaN(suggestion.lng)) {
         const placeData: SelectedDestinationPlace = {
           placeId: suggestion.placeId || `dest-${Date.now()}`,
@@ -197,7 +253,6 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
         return;
       }
 
-      // Otherwise fetch place details via Google PlacesService / Geocoder
       const details = await getGooglePlaceDetails(suggestion.placeId);
       const placeData: SelectedDestinationPlace = {
         placeId: details.placeId || suggestion.placeId || `dest-${Date.now()}`,
@@ -212,8 +267,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
       setSearchInput(placeData.name);
       setShowInfoWindow(true);
     } catch (err) {
-      console.warn('Place details fetch error, using best-effort approximation:', err);
-      // Fallback place data
+      console.warn('Place details fetch error, using fallback:', err);
       const placeData: SelectedDestinationPlace = {
         placeId: suggestion.placeId || `dest-${Date.now()}`,
         name: suggestion.mainText || 'Destination',
@@ -227,6 +281,81 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
     } finally {
       setIsResolvingDetails(false);
     }
+  };
+
+  // Pin on map by coordinates (click or drag)
+  const handlePinCoordinates = async (lat: number, lng: number) => {
+    setIsResolvingDetails(true);
+    setIsDropdownOpen(false);
+
+    try {
+      const geo = await reverseGeocode(lat, lng);
+      const placeData: SelectedDestinationPlace = {
+        placeId: `pin_${lat.toFixed(5)}_${lng.toFixed(5)}`,
+        name: geo.name,
+        address: geo.address,
+        latitude: lat,
+        longitude: lng
+      };
+      onSelectPlace(placeData);
+      setSearchInput(geo.name);
+      setShowInfoWindow(true);
+    } catch (err) {
+      console.warn('Pin geocoding error:', err);
+      const fallbackData: SelectedDestinationPlace = {
+        placeId: `pin_${lat.toFixed(5)}_${lng.toFixed(5)}`,
+        name: `Location (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
+        address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+        latitude: lat,
+        longitude: lng
+      };
+      onSelectPlace(fallbackData);
+      setSearchInput(fallbackData.name);
+      setShowInfoWindow(true);
+    } finally {
+      setIsResolvingDetails(false);
+    }
+  };
+
+  // Handle map click
+  const handleMapClick = async (e: any) => {
+    let lat: number | undefined;
+    let lng: number | undefined;
+
+    if (e.detail?.latLng) {
+      lat = typeof e.detail.latLng.lat === 'function' ? e.detail.latLng.lat() : e.detail.latLng.lat;
+      lng = typeof e.detail.latLng.lng === 'function' ? e.detail.latLng.lng() : e.detail.latLng.lng;
+    } else if (e.latLng) {
+      lat = typeof e.latLng.lat === 'function' ? e.latLng.lat() : e.latLng.lat;
+      lng = typeof e.latLng.lng === 'function' ? e.latLng.lng() : e.latLng.lng;
+    }
+
+    if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+      await handlePinCoordinates(lat, lng);
+    }
+  };
+
+  // Handle GPS Locate Me button click
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLocatingUser(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setIsLocatingUser(false);
+        const { latitude, longitude } = pos.coords;
+        await handlePinCoordinates(latitude, longitude);
+      },
+      (err) => {
+        setIsLocatingUser(false);
+        console.warn('Geolocation error:', err);
+        alert('Could not detect location. Please search or tap on the map.');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   };
 
   // Clear current search and selection
@@ -247,75 +376,93 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
   );
 
   return (
-    <div className="space-y-4" ref={containerRef}>
-      {/* 1. Large Search Input Field */}
-      <div className="relative z-20">
-        <div className="relative flex items-center">
-          <div className="absolute left-4 pointer-events-none text-slate-400">
-            {isResolvingDetails || isLoadingPredictions ? (
-              <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
-            ) : (
-              <Search className="w-5 h-5" />
+    <div className="relative w-full h-[520px] sm:h-[600px] overflow-hidden rounded-3xl bg-slate-950 select-none" ref={containerRef}>
+      {/* 1. FLOATING SEARCH BAR & CONTROLS ON TOP OF MAP */}
+      <div className="absolute top-4 inset-x-3 sm:inset-x-5 z-20 flex flex-col gap-2 pointer-events-auto">
+        <div className="relative flex items-center gap-2">
+          {/* Search Input Box */}
+          <div className="relative flex-1 shadow-2xl">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              {isResolvingDetails || isLoadingPredictions ? (
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+              ) : (
+                <Search className="w-5 h-5 text-slate-400" />
+              )}
+            </div>
+
+            <input
+              id="destination-autocomplete-search-input"
+              type="text"
+              value={searchInput}
+              onChange={handleInputChange}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (predictions.length > 0) {
+                    handleSelectPrediction(predictions[0]);
+                  } else if (searchInput.trim()) {
+                    try {
+                      const freshPreds = await getGooglePlacesPredictions(searchInput.trim());
+                      if (freshPreds && freshPreds.length > 0) {
+                        handleSelectPrediction(freshPreds[0]);
+                      }
+                    } catch (err) {
+                      console.warn('Enter key search error:', err);
+                    }
+                  }
+                }
+              }}
+              onFocus={() => {
+                if (predictions.length > 0) setIsDropdownOpen(true);
+              }}
+              placeholder="Search destination, city, or address..."
+              className="w-full pl-12 pr-10 py-3.5 sm:py-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/15 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm sm:text-base font-semibold shadow-2xl transition-all outline-none"
+            />
+
+            {searchInput && (
+              <button
+                id="clear-destination-search-btn"
+                type="button"
+                onClick={handleClear}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
 
-          <input
-            id="destination-autocomplete-search-input"
-            type="text"
-            value={searchInput}
-            onChange={handleInputChange}
-            onKeyDown={async (e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                if (predictions.length > 0) {
-                  handleSelectPrediction(predictions[0]);
-                } else if (searchInput.trim()) {
-                  try {
-                    const freshPreds = await getGooglePlacesPredictions(searchInput.trim());
-                    if (freshPreds && freshPreds.length > 0) {
-                      handleSelectPrediction(freshPreds[0]);
-                    }
-                  } catch (err) {
-                    console.warn('Enter key search error:', err);
-                  }
-                }
-              }
-            }}
-            onFocus={() => {
-              if (predictions.length > 0) setIsDropdownOpen(true);
-            }}
-            placeholder="Search for any city, place, landmark, hotel, or address..."
-            className="w-full pl-12 pr-12 py-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:focus:ring-emerald-400/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-base font-medium shadow-sm transition-all outline-none"
-          />
-
-          {searchInput && (
-            <button
-              id="clear-destination-search-btn"
-              type="button"
-              onClick={handleClear}
-              className="absolute right-3.5 p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-              title="Clear search"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          {/* GPS Quick Locate Button */}
+          <button
+            type="button"
+            onClick={handleLocateMe}
+            disabled={isLocatingUser}
+            title="Pin My Current GPS Location"
+            className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-2xl transition-all active:scale-95 cursor-pointer shrink-0"
+          >
+            {isLocatingUser ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Navigation className="w-5 h-5" />
+            )}
+          </button>
         </div>
 
-        {/* 2. Autocomplete Suggestions Dropdown */}
+        {/* 2. AUTOCOMPLETE SUGGESTIONS DROPDOWN */}
         {isDropdownOpen && predictions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-30 max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="w-full bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-white/15 overflow-hidden z-30 max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
             {predictions.map((item) => (
               <button
                 key={item.placeId}
                 type="button"
                 onClick={() => handleSelectPrediction(item)}
-                className="w-full px-4 py-3.5 text-left flex items-start gap-3 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 transition-colors group cursor-pointer"
+                className="w-full px-4 py-3 text-left flex items-start gap-3 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/50 transition-colors group cursor-pointer"
               >
-                <div className="mt-0.5 p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900 group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors shrink-0">
+                <div className="mt-0.5 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 truncate">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 truncate">
                     {item.mainText}
                   </p>
                   {item.secondaryText && (
@@ -328,95 +475,22 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
             ))}
           </div>
         )}
-
-        {isDropdownOpen && !isLoadingPredictions && searchInput.trim().length > 1 && predictions.length === 0 && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 text-center z-30">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No matching places found. Try typing a specific city or landmark name.
-            </p>
-          </div>
-        )}
-
-        {/* Popular Destination Quick-Pick Chips */}
-        {!selectedPlace && (
-          <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-500" />
-              Popular:
-            </span>
-            {POPULAR_QUICK_PICKS.map((dest) => (
-              <button
-                key={dest.name}
-                type="button"
-                onClick={() => {
-                  const placeData: SelectedDestinationPlace = {
-                    placeId: `dest-${dest.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-                    name: dest.name,
-                    address: `${dest.name}, ${dest.region}`,
-                    latitude: dest.lat,
-                    longitude: dest.lng
-                  };
-                  onSelectPlace(placeData);
-                  setSearchInput(dest.name);
-                  setShowInfoWindow(true);
-                }}
-                className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
-                title={`${dest.name}, ${dest.region}`}
-              >
-                {dest.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* 3. Small Selected Location Card */}
-      {selectedPlace && (
-        <div
-          id="selected-destination-card"
-          className="p-4 sm:p-5 rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/80 dark:bg-emerald-950/30 backdrop-blur-md flex items-start justify-between gap-4 shadow-sm animate-in fade-in zoom-in-95 duration-200"
-        >
-          <div className="flex items-start gap-3.5 min-w-0">
-            <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-sm shrink-0 mt-0.5">
-              <MapPinned className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                {selectedPlace.name || 'Selected Destination'}
-              </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-1">
-                {selectedPlace.address || selectedPlace.name}
-              </p>
-            </div>
-          </div>
-
-          <button
-            id="change-selected-destination-btn"
-            type="button"
-            onClick={handleClear}
-            className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold shrink-0 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
-            title="Search another location"
-          >
-            <X className="w-3.5 h-3.5 text-slate-400" />
-            <span>Clear / Change</span>
-          </button>
-        </div>
-      )}
-
-      {/* 4. Interactive Google Map Container */}
-      <div className="relative rounded-3xl overflow-hidden border-2 border-slate-200/80 dark:border-slate-700/80 shadow-lg h-[380px] sm:h-[420px] bg-slate-100 dark:bg-slate-950">
+      {/* 3. FULL CARD INTERACTIVE GOOGLE MAP */}
+      <div className="w-full h-full">
         <ErrorBoundary
           name="Step1DestinationMap"
           fallback={
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-900 text-center space-y-3">
-              <div className="p-3.5 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-center space-y-3">
+              <div className="p-4 rounded-2xl bg-emerald-950 text-emerald-400">
                 <MapPin className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                {selectedPlace ? selectedPlace.name : 'Destination Map Preview'}
+              <h4 className="text-base font-bold text-white">
+                {selectedPlace ? selectedPlace.name : 'Destination Map'}
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-                {selectedPlace?.address || 'Map preview is active. Select your destination above to proceed.'}
+              <p className="text-xs text-slate-400 max-w-sm">
+                {selectedPlace?.address || 'Use the search box above or tap on the map to set your destination.'}
               </p>
             </div>
           }
@@ -425,15 +499,16 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
             <Map
               defaultCenter={currentCenter}
               defaultZoom={hasValidSelectedCoords ? 14 : 5}
-              mapId="STEP1_DESTINATION_MAP"
+              mapId="STEP1_DESTINATION_FULL_MAP"
               gestureHandling="greedy"
               disableDefaultUI={false}
               mapTypeControl={false}
               streetViewControl={false}
               fullscreenControl={false}
+              onClick={handleMapClick}
               className="w-full h-full"
             >
-              {/* Camera updater that smoothly pans and zooms when location is selected */}
+              {/* Smooth Camera Pan & Zoom Controller */}
               <MapCameraUpdater
                 targetLocation={
                   hasValidSelectedCoords ? { lat: selectedPlace!.latitude, lng: selectedPlace!.longitude } : null
@@ -441,7 +516,7 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
                 zoomLevel={14}
               />
 
-              {/* Pin and marker for selected location */}
+              {/* Pin on Map with Draggable Capability */}
               {hasValidSelectedCoords && (
                 <AdvancedMarker
                   position={{ lat: selectedPlace!.latitude, lng: selectedPlace!.longitude }}
@@ -449,25 +524,25 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
                   onClick={() => setShowInfoWindow(!showInfoWindow)}
                 >
                   <div className="relative flex items-center justify-center cursor-pointer group">
-                    <div className="absolute -inset-2 rounded-full bg-emerald-500/30 animate-ping" />
-                    <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-900 ring-2 ring-emerald-500/40">
+                    <div className="absolute -inset-2.5 rounded-full bg-emerald-500/40 animate-ping" />
+                    <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xl border-2 border-white dark:border-slate-900 ring-4 ring-emerald-500/30">
                       <MapPin className="w-5 h-5" />
                     </div>
                   </div>
                 </AdvancedMarker>
               )}
 
-              {/* InfoWindow for selected location */}
+              {/* Google Maps InfoWindow */}
               {hasValidSelectedCoords && showInfoWindow && (
                 <InfoWindow
                   position={{ lat: selectedPlace!.latitude, lng: selectedPlace!.longitude }}
                   onCloseClick={() => setShowInfoWindow(false)}
                   pixelOffset={[0, -36]}
                 >
-                  <div className="p-2 max-w-xs text-left">
+                  <div className="p-1.5 max-w-xs text-left">
                     <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
                       <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Destination Selected</span>
+                      <span>Destination Pinned</span>
                     </div>
                     <h4 className="font-bold text-slate-900 text-sm mt-0.5">{selectedPlace!.name}</h4>
                     <p className="text-[11px] text-slate-600 mt-1 leading-snug">{selectedPlace!.address}</p>
@@ -477,12 +552,50 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
             </Map>
           </APIProvider>
         </ErrorBoundary>
+      </div>
 
-        {/* Informational overlay when no place is chosen yet */}
-        {!selectedPlace && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 pointer-events-none">
-            <Compass className="w-4 h-4 text-emerald-600 animate-spin" style={{ animationDuration: '8s' }} />
-            <span>Search any destination above to preview on the interactive map</span>
+      {/* 4. BOTTOM FLOATING BAR: SELECTION CONFIRMATION CARD OR PIN GUIDE */}
+      <div className="absolute bottom-5 inset-x-3 sm:inset-x-5 z-20 pointer-events-none flex justify-center">
+        {selectedPlace ? (
+          <div
+            id="selected-destination-card"
+            className="w-full max-w-lg p-3 sm:p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-emerald-500/40 shadow-2xl flex items-center justify-between gap-3 pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-md shrink-0">
+                <MapPinned className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    Destination Set
+                  </span>
+                  <Check className="w-3 h-3 text-emerald-500" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  {selectedPlace.name || 'Pinned Location'}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  {selectedPlace.address || selectedPlace.name}
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="change-selected-destination-btn"
+              type="button"
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 text-xs font-semibold shrink-0 transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5 text-slate-400" />
+              <span>Clear</span>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-2.5 rounded-full shadow-2xl border border-slate-200/80 dark:border-white/15 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 pointer-events-auto animate-in fade-in duration-200">
+            <Compass className="w-4 h-4 text-emerald-500 animate-spin" style={{ animationDuration: '8s' }} />
+            <span>Search above or tap anywhere on the map to pin destination</span>
           </div>
         )}
       </div>

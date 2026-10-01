@@ -1048,7 +1048,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         </div>
 
         {/* Wizard Step Content */}
-        <div className="wizard-step-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/80 dark:border-white/15 mb-6 text-left">
+        <div className={`wizard-step-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl ${currentStep === 1 ? 'p-0 overflow-hidden' : 'p-6 sm:p-8'} shadow-2xl border border-white/80 dark:border-white/15 mb-6 text-left`}>
           <ErrorBoundary name="WizardStepContent">
             <AnimatePresence mode="wait">
               {/* STEP 1: DESTINATION INTERACTIVE MAP SEARCH */}
@@ -1058,7 +1058,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
+                  className="w-full"
                 >
                 <Step1DestinationSearch
                   selectedPlace={selectedDestinationPlace}
