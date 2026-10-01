@@ -3328,8 +3328,8 @@ function makeKey(followerUsername, followingUsername) {
 var followsMap = /* @__PURE__ */ new Map();
 var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
 var dataFile = path.join(dataDir, "follows.json");
-var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
-var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
+var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
+var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
 function isFakeMockUser(_username) {
   return false;
 }
@@ -3549,8 +3549,8 @@ function persistToDisk2() {
     console.warn("Could not persist usernames to disk:", err);
   }
 }
-var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
-var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
+var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
+var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
 async function isUsernameAvailable(rawUsername, currentUserId) {
   if (!rawUsername) {
     return { available: false, error: "Username is required." };
@@ -3676,8 +3676,8 @@ function persistToDisk3() {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
-var SUPABASE_URL3 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqptcfdnvejwfrbjtlrn.supabase.co";
-var SUPABASE_KEY3 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1";
+var SUPABASE_URL3 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
+var SUPABASE_KEY3 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
 async function syncServerTrailsFromStorage() {
   try {
     const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);

@@ -28,8 +28,8 @@ const followsMap = new Map<string, ServerFollowRecord>();
 const dataDir = process.env.VERCEL ? '/tmp/roamai_data' : path.join(process.cwd(), 'data');
 const dataFile = path.join(dataDir, 'follows.json');
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://lqptcfdnvejwfrbjtlrn.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_MqQOMmWbpuibWbvN0QJ4_w_r2zEFfj1';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://majtaremnrjzzzxpquef.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO';
 
 export function isFakeMockUser(_username?: string | null): boolean {
   // All authenticated or registered users are valid real accounts

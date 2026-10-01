@@ -160,26 +160,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const syncTrips = () => {
-      getCurrentUser().then((user) => {
-        fetchUserTrips().then((loadedTrips) => {
-          if (loadedTrips && loadedTrips.length > 0) {
-            const normalized = loadedTrips.map(normalizeTripPreparation);
-            setTrips(normalized);
-            if (user) {
-              setActiveTripId((prev) => prev && normalized.some((t) => t.id === prev) ? prev : normalized[0].id);
-            }
+    getCurrentUser().then((user) => {
+      fetchUserTrips().then((loadedTrips) => {
+        if (loadedTrips && loadedTrips.length > 0) {
+          const normalized = loadedTrips.map(normalizeTripPreparation);
+          setTrips(normalized);
+          if (user) {
+            setActiveTripId(normalized[0].id);
           }
-        });
+        }
       });
-    };
-
-    syncTrips();
-
-    window.addEventListener('roamai_trips_changed', syncTrips);
-    return () => {
-      window.removeEventListener('roamai_trips_changed', syncTrips);
-    };
+    });
   }, []);
 
   // Global View Protection Guard: If visiting protected views while logged out, redirect to auth
