@@ -970,27 +970,27 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     <div className="min-h-screen bg-transparent py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Top Header & Progress */}
-        <div className="wizard-container-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/80 dark:border-white/15 mb-6">
+        <div className="wizard-container-card bg-white/90 dark:bg-[#0e101f]/95 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/80 dark:border-[#A0BDDB]/20 mb-6">
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={handleBack}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-[#A0BDDB] transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>{currentStep === 1 ? 'Back to Home' : 'Previous Step'}</span>
             </button>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-sky-700 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-300 px-3 py-1.5 rounded-full border border-sky-200 dark:border-sky-800">
+              <span className="text-xs font-extrabold text-[#080813] bg-[#A0BDDB] px-3.5 py-1.5 rounded-full shadow-sm shadow-[#A0BDDB]/20 tracking-wide">
                 Step {currentStep} of {totalSteps}
               </span>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-slate-200/80 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden mb-2">
+          <div className="w-full bg-slate-200/80 dark:bg-[#080813] h-2.5 rounded-full overflow-hidden mb-2 border border-transparent dark:border-[#A0BDDB]/20">
             <div
-              className="bg-sky-600 h-full transition-all duration-500 ease-out rounded-full shadow-xs"
+              className="bg-gradient-to-r from-[#A0BDDB] to-[#7ea2c6] h-full transition-all duration-500 ease-out rounded-full shadow-xs"
               style={{ width: `${(currentStep / totalSteps) * 100}%` }}
             />
           </div>
@@ -1048,7 +1048,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         </div>
 
         {/* Wizard Step Content */}
-        <div className={`wizard-step-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-3xl ${currentStep === 1 ? 'p-0 overflow-hidden' : 'p-6 sm:p-8'} shadow-2xl border border-white/80 dark:border-white/15 mb-6 text-left`}>
+        <div className={`wizard-step-card bg-white/90 dark:bg-[#0e101f]/95 backdrop-blur-2xl rounded-3xl ${currentStep === 1 ? 'p-0 overflow-hidden' : 'p-6 sm:p-8'} shadow-2xl border border-white/80 dark:border-[#A0BDDB]/20 mb-6 text-left`}>
           <ErrorBoundary name="WizardStepContent">
             <AnimatePresence mode="wait">
               {/* STEP 1: DESTINATION INTERACTIVE MAP SEARCH */}
@@ -2133,19 +2133,19 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         </div>
 
         {/* Bottom Actions Sticky Floating Bar */}
-        <div className="sticky bottom-4 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl p-4 sm:p-5 rounded-3xl border border-white/80 dark:border-white/20 shadow-2xl flex items-center justify-between gap-4 mt-6">
+        <div className="sticky bottom-4 z-30 bg-white/95 dark:bg-[#0e101f]/95 backdrop-blur-2xl p-4 sm:p-5 rounded-3xl border border-white/80 dark:border-[#A0BDDB]/20 shadow-2xl flex items-center justify-between gap-4 mt-6">
           {currentStep > 1 ? (
             <button
               id="wizard-back-btn"
               type="button"
               onClick={handleBack}
-              className="px-5 sm:px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-xs"
+              className="px-5 sm:px-6 py-3 rounded-2xl border border-slate-200 dark:border-[#A0BDDB]/20 bg-white dark:bg-[#080813] text-slate-700 dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-[#A0BDDB]/10 transition-colors cursor-pointer shadow-xs"
             >
               ← Back
             </button>
           ) : (
             <div className="hidden sm:block">
-              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+              <span className="text-xs font-semibold text-slate-400 dark:text-slate-400">
                 {selectedDestinationPlace
                   ? 'Destination selected! Click Continue to configure trip details.'
                   : 'Search and select any place or address above to proceed.'}
@@ -2162,14 +2162,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
               type="button"
               onClick={handleNext}
               disabled={currentStep === 1 && !selectedDestinationPlace}
-              className={`px-6 sm:px-9 py-3.5 rounded-2xl font-bold text-sm shadow-xl transition-all flex items-center gap-2 border ${currentStep === 1 && !selectedDestinationPlace
+              className={`px-6 sm:px-9 py-3.5 rounded-2xl font-extrabold text-sm shadow-xl transition-all flex items-center gap-2 border ${currentStep === 1 && !selectedDestinationPlace
                   ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60'
-                  : 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30 border-sky-400/40 hover:scale-102 active:scale-98 cursor-pointer'
+                  : 'bg-[#A0BDDB] hover:bg-[#8eadd0] text-[#080813] shadow-lg shadow-[#A0BDDB]/25 border-[#A0BDDB] hover:scale-102 active:scale-98 cursor-pointer'
                 }`}
             >
               <span>{currentStep === totalSteps ? 'Generate AI Itinerary' : 'Continue →'}</span>
               {currentStep === totalSteps ? (
-                <Sparkles className="w-4 h-4 text-sky-200" />
+                <Sparkles className="w-4 h-4 text-[#080813]" />
               ) : null}
             </button>
           </div>

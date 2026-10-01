@@ -3,61 +3,62 @@
 @variant dark (&:where(.dark, .dark *));
 
 :root {
-  --color-primary: #059669;
-  --color-primary-dark: #047857;
-  --color-secondary: #0d9488;
-  --color-accent: #06b6d4;
-  --color-canvas-bg: #f4faf7;
-  --color-canvas-tint: linear-gradient(180deg, #ecfdf5 0%, #f4faf7 280px, #f4faf7 100%);
-  --color-card-bg: #ffffff;
-  --color-card-border: #e1f2e9;
-  --color-option-bg: #f9fdfa;
-  --color-option-hover: #ecfdf5;
-  --color-option-selected-bg: #d1fae5;
-  --color-option-border: #a7f3d0;
-  --color-bg-subtle: #ecfdf5;
-  --color-bg-light: #d1fae5;
-  --color-border-subtle: #a7f3d0;
-  --color-border-medium: #6ee7b7;
-  --color-text-brand: #065f46;
-  --color-tagline-text: #064e3b;
-  --gradient-hero: linear-gradient(135deg, #059669 0%, #0d9488 50%, #0891b2 100%);
-  --hero-banner-bg: linear-gradient(180deg, rgba(236, 253, 245, 0.9) 0%, rgba(244, 250, 247, 0.65) 55%, #f4faf7 100%);
-  --hero-atmosphere-glow: radial-gradient(ellipse at 50% 32%, rgba(5, 150, 105, 0.3) 0%, rgba(13, 148, 136, 0.22) 40%, rgba(6, 182, 212, 0.14) 70%, transparent 100%);
-  --vibe-text-gradient: linear-gradient(135deg, #059669 0%, #0d9488 50%, #06b6d4 100%);
-  --hero-badge-bg: rgba(209, 250, 229, 0.85);
-  --hero-badge-border: rgba(110, 231, 183, 0.7);
-  --hero-badge-text: #065f46;
-  --shadow-primary: rgba(5, 150, 105, 0.25);
+  --color-primary: #A0BDDB;
+  --color-primary-dark: #7ea2c6;
+  --color-secondary: #7ea2c6;
+  --color-accent: #A0BDDB;
+  --color-canvas-bg: #080813;
+  --color-canvas-tint: linear-gradient(180deg, #0e101f 0%, #080813 320px, #080813 100%);
+  --color-card-bg: #0e101f;
+  --color-card-border: rgba(160, 189, 219, 0.2);
+  --color-option-bg: rgba(14, 16, 31, 0.8);
+  --color-option-hover: rgba(160, 189, 219, 0.12);
+  --color-option-selected-bg: rgba(160, 189, 219, 0.22);
+  --color-option-border: rgba(160, 189, 219, 0.35);
+  --color-bg-subtle: rgba(160, 189, 219, 0.08);
+  --color-bg-light: rgba(160, 189, 219, 0.18);
+  --color-border-subtle: rgba(160, 189, 219, 0.15);
+  --color-border-medium: rgba(160, 189, 219, 0.3);
+  --color-text-brand: #A0BDDB;
+  --color-tagline-text: #ffffff;
+  --gradient-hero: linear-gradient(135deg, #A0BDDB 0%, #7ea2c6 50%, #4a6fa5 100%);
+  --hero-banner-bg: linear-gradient(180deg, rgba(8, 8, 19, 0.96) 0%, rgba(14, 16, 31, 0.75) 55%, #080813 100%);
+  --hero-atmosphere-glow: radial-gradient(ellipse at 50% 32%, rgba(160, 189, 219, 0.25) 0%, rgba(8, 8, 19, 0.5) 45%, transparent 100%);
+  --vibe-text-gradient: linear-gradient(135deg, #ffffff 0%, #A0BDDB 50%, #7ea2c6 100%);
+  --hero-badge-bg: rgba(160, 189, 219, 0.12);
+  --hero-badge-border: rgba(160, 189, 219, 0.3);
+  --hero-badge-text: #A0BDDB;
+  --shadow-primary: rgba(160, 189, 219, 0.25);
 }
 
+[data-theme="black-iris"],
 [data-theme="basic"] {
-  --color-primary: #0284c7;
-  --color-primary-dark: #0369a1;
-  --color-secondary: #0d9488;
-  --color-accent: #f59e0b;
-  --color-canvas-bg: #f8fafc;
-  --color-canvas-tint: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 280px, #f8fafc 100%);
-  --color-card-bg: #ffffff;
-  --color-card-border: #e2e8f0;
-  --color-option-bg: #f8fafc;
-  --color-option-hover: #f1f5f9;
-  --color-option-selected-bg: #e2e8f0;
-  --color-option-border: #cbd5e1;
-  --color-bg-subtle: #f1f5f9;
-  --color-bg-light: #e2e8f0;
-  --color-border-subtle: #e2e8f0;
-  --color-border-medium: #cbd5e1;
-  --color-text-brand: #0f172a;
-  --color-tagline-text: #334155;
-  --gradient-hero: linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%);
-  --hero-banner-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.6) 55%, #f8fafc 100%);
-  --hero-atmosphere-glow: radial-gradient(ellipse at 50% 32%, rgba(2, 132, 199, 0.25) 0%, rgba(13, 148, 136, 0.15) 40%, rgba(245, 158, 11, 0.1) 70%, transparent 100%);
-  --vibe-text-gradient: linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%);
-  --hero-badge-bg: rgba(255, 255, 255, 0.85);
-  --hero-badge-border: rgba(226, 232, 240, 0.75);
-  --hero-badge-text: #0f172a;
-  --shadow-primary: rgba(2, 132, 199, 0.2);
+  --color-primary: #A0BDDB;
+  --color-primary-dark: #7ea2c6;
+  --color-secondary: #7ea2c6;
+  --color-accent: #A0BDDB;
+  --color-canvas-bg: #080813;
+  --color-canvas-tint: linear-gradient(180deg, #0e101f 0%, #080813 320px, #080813 100%);
+  --color-card-bg: #0e101f;
+  --color-card-border: rgba(160, 189, 219, 0.2);
+  --color-option-bg: rgba(14, 16, 31, 0.8);
+  --color-option-hover: rgba(160, 189, 219, 0.12);
+  --color-option-selected-bg: rgba(160, 189, 219, 0.22);
+  --color-option-border: rgba(160, 189, 219, 0.35);
+  --color-bg-subtle: rgba(160, 189, 219, 0.08);
+  --color-bg-light: rgba(160, 189, 219, 0.18);
+  --color-border-subtle: rgba(160, 189, 219, 0.15);
+  --color-border-medium: rgba(160, 189, 219, 0.3);
+  --color-text-brand: #A0BDDB;
+  --color-tagline-text: #ffffff;
+  --gradient-hero: linear-gradient(135deg, #A0BDDB 0%, #7ea2c6 50%, #4a6fa5 100%);
+  --hero-banner-bg: linear-gradient(180deg, rgba(8, 8, 19, 0.96) 0%, rgba(14, 16, 31, 0.75) 55%, #080813 100%);
+  --hero-atmosphere-glow: radial-gradient(ellipse at 50% 32%, rgba(160, 189, 219, 0.25) 0%, rgba(8, 8, 19, 0.5) 45%, transparent 100%);
+  --vibe-text-gradient: linear-gradient(135deg, #ffffff 0%, #A0BDDB 50%, #7ea2c6 100%);
+  --hero-badge-bg: rgba(160, 189, 219, 0.12);
+  --hero-badge-border: rgba(160, 189, 219, 0.3);
+  --hero-badge-text: #A0BDDB;
+  --shadow-primary: rgba(160, 189, 219, 0.25);
 }
 
 [data-theme="beach"] {
@@ -210,13 +211,14 @@ html {
   scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
   height: 100%;
-  background-color: #000000;
+  background-color: #080813;
 }
 
 html, body {
   min-height: 100%;
   height: 100%;
-  background-color: #000000;
+  background-color: #080813;
+  color: #f8fafc;
   transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -293,13 +295,14 @@ button:not(:disabled):active,
 [data-theme] .wizard-container-card {
   background-color: var(--color-card-bg) !important;
   border-color: var(--color-card-border) !important;
+  color: #f8fafc !important;
 }
 
 [data-theme] .wizard-option-btn,
 [data-theme] .wizard-option-card {
   background-color: var(--color-option-bg) !important;
   border-color: var(--color-card-border) !important;
-  color: #314158 !important;
+  color: #f8fafc !important;
   transition: all 0.2s ease;
 }
 
@@ -314,7 +317,8 @@ button:not(:disabled):active,
 [data-theme] .wizard-option-card.is-selected {
   background-color: var(--color-option-selected-bg) !important;
   border-color: var(--color-primary) !important;
-  box-shadow: 0 4px 12px var(--shadow-primary) !important;
+  box-shadow: 0 4px 14px var(--shadow-primary) !important;
+  color: #ffffff !important;
 }
 
 /* Global Dynamic Theme Overrides for whole application */
@@ -954,11 +958,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-
 }
 
 
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button#wizard-continue-btn:nth-of-type(1) {
-  background-color: var(--color-primary, #0284c7) !important;
-  border-color: #38bdf8 !important;
-  color: #ffffff !important;
-  box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.4) !important;
+button#wizard-continue-btn:not(:disabled),
+div#root button#wizard-continue-btn:not(:disabled) {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #080813 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 10px 25px -5px var(--shadow-primary) !important;
 }
 
 div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(1) {
@@ -981,69 +987,31 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-
   color: #f8f8f8;
 }
 
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2) > span:nth-of-type(2) {
-  color: #f8f8f8;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) > span:nth-of-type(2) {
-  color: #f7f7f9;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4) > span:nth-of-type(2) {
-  color: #f4f6f9;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5) > span:nth-of-type(2) {
-  color: #f3f5f7;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(3) > span:nth-of-type(2) {
-  color: #f5f5f5;
-}
-
 /* Companion Type Button High-Contrast Overrides */
 .companion-type-btn.is-selected,
 [data-theme] .companion-type-btn.is-selected {
-  background-color: #059669 !important;
-  border-color: #047857 !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35) !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #080813 !important;
+  box-shadow: 0 4px 14px var(--shadow-primary) !important;
 }
 
 .companion-type-btn.is-selected span,
 [data-theme] .companion-type-btn.is-selected span {
-  color: #ffffff !important;
+  color: #080813 !important;
   font-weight: 800 !important;
 }
 
-.companion-type-btn:not(.is-selected) {
-  background-color: #ffffff;
-  color: #0f172a;
+.companion-type-btn:not(.is-selected),
+[data-theme] .companion-type-btn:not(.is-selected) {
+  background-color: #0e101f !important;
+  border-color: rgba(160, 189, 219, 0.2) !important;
+  color: #f8fafc !important;
 }
 
-.dark .companion-type-btn:not(.is-selected) {
-  background-color: rgba(15, 23, 42, 0.8);
-  color: #f8fafc;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) > span:nth-of-type(2) {
-  color: #000000 !important;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2) > span:nth-of-type(2) {
-  color: #000000 !important;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(3) > span:nth-of-type(2) {
-  color: #000000 !important;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4) > span:nth-of-type(2) {
-  color: #000000 !important;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5) > span:nth-of-type(2) {
-  color: #000000 !important;
+.companion-type-btn:not(.is-selected) span,
+[data-theme] .companion-type-btn:not(.is-selected) span {
+  color: #f8fafc !important;
 }
 
 /* ========================================================================= */

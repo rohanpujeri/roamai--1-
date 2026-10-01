@@ -2,55 +2,107 @@ import { ThemeConfig, ThemeId } from '../types';
 
 export const THEME_OPTIONS: ThemeConfig[] = [
   {
-    id: 'basic',
-    name: 'Basic Theme',
-    vibe: 'Clean Minimal Horizon & Subtle Ambiance',
-    tagline: 'Simple, calm & distraction-free essentials',
-    icon: '✨',
-    primaryColor: '#0284c7', // sky-600
-    secondaryColor: '#0d9488', // teal-600
-    accentColor: '#f59e0b', // amber-500
-    canvasBg: '#f8fafc',
-    canvasTint: 'linear-gradient(180deg, #f1f5f9 0%, #f8fafc 280px, #f8fafc 100%)',
-    cardBg: '#ffffff',
-    cardBorder: '#e2e8f0',
-    optionBg: '#f8fafc',
-    optionHoverBg: '#f1f5f9',
-    optionSelectedBg: '#e2e8f0',
-    optionBorder: '#cbd5e1',
-    bgSubtle: '#f1f5f9',
-    borderSubtle: '#e2e8f0',
-    taglineColor: '#334155',
-    heroGradient: 'linear-gradient(135deg, #0284c7 0%, #0d9488 50%, #f59e0b 100%)',
-    heroBannerBg: 'linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.10) 55%, #f8fafc 100%)',
-    heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(2, 132, 199, 0.15) 0%, transparent 70%)',
-    vibeTextGradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 45%, #0d9488 100%)',
-    heroBadgeBg: 'rgba(255, 255, 255, 0.85)',
-    heroBadgeBorder: 'rgba(226, 232, 240, 0.75)',
-    heroBadgeText: '#0f172a',
-    badgeClass: 'bg-slate-50 text-slate-800 border-slate-200',
-    activeRingClass: 'ring-sky-500 border-sky-500',
-    primaryBtnClass: 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/20',
-    secondaryBtnClass: 'bg-slate-50 text-slate-800 hover:bg-slate-100',
-    textAccentClass: 'text-sky-600',
-    swatches: ['#0284c7', '#0d9488', '#64748b', '#f8fafc'],
-    isDark: false,
-    heroPhotoUrl: '/images/bg_basic_minimal.jpg',
+    id: 'black-iris',
+    name: 'Black Iris',
+    vibe: 'Midnight Obsidian & Frosted Glacial Sheen',
+    tagline: 'Deep #080813 void with luminous #A0BDDB Frozen accents',
+    icon: '❄️',
+    primaryColor: '#A0BDDB', // Frozen (CMYK: 27, 14, 0, 14 | RGB: 160, 189, 219)
+    secondaryColor: '#7ea2c6',
+    accentColor: '#A0BDDB',
+    canvasBg: '#080813', // Black Iris (CMYK: 58, 58, 0, 93 | RGB: 8, 8, 19)
+    canvasTint: 'linear-gradient(180deg, #0e101f 0%, #080813 320px, #080813 100%)',
+    cardBg: '#0e101f',
+    cardBorder: 'rgba(160, 189, 219, 0.2)',
+    optionBg: 'rgba(14, 16, 31, 0.8)',
+    optionHoverBg: 'rgba(160, 189, 219, 0.12)',
+    optionSelectedBg: 'rgba(160, 189, 219, 0.22)',
+    optionBorder: 'rgba(160, 189, 219, 0.3)',
+    bgSubtle: 'rgba(160, 189, 219, 0.08)',
+    borderSubtle: 'rgba(160, 189, 219, 0.15)',
+    taglineColor: '#A0BDDB',
+    heroGradient: 'linear-gradient(135deg, #A0BDDB 0%, #7ea2c6 50%, #4a6fa5 100%)',
+    heroBannerBg: 'linear-gradient(180deg, rgba(8, 8, 19, 0.96) 0%, rgba(14, 16, 31, 0.75) 55%, #080813 100%)',
+    heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(160, 189, 219, 0.25) 0%, rgba(8, 8, 19, 0.5) 45%, transparent 100%)',
+    vibeTextGradient: 'linear-gradient(135deg, #ffffff 0%, #A0BDDB 50%, #7ea2c6 100%)',
+    heroBadgeBg: 'rgba(160, 189, 219, 0.12)',
+    heroBadgeBorder: 'rgba(160, 189, 219, 0.3)',
+    heroBadgeText: '#A0BDDB',
+    badgeClass: 'bg-[#080813] text-[#A0BDDB] border-[#A0BDDB]/30',
+    activeRingClass: 'ring-[#A0BDDB] border-[#A0BDDB]',
+    primaryBtnClass: 'bg-[#A0BDDB] hover:bg-[#8eadd0] text-[#080813] font-bold shadow-lg shadow-[#A0BDDB]/25',
+    secondaryBtnClass: 'bg-[#0e101f] text-[#A0BDDB] hover:bg-[#A0BDDB]/10 border border-[#A0BDDB]/30',
+    textAccentClass: 'text-[#A0BDDB]',
+    swatches: ['#080813', '#A0BDDB', '#0e101f', '#7ea2c6'],
+    isDark: true,
+    heroPhotoUrl: '/images/bg_snow.jpg',
     heroPhotoPosition: 'center 40%',
-    heroPhotoTag: '✨ Clean Minimal Horizon & Open Sky • Ultra HD',
+    heroPhotoTag: '❄️ Black Iris & Frozen Glow • Ultra HD',
     heroFloatingPhotos: [
-      { url: '/images/bg_basic_minimal.jpg', title: 'Minimal Horizon', location: 'Serene Landscape • 24°C' },
-      { url: '/images/bg_basic_minimal.jpg', title: 'Open Viewpoint', location: 'Calm Vista • 24°C' }
+      { url: '/images/bg_snow.jpg', title: 'Black Iris Void', location: 'Obsidian Vista • 18°C' },
+      { url: '/images/bg_snow.jpg', title: 'Frozen Heights', location: 'Glacial Peak • -4°C' }
     ],
     previewTrip: {
-      title: 'Minimal & Serene Escape',
-      image: '/images/bg_basic_minimal.jpg',
+      title: 'Obsidian & Frozen Glacial Escape',
+      image: '/images/bg_snow.jpg',
       subtitle: '4 Days • 2 Travellers • Pure Travel',
-      budget: '₹25,000 Budget',
-      temp: '24°C ☀️',
-      day1Title: 'Day 1 • Arrival & Relaxing Evening Walk',
-      activity1: { time: '04:30 PM', title: 'Scenic Sunset Stroll', category: 'Relaxation', cost: '₹300' },
-      activity2: { time: '07:30 PM', title: 'Cozy Local Cafe & Dinner', category: 'Food', cost: '₹1,000' }
+      budget: '₹28,000 Budget',
+      temp: '18°C ❄️',
+      day1Title: 'Day 1 • Arrival & Evening Twilight Walk',
+      activity1: { time: '04:30 PM', title: 'Glacial Twilight Trail', category: 'Relaxation', cost: '₹500' },
+      activity2: { time: '07:30 PM', title: 'Midnight Lounge & Fireside Dining', category: 'Food', cost: '₹1,200' }
+    }
+  },
+  {
+    id: 'basic',
+    name: 'Basic Theme',
+    vibe: 'Midnight Obsidian & Frosted Glacial Sheen',
+    tagline: 'Deep #080813 void with luminous #A0BDDB Frozen accents',
+    icon: '✨',
+    primaryColor: '#A0BDDB',
+    secondaryColor: '#7ea2c6',
+    accentColor: '#A0BDDB',
+    canvasBg: '#080813',
+    canvasTint: 'linear-gradient(180deg, #0e101f 0%, #080813 320px, #080813 100%)',
+    cardBg: '#0e101f',
+    cardBorder: 'rgba(160, 189, 219, 0.2)',
+    optionBg: 'rgba(14, 16, 31, 0.8)',
+    optionHoverBg: 'rgba(160, 189, 219, 0.12)',
+    optionSelectedBg: 'rgba(160, 189, 219, 0.22)',
+    optionBorder: 'rgba(160, 189, 219, 0.3)',
+    bgSubtle: 'rgba(160, 189, 219, 0.08)',
+    borderSubtle: 'rgba(160, 189, 219, 0.15)',
+    taglineColor: '#A0BDDB',
+    heroGradient: 'linear-gradient(135deg, #A0BDDB 0%, #7ea2c6 50%, #4a6fa5 100%)',
+    heroBannerBg: 'linear-gradient(180deg, rgba(8, 8, 19, 0.96) 0%, rgba(14, 16, 31, 0.75) 55%, #080813 100%)',
+    heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(160, 189, 219, 0.25) 0%, rgba(8, 8, 19, 0.5) 45%, transparent 100%)',
+    vibeTextGradient: 'linear-gradient(135deg, #ffffff 0%, #A0BDDB 50%, #7ea2c6 100%)',
+    heroBadgeBg: 'rgba(160, 189, 219, 0.12)',
+    heroBadgeBorder: 'rgba(160, 189, 219, 0.3)',
+    heroBadgeText: '#A0BDDB',
+    badgeClass: 'bg-[#080813] text-[#A0BDDB] border-[#A0BDDB]/30',
+    activeRingClass: 'ring-[#A0BDDB] border-[#A0BDDB]',
+    primaryBtnClass: 'bg-[#A0BDDB] hover:bg-[#8eadd0] text-[#080813] font-bold shadow-lg shadow-[#A0BDDB]/25',
+    secondaryBtnClass: 'bg-[#0e101f] text-[#A0BDDB] hover:bg-[#A0BDDB]/10 border border-[#A0BDDB]/30',
+    textAccentClass: 'text-[#A0BDDB]',
+    swatches: ['#080813', '#A0BDDB', '#0e101f', '#7ea2c6'],
+    isDark: true,
+    heroPhotoUrl: '/images/bg_snow.jpg',
+    heroPhotoPosition: 'center 40%',
+    heroPhotoTag: '✨ Black Iris & Frozen Glow • Ultra HD',
+    heroFloatingPhotos: [
+      { url: '/images/bg_snow.jpg', title: 'Black Iris Void', location: 'Obsidian Vista • 18°C' },
+      { url: '/images/bg_snow.jpg', title: 'Frozen Heights', location: 'Glacial Peak • -4°C' }
+    ],
+    previewTrip: {
+      title: 'Obsidian & Frozen Glacial Escape',
+      image: '/images/bg_snow.jpg',
+      subtitle: '4 Days • 2 Travellers • Pure Travel',
+      budget: '₹28,000 Budget',
+      temp: '18°C ❄️',
+      day1Title: 'Day 1 • Arrival & Evening Twilight Walk',
+      activity1: { time: '04:30 PM', title: 'Glacial Twilight Trail', category: 'Relaxation', cost: '₹500' },
+      activity2: { time: '07:30 PM', title: 'Midnight Lounge & Fireside Dining', category: 'Food', cost: '₹1,200' }
     }
   },
   {
@@ -315,7 +367,7 @@ export const THEME_OPTIONS: ThemeConfig[] = [
   }
 ];
 
-export const DEFAULT_THEME_ID: ThemeId = 'basic';
+export const DEFAULT_THEME_ID: ThemeId = 'black-iris';
 
 export function getTheme(themeId: ThemeId): ThemeConfig {
   const found = THEME_OPTIONS.find((t) => t.id === themeId);
