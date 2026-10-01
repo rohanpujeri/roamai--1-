@@ -36,6 +36,7 @@ import { AddNearbyPlaceModal } from './AddNearbyPlaceModal';
 import { getTravelModeTransitCost } from './CreateTripWizard';
 import { generateHotelBookingUrls } from '../services/aiHotelAdvisor';
 import { isTripCompleted } from '../utils/tripCompletion';
+import { isDemoTripId } from '../services/demoTrips';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -353,6 +354,27 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Demo Itinerary Preview Banner */}
+        {isDemoTripId(trip.id) && (
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-sky-500/15 border border-amber-500/30 flex items-center justify-between gap-3 text-xs shadow-md mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+              <div className="min-w-0">
+                <span className="font-extrabold text-white">Curated Demo Itinerary</span>
+                <span className="text-zinc-300 ml-1.5 hidden sm:inline">• You are exploring a sample {trip.durationDays}-day trip to {trip.destination}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onBackToStep6 ? onBackToStep6() : (onNavigateHome && onNavigateHome())}
+              className="px-3.5 py-1.5 rounded-xl bg-white text-black font-bold text-xs hover:bg-zinc-200 transition-all shrink-0 shadow-sm cursor-pointer active:scale-95 flex items-center gap-1"
+            >
+              <span>Plan Trip</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        )}
 
         {/* Hero Header: Title & Route Summary */}
         <div className="space-y-1 sm:space-y-1.5">

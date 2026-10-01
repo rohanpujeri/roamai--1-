@@ -5,8 +5,8 @@ import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompa
 import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } from './services/aiPlanner';
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
 import { getTheme, applyThemeToDocument, getSavedThemeId } from './services/theme';
-import { Session } from '@supabase/supabase-js';
 import { isTripCompleted, setTripCompletedLocal } from './utils/tripCompletion';
+import { DEMO_TRIPS, isDemoTripId } from './services/demoTrips';
 
 // Subcomponents
 import { Navbar } from './components/Navbar';
@@ -175,16 +175,17 @@ export default function App() {
 
   // Global View Protection Guard: If visiting protected views while logged out, redirect to auth
   useEffect(() => {
-    if (['wizard', 'itinerary', 'trip_mode', 'my_trips', 'profile', 'upload_trail'].includes(currentView) && session === null) {
+    const isViewingDemo = currentView === 'itinerary' && isDemoTripId(activeTripId);
+    if (['wizard', 'itinerary', 'trip_mode', 'my_trips', 'profile', 'upload_trail'].includes(currentView) && session === null && !isViewingDemo) {
       setIntendedView(currentView);
       setInitialAuthMode('signin');
       setCurrentView('auth');
     }
-  }, [currentView, session]);
+  }, [currentView, session, activeTripId]);
 
   // Global Button Click Auth Gate:
   // When a visitor is not logged in, any button click across the website prompts them to log in first,
-  // EXCEPT the theme changing button and actions inside the theme selector modal.
+  // EXCEPT the theme changing button and actions inside the theme selector modal, or demo trips.
   useEffect(() => {
     if (session) return; // Authenticated users can click everything freely
 
@@ -203,7 +204,12 @@ export default function App() {
         target.closest('button[title*="theme" i]') ||
         target.closest('button[title*="Theme" i]') ||
         target.closest('[data-cover-action="true"]') ||
-        target.closest('[data-location-action="true"]')
+        target.closest('[data-location-action="true"]') ||
+        target.closest('.rotating-carousel-card') ||
+        target.closest('.rotating-carousel-wrapper') ||
+        target.closest('[data-carousel-card="true"]') ||
+        target.closest('[data-demo-action="true"]') ||
+        (currentView === 'itinerary' && isDemoTripId(activeTripId))
       );
 
       if (isExemptElement) {
@@ -232,7 +238,7 @@ export default function App() {
     return () => {
       window.removeEventListener('click', handleGlobalClickCapture, true);
     };
-  }, [session, currentView]);
+  }, [session, currentView, activeTripId]);
 
   // Modals state
   const [selectedActivityForModal, setSelectedActivityForModal] = useState<Activity | null>(null);
@@ -254,14 +260,24 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Guests must explicitly open a trip to set activeTripId. If not set, do not auto-select trips[0].
-  const rawActiveTrip = activeTripId ? trips.find((t) => t.id === activeTripId) : (session ? trips[0] : null);
-  const activeTrip = rawActiveTrip ? normalizeTripPreparation(rawActiveTrip) : null;
-  const recentPlannedTrip = activeTripId ? (trips.find((t) => t.id === activeTripId) || null) : (session ? (trips[0] || null) : null);
+  // Check if user has active planned trips
+  const hasPlannedTrips = Boolean(session && trips && trips.length > 0);
+  const homeDisplayTrips = hasPlannedTrips ? trips : DEMO_TRIPS;
 
-  // Open specific trip directly
+  // Resolve active trip among user trips and curated demo trips
+  const allAvailableTrips = [...trips, ...DEMO_TRIPS];
+  const rawActiveTrip = activeTripId
+    ? allAvailableTrips.find((t) => t.id === activeTripId)
+    : (session ? trips[0] : DEMO_TRIPS[0]);
+  const activeTrip = rawActiveTrip ? normalizeTripPreparation(rawActiveTrip) : null;
+  const recentPlannedTrip = activeTripId
+    ? (allAvailableTrips.find((t) => t.id === activeTripId) || null)
+    : (hasPlannedTrips ? trips[0] : DEMO_TRIPS[0]);
+
+  // Open specific trip directly (allows exploring demo trips freely)
   const handleOpenTrip = (tripId: string) => {
-    if (!session) {
+    const isDemo = isDemoTripId(tripId);
+    if (!session && !isDemo) {
       setInitialAuthMode('signin');
       setCurrentView('auth');
       return;
@@ -1436,7 +1452,7 @@ export default function App() {
                   <LandingPage
                     currentTheme={currentTheme}
                     recentTrip={recentPlannedTrip}
-                    trips={trips}
+                    trips={homeDisplayTrips}
                     onOpenTrip={handleOpenTrip}
                     onStartPlanning={handleStartPlanning}
                     onOpenThemeModal={() => setIsThemeModalOpen(true)}

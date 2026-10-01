@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Calendar, ArrowRight, Compass } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
+import { DEMO_TRIPS } from '../services/demoTrips';
 
 interface RotatingTripsCarouselProps {
   trips?: Trip[];
@@ -230,28 +231,44 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   // Dynamic AI & API photo storage per destination
   const [dynamicPhotos, setDynamicPhotos] = useState<Record<string, string>>({});
 
+  // Detect if user has any real planned trips
+  const hasUserTrips = (trips || []).some((t) => t.id && !t.id.startsWith('demo-'));
+
   // Build the 6 trips dynamically
-  const userDisplayTrips: DisplayTripItem[] = (trips || []).slice(0, 6).map((t) => {
-    const dest = cleanDestinationName(t.destination || 'My Journey');
-    return {
-      id: t.id,
-      isUserTrip: true,
-      destination: dest,
-      title: t.title || `${dest} Itinerary`,
-      durationDays: t.durationDays || 4,
-      budget: `${t.currency || '₹'}${t.targetBudget?.toLocaleString() || '35,000'}`,
-      weather: t.days?.[0]?.weatherForecast ? `${t.days[0].weatherForecast.temp} ${t.days[0].weatherForecast.icon}` : '26°C ☀️',
-      heroImage: t.heroImage && !isGenericPlaceholder(t.heroImage) ? t.heroImage : '',
-      colorCardRgb: themeRgb,
-    };
-  });
+  const userDisplayTrips: DisplayTripItem[] = (trips || [])
+    .filter((t) => t.id && !t.id.startsWith('demo-'))
+    .slice(0, 6)
+    .map((t) => {
+      const dest = cleanDestinationName(t.destination || 'My Journey');
+      return {
+        id: t.id,
+        isUserTrip: true,
+        destination: dest,
+        title: t.title || `${dest} Itinerary`,
+        durationDays: t.durationDays || 4,
+        budget: `${t.currency || '₹'}${t.targetBudget?.toLocaleString() || '35,000'}`,
+        weather: t.days?.[0]?.weatherForecast ? `${t.days[0].weatherForecast.temp} ${t.days[0].weatherForecast.icon}` : '26°C ☀️',
+        heroImage: t.heroImage && !isGenericPlaceholder(t.heroImage) ? t.heroImage : '',
+        colorCardRgb: themeRgb,
+      };
+    });
+
+  const demoDisplayTrips: DisplayTripItem[] = DEMO_TRIPS.map((d) => ({
+    id: d.id,
+    isUserTrip: false,
+    destination: d.destination,
+    title: d.title,
+    durationDays: d.durationDays,
+    budget: `${d.currency}${d.targetBudget?.toLocaleString() || '45,000'}`,
+    weather: d.days?.[0]?.weatherForecast ? `${d.days[0].weatherForecast.temp} ${d.days[0].weatherForecast.icon}` : '24°C ☀️',
+    heroImage: d.heroImage,
+    colorCardRgb: themeRgb,
+  }));
 
   const combinedTrips: DisplayTripItem[] = [...userDisplayTrips];
   for (let i = 0; combinedTrips.length < 6; i++) {
-    const defaultItem = DEFAULT_SHOWCASE_TRIPS[i % DEFAULT_SHOWCASE_TRIPS.length];
-    combinedTrips.push({
-      ...defaultItem,
-    });
+    const demoItem = demoDisplayTrips[i % demoDisplayTrips.length];
+    combinedTrips.push(demoItem);
   }
   const finalSixTrips = combinedTrips.slice(0, 6);
 
@@ -414,7 +431,7 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
     // Only open if user tapped/clicked rather than dragged/swiped
     if (dragDistanceRef.current > 8) return;
 
-    if (item.isUserTrip && item.id && onOpenTrip) {
+    if (item.id && onOpenTrip) {
       onOpenTrip(item.id);
     } else {
       onStartPlanning(item.destination);
@@ -424,9 +441,9 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
   return (
     <div className="w-full flex flex-col items-center justify-center relative select-none">
       {/* Top Header Tag */}
-      <div className="flex items-center gap-1.5 mb-1 px-2.5 py-0.5 rounded-full bg-black/45 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold shadow-md">
-        <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
-        <span>Recently Planned Journeys • 3D Orbit</span>
+      <div className="flex items-center gap-1.5 mb-1 px-3 py-1 rounded-full bg-black/55 backdrop-blur-md border border-white/20 text-white text-[10px] sm:text-[11px] font-bold shadow-md">
+        <Sparkles className={`w-3.5 h-3.5 ${hasUserTrips ? 'text-emerald-400 fill-emerald-400' : 'text-amber-400 fill-amber-400'} animate-pulse`} />
+        <span>{hasUserTrips ? 'Your Planned Journeys • 3D Orbit' : 'Explore Curated Demo Trips • 3D Orbit'}</span>
       </div>
 
       {/* 3D Rotating Carousel Container with Hover Steering & Touch Swipe */}
@@ -469,13 +486,15 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                   isHoveredCardRef.current = false;
                 }}
                 className="rotating-carousel-card group"
+                data-carousel-card="true"
+                data-demo-action="true"
                 style={{
                   transform: `rotateY(${cardDegree}deg) translateZ(var(--translateZ))`,
                   // @ts-ignore
                   '--color-card': item.colorCardRgb || themeRgb,
                   zIndex: isHovered ? 15 : 2,
                 }}
-                title={`Click to open ${item.destination} itinerary`}
+                title={item.isUserTrip ? `Open ${item.destination} itinerary` : `Explore demo itinerary: ${item.destination}`}
               >
                 {/* 1. FRONT FACE (Facing Outwards towards Viewer) */}
                 <div className="rotating-carousel-card-face rotating-carousel-card-front">
@@ -494,11 +513,16 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                   <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 pointer-events-none">
                     <span className="px-1.5 py-0.5 rounded-md text-[8px] font-extrabold bg-black/75 backdrop-blur-md text-white border border-white/20 flex items-center gap-1 shadow-xs">
                       {item.isUserTrip ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span>{item.durationDays}D</span>
+                        </>
                       ) : (
-                        <Calendar className="w-2.5 h-2.5 text-amber-300" />
+                        <>
+                          <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                          <span>Demo • {item.durationDays}D</span>
+                        </>
                       )}
-                      <span>{item.durationDays}D</span>
                     </span>
 
                     <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-black/75 backdrop-blur-md text-white border border-white/20 shadow-xs">
@@ -508,9 +532,13 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
 
                   {/* Bottom Info (Reduced Font Size & Tight Clean Layout) */}
                   <div className="absolute inset-x-0 bottom-0 p-2 sm:p-2.5 flex flex-col justify-end text-left pointer-events-none">
-                    {item.isUserTrip && (
+                    {item.isUserTrip ? (
                       <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-0.5 mb-0.5">
                         <Sparkles className="w-2 h-2" /> Your Trip
+                      </span>
+                    ) : (
+                      <span className="text-[8px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-0.5 mb-0.5">
+                        <Sparkles className="w-2 h-2" /> Demo Itinerary
                       </span>
                     )}
                     <h4 className="text-xs sm:text-sm font-extrabold text-white leading-tight drop-shadow-md truncate">
@@ -524,7 +552,8 @@ export const RotatingTripsCarousel: React.FC<RotatingTripsCarouselProps> = ({
                       <span className="text-[9px] sm:text-[10px] font-extrabold text-white drop-shadow-xs">
                         {item.budget}
                       </span>
-                      <span className="w-4 h-4 rounded-full bg-white/25 flex items-center justify-center text-white group-hover:bg-white group-hover:text-slate-950 transition-colors shadow-xs">
+                      <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[8px] font-bold flex items-center gap-1 text-white group-hover:bg-white group-hover:text-slate-950 transition-colors shadow-xs">
+                        <span>{item.isUserTrip ? 'Open' : 'Preview'}</span>
                         <ArrowRight className="w-2 h-2" />
                       </span>
                     </div>
