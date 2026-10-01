@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   Bookmark, 
@@ -37,6 +37,18 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
   const [activePlaybackTrail, setActivePlaybackTrail] = useState<TrailReel | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  };
 
   // Load saved trails on mount and listen to changes
   useEffect(() => {
@@ -305,6 +317,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
             {/* Video Player - Sticking to original aspect ratio */}
             {activePlaybackTrail.videoUrl ? (
               <video
+                ref={videoRef}
                 src={activePlaybackTrail.videoUrl}
                 poster={activePlaybackTrail.posterUrl}
                 className="relative z-10 w-full h-full object-contain"
@@ -325,7 +338,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
             <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setIsMuted(!isMuted)}
+                onClick={toggleMute}
                 className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105"
                 aria-label="Toggle mute"
               >

@@ -325,7 +325,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   }, [session?.user, cachedUser]);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(Boolean(isActive));
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('tripwise_trails_muted');
+      return stored !== null ? stored === 'true' : false;
+    } catch {
+      return false;
+    }
+  });
+  const [showMuteIndicator, setShowMuteIndicator] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
@@ -444,7 +452,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     };
   }, [activeReel?.id, activeReel?.videoUrl]);
 
-  // Auto-play unmuted when active reel changes or when trails page opens
+  // Auto-play when active reel changes or when trails page opens
   useEffect(() => {
     if (!isActive || showUploadModal || showLikesModal) {
       if (videoRef.current) {
@@ -454,66 +462,28 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       return;
     }
 
-    // Explicitly ensure unmuted playback when on Trails page
-    setIsMuted(false);
     setIsPlaying(true);
 
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.muted = false;
+      videoRef.current.muted = isMuted;
       videoRef.current.play().catch(() => {
-        // Fallback only if browser strictly requires interaction for audio
-        if (videoRef.current) {
+        // Fallback if browser blocked unmuted autoplay
+        if (videoRef.current && !isMuted) {
           videoRef.current.muted = true;
+          setIsMuted(true);
           videoRef.current.play().catch(() => {});
         }
       });
     }
   }, [currentIndex, isActive, showUploadModal, showLikesModal]);
 
-  // Unmute automatically on first tap/interaction if browser temporarily muted it
+  // Keep video DOM element's muted property synchronized with isMuted state
   useEffect(() => {
-    if (!isActive) return;
-
-    const handleUnlockAudio = () => {
-      if (videoRef.current) {
-        videoRef.current.muted = false;
-        setIsMuted(false);
-        if (videoRef.current.paused) {
-          videoRef.current.play().catch(() => {});
-        }
-      }
-    };
-
-    window.addEventListener('touchstart', handleUnlockAudio, { passive: true });
-    window.addEventListener('click', handleUnlockAudio, { passive: true });
-    return () => {
-      window.removeEventListener('touchstart', handleUnlockAudio);
-      window.removeEventListener('click', handleUnlockAudio);
-    };
-  }, [isActive]);
-
-  // Play/pause video according to Trails page active status and modal overlays
-  useEffect(() => {
-    if (!isActive || showUploadModal || showLikesModal) {
-      if (videoRef.current) {
-        videoRef.current.pause();
-      }
-      setIsPlaying(false);
-    } else {
-      setIsMuted(false);
-      if (videoRef.current) {
-        videoRef.current.muted = false;
-        videoRef.current.play().catch(() => {
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            videoRef.current.play().catch(() => {});
-          }
-        });
-        setIsPlaying(true);
-      }
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
     }
-  }, [isActive, showUploadModal, showLikesModal]);
+  }, [isMuted]);
 
   // Extra guard: whenever activeMediaUrl updates, ensure paused if not on trails
   useEffect(() => {
@@ -598,12 +568,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   };
 
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleMute = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    setShowMuteIndicator(true);
+    setTimeout(() => setShowMuteIndicator(false), 800);
+
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+      videoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        videoRef.current.play().catch(() => {});
+      }
     }
+
+    try {
+      localStorage.setItem('tripwise_trails_muted', String(nextMuted));
+    } catch {}
   };
 
   const handlePlaylineClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -652,10 +633,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         togglePlay();
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
-        if (videoRef.current) {
-          videoRef.current.muted = !isMuted;
-          setIsMuted(!isMuted);
-        }
+        toggleMute();
       }
     };
 
@@ -1354,6 +1332,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-in fade-in zoom-in duration-150">
               <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center animate-bounce">
                 <Heart className="w-full h-full fill-red-500 text-red-500 drop-shadow-[0_10px_35px_rgba(239,68,68,0.9)]" />
+              </div>
+            </div>
+          )}
+
+          {/* Animated Mute / Unmute Visual Indicator Badge */}
+          {showMuteIndicator && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-in fade-in zoom-in duration-150">
+              <div className="w-16 h-16 rounded-full bg-black/75 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-2xl transition-all">
+                {isMuted ? (
+                  <VolumeX className="w-8 h-8 text-neutral-300 stroke-[2.2]" />
+                ) : (
+                  <Volume2 className="w-8 h-8 text-white stroke-[2.2]" />
+                )}
               </div>
             </div>
           )}
