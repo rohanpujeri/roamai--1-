@@ -26,6 +26,58 @@ export const isSupabaseConfigured = (): boolean => {
   return Boolean(config.supabase.url && config.supabase.anonKey && config.supabase.url.startsWith('http'));
 };
 
+const CURRENT_PROJECT_KEY = 'tripwise_current_supabase_url';
+const PROJECT_CACHE_VERSION_KEY = 'roamai_storage_version';
+const STORAGE_VERSION = 'v2_majtaremnrjzzzxpquef_clean';
+
+export function purgeStaleStorageIfNeeded(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentUrl = config.supabase.url || '';
+    const storedUrl = localStorage.getItem(CURRENT_PROJECT_KEY);
+    const storedVersion = localStorage.getItem(PROJECT_CACHE_VERSION_KEY);
+
+    const isUrlMismatch = storedUrl && storedUrl !== currentUrl;
+    const isOldVersion = storedVersion !== STORAGE_VERSION;
+
+    if (isUrlMismatch || isOldVersion) {
+      console.log('[TripWise] Supabase project switch or cache version upgrade detected. Purging stale local trails & profiles.');
+
+      // Clear all legacy trail caches from old Supabase project
+      localStorage.removeItem('roamai_user_trails');
+      localStorage.removeItem('tripwise_user_trails');
+      localStorage.removeItem('roamai_global_trails');
+      localStorage.removeItem('roamai_local_trails');
+      localStorage.removeItem('roamai_all_trails_cache');
+      localStorage.removeItem('roamai_saved_trail_ids');
+      localStorage.removeItem('roamai_saved_trails_cache');
+      localStorage.removeItem('roamai_deleted_trail_ids');
+      localStorage.removeItem('roamai_liked_trail_ids');
+      localStorage.removeItem('roamai_claimed_usernames');
+
+      // Remove cached user profiles from old project
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('tripwise_user_profile_') || k.startsWith('roamai_follows_') || k.startsWith('roamai_followers_'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+      if (currentUrl) {
+        localStorage.setItem(CURRENT_PROJECT_KEY, currentUrl);
+      }
+      localStorage.setItem(PROJECT_CACHE_VERSION_KEY, STORAGE_VERSION);
+    }
+  } catch (err) {
+    console.warn('Error in purgeStaleStorageIfNeeded:', err);
+  }
+}
+
+// Execute purge immediately on client module initialization
+purgeStaleStorageIfNeeded();
+
 export async function getCurrentUser() {
   const supabase = getSupabaseClient();
   if (!supabase) return null;

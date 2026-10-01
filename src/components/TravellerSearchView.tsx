@@ -28,7 +28,7 @@ import { ThemeConfig, Trip } from '../types';
 import { TrailsView } from './TrailsView';
 import { sanitizeAvatarUrl, getCachedUserProfile, getSupabaseClient } from '../services/supabaseClient';
 import { searchRealTravellers } from '../services/usernameService';
-import { fetchGlobalTrails, getLocalTrails, TrailReel } from '../services/sharedTrailsService';
+import { fetchGlobalTrails, getLocalTrails, TrailReel, isValidTrailMedia } from '../services/sharedTrailsService';
 import { calculateTravelDNA, TravelDNAAnalysis } from '../utils/travelDNA';
 import { isTripCompleted } from '../utils/tripCompletion';
 import { FollowListModal } from './FollowListModal';
@@ -633,7 +633,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     if (!globalTrailsList || globalTrailsList.length === 0) return [];
 
     return globalTrailsList
-      .filter((t: any) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username))
+      .filter((t: any) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t))
       .map((t: any, idx: number) => ({
         id: t.id || `trail-${idx}`,
         type: 'trail' as const,
@@ -1734,13 +1734,20 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                             alt={tile.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                              const fallback = (e.currentTarget as HTMLElement).parentElement?.querySelector('.trail-fallback-placeholder');
+                              if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                            }}
                           />
-                        ) : (
-                          <div className="w-full h-full bg-neutral-900 flex flex-col items-center justify-center p-2 text-center select-none">
-                            <Video className="w-5 h-5 text-neutral-600 mb-1" />
-                            <span className="text-[10px] font-semibold text-neutral-400 line-clamp-1">{tile.destination}</span>
-                          </div>
-                        )}
+                        ) : null}
+                        <div 
+                          className="trail-fallback-placeholder w-full h-full bg-neutral-900 flex flex-col items-center justify-center p-2 text-center select-none"
+                          style={{ display: tile.imageUrl ? 'none' : 'flex' }}
+                        >
+                          <Video className="w-5 h-5 text-neutral-600 mb-1" />
+                          <span className="text-[10px] font-semibold text-neutral-400 line-clamp-1">{tile.destination}</span>
+                        </div>
 
                         {/* Gradient Vignette for readability */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-75 group-hover:opacity-90 transition-opacity" />

@@ -374,6 +374,28 @@ export function fileToBase64(file: File | Blob): Promise<string> {
 }
 
 /**
+ * Validate that a trail's media belongs to the current active Supabase project.
+ * Filters out ghost/orphaned trails from prior Supabase projects.
+ */
+export function isValidTrailMedia(t: any): boolean {
+  if (!t || !t.id) return false;
+  try {
+    const currentUrl = config.supabase.url;
+    if (currentUrl && currentUrl.startsWith('http')) {
+      const currentHost = new URL(currentUrl).hostname;
+      const mediaUrl = t.videoUrl || t.posterUrl || '';
+      if (typeof mediaUrl === 'string' && mediaUrl.includes('.supabase.co')) {
+        // If it references a Supabase storage bucket from another project, discard
+        if (!mediaUrl.includes(currentHost)) {
+          return false;
+        }
+      }
+    }
+  } catch {}
+  return true;
+}
+
+/**
  * Read locally cached trails
  */
 export function getLocalTrails(): TrailReel[] {
@@ -384,16 +406,24 @@ export function getLocalTrails(): TrailReel[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed
+      const valid = parsed
         .filter(
           (t: any) =>
             t &&
             t.id &&
             !deletedIds.has(t.id) &&
             !t.id?.startsWith('sample-trail-') &&
-            !isFakeMockUser(t.creator?.username)
+            !isFakeMockUser(t.creator?.username) &&
+            isValidTrailMedia(t)
         )
         .map((t) => sanitizeTrail(t));
+
+      // Auto-prune stale project trails from localStorage
+      if (valid.length !== parsed.length) {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(valid));
+        localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(valid));
+      }
+      return valid;
     }
   } catch {
     // ignore
@@ -429,7 +459,7 @@ export async function fetchStorageTrailsIndex(): Promise<TrailReel[]> {
         const parsed = JSON.parse(text);
         if (Array.isArray(parsed)) {
           return parsed
-            .filter((t: any) => t && t.id && !deletedIds.has(t.id) && !isFakeMockUser(t.creator?.username))
+            .filter((t: any) => t && t.id && !deletedIds.has(t.id) && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t))
             .map(sanitizeTrail);
         }
       }
@@ -450,7 +480,7 @@ export async function fetchStorageTrailsIndex(): Promise<TrailReel[]> {
         const json = await resp.json();
         if (Array.isArray(json)) {
           return json
-            .filter((t: any) => t && t.id && !deletedIds.has(t.id) && !isFakeMockUser(t.creator?.username))
+            .filter((t: any) => t && t.id && !deletedIds.has(t.id) && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t))
             .map(sanitizeTrail);
         }
       }
@@ -471,7 +501,7 @@ export async function saveStorageTrailsIndex(trails: TrailReel[]): Promise<boole
 
     const deletedIds = new Set(getDeletedTrailIds());
     const cleanTrails = trails
-      .filter((t) => t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username))
+      .filter((t) => t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t))
       .map(sanitizeTrail);
 
     const jsonString = JSON.stringify(cleanTrails, null, 2);
@@ -522,14 +552,7 @@ export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel
     const localList = getLocalTrails();
     const trailMap = new Map<string, TrailReel>();
 
-    // 1. Immediately seed with existing local trails so UI is never blocked or empty
-    localList.forEach((t) => {
-      if (t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
-        trailMap.set(t.id, sanitizeTrail(t));
-      }
-    });
-
-    // 2. Fetch remote sources concurrently in parallel
+    // 1. Fetch remote sources concurrently in parallel
     const [storageResult, supabaseResult, serverResult, profilesResult] = await Promise.allSettled([
       // Storage registry index
       fetchStorageTrailsIndex(),
@@ -570,20 +593,22 @@ export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel
       })()
     ]);
 
+    const isSupabaseLive = supabaseResult.status === 'fulfilled';
+
     // Process storage index trails
     if (storageResult.status === 'fulfilled' && Array.isArray(storageResult.value)) {
       storageResult.value.forEach((t) => {
-        if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)) {
+        if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t)) {
           trailMap.set(t.id, t);
         }
       });
     }
 
-    // Process Supabase trails
+    // Process Supabase trails (primary source of truth)
     if (supabaseResult.status === 'fulfilled' && Array.isArray(supabaseResult.value)) {
       supabaseResult.value.forEach((row: any) => {
         const rawTrail = row.trail_data || row;
-        if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-')) {
+        if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-') && isValidTrailMedia(rawTrail)) {
           const t = sanitizeTrail({
             ...rawTrail,
             createdAt: row.created_at || rawTrail.createdAt,
@@ -598,11 +623,34 @@ export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel
     // Process server trails
     if (serverResult.status === 'fulfilled' && Array.isArray(serverResult.value)) {
       serverResult.value.forEach((tRaw: any) => {
-        if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && !trailMap.has(tRaw.id)) {
+        if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && isValidTrailMedia(tRaw) && !trailMap.has(tRaw.id)) {
           const t = sanitizeTrail(tRaw);
           if (!isFakeMockUser(t.creator?.username)) {
             trailMap.set(t.id, t);
           }
+        }
+      });
+    }
+
+    // Handle local trails:
+    // If Supabase is live, only include local items if they are freshly uploaded (last 2 minutes)
+    // and never resurrect stale/deleted trails from previous sessions
+    if (isSupabaseLive) {
+      const nowMs = Date.now();
+      localList.forEach((t) => {
+        if (t && t.id && !deletedIds.has(t.id) && isValidTrailMedia(t)) {
+          const createdTime = t.createdAt ? new Date(t.createdAt).getTime() : 0;
+          const isFreshDraft = createdTime && (nowMs - createdTime < 2 * 60 * 1000);
+          if (isFreshDraft && !trailMap.has(t.id)) {
+            trailMap.set(t.id, sanitizeTrail(t));
+          }
+        }
+      });
+    } else {
+      // Offline fallback: include cached valid local trails
+      localList.forEach((t) => {
+        if (t && t.id && !deletedIds.has(t.id) && isValidTrailMedia(t) && !trailMap.has(t.id)) {
+          trailMap.set(t.id, sanitizeTrail(t));
         }
       });
     }

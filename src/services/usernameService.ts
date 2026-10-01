@@ -346,8 +346,136 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
     profilesMap.set(cleanUser, updated);
   };
 
-  // 1. Gather all cached real profiles from localStorage
-  if (typeof window !== 'undefined') {
+  // 1. PRIMARY SOURCE OF TRUTH: Query Supabase public profiles & usernames tables
+  const supabase = getSupabaseClient();
+  let supabaseSucceeded = false;
+
+  if (supabase) {
+    try {
+      let query = supabase.from('profiles').select('*');
+      if (q) {
+        query = query.or(`username.ilike.%${q}%,name.ilike.%${q}%,location.ilike.%${q}%,place.ilike.%${q}%`);
+      }
+      const { data, error } = await query.limit(50);
+      if (!error && Array.isArray(data)) {
+        supabaseSucceeded = true;
+        const validSupabaseUsernames = new Set<string>();
+
+        data.forEach((row: any) => {
+          if (row.username) {
+            const clean = cleanUsernameInput(row.username);
+            if (clean && !isFakeMockUser(clean)) {
+              validSupabaseUsernames.add(clean);
+              recordProfile({
+                id: row.id,
+                username: `@${clean}`,
+                name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
+                avatarUrl: row.avatar_url,
+                bio: cleanBio(row.bio),
+                location: row.location || row.place,
+                level: row.level || 'Travel Explorer',
+                tripsCount: row.trips_count || 0,
+                placesCount: row.places_count || 0,
+                countriesCount: row.countries_count || 0
+              });
+            }
+          }
+        });
+
+        // Prune stale localStorage profiles that do not exist in the active Supabase project
+        if (typeof window !== 'undefined') {
+          try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('tripwise_user_profile_')) {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  const u = cleanUsernameInput(parsed?.username);
+                  if (u && !validSupabaseUsernames.has(u)) {
+                    keysToRemove.push(key);
+                  }
+                }
+              }
+            }
+            keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+            // Also clean up stale claimed usernames
+            const claimed = getLocalClaimedUsernames();
+            let claimedChanged = false;
+            Object.keys(claimed).forEach((u) => {
+              const clean = cleanUsernameInput(u);
+              if (!validSupabaseUsernames.has(clean)) {
+                delete claimed[u];
+                claimedChanged = true;
+              }
+            });
+            if (claimedChanged) {
+              localStorage.setItem(LOCAL_STORAGE_USERNAMES_KEY, JSON.stringify(claimed));
+            }
+          } catch (e) {
+            console.warn('Error pruning stale profiles:', e);
+          }
+        }
+      }
+    } catch {
+      // Table may not be active yet; gracefully handled
+    }
+
+    // 2. Also query Supabase public usernames table
+    try {
+      let uQuery = supabase.from('usernames').select('username, user_id, created_at');
+      if (q) {
+        uQuery = uQuery.ilike('username', `%${q}%`);
+      }
+      const { data: uData, error: uErr } = await uQuery.limit(40);
+      if (!uErr && Array.isArray(uData)) {
+        supabaseSucceeded = true;
+        uData.forEach((row) => {
+          if (row.username) {
+            const clean = cleanUsernameInput(row.username);
+            if (clean && !isFakeMockUser(clean)) {
+              recordProfile({
+                id: row.user_id || `supa_${clean}`,
+                username: `@${clean}`,
+                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+              });
+            }
+          }
+        });
+      }
+    } catch {
+      // Table may not be active; gracefully handled
+    }
+  }
+
+  // 3. Query backend API endpoint /api/auth/search-users
+  try {
+    const res = await fetch(`/api/auth/search-users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.users)) {
+        data.users.forEach((u: any) => {
+          if (u.username) {
+            const clean = cleanUsernameInput(u.username);
+            if (clean && !isFakeMockUser(clean)) {
+              recordProfile({
+                id: u.userId || `server_${clean}`,
+                username: clean,
+                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch {
+    // Local / offline fallback handled
+  }
+
+  // 4. Fallback ONLY if Supabase is offline / unreachable: gather local profiles
+  if (!supabaseSucceeded && typeof window !== 'undefined') {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -376,7 +504,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
         }
       }
 
-      // Claimed usernames registry in localStorage - only include valid user IDs and non-fake accounts
+      // Claimed usernames registry in localStorage fallback
       const claimed = getLocalClaimedUsernames();
       Object.entries(claimed).forEach(([username, meta]) => {
         const u = cleanUsernameInput(username);
@@ -389,91 +517,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
         }
       });
     } catch (e) {
-      console.warn('Error reading local profiles:', e);
-    }
-  }
-
-  // 2. Query backend API endpoint /api/auth/search-users
-  try {
-    const res = await fetch(`/api/auth/search-users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.users)) {
-        data.users.forEach((u: any) => {
-          if (u.username) {
-            const clean = cleanUsernameInput(u.username);
-            if (clean && !isFakeMockUser(clean)) {
-              recordProfile({
-                id: u.userId || `server_${clean}`,
-                username: clean,
-                name: clean.charAt(0).toUpperCase() + clean.slice(1)
-              });
-            }
-          }
-        });
-      }
-    }
-  } catch {
-    // Local / offline fallback handled
-  }
-
-  // 3. Query Supabase public profiles table
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      let query = supabase.from('profiles').select('*');
-      if (q) {
-        query = query.or(`username.ilike.%${q}%,name.ilike.%${q}%,location.ilike.%${q}%,place.ilike.%${q}%`);
-      }
-      const { data, error } = await query.limit(50);
-      if (!error && Array.isArray(data)) {
-        data.forEach((row: any) => {
-          if (row.username) {
-            const clean = cleanUsernameInput(row.username);
-            if (clean && !isFakeMockUser(clean)) {
-              recordProfile({
-                id: row.id,
-                username: `@${clean}`,
-                name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
-                avatarUrl: row.avatar_url,
-                bio: cleanBio(row.bio),
-                location: row.location || row.place,
-                level: row.level || 'Travel Explorer',
-                tripsCount: row.trips_count || 0,
-                placesCount: row.places_count || 0,
-                countriesCount: row.countries_count || 0
-              });
-            }
-          }
-        });
-      }
-    } catch {
-      // Table may not be active yet; gracefully handled
-    }
-
-    // 4. Also fallback query Supabase public usernames table
-    try {
-      let uQuery = supabase.from('usernames').select('username, user_id, created_at');
-      if (q) {
-        uQuery = uQuery.ilike('username', `%${q}%`);
-      }
-      const { data: uData, error: uErr } = await uQuery.limit(40);
-      if (!uErr && Array.isArray(uData)) {
-        uData.forEach((row) => {
-          if (row.username) {
-            const clean = cleanUsernameInput(row.username);
-            if (clean && !isFakeMockUser(clean)) {
-              recordProfile({
-                id: row.user_id || `supa_${clean}`,
-                username: `@${clean}`,
-                name: clean.charAt(0).toUpperCase() + clean.slice(1)
-              });
-            }
-          }
-        });
-      }
-    } catch {
-      // Table may not be active; gracefully handled
+      console.warn('Error reading local profiles fallback:', e);
     }
   }
 

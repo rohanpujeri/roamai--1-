@@ -64,7 +64,8 @@ import {
   publishGlobalTrail,
   deleteGlobalTrail,
   TrailReel,
-  sanitizeTrail
+  sanitizeTrail,
+  isValidTrailMedia
 } from '../services/sharedTrailsService';
 import { TrailsView } from './TrailsView';
 import { EditCoverModal } from './EditCoverModal';
@@ -179,6 +180,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 t &&
                 !t.id?.startsWith('sample-trail-') &&
                 !isFakeMockUser(t.creator?.username) &&
+                isValidTrailMedia(t) &&
                 (
                   (currentUname && (
                     (t.creator?.username || '').toLowerCase().replace(/^@/, '') === currentUname ||
@@ -843,7 +845,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         const rawFiltered: TrailReel[] = allTrails
           .filter((t: any) => {
-            if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username)) return false;
+            if (!t || t.id?.startsWith('sample-trail-') || isFakeMockUser(t.creator?.username) || !isValidTrailMedia(t)) return false;
             const creatorUsername = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
             const creatorId = t.creator?.id;
             return (
@@ -874,6 +876,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           const nextIds = filtered.map((f) => f.id).join(',');
           return prevIds !== nextIds ? filtered : prev;
         });
+
+        // Ensure localStorage roamai_user_trails stays in sync with verified trails
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('roamai_user_trails', JSON.stringify(rawFiltered));
+          } catch {}
+        }
       } catch (err) {
         console.warn('Could not sync user profile trails:', err);
       }
