@@ -244,3 +244,24 @@ export function removeServerFollower(
   // targetFollower is following currentUser; remove that relationship
   return unfollowServerUser(targetFollower, currentUser);
 }
+
+export function deleteServerUserFollows(userId?: string, username?: string): boolean {
+  const clean = cleanHandle(username || '');
+  let changed = false;
+
+  for (const [key, record] of followsMap.entries()) {
+    const matchesUser =
+      (userId && (record.followerId === userId || record.followingId === userId)) ||
+      (clean && (cleanHandle(record.followerUsername) === clean || cleanHandle(record.followingUsername) === clean));
+
+    if (matchesUser) {
+      followsMap.delete(key);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    persistToDisk();
+  }
+  return changed;
+}

@@ -75,6 +75,7 @@ import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from
 import { NavigationDrawer } from './NavigationDrawer';
 import { FollowListModal } from './FollowListModal';
 import { getFollowCounts, isFakeMockUser, cleanBio } from '../services/followService';
+import { DeleteAccountModal } from './DeleteAccountModal';
 
 
 interface UserProfileViewProps {
@@ -223,6 +224,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
   const [trailToDelete, setTrailToDelete] = useState<UserTrailItem | null>(null);
   const [isDeletingTrail, setIsDeletingTrail] = useState<boolean>(false);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState<boolean>(false);
 
   // Listen for newly published trails from separate UploadTrailView page
   useEffect(() => {
@@ -2466,6 +2468,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 />
               </div>
 
+              {/* Danger Zone: Self-Service Delete Account */}
+              <div className="pt-3 border-t border-zinc-800/80">
+                <div className="p-3.5 rounded-2xl bg-red-950/20 border border-red-900/30 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h5 className="text-xs font-bold text-red-400 truncate">Delete Account</h5>
+                    <p className="text-[11px] text-zinc-400 truncate">Permanently erase your account and all data</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setIsDeleteAccountModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -2663,6 +2686,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             await supabase.auth.signOut();
           }
         }}
+        onOpenDeleteAccount={() => {
+          setIsDrawerOpen(false);
+          setIsDeleteAccountModalOpen(true);
+        }}
       />
 
       {/* Followers & Following List Modal */}
@@ -2714,6 +2741,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           const formatted = loc.name.trim() || loc.address.trim();
           setTrailDestination(formatted);
           setUploadLocationErrorTrail(null);
+        }}
+      />
+      {/* Self-Service Delete Account Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteAccountModalOpen}
+        onClose={() => setIsDeleteAccountModalOpen(false)}
+        userId={session?.user?.id || ''}
+        username={profile?.username || ''}
+        email={session?.user?.email || ''}
+        onDeleted={() => {
+          setIsDeleteAccountModalOpen(false);
+          if (onBack) onBack();
+          else window.location.href = '/';
         }}
       />
     </div>

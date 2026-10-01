@@ -11,8 +11,10 @@ import {
   Loader2,
   ShieldCheck,
   LogOut,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
+import { DeleteAccountModal } from './DeleteAccountModal';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, UserProfileData } from '../types';
 import { getCachedUserProfile, updateUserProfileData, getSupabaseClient, sanitizeAvatarUrl } from '../services/supabaseClient';
@@ -38,6 +40,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const user = session?.user;
   const userMeta = user?.user_metadata || {};
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Form states
   const [fullName, setFullName] = useState<string>('');
@@ -264,23 +267,36 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Bottom Actions */}
-              <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    if (onSignOut) onSignOut();
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
+              <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onSignOut) onSignOut();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-red-950/40 border border-zinc-800 hover:border-red-900/60 text-zinc-400 hover:text-red-400 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete Account</span>
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition-all cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition-all cursor-pointer"
                 >
                   Close
                 </button>
@@ -379,6 +395,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userId={user?.id || ''}
+        username={user?.email?.split('@')[0] || ''}
+        email={user?.email || ''}
+        onDeleted={() => {
+          setIsDeleteModalOpen(false);
+          onClose();
+          window.location.href = '/';
+        }}
+      />
     </div>
   );
 };

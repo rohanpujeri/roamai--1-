@@ -159,4 +159,28 @@ export function searchServerUsers(query?: string): UsernameRecord[] {
   return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
 }
 
+export function deleteServerUsername(userId?: string, rawUsername?: string): boolean {
+  let changed = false;
+  const clean = rawUsername ? rawUsername.trim().toLowerCase().replace(/^@+/, '') : '';
+
+  if (clean && claimedUsernamesMap.has(clean)) {
+    claimedUsernamesMap.delete(clean);
+    changed = true;
+  }
+
+  if (userId) {
+    for (const [key, record] of claimedUsernamesMap.entries()) {
+      if (record.userId === userId) {
+        claimedUsernamesMap.delete(key);
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    persistToDisk();
+  }
+  return changed;
+}
+
 

@@ -408,6 +408,33 @@ export async function deleteServerTrail(trailId: string): Promise<boolean> {
 }
 
 /**
+ * Delete all trails created by a user
+ */
+export async function deleteServerUserTrails(userId?: string, username?: string): Promise<boolean> {
+  const cleanU = (username || '').replace(/^@+/, '').trim().toLowerCase();
+  const trailIdsToDelete: string[] = [];
+
+  for (const [id, record] of trailsMap.entries()) {
+    const creatorUser = (record.creator?.username || '').replace(/^@+/, '').trim().toLowerCase();
+    const creatorId = record.creator?.id;
+
+    if ((userId && creatorId === userId) || (cleanU && creatorUser === cleanU)) {
+      trailIdsToDelete.push(id);
+    }
+  }
+
+  for (const id of trailIdsToDelete) {
+    try {
+      await deleteServerTrail(id);
+    } catch (e) {
+      console.warn(`Failed to delete trail ${id} during user deletion:`, e);
+    }
+  }
+
+  return true;
+}
+
+/**
  * Like or unlike a trail globally.
  * ONLY signed up users with a valid username can like a trail.
  */

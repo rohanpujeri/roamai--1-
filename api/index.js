@@ -3485,6 +3485,21 @@ function toggleServerFollow(follower, target) {
 function removeServerFollower(currentUser, targetFollower) {
   return unfollowServerUser(targetFollower, currentUser);
 }
+function deleteServerUserFollows(userId, username) {
+  const clean = cleanHandle(username || "");
+  let changed = false;
+  for (const [key, record] of followsMap.entries()) {
+    const matchesUser = userId && (record.followerId === userId || record.followingId === userId) || clean && (cleanHandle(record.followerUsername) === clean || cleanHandle(record.followingUsername) === clean);
+    if (matchesUser) {
+      followsMap.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
+    persistToDisk();
+  }
+  return changed;
+}
 
 // server/services/serverUsernameRegistry.ts
 var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
@@ -3604,6 +3619,26 @@ function searchServerUsers(query) {
   if (!query || !query.trim()) return all;
   const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
   return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
+}
+function deleteServerUsername(userId, rawUsername) {
+  let changed = false;
+  const clean = rawUsername ? rawUsername.trim().toLowerCase().replace(/^@+/, "") : "";
+  if (clean && claimedUsernamesMap.has(clean)) {
+    claimedUsernamesMap.delete(clean);
+    changed = true;
+  }
+  if (userId) {
+    for (const [key, record] of claimedUsernamesMap.entries()) {
+      if (record.userId === userId) {
+        claimedUsernamesMap.delete(key);
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    persistToDisk2();
+  }
+  return changed;
 }
 
 // server/services/serverTrailsRegistry.ts
@@ -3882,6 +3917,25 @@ async function deleteServerTrail(trailId) {
   }
   return true;
 }
+async function deleteServerUserTrails(userId, username) {
+  const cleanU = (username || "").replace(/^@+/, "").trim().toLowerCase();
+  const trailIdsToDelete = [];
+  for (const [id, record] of trailsMap.entries()) {
+    const creatorUser = (record.creator?.username || "").replace(/^@+/, "").trim().toLowerCase();
+    const creatorId = record.creator?.id;
+    if (userId && creatorId === userId || cleanU && creatorUser === cleanU) {
+      trailIdsToDelete.push(id);
+    }
+  }
+  for (const id of trailIdsToDelete) {
+    try {
+      await deleteServerTrail(id);
+    } catch (e) {
+      console.warn(`Failed to delete trail ${id} during user deletion:`, e);
+    }
+  }
+  return true;
+}
 function toggleLikeServerTrail(trailId, increment, liker) {
   const trail = trailsMap.get(trailId);
   if (!trail) return { success: false, likesCount: 0 };
@@ -4126,6 +4180,57 @@ function createExpressApp() {
     }
     res.json(result);
   });
+  const handleDeleteAccount = async (req, res) => {
+    try {
+      const { userId, username } = req.body || {};
+      if (!userId && !username) {
+        res.status(400).json({ error: "userId or username is required" });
+        return;
+      }
+      await deleteServerUserTrails(userId, username);
+      deleteServerUserFollows(userId, username);
+      deleteServerUsername(userId, username);
+      const SUPABASE_URL4 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      const authKey = SERVICE_KEY || ANON_KEY;
+      if (SUPABASE_URL4 && authKey && userId) {
+        try {
+          const tables = ["trips", "saved_places", "trails", "usernames", "profiles"];
+          for (const tbl of tables) {
+            const col = tbl === "profiles" ? "id" : "user_id";
+            await fetch(`${SUPABASE_URL4}/rest/v1/${tbl}?${col}=eq.${encodeURIComponent(userId)}`, {
+              method: "DELETE",
+              headers: {
+                apikey: authKey,
+                Authorization: `Bearer ${authKey}`,
+                "Content-Type": "application/json"
+              }
+            }).catch(() => {
+            });
+          }
+          if (SERVICE_KEY) {
+            await fetch(`${SUPABASE_URL4}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+              method: "DELETE",
+              headers: {
+                apikey: SERVICE_KEY,
+                Authorization: `Bearer ${SERVICE_KEY}`
+              }
+            }).catch(() => {
+            });
+          }
+        } catch (supabaseErr) {
+          console.warn("[server] Supabase cleanup error:", supabaseErr);
+        }
+      }
+      res.json({ success: true, message: "User account and associated server records deleted" });
+    } catch (err) {
+      console.error("Error deleting account:", err);
+      res.status(500).json({ error: err?.message || "Failed to delete account" });
+    }
+  };
+  apiRouter.delete("/auth/delete-account", handleDeleteAccount);
+  apiRouter.post("/auth/delete-account", handleDeleteAccount);
   apiRouter.get("/auth/search-users", (req, res) => {
     const q = req.query.q || "";
     const users = searchServerUsers(q);

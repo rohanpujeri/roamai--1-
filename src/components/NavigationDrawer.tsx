@@ -11,8 +11,10 @@ import {
   X, 
   Info,
   LogOut,
-  LogIn
+  LogIn,
+  Trash2
 } from 'lucide-react';
+import { DeleteAccountModal } from './DeleteAccountModal';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, Trip } from '../types';
 import { getCachedUserProfile, getSupabaseClient } from '../services/supabaseClient';
@@ -31,6 +33,7 @@ export interface NavigationDrawerProps {
   onRequireAuth: () => void;
   onPlanTrip: () => void;
   onSignOut?: () => void;
+  onOpenDeleteAccount?: () => void;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -44,8 +47,10 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   session,
   onRequireAuth,
   onPlanTrip,
-  onSignOut
+  onSignOut,
+  onOpenDeleteAccount
 }) => {
+  const [showLocalDeleteModal, setShowLocalDeleteModal] = useState(false);
   const cachedProfile = session?.user ? getCachedUserProfile(session.user.id) : null;
   const userDisplayName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'User';
 
@@ -450,20 +455,51 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
         {/* Pinned Drawer Footer with Quick Sign Out for 100% mobile accessibility */}
         <div className="p-3 sm:p-4 border-t border-neutral-800 bg-black/95 backdrop-blur-md shrink-0 space-y-2 z-10">
           {session && (
-            <button
-              type="button"
-              onClick={handleSignOutInternal}
-              className="w-full py-2.5 px-3 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
-            >
-              <LogOut className="w-4 h-4 text-red-400" />
-              <span>Sign Out</span>
-            </button>
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={handleSignOutInternal}
+                className="w-full py-2.5 px-3 rounded-xl bg-red-600/20 hover:bg-red-600/35 border border-red-500/40 text-red-300 hover:text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <LogOut className="w-4 h-4 text-red-400" />
+                <span>Sign Out</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onOpenDeleteAccount) {
+                    onOpenDeleteAccount();
+                  } else {
+                    setShowLocalDeleteModal(true);
+                  }
+                }}
+                className="w-full py-1.5 px-3 text-[11px] text-zinc-400 hover:text-red-400 font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Account</span>
+              </button>
+            </div>
           )}
           <p className="text-[9px] sm:text-[11px] text-neutral-500 font-medium text-center">
             TripWise • AI Travel
           </p>
         </div>
       </div>
+
+      {/* Local Delete Account Modal if opened from drawer without external handler */}
+      <DeleteAccountModal
+        isOpen={showLocalDeleteModal}
+        onClose={() => setShowLocalDeleteModal(false)}
+        userId={session?.user?.id || ''}
+        username={cachedProfile?.username || ''}
+        email={session?.user?.email || ''}
+        onDeleted={() => {
+          setShowLocalDeleteModal(false);
+          window.location.href = '/';
+        }}
+      />
     </div>
   );
 

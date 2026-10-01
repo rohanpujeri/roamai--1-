@@ -11,11 +11,12 @@ import { fetchAiHotelSuggestions } from './services/serverHotelAdvisor';
 import { fetchNearbyPlaces } from './services/serverNearbyPlaces';
 import { reverseGeocodeCoordinates, detectLocationFromIp } from './services/serverLocationDetector';
 import { fetchAiThemePreviewTrip } from './services/serverDestinationInspiration';
-import { isUsernameAvailable, registerServerUsername, searchServerUsers } from './services/serverUsernameRegistry';
+import { isUsernameAvailable, registerServerUsername, searchServerUsers, deleteServerUsername } from './services/serverUsernameRegistry';
 import { 
   getAllServerTrails, 
   saveServerTrail, 
   deleteServerTrail, 
+  deleteServerUserTrails,
   toggleLikeServerTrail, 
   getServerTrailLikers,
   addCommentToServerTrail,
@@ -31,7 +32,8 @@ import {
   followServerUser,
   unfollowServerUser,
   toggleServerFollow,
-  removeServerFollower
+  removeServerFollower,
+  deleteServerUserFollows
 } from './services/serverFollowsRegistry';
 
 dotenv.config();
@@ -248,6 +250,69 @@ export function createExpressApp() {
     }
     res.json(result);
   });
+
+  // Completely delete a user account and purge all server-side records
+  const handleDeleteAccount = async (req: express.Request, res: express.Response) => {
+    try {
+      const { userId, username } = req.body || {};
+      if (!userId && !username) {
+        res.status(400).json({ error: 'userId or username is required' });
+        return;
+      }
+
+      // 1. Delete all user trails from disk, memory registry, and storage
+      await deleteServerUserTrails(userId, username);
+
+      // 2. Clean up follow graph for user
+      deleteServerUserFollows(userId, username);
+
+      // 3. Remove claimed username handle from registry
+      deleteServerUsername(userId, username);
+
+      // 4. Try Supabase direct cleanups if service key or anon REST available
+      const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      const authKey = SERVICE_KEY || ANON_KEY;
+
+      if (SUPABASE_URL && authKey && userId) {
+        try {
+          const tables = ['trips', 'saved_places', 'trails', 'usernames', 'profiles'];
+          for (const tbl of tables) {
+            const col = tbl === 'profiles' ? 'id' : 'user_id';
+            await fetch(`${SUPABASE_URL}/rest/v1/${tbl}?${col}=eq.${encodeURIComponent(userId)}`, {
+              method: 'DELETE',
+              headers: {
+                apikey: authKey,
+                Authorization: `Bearer ${authKey}`,
+                'Content-Type': 'application/json'
+              }
+            }).catch(() => {});
+          }
+
+          if (SERVICE_KEY) {
+            await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+              method: 'DELETE',
+              headers: {
+                apikey: SERVICE_KEY,
+                Authorization: `Bearer ${SERVICE_KEY}`
+              }
+            }).catch(() => {});
+          }
+        } catch (supabaseErr) {
+          console.warn('[server] Supabase cleanup error:', supabaseErr);
+        }
+      }
+
+      res.json({ success: true, message: 'User account and associated server records deleted' });
+    } catch (err: any) {
+      console.error('Error deleting account:', err);
+      res.status(500).json({ error: err?.message || 'Failed to delete account' });
+    }
+  };
+
+  apiRouter.delete('/auth/delete-account', handleDeleteAccount);
+  apiRouter.post('/auth/delete-account', handleDeleteAccount);
 
   // Search real registered users
   apiRouter.get('/auth/search-users', (req, res) => {
