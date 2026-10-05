@@ -1,8 +1,7 @@
 import { Activity, TravelStyle } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
-import { resolvePlaceImage } from '../utils/serverPlaceImages';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
-import { PREFERRED_GEMINI_MODELS, formatGenAiError, getGeminiApiKey } from '../utils/geminiModels';
+import { PREFERRED_GEMINI_MODELS, getGeminiApiKey } from '../utils/geminiModels';
 
 export interface AlternativePlaceOption {
   id: string;

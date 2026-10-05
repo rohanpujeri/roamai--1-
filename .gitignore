@@ -8,3 +8,14 @@ coverage/
 !.env.example
 scratch/
 public/videos/
+.agent/
+.agents/
+.gemini/
+.gsd/
+data/
+GSD-STYLE.md
+PROJECT_RULES.md
+VERSION
+adapters/
+model_capabilities.yaml
+scripts/

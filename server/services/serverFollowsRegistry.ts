@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { serverConfig } from '../config';
 
 export interface ServerFollowRecord {
   id: string;
@@ -28,8 +29,8 @@ const followsMap = new Map<string, ServerFollowRecord>();
 const dataDir = process.env.VERCEL ? '/tmp/roamai_data' : path.join(process.cwd(), 'data');
 const dataFile = path.join(dataDir, 'follows.json');
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://majtaremnrjzzzxpquef.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO';
+const SUPABASE_URL = serverConfig.supabase.url;
+const SUPABASE_KEY = serverConfig.supabase.anonKey;
 
 export function isFakeMockUser(_username?: string | null): boolean {
   // All authenticated or registered users are valid real accounts
@@ -80,65 +81,6 @@ function persistToDisk(): void {
 
 export function getAllServerFollows(): ServerFollowRecord[] {
   return Array.from(followsMap.values());
-}
-
-export function getServerFollowCounts(identifier: string): { followersCount: number; followingCount: number } {
-  const clean = cleanHandle(identifier);
-  if (!clean) return { followersCount: 0, followingCount: 0 };
-
-  let followersCount = 0;
-  let followingCount = 0;
-
-  followsMap.forEach((rec) => {
-    const fFollower = cleanHandle(rec.followerUsername);
-    const fFollowing = cleanHandle(rec.followingUsername);
-
-    if (fFollowing === clean || rec.followingId === identifier) {
-      followersCount++;
-    }
-    if (fFollower === clean || rec.followerId === identifier) {
-      followingCount++;
-    }
-  });
-
-  return { followersCount, followingCount };
-}
-
-export function isServerUserFollowing(followerIdentifier: string, targetIdentifier: string): boolean {
-  const fClean = cleanHandle(followerIdentifier);
-  const tClean = cleanHandle(targetIdentifier);
-  if (!fClean || !tClean) return false;
-
-  const key = makeKey(fClean, tClean);
-  return followsMap.has(key);
-}
-
-export function getServerFollowers(targetIdentifier: string): ServerFollowRecord[] {
-  const tClean = cleanHandle(targetIdentifier);
-  if (!tClean) return [];
-
-  const results: ServerFollowRecord[] = [];
-  followsMap.forEach((rec) => {
-    const fFollowing = cleanHandle(rec.followingUsername);
-    if (fFollowing === tClean || rec.followingId === targetIdentifier) {
-      results.push(rec);
-    }
-  });
-  return results;
-}
-
-export function getServerFollowing(userIdentifier: string): ServerFollowRecord[] {
-  const uClean = cleanHandle(userIdentifier);
-  if (!uClean) return [];
-
-  const results: ServerFollowRecord[] = [];
-  followsMap.forEach((rec) => {
-    const fFollower = cleanHandle(rec.followerUsername);
-    if (fFollower === uClean || rec.followerId === userIdentifier) {
-      results.push(rec);
-    }
-  });
-  return results;
 }
 
 export function followServerUser(
@@ -217,24 +159,6 @@ export function unfollowServerUser(
   }
 
   return existed;
-}
-
-export function toggleServerFollow(
-  follower: { id?: string; username: string; name?: string; avatarUrl?: string },
-  target: { id?: string; username: string; name?: string; avatarUrl?: string }
-): { following: boolean; record?: ServerFollowRecord } {
-  const fClean = cleanHandle(follower.username);
-  const tClean = cleanHandle(target.username);
-  if (!fClean || !tClean || fClean === tClean) return { following: false };
-
-  const key = makeKey(fClean, tClean);
-  if (followsMap.has(key)) {
-    unfollowServerUser(follower, target);
-    return { following: false };
-  } else {
-    const rec = followServerUser(follower, target);
-    return { following: true, record: rec || undefined };
-  }
 }
 
 export function removeServerFollower(

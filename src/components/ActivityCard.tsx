@@ -52,6 +52,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
       case 'Sightseeing':
         return 'bg-blue-100 text-blue-900 border-blue-200';
       case 'Adventure':
+      case 'Nature':
         return 'bg-emerald-100 text-emerald-900 border-emerald-200';
       case 'Relaxation':
         return 'bg-teal-100 text-teal-900 border-teal-200';

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { isFakeMockUser } from './serverFollowsRegistry';
+import { serverConfig } from '../config';
 
 export interface ServerTrailRecord {
   id: string;
@@ -92,8 +93,8 @@ function persistToDisk(): void {
   }
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://majtaremnrjzzzxpquef.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO';
+const SUPABASE_URL = serverConfig.supabase.url;
+const SUPABASE_KEY = serverConfig.supabase.anonKey;
 
 export async function syncServerTrailsFromStorage(): Promise<void> {
   try {

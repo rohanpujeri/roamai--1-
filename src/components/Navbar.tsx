@@ -18,8 +18,9 @@ import {
 import { Trip, ThemeConfig } from '../types';
 import { Session } from '@supabase/supabase-js';
 import { getSupabaseClient, getCachedUserProfile } from '../services/supabaseClient';
-import { UserProfileModal } from './UserProfileModal';
 import { NavigationDrawer } from './NavigationDrawer';
+
+const UserProfileModal = React.lazy(() => import('./UserProfileModal').then(m => ({ default: m.UserProfileModal })));
 
 interface NavbarProps {
   currentView: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails' | 'upload_trail';
@@ -257,18 +258,22 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* User Profile Modal */}
-      <UserProfileModal
-        key={profileRefreshKey}
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        session={session}
-        currentTheme={currentTheme}
-        savedTripsCount={savedTripsCount}
-        onSignOut={handleSignOut}
-        onProfileUpdated={() => {
-          setProfileRefreshKey((prev) => prev + 1);
-        }}
-      />
+      {isProfileModalOpen && (
+        <React.Suspense fallback={null}>
+          <UserProfileModal
+            key={profileRefreshKey}
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            session={session}
+            currentTheme={currentTheme}
+            savedTripsCount={savedTripsCount}
+            onSignOut={handleSignOut}
+            onProfileUpdated={() => {
+              setProfileRefreshKey((prev) => prev + 1);
+            }}
+          />
+        </React.Suspense>
+      )}
     </>
   );
 };

@@ -72,27 +72,50 @@ const TRANSIT_LOGISTICS_IMAGES = [
   'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80'  // Stay arrival
 ];
 
-function pickFromList(list: string[], seed: string): string {
+/**
+ * Resize Unsplash images to appropriate viewport dimensions (e.g. 360-480px for cards/thumbnails, instead of 800-2000px)
+ */
+export function optimizePlaceImageUrl(url?: string, width = 480, quality = 75): string {
+  if (!url) return '';
+  if (!url.includes('images.unsplash.com')) return url;
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('auto', 'format');
+    parsed.searchParams.set('fit', 'crop');
+    parsed.searchParams.set('w', String(width));
+    parsed.searchParams.set('q', String(quality));
+    return parsed.toString();
+  } catch {
+    return url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${quality}`);
+  }
+}
+
+function pickFromList(list: string[], seed: string, targetWidth = 480): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash << 5) - hash + seed.charCodeAt(i);
     hash |= 0;
   }
   const idx = Math.abs(hash) % list.length;
-  return list[idx];
+  const rawUrl = list[idx];
+  return targetWidth ? optimizePlaceImageUrl(rawUrl, targetWidth) : rawUrl;
 }
 
 /**
- * Resolves an authentic, verified high-resolution photo URL for any travel activity based on title, category, and context.
+ * Resolves an authentic, verified photo URL for any travel activity based on title, category, and context.
+ * Automatically right-sized to target viewport width (default 480px) to prevent downloading massive originals.
  */
 export function resolvePlaceImage(
   title: string = '',
   category: string = '',
   location: string = '',
-  destination: string = ''
+  destination: string = '',
+  targetWidth: number = 480
 ): string {
   const text = `${title} ${location} ${category} ${destination}`.toLowerCase();
   const seed = `${title}-${category}-${destination}`;
+
+  const pick = (list: string[]) => pickFromList(list, seed, targetWidth);
 
   // 1. Palaces, Forts, Monuments, Castles
   if (
@@ -286,8 +309,9 @@ export async function fetchRealPlacePhotoClient(
     if (res.ok) {
       const data = await res.json();
       if (data.photoUrl) {
-        clientPhotoCache.set(key, data.photoUrl);
-        return data.photoUrl;
+        const optUrl = optimizePlaceImageUrl(data.photoUrl, 480);
+        clientPhotoCache.set(key, optUrl);
+        return optUrl;
       }
     }
   } catch (_) {}

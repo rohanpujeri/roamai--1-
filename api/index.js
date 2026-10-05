@@ -606,8 +606,9 @@ async function generateTripFromInputs(params) {
   if (!apiKey) {
     throw new Error("Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Environment Variables or .env file.");
   }
-  const travelMode = params.travelMode || params.preferences.travelMode || "Flight";
-  const startCity = params.startCity || params.preferences.startCity || "Origin City";
+  const preferences = params.preferences || {};
+  const travelMode = params.travelMode || preferences.travelMode || "Flight";
+  const startCity = params.startCity || preferences.startCity || "Origin City";
   const destName = params.destinationPlace?.name || params.destinationId;
   const destAddress = params.destinationPlace?.address || destName;
   const destLat = params.destinationPlace?.latitude;
@@ -621,17 +622,17 @@ async function generateTripFromInputs(params) {
       }
     }
   });
-  const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
-  const foodPref = params.preferences.food;
-  const alcoholPref = params.preferences.alcohol;
-  const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
+  const hasUserSelectedStyles = Array.isArray(preferences.styles) && preferences.styles.length > 0;
+  const foodPref = preferences.food;
+  const alcoholPref = preferences.alcohol;
+  const customNotesText = preferences.customNotes ? preferences.customNotes.trim() : "";
   const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
-  const startCoordinates = params.preferences?.startCoordinates || params?.startCoordinates || "";
+  const startCoordinates = preferences?.startCoordinates || params?.startCoordinates || "";
   const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : travelMode === "Car / Road Trip" ? "car / personal road vehicle" : travelMode;
   const actionVerb = travelMode === "Bike / Motorcycle" ? "motorcycle ride" : "car drive";
   const prompt = `You are the AI travel-planning engine for a real-world travel planning application.
 
-Your responsibility is to generate a realistic, personalized, geographically consistent, budget-aware and time-aware travel itinerary based entirely on the user's actual trip parameters and reliable data available to you.
+Your responsibility is to generate a realistic, personalized, geographically optimized, budget-aware and time-aware travel itinerary based entirely on the user's actual trip parameters and reliable data available to you.
 
 ==================================================
 CORE PRINCIPLE
@@ -694,7 +695,7 @@ Target Budget:
 "${params.targetBudget || ""}"
 
 Travel Styles:
-"${hasUserSelectedStyles ? params.preferences.styles.join(", ") : ""}"
+"${hasUserSelectedStyles && preferences.styles ? preferences.styles.join(", ") : ""}"
 
 Food Preference:
 "${foodPref || ""}"
@@ -713,7 +714,8 @@ When Gemini has access to Google Search grounding, Google Maps/Places data, appl
 
 - Prefer grounded/current information.
 - Use actual locations.
-- Use actual distances and travel times.
+- Use actual coordinates when available.
+- Use actual road distances and travel times.
 - Use actual opening hours when available.
 - Use current or recently verified prices when available.
 - Use current weather data when available.
@@ -754,15 +756,16 @@ If the user selects a personal car or motorcycle:
 - Use that vehicle throughout the road journey.
 - Use it for outbound travel.
 - Use it for local destination travel.
-- Use it for travel between activities.
+- Use it between activities.
 - Use it for the return journey.
 - Do not randomly switch to taxis, rental vehicles, buses, trains or flights.
 
 Only introduce another transportation method when:
+
 1. The user selected it, or
 2. A genuine route limitation makes it necessary.
 
-If another transportation mode is genuinely necessary, explain it through the relevant itinerary data.
+If another transportation mode is genuinely necessary, represent it accurately in the itinerary.
 
 If the user selects flight, train, bus or another mode:
 
@@ -807,30 +810,251 @@ If the destination cannot realistically be reached on the first day:
 Do not place destination sightseeing activities before the traveler has arrived.
 
 ==================================================
-4. ROUTE OPTIMIZATION
+4. GLOBAL GEOGRAPHIC ROUTE OPTIMIZATION
 ==================================================
 
-Create a geographically sensible itinerary.
+THIS IS A HIGH-PRIORITY REQUIREMENT.
 
-Minimize unnecessary backtracking.
+Do NOT generate each day's itinerary independently.
 
-Group nearby attractions together.
+Do NOT simply select several attractions and distribute them equally across the available days.
 
-Consider actual travel times between locations.
+Before assigning activities to Day 1, Day 2, Day 3, etc., first analyze ALL candidate places for the entire trip.
 
-For each activity, calculate or obtain realistic travel time from the previous activity.
+The planning process MUST conceptually follow this order:
 
-The sequence must be physically possible.
+1. Discover relevant candidate places.
+2. Determine their geographic locations.
+3. Determine proximity and travel time between them.
+4. Identify geographic clusters.
+5. Determine the most efficient overall route.
+6. Divide the route into logical daily clusters.
+7. Optimize the order of activities within each day.
+8. Schedule realistic times.
+9. Validate the complete multi-day route.
 
-Never schedule:
+The objective is to minimize:
 
-- An activity before its opening time.
-- An activity after its closing time.
-- Two activities at the same time.
-- An impossible long-distance jump between consecutive activities.
+- Total travel distance
+- Total travel time
+- Unnecessary backtracking
+- Repeated routes
+- Unnecessary area switching
+- Detours
+- Excessive daily travel
+
+while preserving:
+
+- User-selected places
+- User interests
+- Opening hours
+- Activity duration
+- Budget
+- Weather
+- Travel mode
+- Safety
+- Realistic rest periods
 
 ==================================================
-5. DESTINATION RECOMMENDATIONS
+5. GEOGRAPHIC CLUSTERING
+==================================================
+
+Nearby attractions SHOULD generally be placed on the same day.
+
+Distant attractions SHOULD generally be placed on different days.
+
+Do not distribute nearby places across different days merely to make the number of attractions per day equal.
+
+Geographic efficiency is more important than equal activity counts.
+
+If several attractions are located in the same neighborhood, area or geographic corridor, prioritize grouping them into the same day.
+
+If two attractions require significant travel between them, do not place them consecutively unless there is a strong reason.
+
+A day with fewer activities that are geographically close is better than a day with many attractions spread across the destination.
+
+==================================================
+6. GLOBAL DAY-TO-DAY OPTIMIZATION
+==================================================
+
+Optimize the complete trip rather than optimizing each day independently.
+
+Consider the location of:
+
+- Arrival point
+- Hotel/accommodation
+- Previous day's final activity
+- Current day's activities
+- Next day's activities
+- Return route
+
+Avoid patterns such as:
+
+Day 1 \u2192 North
+Day 2 \u2192 South
+Day 3 \u2192 North again
+
+when a more geographically continuous arrangement is possible.
+
+Prefer a natural geographic progression where possible.
+
+The exact direction must be determined dynamically from actual destination geography.
+
+Do not force a north/south/east/west pattern if the actual geography does not support it.
+
+==================================================
+7. DAILY ROUTE OPTIMIZATION
+==================================================
+
+After creating geographic clusters, optimize the order of activities within each day.
+
+For every consecutive activity:
+
+PREVIOUS LOCATION
+\u2192 NEXT LOCATION
+
+consider:
+
+- Actual travel distance
+- Actual travel time
+- Travel mode
+- Road conditions
+- Traffic
+- Opening hours
+- Activity duration
+- Time of day
+
+Avoid unnecessary backtracking.
+
+For example, if:
+
+A \u2192 B \u2192 C
+
+is geographically efficient, do not generate:
+
+A \u2192 C \u2192 B \u2192 A
+
+unless opening hours, reservations or another genuine constraint requires it.
+
+Do not simply select the nearest next location.
+
+Optimize the complete sequence.
+
+==================================================
+8. DAY START AND END LOCATIONS
+==================================================
+
+Every day must have a geographically sensible beginning and ending.
+
+Day 1 should begin from the actual:
+
+- Arrival location
+- Departure route
+- Hotel
+- Intermediate overnight location
+- Destination entry point
+
+as applicable.
+
+Day 2 onward should consider the previous night's actual accommodation or ending location.
+
+The final activity of each day should ideally position the traveler sensibly for the next day.
+
+Do not assume every day begins from the same hotel or location.
+
+If accommodation is dynamically selected, use its actual location when optimizing routes.
+
+==================================================
+9. ARRIVAL ROUTE
+==================================================
+
+The arrival journey must be considered when planning the destination itinerary.
+
+Do not schedule sightseeing locations before the traveler has realistically arrived.
+
+If the traveler arrives from a specific direction or route, avoid unnecessary detours immediately after arrival.
+
+If an attraction is geographically convenient along the arrival route and realistically fits the arrival time, it may be considered.
+
+==================================================
+10. DEPARTURE ROUTE
+==================================================
+
+The final sightseeing activities must be planned with the return journey in mind.
+
+Do not place the final activity unnecessarily far away from the return route.
+
+The final day should transition naturally:
+
+LAST ACTIVITY
+\u2192 RETURN ROUTE
+\u2192 ORIGINAL DEPARTURE POINT
+
+when possible.
+
+Do not compress an unrealistic return journey simply to fit the requested number of days.
+
+==================================================
+11. TRAVEL DISTANCE PRIORITY
+==================================================
+
+When two itinerary options are otherwise similar, prefer the option with:
+
+1. Lower total travel time.
+2. Lower total travel distance.
+3. Less backtracking.
+4. Fewer unnecessary route changes.
+5. Better geographic clustering.
+6. Better continuity between consecutive days.
+
+Do not prioritize equal numbers of attractions per day over geographic efficiency.
+
+Do not optimize only one travel segment while making the overall trip longer.
+
+Optimize the COMPLETE ROUTE.
+
+==================================================
+12. TRAVEL MODE SPECIFIC ROUTING
+==================================================
+
+Route optimization must respect the selected travel mode.
+
+For motorcycle:
+
+- Consider realistic riding duration.
+- Consider road conditions.
+- Consider fuel stops.
+- Consider rest requirements.
+- Avoid unsuitable roads when reliable information indicates a restriction.
+
+For car:
+
+- Consider realistic driving time.
+- Consider parking.
+- Consider tolls.
+- Consider road restrictions.
+
+For walking:
+
+- Use realistic walking distance and duration.
+- Do not use driving distance as walking distance.
+
+For public transportation:
+
+- Consider stations.
+- Transfers.
+- Waiting time.
+- Walking connections.
+- Actual availability when available.
+
+For flight/train/bus:
+
+- Consider airport/station access.
+- Check realistic connecting transportation.
+- Do not invent schedules.
+
+==================================================
+13. CANDIDATE PLACE SELECTION
 ==================================================
 
 Select attractions dynamically according to:
@@ -850,12 +1074,29 @@ Select attractions dynamically according to:
 
 Do not use a fixed number of attractions per day.
 
-A day may contain fewer activities when an experience requires significant time.
+A day may contain fewer activities when activities require significant time or travel.
 
 A day may contain more activities when locations are close together and realistically fit.
 
+Do not add attractions merely to fill empty time if doing so creates unnecessary travel.
+
 ==================================================
-6. REAL-WORLD PLACES
+14. MUST-VISIT PLACES
+==================================================
+
+If the user explicitly requests a place, preserve it whenever realistically possible.
+
+If a must-visit attraction is geographically distant:
+
+1. Build that day's route around it.
+2. Find compatible nearby attractions.
+3. Cluster nearby attractions around it.
+4. Avoid adding unrelated attractions that create unnecessary travel.
+
+Do not scatter the entire itinerary simply because one attraction is far away.
+
+==================================================
+15. REAL-WORLD PLACES
 ==================================================
 
 Use exact real-world locations.
@@ -873,6 +1114,7 @@ Every place should have a real name when reliable information is available.
 For each place, consider:
 
 - Exact location
+- Coordinates when available
 - Opening hours
 - Entry requirements
 - Current pricing
@@ -885,7 +1127,7 @@ For each place, consider:
 Do not invent businesses, restaurants, hotels or attractions.
 
 ==================================================
-7. TIMING
+16. TIMING
 ==================================================
 
 Determine activity times dynamically.
@@ -904,6 +1146,7 @@ Consider:
 - User preferences
 - Meal periods
 - Activity difficulty
+- Rest periods
 
 Do not use fixed example times.
 
@@ -911,8 +1154,36 @@ Do not force activities into arbitrary time slots.
 
 Every activity must have a realistic start and end time.
 
+The following sequence must be physically possible:
+
+ACTIVITY START
+\u2192 ACTIVITY DURATION
+\u2192 TRAVEL TIME
+\u2192 NEXT ACTIVITY START
+
+Never schedule overlapping activities.
+
 ==================================================
-8. WEATHER
+17. OPENING HOURS AND ROUTE OPTIMIZATION
+==================================================
+
+Opening hours are part of route optimization.
+
+If two nearby places have different opening hours, arrange them in the order that makes the complete route feasible.
+
+Do not create unnecessary long-distance travel simply to follow an arbitrary time sequence.
+
+Never schedule:
+
+- Before opening
+- After closing
+- During unavailable hours
+- During an impossible travel window
+
+when reliable information is available.
+
+==================================================
+18. WEATHER
 ==================================================
 
 If current or forecast weather information is available, use it.
@@ -925,14 +1196,19 @@ Weather must correspond as closely as possible to:
 
 Use weather to adjust the itinerary when appropriate.
 
-For example, dynamically consider whether outdoor activities should be moved, shortened or replaced.
+Consider moving, shortening or replacing outdoor activities when weather makes them impractical.
 
-Do not invent temperature, rain probability or weather conditions.
+Do not invent:
 
-If weather data is unavailable, return null/empty values instead of fabricated forecasts.
+- Temperature
+- Rain probability
+- Weather condition
+- Weather icon
+
+If unavailable, return null or an empty value.
 
 ==================================================
-9. BUDGET
+19. BUDGET
 ==================================================
 
 Plan around the user's actual budget.
@@ -958,10 +1234,10 @@ Do not use fixed prices from this prompt.
 
 Do not silently exceed the user's target budget.
 
-If the requested itinerary cannot realistically fit the budget, make reasonable adjustments and reflect the resulting estimated costs.
+If the requested itinerary cannot realistically fit the budget, make reasonable adjustments while preserving the most important user preferences.
 
 ==================================================
-10. FOOD
+20. FOOD
 ==================================================
 
 Respect the user's food preference.
@@ -979,10 +1255,14 @@ Consider:
 - Distance from route
 - Availability when available
 
+Prefer restaurants that are geographically close to the day's route.
+
+Do not add a restaurant that requires a major detour merely because it has a good rating.
+
 If the user does not want alcohol, do not force bars, clubs or alcohol-related activities.
 
 ==================================================
-11. TRAVELER PROFILE
+21. TRAVELER PROFILE
 ==================================================
 
 Adapt the itinerary according to:
@@ -1005,7 +1285,7 @@ Consider this when determining:
 - Safety
 
 ==================================================
-12. SAFETY AND REQUIREMENTS
+22. SAFETY AND REQUIREMENTS
 ==================================================
 
 Identify genuine travel requirements dynamically.
@@ -1027,7 +1307,7 @@ Only add a requirement when it is actually relevant.
 Do not invent permit requirements.
 
 ==================================================
-13. CLOTHING AND PACKING
+23. CLOTHING AND PACKING
 ==================================================
 
 Generate the packing list specifically for this trip.
@@ -1051,7 +1331,7 @@ Do NOT use a fixed packing list.
 Each packing item must have a reason relevant to this trip.
 
 ==================================================
-14. IMAGES
+24. IMAGES
 ==================================================
 
 Only return image URLs obtained from reliable application data or trusted image/places sources.
@@ -1065,7 +1345,7 @@ If an appropriate image URL is unavailable:
 "imageUrl": ""
 
 ==================================================
-15. BOOKINGS
+25. BOOKINGS
 ==================================================
 
 Identify bookings that are actually relevant.
@@ -1083,7 +1363,7 @@ Only include a booking when it is genuinely required or useful.
 Do not claim availability unless availability information is actually available.
 
 ==================================================
-16. FINAL DAY
+26. FINAL DAY
 ==================================================
 
 The final day must logically complete the trip.
@@ -1099,7 +1379,45 @@ Account for realistic travel duration.
 Do not compress an unrealistic return journey simply to fit the requested number of days.
 
 ==================================================
-17. JSON OUTPUT
+27. FINAL GLOBAL ROUTE CHECK
+==================================================
+
+Before returning the JSON, internally re-evaluate the COMPLETE itinerary.
+
+Do NOT validate each day independently.
+
+Verify:
+
+1. All candidate places were considered globally before day assignment.
+2. Nearby places are grouped together whenever reasonably possible.
+3. Each day's attractions form a geographically coherent route.
+4. Consecutive activities have realistic travel distances and times.
+5. Day 1 is not unnecessarily geographically scattered.
+6. No later day contains a much more geographically efficient cluster because of poor day assignment.
+7. The same geographic area is not unnecessarily revisited.
+8. There is no avoidable backtracking.
+9. The route progresses logically across the destination.
+10. Each day starts and ends in a sensible geographic position.
+11. The final day's route is compatible with the return journey.
+12. Opening hours are respected.
+13. Activity durations are respected.
+14. No activities overlap.
+15. The total travel burden is reasonable for the selected travel mode.
+16. If moving an attraction to another day would significantly reduce total travel without violating other constraints, move it.
+17. Equal activity counts are NOT prioritized over geographic efficiency.
+18. A smaller number of well-clustered activities is preferred over many scattered activities.
+19. The final itinerary could realistically be followed by a real traveler.
+
+IMPORTANT:
+
+If Day 1 contains places that are geographically far apart while Day 2 contains several places that are geographically close together, reconsider the day assignment.
+
+Move attractions between days when doing so produces a significantly more efficient route.
+
+Do not preserve a poor day assignment simply because the activities were initially selected for that day.
+
+==================================================
+28. JSON OUTPUT
 ==================================================
 
 Return ONLY valid JSON.
@@ -1110,8 +1428,77 @@ Do not add explanations before or after the JSON.
 
 Do not use code fences.
 
+Use exactly this general structure:
+
+{
+  "routeSummary": {
+    "distanceKm": null,
+    "flightDuration": null,
+    "trainDuration": null,
+    "driveDuration": null,
+    "departureHub": "",
+    "arrivalHub": "",
+    "recommendedMode": "",
+    "keyRoute": "",
+    "notes": ""
+  },
+
+  "clothingAdvice": "",
+
+  "days": [
+    {
+      "dayNumber": 1,
+      "date": "",
+      "title": "",
+      "theme": "",
+      "vibe": "",
+
+      "weatherForecast": {
+        "temp": "",
+        "condition": "",
+        "icon": "",
+        "rainChance": null
+      },
+
+      "activities": [
+        {
+          "id": "",
+          "time": "",
+          "endTime": "",
+          "title": "",
+          "category": "",
+          "location": "",
+          "estimatedCost": null,
+          "travelTimeFromPrev": "",
+          "duration": "",
+          "description": "",
+          "imageUrl": "",
+          "recommendationReason": "",
+          "isIndoor": false,
+          "isRainSafe": false,
+          "rating": null
+        }
+      ]
+    }
+  ],
+
+  "packingList": [
+    {
+      "id": "",
+      "name": "",
+      "category": "",
+      "checked": false,
+      "reason": ""
+    }
+  ],
+
+  "requirements": [],
+
+  "bookings": []
+}
+
 ==================================================
-18. FINAL VALIDATION
+29. FINAL VALIDATION
 ==================================================
 
 Before returning the JSON, internally validate the entire itinerary.
@@ -1126,20 +1513,41 @@ Verify:
 6. No activities overlap.
 7. Opening hours are respected when available.
 8. Travel times are realistic.
-9. The itinerary fits the requested number of days.
-10. Costs are consistent with the user's budget.
-11. Weather is not fabricated.
-12. Places are real when presented as real.
-13. Image URLs are not fabricated.
-14. No hardcoded example locations were used.
-15. No fixed example prices were used.
-16. No fixed example weather was used.
-17. No fixed packing list was used.
-18. No placeholder attractions or businesses were used.
-19. The JSON is syntactically valid.
-20. The itinerary feels like a realistic trip that a real traveler could actually follow.
+9. Activity durations are realistic.
+10. The itinerary fits the requested number of days.
+11. Costs are consistent with the user's budget.
+12. Weather is not fabricated.
+13. Places are real when presented as real.
+14. Image URLs are not fabricated.
+15. No hardcoded example locations were used.
+16. No fixed example prices were used.
+17. No fixed example weather was used.
+18. No fixed packing list was used.
+19. No placeholder attractions or businesses were used.
+20. Nearby attractions are clustered together.
+21. Each day follows a geographically efficient route.
+22. There is minimal unnecessary backtracking.
+23. The complete trip has been optimized globally rather than day-by-day.
+24. Day-to-day geographic continuity is reasonable.
+25. The final day supports the return journey.
+26. The JSON is syntactically valid.
+27. The itinerary feels like a realistic trip that a real traveler could actually follow.
 
-The final result must be a genuinely dynamic itinerary created from the user's actual inputs and reliable available data.`;
+The final result must be a genuinely dynamic itinerary created from the user's actual inputs and reliable available data.
+
+MOST IMPORTANT ROUTING RULE:
+
+DO NOT THINK OF THE ITINERARY AS INDEPENDENT DAYS.
+
+THINK OF IT AS ONE COMPLETE ROUTE THAT MUST BE DIVIDED INTO DAYS.
+
+First optimize the complete geographic route.
+
+Then divide that route into the requested number of days.
+
+Then optimize the exact order and timing of activities within each day.
+
+Geographic efficiency, realistic travel time and minimal backtracking are mandatory.`;
   const schema = {
     type: "OBJECT",
     properties: {
@@ -1439,7 +1847,11 @@ The final result must be a genuinely dynamic itinerary created from the user's a
     targetBudget: params.targetBudget || 25e3,
     currency: "INR",
     preferences: {
-      ...params.preferences,
+      styles: preferences.styles || [],
+      pace: preferences.pace || "Balanced",
+      idealDay: preferences.idealDay || [],
+      avoidances: preferences.avoidances || [],
+      ...preferences,
       startCity
     },
     days: daysWithStays,
@@ -3153,14 +3565,21 @@ async function reverseGeocodeCoordinates(lat, lng) {
   }
   return null;
 }
+var ipLocationCache = /* @__PURE__ */ new Map();
+var IP_CACHE_TTL_MS = 24 * 60 * 60 * 1e3;
 async function detectLocationFromIp(clientIp) {
+  const cacheKey = clientIp && clientIp !== "127.0.0.1" && clientIp !== "::1" ? clientIp : "default_geo_ip";
+  const cached = ipLocationCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < IP_CACHE_TTL_MS) {
+    return cached.result;
+  }
   try {
     const targetUrl = clientIp && clientIp !== "127.0.0.1" && clientIp !== "::1" ? `https://ipwho.is/${clientIp}` : "https://ipwho.is/";
     const res = await fetch(targetUrl);
     if (res.ok) {
       const data = await res.json();
       if (data.success !== false && data.city) {
-        return {
+        const result = {
           cityName: data.city,
           state: data.region || void 0,
           country: data.country || void 0,
@@ -3168,6 +3587,8 @@ async function detectLocationFromIp(clientIp) {
           lng: typeof data.longitude === "number" ? data.longitude : void 0,
           source: "ip"
         };
+        ipLocationCache.set(cacheKey, { result, timestamp: Date.now() });
+        return result;
       }
     }
   } catch (e) {
@@ -3183,7 +3604,7 @@ async function detectLocationFromIp(clientIp) {
     if (res.ok) {
       const data = await res.json();
       if (data.city && !data.error) {
-        return {
+        const result = {
           cityName: data.city,
           state: data.region || void 0,
           country: data.country_name || void 0,
@@ -3191,6 +3612,8 @@ async function detectLocationFromIp(clientIp) {
           lng: typeof data.longitude === "number" ? data.longitude : void 0,
           source: "ip"
         };
+        ipLocationCache.set(cacheKey, { result, timestamp: Date.now() });
+        return result;
       }
     }
   } catch (e) {
@@ -3319,6 +3742,16 @@ import path2 from "path";
 // server/services/serverFollowsRegistry.ts
 import fs from "fs";
 import path from "path";
+
+// server/config.ts
+var serverConfig = {
+  supabase: {
+    url: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co",
+    anonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO"
+  }
+};
+
+// server/services/serverFollowsRegistry.ts
 function cleanHandle(u) {
   return (u || "").replace(/^@+/, "").trim().toLowerCase();
 }
@@ -3328,8 +3761,8 @@ function makeKey(followerUsername, followingUsername) {
 var followsMap = /* @__PURE__ */ new Map();
 var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
 var dataFile = path.join(dataDir, "follows.json");
-var SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
-var SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
+var SUPABASE_URL = serverConfig.supabase.url;
+var SUPABASE_KEY = serverConfig.supabase.anonKey;
 function isFakeMockUser(_username) {
   return false;
 }
@@ -3363,47 +3796,6 @@ function persistToDisk() {
 }
 function getAllServerFollows() {
   return Array.from(followsMap.values());
-}
-function getServerFollowCounts(identifier) {
-  const clean = cleanHandle(identifier);
-  if (!clean) return { followersCount: 0, followingCount: 0 };
-  let followersCount = 0;
-  let followingCount = 0;
-  followsMap.forEach((rec) => {
-    const fFollower = cleanHandle(rec.followerUsername);
-    const fFollowing = cleanHandle(rec.followingUsername);
-    if (fFollowing === clean || rec.followingId === identifier) {
-      followersCount++;
-    }
-    if (fFollower === clean || rec.followerId === identifier) {
-      followingCount++;
-    }
-  });
-  return { followersCount, followingCount };
-}
-function getServerFollowers(targetIdentifier) {
-  const tClean = cleanHandle(targetIdentifier);
-  if (!tClean) return [];
-  const results = [];
-  followsMap.forEach((rec) => {
-    const fFollowing = cleanHandle(rec.followingUsername);
-    if (fFollowing === tClean || rec.followingId === targetIdentifier) {
-      results.push(rec);
-    }
-  });
-  return results;
-}
-function getServerFollowing(userIdentifier) {
-  const uClean = cleanHandle(userIdentifier);
-  if (!uClean) return [];
-  const results = [];
-  followsMap.forEach((rec) => {
-    const fFollower = cleanHandle(rec.followerUsername);
-    if (fFollower === uClean || rec.followerId === userIdentifier) {
-      results.push(rec);
-    }
-  });
-  return results;
 }
 function followServerUser(follower, target) {
   const fClean = cleanHandle(follower.username);
@@ -3468,19 +3860,6 @@ function unfollowServerUser(follower, target) {
     }
   }
   return existed;
-}
-function toggleServerFollow(follower, target) {
-  const fClean = cleanHandle(follower.username);
-  const tClean = cleanHandle(target.username);
-  if (!fClean || !tClean || fClean === tClean) return { following: false };
-  const key = makeKey(fClean, tClean);
-  if (followsMap.has(key)) {
-    unfollowServerUser(follower, target);
-    return { following: false };
-  } else {
-    const rec = followServerUser(follower, target);
-    return { following: true, record: rec || void 0 };
-  }
 }
 function removeServerFollower(currentUser, targetFollower) {
   return unfollowServerUser(targetFollower, currentUser);
@@ -3549,8 +3928,19 @@ function persistToDisk2() {
     console.warn("Could not persist usernames to disk:", err);
   }
 }
-var SUPABASE_URL2 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
-var SUPABASE_KEY2 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
+var SUPABASE_URL2 = serverConfig.supabase.url;
+var SUPABASE_KEY2 = serverConfig.supabase.anonKey;
+var inFlightUsernameChecks = /* @__PURE__ */ new Map();
+var usernameCheckCache = /* @__PURE__ */ new Map();
+var USERNAME_CACHE_TTL_MS = 15e3;
+function invalidateUsernameCache(username) {
+  if (username) {
+    const clean = username.trim().toLowerCase().replace(/^@+/, "");
+    usernameCheckCache.delete(clean);
+  } else {
+    usernameCheckCache.clear();
+  }
+}
 async function isUsernameAvailable(rawUsername, currentUserId) {
   if (!rawUsername) {
     return { available: false, error: "Username is required." };
@@ -3576,27 +3966,47 @@ async function isUsernameAvailable(rawUsername, currentUserId) {
     }
     return { available: false, error: `@${clean} is already registered. Please choose another username.` };
   }
-  try {
-    const res = await fetch(`${SUPABASE_URL2}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
-      headers: {
-        "apikey": SUPABASE_KEY2,
-        "Authorization": `Bearer ${SUPABASE_KEY2}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const found = data[0];
-        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
-          return { available: true };
-        }
-        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
-      }
-    }
-  } catch (err) {
-    console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
+  const cached = usernameCheckCache.get(clean);
+  if (cached && Date.now() - cached.timestamp < USERNAME_CACHE_TTL_MS) {
+    return cached.result;
   }
-  return { available: true };
+  const inFlightKey = `${clean}:${currentUserId || ""}`;
+  if (inFlightUsernameChecks.has(inFlightKey)) {
+    return inFlightUsernameChecks.get(inFlightKey);
+  }
+  const checkPromise = (async () => {
+    try {
+      const res = await fetch(`${SUPABASE_URL2}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+        headers: {
+          "apikey": SUPABASE_KEY2,
+          "Authorization": `Bearer ${SUPABASE_KEY2}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const found = data[0];
+          if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+            const okResult = { available: true };
+            usernameCheckCache.set(clean, { result: okResult, timestamp: Date.now() });
+            return okResult;
+          }
+          const takenResult = { available: false, error: `@${clean} is already registered. Please choose another username.` };
+          usernameCheckCache.set(clean, { result: takenResult, timestamp: Date.now() });
+          return takenResult;
+        }
+      }
+    } catch (err) {
+      console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
+    } finally {
+      inFlightUsernameChecks.delete(inFlightKey);
+    }
+    const finalOk = { available: true };
+    usernameCheckCache.set(clean, { result: finalOk, timestamp: Date.now() });
+    return finalOk;
+  })();
+  inFlightUsernameChecks.set(inFlightKey, checkPromise);
+  return checkPromise;
 }
 async function registerServerUsername(rawUsername, userId, email) {
   const check = await isUsernameAvailable(rawUsername, userId);
@@ -3611,6 +4021,7 @@ async function registerServerUsername(rawUsername, userId, email) {
     createdAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   claimedUsernamesMap.set(clean, record);
+  invalidateUsernameCache(clean);
   persistToDisk2();
   return { success: true };
 }
@@ -3625,12 +4036,14 @@ function deleteServerUsername(userId, rawUsername) {
   const clean = rawUsername ? rawUsername.trim().toLowerCase().replace(/^@+/, "") : "";
   if (clean && claimedUsernamesMap.has(clean)) {
     claimedUsernamesMap.delete(clean);
+    invalidateUsernameCache(clean);
     changed = true;
   }
   if (userId) {
     for (const [key, record] of claimedUsernamesMap.entries()) {
       if (record.userId === userId) {
         claimedUsernamesMap.delete(key);
+        invalidateUsernameCache(key);
         changed = true;
       }
     }
@@ -3676,8 +4089,8 @@ function persistToDisk3() {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
-var SUPABASE_URL3 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://majtaremnrjzzzxpquef.supabase.co";
-var SUPABASE_KEY3 = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO";
+var SUPABASE_URL3 = serverConfig.supabase.url;
+var SUPABASE_KEY3 = serverConfig.supabase.anonKey;
 async function syncServerTrailsFromStorage() {
   try {
     const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
@@ -4022,11 +4435,18 @@ function createExpressApp() {
   });
   app2.use(express.json({ limit: "50mb" }));
   app2.use(express.urlencoded({ limit: "50mb", extended: true }));
-  app2.use("/Images", express.static(path4.join(process.cwd(), "public/images")));
-  app2.use("/images", express.static(path4.join(process.cwd(), "public/images")));
-  app2.use("/uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails")));
-  app2.use("/Uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails")));
-  app2.use("/uploads/trails", express.static("/tmp/roamai_uploads"));
+  const staticImageOptions = {
+    maxAge: "1y",
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
+  };
+  app2.use("/Images", express.static(path4.join(process.cwd(), "public/images"), staticImageOptions));
+  app2.use("/images", express.static(path4.join(process.cwd(), "public/images"), staticImageOptions));
+  app2.use("/uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
+  app2.use("/Uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
+  app2.use("/uploads/trails", express.static("/tmp/roamai_uploads", { maxAge: "7d" }));
   const apiRouter = express.Router();
   apiRouter.get("/health", (req, res) => {
     res.json({
@@ -4187,13 +4607,43 @@ function createExpressApp() {
         res.status(400).json({ error: "userId or username is required" });
         return;
       }
+      const SUPABASE_URL4 = serverConfig.supabase.url;
+      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const ANON_KEY = serverConfig.supabase.anonKey;
+      const authKey = SERVICE_KEY || ANON_KEY;
+      const authHeader = req.headers.authorization;
+      if (SUPABASE_URL4 && ANON_KEY) {
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          res.status(401).json({ error: "Unauthorized: Valid session authorization token is required to delete an account" });
+          return;
+        }
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        try {
+          const verifyRes = await fetch(`${SUPABASE_URL4}/auth/v1/user`, {
+            headers: {
+              apikey: ANON_KEY,
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (verifyRes.ok) {
+            const authUser = await verifyRes.json();
+            if (authUser?.id && userId && authUser.id !== userId) {
+              res.status(403).json({ error: "Forbidden: Session token does not match user account" });
+              return;
+            }
+          } else {
+            res.status(401).json({ error: "Unauthorized: Invalid or expired session token" });
+            return;
+          }
+        } catch (verifyErr) {
+          console.warn("[server] Token verification network error:", verifyErr);
+          res.status(502).json({ error: "Authentication service temporarily unreachable" });
+          return;
+        }
+      }
       await deleteServerUserTrails(userId, username);
       deleteServerUserFollows(userId, username);
       deleteServerUsername(userId, username);
-      const SUPABASE_URL4 = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-      const authKey = SERVICE_KEY || ANON_KEY;
       if (SUPABASE_URL4 && authKey && userId) {
         try {
           const tables = ["trips", "saved_places", "trails", "usernames", "profiles"];
@@ -4233,7 +4683,11 @@ function createExpressApp() {
   apiRouter.post("/auth/delete-account", handleDeleteAccount);
   apiRouter.get("/auth/search-users", (req, res) => {
     const q = req.query.q || "";
-    const users = searchServerUsers(q);
+    const users = searchServerUsers(q).map((u) => ({
+      username: u.username,
+      userId: u.userId,
+      createdAt: u.createdAt
+    }));
     res.json({ users });
   });
   apiRouter.get("/trails", async (req, res) => {
@@ -4242,7 +4696,10 @@ function createExpressApp() {
         await syncServerTrailsFromStorage();
       }
       const trails = getAllServerTrails();
-      res.json({ trails });
+      const limit = req.query.limit ? Math.max(1, parseInt(String(req.query.limit), 10)) : void 0;
+      const offset = req.query.offset ? Math.max(0, parseInt(String(req.query.offset), 10)) : 0;
+      const paged = limit !== void 0 ? trails.slice(offset, offset + limit) : trails;
+      res.json({ trails: paged, total: trails.length });
     } catch (err) {
       console.error("Error fetching trails:", err);
       res.status(500).json({ error: "Failed to fetch trails" });
@@ -4335,33 +4792,6 @@ function createExpressApp() {
       res.status(500).json({ error: "Failed to fetch follows" });
     }
   });
-  apiRouter.get("/follows/counts", (req, res) => {
-    try {
-      const identifier = req.query.identifier || "";
-      const counts = getServerFollowCounts(identifier);
-      res.json(counts);
-    } catch (err) {
-      res.status(500).json({ error: "Failed to fetch follow counts" });
-    }
-  });
-  apiRouter.get("/follows/followers", (req, res) => {
-    try {
-      const identifier = req.query.identifier || "";
-      const followers = getServerFollowers(identifier);
-      res.json({ followers });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to fetch followers" });
-    }
-  });
-  apiRouter.get("/follows/following", (req, res) => {
-    try {
-      const identifier = req.query.identifier || "";
-      const following = getServerFollowing(identifier);
-      res.json({ following });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to fetch following" });
-    }
-  });
   apiRouter.post("/follows/follow", (req, res) => {
     try {
       const { follower, target } = req.body;
@@ -4386,19 +4816,6 @@ function createExpressApp() {
       res.json({ success });
     } catch (err) {
       res.status(500).json({ error: "Failed to unfollow user" });
-    }
-  });
-  apiRouter.post("/follows/toggle", (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: "follower and target objects are required" });
-        return;
-      }
-      const result = toggleServerFollow(follower, target);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: "Failed to toggle follow" });
     }
   });
   apiRouter.post("/follows/remove-follower", (req, res) => {

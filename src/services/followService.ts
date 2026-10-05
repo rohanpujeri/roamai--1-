@@ -172,11 +172,15 @@ function saveLocalFollowRelationships(relationships: FollowRelationship[], curre
 
 let inFlightSyncPromise: Promise<void> | null = null;
 
-/**
- * Sync follows from backend server API and Supabase database, merging with local storage
- */
-export async function syncFollowsFromServer(): Promise<void> {
+let lastFollowsSyncTime = 0;
+const FOLLOWS_SYNC_TTL = 30000; // 30 seconds fresh cache
+
+export async function syncFollowsFromServer(forceRefresh = false): Promise<void> {
   if (typeof window === 'undefined') return;
+  const now = Date.now();
+  if (!forceRefresh && (now - lastFollowsSyncTime < FOLLOWS_SYNC_TTL)) {
+    return;
+  }
   if (inFlightSyncPromise) return inFlightSyncPromise;
 
   inFlightSyncPromise = (async () => {
@@ -195,23 +199,43 @@ export async function syncFollowsFromServer(): Promise<void> {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        const { data: supabaseFollows, error: followsError } = await supabase.from('follows').select('*').limit(500);
+        const followsResult = await supabase
+          .from('follows')
+          .select('id, follower_id, following_id, created_at')
+          .limit(200);
+
+        const supabaseFollows = followsResult.data;
+        const followsError = followsResult.error;
+
         if (!followsError && Array.isArray(supabaseFollows)) {
-          // Fetch Supabase registered profiles to map UUIDs to handles
-          const { data: supabaseProfiles } = await supabase.from('profiles').select('id, username, name, avatar_url, bio, location').limit(500);
+          // Collect only the participant user IDs actually present in follows
+          const participantIds = new Set<string>();
+          supabaseFollows.forEach((row: any) => {
+            if (row.follower_id) participantIds.add(row.follower_id);
+            if (row.following_id) participantIds.add(row.following_id);
+          });
+
           const profMap = new Map<string, any>();
-          if (Array.isArray(supabaseProfiles)) {
-            supabaseProfiles.forEach((p) => {
-              const u = cleanHandle(p.username);
-              if (u) {
-                profMap.set(u, p);
-                profMap.set(u.replace(/[._]/g, ''), p);
-              }
-              if (p.id) {
-                profMap.set(p.id, p);
-                profMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
-              }
-            });
+          if (participantIds.size > 0) {
+            const idList = Array.from(participantIds).slice(0, 50);
+            const { data: supabaseProfiles } = await supabase
+              .from('profiles')
+              .select('id, username, name, avatar_url')
+              .in('id', idList);
+
+            if (Array.isArray(supabaseProfiles)) {
+              supabaseProfiles.forEach((p) => {
+                const u = cleanHandle(p.username);
+                if (u) {
+                  profMap.set(u, p);
+                  profMap.set(u.replace(/[._]/g, ''), p);
+                }
+                if (p.id) {
+                  profMap.set(p.id, p);
+                  profMap.set(p.id.replace(/^supa_/, '').replace(/^user_/, ''), p);
+                }
+              });
+            }
           }
 
           const authoritativeRels: FollowRelationship[] = [];
@@ -289,6 +313,7 @@ export async function syncFollowsFromServer(): Promise<void> {
     const merged = Array.from(relsMap.values());
     if (merged.length !== localRels.length) {
       saveLocalFollowRelationships(merged);
+      lastFollowsSyncTime = Date.now();
     }
   } catch (err) {
     console.warn('Sync follows error:', err);
@@ -300,9 +325,8 @@ export async function syncFollowsFromServer(): Promise<void> {
   return inFlightSyncPromise;
 }
 
-// Initial sync and listener for tab focus
+// Sync listener for tab focus (guarded by TTL)
 if (typeof window !== 'undefined') {
-  syncFollowsFromServer();
   window.addEventListener('focus', () => {
     syncFollowsFromServer();
   });
@@ -511,6 +535,23 @@ export function getFollowersSync(
   return results;
 }
 
+let sharedFollowEnrichmentPromise: Promise<[void, any[]]> | null = null;
+
+function getSharedFollowData(): Promise<[void, any[]]> {
+  if (!sharedFollowEnrichmentPromise) {
+    sharedFollowEnrichmentPromise = Promise.all([
+      syncFollowsFromServer().catch(() => {}),
+      searchRealTravellers().catch(() => [] as any[])
+    ]);
+    sharedFollowEnrichmentPromise.finally(() => {
+      setTimeout(() => {
+        sharedFollowEnrichmentPromise = null;
+      }, 500);
+    });
+  }
+  return sharedFollowEnrichmentPromise;
+}
+
 /**
  * Get list of all profiles following the given user
  */
@@ -519,7 +560,9 @@ export async function getFollowers(
   currentViewer?: string | { id?: string; username?: string }
 ): Promise<FollowUserProfile[]> {
   if (!target) return [];
-  await syncFollowsFromServer().catch(() => {});
+
+  // Parallelize sync and profile enrichment with shared promise deduplication
+  const [, allProfiles] = await getSharedFollowData();
 
   const targetId = typeof target === 'string' ? target : target.id;
   const targetUsername = typeof target === 'string' ? target : target.username;
@@ -549,8 +592,6 @@ export async function getFollowers(
     );
   });
 
-  // Fetch all known registered profiles to enrich details
-  const allProfiles = await searchRealTravellers().catch(() => []);
   const profilesMap = new Map<string, any>();
   allProfiles.forEach((p) => {
     const cleanU = cleanHandle(p.username);
@@ -662,7 +703,9 @@ export async function getFollowing(
   currentViewer?: string | { id?: string; username?: string }
 ): Promise<FollowUserProfile[]> {
   if (!user) return [];
-  await syncFollowsFromServer().catch(() => {});
+
+  // Parallelize sync and profile enrichment with shared promise deduplication
+  const [, allProfiles] = await getSharedFollowData();
 
   const userId = typeof user === 'string' ? user : user.id;
   const userUsername = typeof user === 'string' ? user : user.username;
@@ -692,8 +735,6 @@ export async function getFollowing(
     );
   });
 
-  // Fetch all known registered profiles to enrich details
-  const allProfiles = await searchRealTravellers().catch(() => []);
   const profilesMap = new Map<string, any>();
   allProfiles.forEach((p) => {
     const cleanU = cleanHandle(p.username);
@@ -735,6 +776,8 @@ export async function getFollowing(
   return results;
 }
 
+const inFlightFollowMutations = new Set<string>();
+
 /**
  * Explicitly follow a user
  */
@@ -750,51 +793,59 @@ export async function followUser(
   const fId = currentUser.id || `user_${fUname}`;
   const tId = targetUser.id || `user_${tUname}`;
 
-  const currentRels = getLocalFollowRelationships();
-  const exists = currentRels.some((rel) => {
-    const rFollowerU = cleanHandle(rel.followerUsername);
-    const rTargetU = cleanHandle(rel.followingUsername);
-    return (rel.followerId === fId || rFollowerU === fUname) && (rel.followingId === tId || rTargetU === tUname);
-  });
+  const mutationKey = `follow:${fId}->${tId}`;
+  if (inFlightFollowMutations.has(mutationKey)) return true;
+  inFlightFollowMutations.add(mutationKey);
 
-  if (!exists) {
-    const newRel: FollowRelationship = {
-      id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      followerId: fId,
-      followerUsername: `@${fUname}`,
-      followerName: currentUser.name || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
-      followerAvatar: currentUser.avatarUrl || '',
-      followingId: tId,
-      followingUsername: `@${tUname}`,
-      followingName: targetUser.name || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
-      followingAvatar: targetUser.avatarUrl || '',
-      createdAt: new Date().toISOString()
-    };
-    currentRels.push(newRel);
-    saveLocalFollowRelationships(currentRels, fId, fUname);
-  }
-
-  // Server API async sync
   try {
-    fetch('/api/follows/follow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ follower: currentUser, target: targetUser })
-    }).catch(() => {});
-  } catch {}
+    const currentRels = getLocalFollowRelationships();
+    const exists = currentRels.some((rel) => {
+      const rFollowerU = cleanHandle(rel.followerUsername);
+      const rTargetU = cleanHandle(rel.followingUsername);
+      return (rel.followerId === fId || rFollowerU === fUname) && (rel.followingId === tId || rTargetU === tUname);
+    });
 
-  // Supabase async sync
-  const supabase = getSupabaseClient();
-  if (supabase) {
+    if (!exists) {
+      const newRel: FollowRelationship = {
+        id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        followerId: fId,
+        followerUsername: `@${fUname}`,
+        followerName: currentUser.name || (fUname.charAt(0).toUpperCase() + fUname.slice(1)),
+        followerAvatar: currentUser.avatarUrl || '',
+        followingId: tId,
+        followingUsername: `@${tUname}`,
+        followingName: targetUser.name || (tUname.charAt(0).toUpperCase() + tUname.slice(1)),
+        followingAvatar: targetUser.avatarUrl || '',
+        createdAt: new Date().toISOString()
+      };
+      currentRels.push(newRel);
+      saveLocalFollowRelationships(currentRels, fId, fUname);
+    }
+
+    // Server API async sync
     try {
-      await supabase.from('follows').insert({
-        follower_id: fId,
-        following_id: tId
-      });
+      fetch('/api/follows/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ follower: currentUser, target: targetUser })
+      }).catch(() => {});
     } catch {}
-  }
 
-  return true;
+    // Supabase async sync
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('follows').insert({
+          follower_id: fId,
+          following_id: tId
+        });
+      } catch {}
+    }
+
+    return true;
+  } finally {
+    inFlightFollowMutations.delete(mutationKey);
+  }
 }
 
 /**
@@ -811,53 +862,61 @@ export async function unfollowUser(
   const fId = currentUser.id || `user_${fUname}`;
   const tId = targetUser.id || `user_${tUname}`;
 
-  const cleanFId = fId.replace(/^supa_/, '');
-  const cleanTId = tId.replace(/^supa_/, '');
+  const mutationKey = `unfollow:${fId}->${tId}`;
+  if (inFlightFollowMutations.has(mutationKey)) return true;
+  inFlightFollowMutations.add(mutationKey);
 
-  const currentRels = getLocalFollowRelationships();
-  const nextRels = currentRels.filter((rel) => {
-    const rFollowerU = cleanHandle(rel.followerUsername);
-    const rTargetU = cleanHandle(rel.followingUsername);
-    const matchF = 
-      rel.followerId === fId || 
-      rel.followerId === cleanFId ||
-      rFollowerU === fUname || 
-      rFollowerU.replace(/_/g, '') === fUname.replace(/_/g, '');
-    const matchT = 
-      rel.followingId === tId || 
-      rel.followingId === cleanTId ||
-      rTargetU === tUname || 
-      rTargetU.replace(/_/g, '') === tUname.replace(/_/g, '');
-    return !(matchF && matchT);
-  });
-
-  saveLocalFollowRelationships(nextRels, fId, fUname);
-
-  // Server API async sync
   try {
-    fetch('/api/follows/unfollow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ follower: currentUser, target: targetUser })
-    }).catch(() => {});
-  } catch {}
+    const cleanFId = fId.replace(/^supa_/, '');
+    const cleanTId = tId.replace(/^supa_/, '');
 
-  // Supabase async sync
-  const supabase = getSupabaseClient();
-  if (supabase) {
+    const currentRels = getLocalFollowRelationships();
+    const nextRels = currentRels.filter((rel) => {
+      const rFollowerU = cleanHandle(rel.followerUsername);
+      const rTargetU = cleanHandle(rel.followingUsername);
+      const matchF = 
+        rel.followerId === fId || 
+        rel.followerId === cleanFId ||
+        rFollowerU === fUname || 
+        rFollowerU.replace(/_/g, '') === fUname.replace(/_/g, '');
+      const matchT = 
+        rel.followingId === tId || 
+        rel.followingId === cleanTId ||
+        rTargetU === tUname || 
+        rTargetU.replace(/_/g, '') === tUname.replace(/_/g, '');
+      return !(matchF && matchT);
+    });
+
+    saveLocalFollowRelationships(nextRels, fId, fUname);
+
+    // Server API async sync
     try {
-      await supabase.from('follows').delete().match({
-        follower_id: cleanFId,
-        following_id: cleanTId
-      });
-      await supabase.from('follows').delete().match({
-        follower_id: fId,
-        following_id: tId
-      });
+      fetch('/api/follows/unfollow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ follower: currentUser, target: targetUser })
+      }).catch(() => {});
     } catch {}
-  }
 
-  return true;
+    // Supabase async sync
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('follows').delete().match({
+          follower_id: cleanFId,
+          following_id: cleanTId
+        });
+        await supabase.from('follows').delete().match({
+          follower_id: fId,
+          following_id: tId
+        });
+      } catch {}
+    }
+
+    return true;
+  } finally {
+    inFlightFollowMutations.delete(mutationKey);
+  }
 }
 
 /**

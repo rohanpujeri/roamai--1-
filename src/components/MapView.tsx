@@ -4,8 +4,7 @@ import {
   Map,
   AdvancedMarker,
   Pin,
-  InfoWindow,
-  useMap
+  InfoWindow
 } from '@vis.gl/react-google-maps';
 import {
   MapPin,
@@ -26,9 +25,15 @@ import {
   LocateFixed
 } from 'lucide-react';
 import { Trip, Activity } from '../types';
-import { resolvePlaceImage, handleImageError } from '../utils/placeImages';
-import { getActivityCoordinates, getDestinationMapCenter, LatLng } from '../utils/geoCoordinates';
+import { resolvePlaceImage, handleImageError, optimizePlaceImageUrl } from '../utils/placeImages';
+import { getActivityCoordinates, getDestinationMapCenter } from '../utils/geoCoordinates';
 import { MapRoutePolyline } from './MapRoutePolyline';
+import { MapCameraController } from './MapCameraController';
+import {
+  MAP_DEFAULT_CATEGORY_STYLES as CATEGORY_STYLES,
+  buildGoogleMapsPlaceUrl,
+  buildGoogleMapsMultiStopUrl
+} from '../utils/mapUtils';
 
 interface MapViewProps {
   trip: Trip;
@@ -37,48 +42,6 @@ interface MapViewProps {
   onSelectActivity: (activity: Activity) => void;
   onOpenMapSearch?: () => void;
 }
-
-// Category color configurations
-const CATEGORY_STYLES: Record<string, { bg: string; text: string; pinBg: string; glyphColor: string }> = {
-  Sightseeing: { bg: 'bg-emerald-500', text: 'text-white', pinBg: '#10b981', glyphColor: '#ffffff' },
-  Food: { bg: 'bg-amber-500', text: 'text-white', pinBg: '#f59e0b', glyphColor: '#ffffff' },
-  Adventure: { bg: 'bg-rose-500', text: 'text-white', pinBg: '#f43f5e', glyphColor: '#ffffff' },
-  Relaxation: { bg: 'bg-sky-500', text: 'text-white', pinBg: '#0ea5e9', glyphColor: '#ffffff' },
-  Culture: { bg: 'bg-purple-500', text: 'text-white', pinBg: '#a855f7', glyphColor: '#ffffff' },
-  Nightlife: { bg: 'bg-indigo-500', text: 'text-white', pinBg: '#6366f1', glyphColor: '#ffffff' },
-  Shopping: { bg: 'bg-pink-500', text: 'text-white', pinBg: '#ec4899', glyphColor: '#ffffff' },
-  Transit: { bg: 'bg-slate-600', text: 'text-white', pinBg: '#475569', glyphColor: '#ffffff' }
-};
-
-// Camera Controller helper component
-const CameraController: React.FC<{
-  centerCoords: LatLng;
-  activitiesCoords: LatLng[];
-  selectedCoord?: LatLng | null;
-}> = ({ centerCoords, activitiesCoords, selectedCoord }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map) return;
-
-    if (selectedCoord) {
-      map.panTo(selectedCoord);
-      map.setZoom(14);
-      return;
-    }
-
-    if (activitiesCoords.length > 1 && typeof google !== 'undefined' && google.maps) {
-      const bounds = new google.maps.LatLngBounds();
-      activitiesCoords.forEach((coord) => bounds.extend(coord));
-      map.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
-    } else if (centerCoords) {
-      map.panTo(centerCoords);
-      map.setZoom(13);
-    }
-  }, [map, centerCoords, activitiesCoords, selectedCoord]);
-
-  return null;
-};
 
 export const MapView: React.FC<MapViewProps> = ({
   trip,
@@ -96,7 +59,6 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showRouteLine, setShowRouteLine] = useState<boolean>(true);
   const [mapTypeId, setMapTypeId] = useState<string>('roadmap');
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
-  const [trafficEnabled, setTrafficEnabled] = useState<boolean>(false);
 
   // User provided Maps API Key with env fallback
   const defaultApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '';
@@ -125,27 +87,17 @@ export const MapView: React.FC<MapViewProps> = ({
 
   // Open directions in external Google Maps
   const openExternalDirections = (lat: number, lng: number, placeName: string) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(
-      placeName
-    )}`;
+    const url = buildGoogleMapsPlaceUrl(lat, lng, placeName);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Open full day itinerary in Google Maps
   const openFullDayRoute = () => {
     if (activityCoordinates.length === 0) return;
-    const origin = activityCoordinates[0];
-    const destination = activityCoordinates[activityCoordinates.length - 1];
-    const waypoints = activityCoordinates
-      .slice(1, -1)
-      .map((c) => `${c.lat},${c.lng}`)
-      .join('|');
-
-    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}`;
-    if (waypoints) {
-      url += `&waypoints=${encodeURIComponent(waypoints)}`;
+    const url = buildGoogleMapsMultiStopUrl(activityCoordinates, trip.destination);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -276,7 +228,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 style={{ width: '100%', height: '100%', minHeight: '540px' }}
               >
                 {/* Auto camera panning/bounds */}
-                <CameraController
+                <MapCameraController
                   centerCoords={initialMapConfig.center}
                   activitiesCoords={activityCoordinates}
                   selectedCoord={activityCoordinates[selectedPinIndex]}
@@ -428,8 +380,8 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="h-36 rounded-2xl overflow-hidden relative group">
                 <img
                   src={selectedActivity.imageUrl && selectedActivity.imageUrl.startsWith('http') && !selectedActivity.imageUrl.includes('example.com')
-                    ? selectedActivity.imageUrl
-                    : resolvePlaceImage(selectedActivity.title, selectedActivity.category, selectedActivity.location, trip?.destination)}
+                    ? optimizePlaceImageUrl(selectedActivity.imageUrl, 480)
+                    : resolvePlaceImage(selectedActivity.title, selectedActivity.category, selectedActivity.location, trip?.destination, 480)}
                   alt={selectedActivity.title}
                   onError={(e) => handleImageError(e, selectedActivity.category)}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -616,3 +568,5 @@ export const MapView: React.FC<MapViewProps> = ({
     </div>
   );
 };
+
+export default MapView;

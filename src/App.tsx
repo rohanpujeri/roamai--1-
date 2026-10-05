@@ -1,39 +1,100 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { Trip, Activity, DayItinerary, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace, HotelStayRecommendation, RequirementDocument, BookingItem } from './types';
 
-import { generateTripFromInputs, adaptTripPlanWithAI, fetchRealPlaceForDay } from './services/aiPlanner';
 import { getSupabaseClient, fetchUserTrips, saveTripToBackend, deleteTripFromBackend, getCurrentUser } from './services/supabaseClient';
 import { getTheme, applyThemeToDocument, getSavedThemeId } from './services/theme';
 import { isTripCompleted, setTripCompletedLocal } from './utils/tripCompletion';
 import { DEMO_TRIPS, isDemoTripId } from './services/demoTrips';
 
-// Subcomponents
+// Core statically imported components (needed on initial render)
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
-import { CreateTripWizard } from './components/CreateTripWizard';
-import { AIGenerationLoader } from './components/AIGenerationLoader';
-import { ItineraryView } from './components/ItineraryView';
-import { TripModeView } from './components/TripModeView';
-import { MyTripsView } from './components/MyTripsView';
-import { MapPlaceSearchView } from './components/MapPlaceSearchView';
-import { ActivityDetailsModal } from './components/ActivityDetailsModal';
-import { AdaptModal } from './components/AdaptModal';
-import { ThemeSelectorModal } from './components/ThemeSelectorModal';
-import { ReplaceActivityModal } from './components/ReplaceActivityModal';
-import { AlternativePlaceOption } from './services/alternativePlaces';
-import { ToastContainer, ToastMessage } from './components/Toast';
-import { SnowfallEffect } from './components/SnowfallAtmosphere';
-import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
-import { WhyTripWisePage } from './components/WhyTripWise';
-import { AuthPage } from './components/AuthPage';
-import { UserProfileView } from './components/UserProfileView';
 import { BottomNavBar } from './components/BottomNavBar';
-import { TrailsView } from './components/TrailsView';
-import { TravellerSearchModal } from './components/TravellerSearchModal';
-import { TravellerSearchView } from './components/TravellerSearchView';
-import { SavedTrailsView } from './components/SavedTrailsView';
-import { UploadTrailView } from './components/UploadTrailView';
+import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
+import { ToastContainer } from './components/Toast';
+import type { ToastMessage } from './components/Toast';
+import { SnowfallEffect } from './components/SnowfallAtmosphere';
+import type { AlternativePlaceOption } from './services/alternativePlaces';
+
+// Code-split route/view components (loaded on-demand after initial paint)
+const CreateTripWizard = React.lazy(() => import('./components/CreateTripWizard').then(m => ({ default: m.CreateTripWizard })));
+const ItineraryView = React.lazy(() => import('./components/ItineraryView').then(m => ({ default: m.ItineraryView })));
+const TripModeView = React.lazy(() => import('./components/TripModeView').then(m => ({ default: m.TripModeView })));
+const MyTripsView = React.lazy(() => import('./components/MyTripsView').then(m => ({ default: m.MyTripsView })));
+const MapPlaceSearchView = React.lazy(() => import('./components/MapPlaceSearchView').then(m => ({ default: m.MapPlaceSearchView })));
+const WhyTripWisePage = React.lazy(() => import('./components/WhyTripWise').then(m => ({ default: m.WhyTripWisePage })));
+const AuthPage = React.lazy(() => import('./components/AuthPage').then(m => ({ default: m.AuthPage })));
+const UserProfileView = React.lazy(() => import('./components/UserProfileView').then(m => ({ default: m.UserProfileView })));
+const TrailsView = React.lazy(() => import('./components/TrailsView').then(m => ({ default: m.TrailsView })));
+const TravellerSearchView = React.lazy(() => import('./components/TravellerSearchView').then(m => ({ default: m.TravellerSearchView })));
+const SavedTrailsView = React.lazy(() => import('./components/SavedTrailsView').then(m => ({ default: m.SavedTrailsView })));
+const UploadTrailView = React.lazy(() => import('./components/UploadTrailView').then(m => ({ default: m.UploadTrailView })));
+
+// Code-split on-demand modals & overlays
+const AIGenerationLoader = React.lazy(() => import('./components/AIGenerationLoader').then(m => ({ default: m.AIGenerationLoader })));
+const ActivityDetailsModal = React.lazy(() => import('./components/ActivityDetailsModal').then(m => ({ default: m.ActivityDetailsModal })));
+const AdaptModal = React.lazy(() => import('./components/AdaptModal').then(m => ({ default: m.AdaptModal })));
+const ThemeSelectorModal = React.lazy(() => import('./components/ThemeSelectorModal').then(m => ({ default: m.ThemeSelectorModal })));
+const ReplaceActivityModal = React.lazy(() => import('./components/ReplaceActivityModal').then(m => ({ default: m.ReplaceActivityModal })));
+
+interface ViewErrorBoundaryProps {
+  children: React.ReactNode;
+  fallbackTitle?: string;
+}
+
+interface ViewErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ViewErrorBoundary extends React.Component<ViewErrorBoundaryProps, ViewErrorBoundaryState> {
+  constructor(props: ViewErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ViewErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.warn('[ViewErrorBoundary] Caught view error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full min-h-[50vh] flex flex-col items-center justify-center p-8 text-center">
+          <div className="p-6 rounded-2xl bg-zinc-950/80 border border-red-500/30 max-w-md mx-auto shadow-xl">
+            <h3 className="text-base font-bold text-white mb-2">
+              {this.props.fallbackTitle || 'Unable to display view'}
+            </h3>
+            <p className="text-xs text-neutral-400 mb-4">
+              A temporary network or view loading error occurred.
+            </p>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false })}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-slate-900 hover:bg-neutral-200 transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ViewLoadingFallback() {
+  return (
+    <div className="w-full h-full min-h-[50vh] flex items-center justify-center p-8">
+      <div className="w-10 h-10 border-3 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function normalizeTripPreparation(trip: Trip): Trip {
   if (!trip) return trip;
@@ -106,7 +167,6 @@ export default function App() {
   const [activeTripId, setActiveTripId] = useState<string>('');
   const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search' | 'why_tripwise' | 'why_roamai' | 'auth' | 'profile' | 'trails' | 'travellers_search' | 'saved_trails' | 'upload_trail'>('landing');
   const [uploadTrailFile, setUploadTrailFile] = useState<File | null>(null);
-  const [isTravellerSearchOpen, setIsTravellerSearchOpen] = useState<boolean>(false);
   const [wizardDestId, setWizardDestId] = useState<string>('');
   const [wizardInitialStep, setWizardInitialStep] = useState<number>(1);
   const [wizardEditingTrip, setWizardEditingTrip] = useState<Trip | null>(null);
@@ -122,15 +182,31 @@ export default function App() {
 
   // Load user trips on initial mount from Supabase / local persistence
   useEffect(() => {
+    let isMounted = true;
+    const applyLoadedTrips = (loadedTrips: Trip[]) => {
+      if (!isMounted) return;
+      if (loadedTrips && loadedTrips.length > 0) {
+        const normalized = loadedTrips.map(normalizeTripPreparation);
+        setTrips(normalized);
+        setActiveTripId((prev) => (prev && normalized.some(t => t.id === prev) ? prev : normalized[0].id));
+      } else {
+        setTrips([]);
+        setActiveTripId('');
+      }
+    };
+
     const supabase = getSupabaseClient();
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!isMounted) return;
         setSession(session);
+        fetchUserTrips().then((loadedTrips) => applyLoadedTrips(loadedTrips));
       });
 
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!isMounted) return;
         setSession(session);
         if (event === 'SIGNED_OUT') {
           setCurrentView((prev) => (['wizard', 'itinerary', 'trip_mode', 'my_trips'].includes(prev) ? 'landing' : prev));
@@ -138,39 +214,23 @@ export default function App() {
           setTrips([]);
           setActiveTripId('');
         } else if (event === 'SIGNED_IN') {
-          fetchUserTrips().then((loadedTrips) => {
-            if (loadedTrips && loadedTrips.length > 0) {
-              const normalized = loadedTrips.map(normalizeTripPreparation);
-              setTrips(normalized);
-              // Only set active trip if we don't already have one, or if current is invalid
-              setActiveTripId((prev) => prev && normalized.some(t => t.id === prev) ? prev : normalized[0].id);
-            } else {
-              setTrips([]);
-              setActiveTripId('');
-            }
-          });
+          fetchUserTrips().then((loadedTrips) => applyLoadedTrips(loadedTrips));
         } else if (event === 'PASSWORD_RECOVERY') {
           setInitialAuthMode('update_password');
           setCurrentView('auth');
         }
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        isMounted = false;
+        subscription.unsubscribe();
+      };
+    } else {
+      fetchUserTrips().then((loadedTrips) => applyLoadedTrips(loadedTrips));
+      return () => {
+        isMounted = false;
+      };
     }
-  }, []);
-
-  useEffect(() => {
-    getCurrentUser().then((user) => {
-      fetchUserTrips().then((loadedTrips) => {
-        if (loadedTrips && loadedTrips.length > 0) {
-          const normalized = loadedTrips.map(normalizeTripPreparation);
-          setTrips(normalized);
-          if (user) {
-            setActiveTripId(normalized[0].id);
-          }
-        }
-      });
-    });
   }, []);
 
   // Global View Protection Guard: If visiting protected views while logged out, redirect to auth
@@ -269,7 +329,9 @@ export default function App() {
   const rawActiveTrip = activeTripId
     ? allAvailableTrips.find((t) => t.id === activeTripId)
     : (session ? trips[0] : DEMO_TRIPS[0]);
-  const activeTrip = rawActiveTrip ? normalizeTripPreparation(rawActiveTrip) : null;
+  const activeTrip = useMemo(() => {
+    return rawActiveTrip ? normalizeTripPreparation(rawActiveTrip) : null;
+  }, [rawActiveTrip]);
   const recentPlannedTrip = activeTripId
     ? (allAvailableTrips.find((t) => t.id === activeTripId) || null)
     : (hasPlannedTrips ? trips[0] : DEMO_TRIPS[0]);
@@ -344,6 +406,7 @@ export default function App() {
     setIsGenerating(true);
 
     try {
+      const { generateTripFromInputs } = await import('./services/aiPlanner');
       const generatedTrip = await generateTripFromInputs(params);
 
       let cloudSyncFailed = false;
@@ -388,6 +451,7 @@ export default function App() {
   const handleApplyAdaptation = async (triggerId: string) => {
     if (!activeTrip) return;
     try {
+      const { adaptTripPlanWithAI } = await import('./services/aiPlanner');
       const { updatedTrip, summaryMessage } = await adaptTripPlanWithAI(
         activeTrip,
         triggerId,
@@ -572,6 +636,7 @@ export default function App() {
     addToast('info', 'Finding Real Spot...', `Curating an authentic place in ${activeTrip.destination}...`);
 
     try {
+      const { fetchRealPlaceForDay } = await import('./services/aiPlanner');
       const newAct = await fetchRealPlaceForDay({
         destination: activeTrip.destination,
         destinationStateOrCountry: activeTrip.destinationStateOrCountry,
@@ -935,6 +1000,19 @@ export default function App() {
 
   const isBottomNavView = BOTTOM_NAV_ORDER.includes(currentView as any);
 
+  // Lazy-mount tab index state: only mount slides when visited, but keep them mounted once visited
+  const [mountedTabs, setMountedTabs] = useState<Set<number>>(() => {
+    const initialIndex = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    return new Set<number>([initialIndex >= 0 ? initialIndex : 0]);
+  });
+
+  useEffect(() => {
+    const idx = BOTTOM_NAV_ORDER.indexOf(currentView as any);
+    if (idx !== -1) {
+      setMountedTabs((prev) => (prev.has(idx) ? prev : new Set(prev).add(idx)));
+    }
+  }, [currentView]);
+
   const isNoThemeBgView = 
     currentView === 'trails' || 
     currentView === 'profile' || 
@@ -951,6 +1029,8 @@ export default function App() {
   const scrollToTab = (index: number, smooth = true, keepWizardDest = false) => {
     const targetView = BOTTOM_NAV_ORDER[index];
     if (!targetView) return;
+
+    setMountedTabs((prev) => (prev.has(index) ? prev : new Set(prev).add(index)));
 
     if (targetView !== 'trails') {
       window.dispatchEvent(new CustomEvent('roamai_pause_trails'));
@@ -1041,6 +1121,7 @@ export default function App() {
       }
       const newIndex = Math.round(scrollLeft / clientWidth);
       if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
+        setMountedTabs((prev) => (prev.has(newIndex) ? prev : new Set(prev).add(newIndex)));
         const targetView = BOTTOM_NAV_ORDER[newIndex];
         if (targetView === 'trails' && !session) {
           setIntendedView('trails');
@@ -1079,6 +1160,7 @@ export default function App() {
         if (clientWidth) {
           const newIndex = Math.round(scrollLeft / clientWidth);
           if (newIndex >= 0 && newIndex < BOTTOM_NAV_ORDER.length) {
+            setMountedTabs((prev) => (prev.has(newIndex) ? prev : new Set(prev).add(newIndex)));
             const targetView = BOTTOM_NAV_ORDER[newIndex];
             if (targetView === 'trails' && !session) {
               setIntendedView('trails');
@@ -1367,17 +1449,19 @@ export default function App() {
 
       {/* Full AI Generation Loading Screen */}
       {isGenerating && (
-        <AIGenerationLoader
-          destinationName={generatingParams?.destinationName || generatingDestName}
-          startCity={generatingParams?.startCity}
-          travelMode={generatingParams?.travelMode || 'Flight'}
-          durationDays={generatingParams?.durationDays || 3}
-          currentTheme={currentTheme}
-          onCancel={() => {
-            setIsGenerating(false);
-            setGeneratingParams(null);
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <AIGenerationLoader
+            destinationName={generatingParams?.destinationName || generatingDestName}
+            startCity={generatingParams?.startCity}
+            travelMode={generatingParams?.travelMode || 'Flight'}
+            durationDays={generatingParams?.durationDays || 3}
+            currentTheme={currentTheme}
+            onCancel={() => {
+              setIsGenerating(false);
+              setGeneratingParams(null);
+            }}
+          />
+        </React.Suspense>
       )}
 
       {/* Main App Layout */}
@@ -1465,30 +1549,38 @@ export default function App() {
 
               {/* SLIDE 1: TRAILS (REELS VIDEO FEED & UPLOAD) */}
               <div className="w-full min-w-full h-full overflow-hidden shrink-0 snap-start snap-always bg-black relative">
-                <TrailsView
-                  currentTheme={currentTheme}
-                  session={session}
-                  isActive={currentView === 'trails'}
-                  onRequireAuth={() => {
-                    setIntendedView('trails');
-                    setCurrentView('auth');
-                  }}
-                  onOpenUploadPage={(file) => {
-                    setUploadTrailFile(file || null);
-                    setCurrentView('upload_trail');
-                  }}
-                  onStartPlanning={(dest) => {
-                    setWizardDestId(dest || '');
-                    setWizardEditingTrip(null);
-                    scrollToTab(2, true, true);
-                  }}
-                  onBack={() => scrollToTab(0)}
-                  onOpenOwnProfile={() => scrollToTab(4)}
-                  onOpenUserProfile={(traveller) => {
-                    window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: traveller }));
-                    scrollToTab(3);
-                  }}
-                />
+                {mountedTabs.has(1) ? (
+                  <ViewErrorBoundary fallbackTitle="Unable to load Trails">
+                    <React.Suspense fallback={<ViewLoadingFallback />}>
+                      <TrailsView
+                        currentTheme={currentTheme}
+                        session={session}
+                        isActive={currentView === 'trails'}
+                        onRequireAuth={() => {
+                          setIntendedView('trails');
+                          setCurrentView('auth');
+                        }}
+                        onOpenUploadPage={(file) => {
+                          setUploadTrailFile(file || null);
+                          setCurrentView('upload_trail');
+                        }}
+                        onStartPlanning={(dest) => {
+                          setWizardDestId(dest || '');
+                          setWizardEditingTrip(null);
+                          scrollToTab(2, true, true);
+                        }}
+                        onBack={() => scrollToTab(0)}
+                        onOpenOwnProfile={() => scrollToTab(4)}
+                        onOpenUserProfile={(traveller) => {
+                          window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: traveller }));
+                          scrollToTab(3);
+                        }}
+                      />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+                ) : (
+                  <ViewLoadingFallback />
+                )}
               </div>
 
               {/* SLIDE 2: CREATE TRIP WIZARD (+ Button with Theme Background) */}
@@ -1500,85 +1592,114 @@ export default function App() {
                 <ThemeHeroBackdrop isSticky currentTheme={currentTheme} isDark={currentTheme.isDark} />
 
                 <div className="relative z-10">
-                  <CreateTripWizard
-                    initialDestinationId={wizardDestId}
-                    initialStep={wizardInitialStep}
-                    initialTrip={wizardEditingTrip}
-                    onGenerateTrip={handleGenerateTrip}
-                    onCancel={() => {
-                      if (wizardEditingTrip) {
-                        setCurrentView('itinerary');
-                      } else {
-                        scrollToTab(0);
-                      }
-                    }}
-                  />
+                  {mountedTabs.has(2) ? (
+                    <ViewErrorBoundary fallbackTitle="Unable to load Trip Planner">
+                      <React.Suspense fallback={<ViewLoadingFallback />}>
+                        <CreateTripWizard
+                          initialDestinationId={wizardDestId}
+                          initialStep={wizardInitialStep}
+                          initialTrip={wizardEditingTrip}
+                          onGenerateTrip={handleGenerateTrip}
+                          onCancel={() => {
+                            if (wizardEditingTrip) {
+                              setCurrentView('itinerary');
+                            } else {
+                              scrollToTab(0);
+                            }
+                          }}
+                        />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  ) : (
+                    <ViewLoadingFallback />
+                  )}
                 </div>
                 <div className="h-36 sm:h-40" />
               </div>
 
               {/* SLIDE 3: TRAVELLERS SEARCH */}
               <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-[#0a0a0f] relative">
-                <TravellerSearchView
-                  currentTheme={currentTheme}
-                  session={session}
-                  onSelectTraveller={() => {}}
-                  onOpenOwnProfile={() => scrollToTab(4)}
-                  onOpenTrail={() => scrollToTab(1)}
-                  onStartPlanning={(destination) => {
-                    setWizardDestId(destination || '');
-                    setWizardEditingTrip(null);
-                    scrollToTab(2, true, true);
-                  }}
-                  onBack={() => scrollToTab(0)}
-                  onRequireAuth={() => {
-                    setInitialAuthMode('signin');
-                    setCurrentView('auth');
-                  }}
-                />
+                {mountedTabs.has(3) ? (
+                  <ViewErrorBoundary fallbackTitle="Unable to load Traveller Search">
+                    <React.Suspense fallback={<ViewLoadingFallback />}>
+                      <TravellerSearchView
+                        currentTheme={currentTheme}
+                        session={session}
+                        onSelectTraveller={() => {}}
+                        onOpenOwnProfile={() => scrollToTab(4)}
+                        onOpenTrail={() => scrollToTab(1)}
+                        onStartPlanning={(destination) => {
+                          setWizardDestId(destination || '');
+                          setWizardEditingTrip(null);
+                          scrollToTab(2, true, true);
+                        }}
+                        onBack={() => scrollToTab(0)}
+                        onRequireAuth={() => {
+                          setInitialAuthMode('signin');
+                          setCurrentView('auth');
+                        }}
+                      />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+                ) : (
+                  <ViewLoadingFallback />
+                )}
                 <div className="h-36 sm:h-40" />
               </div>
 
               {/* SLIDE 4: USER TRAVEL PROFILE */}
               <div className="w-full min-w-full h-full overflow-y-auto shrink-0 snap-start snap-always bg-black relative">
-                <UserProfileView
-                  session={session}
-                  currentTheme={currentTheme}
-                  trips={trips}
-                  onOpenTrip={(tripId) => {
-                    setActiveTripId(tripId);
-                    setActiveDayNumber(1);
-                    setCurrentView('itinerary');
-                  }}
-                  onStartPlanning={(dest) => {
-                    setWizardDestId(dest || '');
-                    setWizardEditingTrip(null);
-                    scrollToTab(2, true, Boolean(dest));
-                  }}
-                  onToggleTripCompleted={handleToggleTripCompleted}
-                  onBack={() => scrollToTab(0)}
-                  onRequireAuth={() => {
-                    setIntendedView('profile');
-                    setCurrentView('auth');
-                  }}
-                  onNavigate={(view) => {
-                    const normalized = (view === 'search' || view === 'travellers') ? 'travellers_search' : view;
-                    const idx = BOTTOM_NAV_ORDER.indexOf(normalized as any);
-                    if (idx !== -1) {
-                      scrollToTab(idx);
-                    } else {
-                      setCurrentView(normalized);
-                    }
-                  }}
-                  onOpenThemeModal={() => setIsThemeModalOpen(true)}
-                  onOpenUploadPage={() => setCurrentView('upload_trail')}
-                />
+                {mountedTabs.has(4) ? (
+                  <ViewErrorBoundary fallbackTitle="Unable to load Profile">
+                    <React.Suspense fallback={<ViewLoadingFallback />}>
+                      <UserProfileView
+                        isActive={currentView === 'profile'}
+                        session={session}
+                        currentTheme={currentTheme}
+                        trips={trips}
+                        onOpenTrip={(tripId) => {
+                          setActiveTripId(tripId);
+                          setActiveDayNumber(1);
+                          setCurrentView('itinerary');
+                        }}
+                        onStartPlanning={(dest) => {
+                          setWizardDestId(dest || '');
+                          setWizardEditingTrip(null);
+                          scrollToTab(2, true, Boolean(dest));
+                        }}
+                        onToggleTripCompleted={handleToggleTripCompleted}
+                        onBack={() => scrollToTab(0)}
+                        onRequireAuth={() => {
+                          setIntendedView('profile');
+                          setCurrentView('auth');
+                        }}
+                        onNavigate={(view) => {
+                          const normalized = (view === 'search' || view === 'travellers') ? 'travellers_search' : view;
+                          const idx = BOTTOM_NAV_ORDER.indexOf(normalized as any);
+                          if (idx !== -1) {
+                            scrollToTab(idx);
+                          } else {
+                            setCurrentView(normalized);
+                          }
+                        }}
+                        onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                        onOpenUploadPage={() => setCurrentView('upload_trail')}
+                      />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+                ) : (
+                  <ViewLoadingFallback />
+                )}
                 <div className="h-36 sm:h-40" />
               </div>
             </div>
           ) : (
             <main className="flex-1">
-              {renderNonBottomNavView()}
+              <ViewErrorBoundary fallbackTitle="Unable to load view">
+                <React.Suspense fallback={<ViewLoadingFallback />}>
+                  {renderNonBottomNavView()}
+                </React.Suspense>
+              </ViewErrorBoundary>
             </main>
           )}
 
@@ -1629,53 +1750,55 @@ export default function App() {
             />
           )}
 
-          {/* Travellers Profile Search Modal */}
-          <TravellerSearchModal
-            isOpen={isTravellerSearchOpen}
-            onClose={() => setIsTravellerSearchOpen(false)}
-            onSelectTraveller={() => {
-              setIsTravellerSearchOpen(false);
-              setCurrentView('profile');
-            }}
-          />
-
           {/* Activity Details Modal */}
           {selectedActivityForModal && (
-            <ActivityDetailsModal
-              activity={selectedActivityForModal}
-              currency={activeTrip?.currency || 'INR'}
-              onClose={() => setSelectedActivityForModal(null)}
-              onReplace={handleReplaceActivity}
-            />
+            <React.Suspense fallback={null}>
+              <ActivityDetailsModal
+                activity={selectedActivityForModal}
+                currency={activeTrip?.currency || 'INR'}
+                onClose={() => setSelectedActivityForModal(null)}
+                onReplace={handleReplaceActivity}
+              />
+            </React.Suspense>
           )}
 
           {/* Adapt Plan Modal */}
-          <AdaptModal
-            isOpen={isAdaptModalOpen}
-            onClose={() => setIsAdaptModalOpen(false)}
-            onApplyAdaptation={handleApplyAdaptation}
-            activeDayNumber={activeDayNumber}
-          />
+          {isAdaptModalOpen && (
+            <React.Suspense fallback={null}>
+              <AdaptModal
+                isOpen={isAdaptModalOpen}
+                onClose={() => setIsAdaptModalOpen(false)}
+                onApplyAdaptation={handleApplyAdaptation}
+                activeDayNumber={activeDayNumber}
+              />
+            </React.Suspense>
+          )}
 
           {/* Theme Selector Modal */}
-          <ThemeSelectorModal
-            isOpen={isThemeModalOpen}
-            onClose={() => setIsThemeModalOpen(false)}
-            currentTheme={currentTheme}
-            onSelectTheme={handleSelectTheme}
-          />
+          {isThemeModalOpen && (
+            <React.Suspense fallback={null}>
+              <ThemeSelectorModal
+                isOpen={isThemeModalOpen}
+                onClose={() => setIsThemeModalOpen(false)}
+                currentTheme={currentTheme}
+                onSelectTheme={handleSelectTheme}
+              />
+            </React.Suspense>
+          )}
 
           {/* Interactive Replace Place Modal */}
           {replacingActivity && activeTrip && (
-            <ReplaceActivityModal
-              isOpen={Boolean(replacingActivity)}
-              activity={replacingActivity}
-              destination={activeTrip.destination}
-              currency={activeTrip.currency}
-              userStyles={activeTrip.preferences.styles}
-              onClose={() => setReplacingActivity(null)}
-              onConfirmReplace={handleConfirmReplaceActivity}
-            />
+            <React.Suspense fallback={null}>
+              <ReplaceActivityModal
+                isOpen={Boolean(replacingActivity)}
+                activity={replacingActivity}
+                destination={activeTrip.destination}
+                currency={activeTrip.currency}
+                userStyles={activeTrip.preferences.styles}
+                onClose={() => setReplacingActivity(null)}
+                onConfirmReplace={handleConfirmReplaceActivity}
+              />
+            </React.Suspense>
           )}
         </>
       )}

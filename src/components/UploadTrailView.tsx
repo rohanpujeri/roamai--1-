@@ -17,8 +17,11 @@ import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
+import { optimizeMp4ForWeb } from '../utils/mp4Faststart';
 import { EditCoverModal } from './EditCoverModal';
-import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
+import type { SelectedTrailLocation } from './TrailLocationPickerModal';
+
+const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
 
 export interface UploadTrailViewProps {
   initialFile?: File | null;
@@ -40,7 +43,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [destination, setDestination] = useState<string>('');
   const [taggedPeople, setTaggedPeople] = useState<string>('');
   const [showTagInput, setShowTagInput] = useState<boolean>(false);
-  const [showLocationInput, setShowLocationInput] = useState<boolean>(false);
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState<boolean>(false);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -154,18 +156,28 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     const trailId = `user-trail-${Date.now()}`;
 
     try {
-      // 1. Save binary file to IndexedDB for instant local playback
-      if (videoFile) {
-        await saveTrailMedia(trailId, videoFile);
+      // 1. Optimize video with faststart if MP4/video container
+      let readyFile = videoFile;
+      if (videoFile && (videoFile.type.includes('mp4') || videoFile.type.includes('video') || videoFile.type.includes('quicktime'))) {
+        try {
+          readyFile = (await optimizeMp4ForWeb(videoFile)) as File;
+        } catch {
+          readyFile = videoFile;
+        }
+      }
+
+      // Save binary file to IndexedDB for instant local playback
+      if (readyFile) {
+        await saveTrailMedia(trailId, readyFile);
       }
 
       // 2. Poster frame
       let poster = posterPreview;
-      if (!poster && videoFile) {
-        poster = await generateVideoPoster(videoFile);
+      if (!poster && readyFile) {
+        poster = await generateVideoPoster(readyFile);
       }
 
-      const isImg = videoFile?.type.startsWith('image/');
+      const isImg = readyFile?.type.startsWith('image/');
       const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
       const meta = session?.user?.user_metadata || {};
       const creatorName = cached?.name || meta.full_name || meta.name || cached?.username?.replace(/^@/, '') || 'Traveller';
@@ -206,7 +218,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
       };
 
       // 3. Publish to Supabase and API
-      await publishGlobalTrail(newTrail, videoFile || undefined);
+      await publishGlobalTrail(newTrail, readyFile || undefined);
 
       // Clear draft after publishing
       try {
@@ -622,16 +634,20 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
       />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
-      <TrailLocationPickerModal
-        isOpen={isLocationModalOpen}
-        onClose={() => setIsLocationModalOpen(false)}
-        initialLocation={destination}
-        onSelectLocation={(loc: SelectedTrailLocation) => {
-          const formatted = loc.name.trim() || loc.address.trim();
-          setDestination(formatted);
-          setLocationError(null);
-        }}
-      />
+      {isLocationModalOpen && (
+        <React.Suspense fallback={null}>
+          <TrailLocationPickerModal
+            isOpen={isLocationModalOpen}
+            onClose={() => setIsLocationModalOpen(false)}
+            initialLocation={destination}
+            onSelectLocation={(loc: SelectedTrailLocation) => {
+              const formatted = loc.name.trim() || loc.address.trim();
+              setDestination(formatted);
+              setLocationError(null);
+            }}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

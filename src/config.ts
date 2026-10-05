@@ -5,13 +5,14 @@ export const config = {
   supabase: {
     url: import.meta.env.VITE_SUPABASE_URL || '',
     anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    storageVersion: 'v2_majtaremnrjzzzxpquef_clean',
   },
   db: {
     schema: 'public',
     tables: {
       users: 'users',
       trips: 'trips',
-      places: 'places'
+      places: 'saved_places'
     }
   },
   app: {

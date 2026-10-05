@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { isFakeMockUser } from './serverFollowsRegistry';
+import { serverConfig } from '../config';
 
 interface UsernameRecord {
   username: string;
@@ -64,8 +65,22 @@ function persistToDisk(): void {
   }
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://majtaremnrjzzzxpquef.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO';
+const SUPABASE_URL = serverConfig.supabase.url;
+const SUPABASE_KEY = serverConfig.supabase.anonKey;
+
+// In-flight deduplication and memory cache for username availability checks
+const inFlightUsernameChecks = new Map<string, Promise<{ available: boolean; error?: string }>>();
+const usernameCheckCache = new Map<string, { result: { available: boolean; error?: string }; timestamp: number }>();
+const USERNAME_CACHE_TTL_MS = 15000; // 15 seconds
+
+export function invalidateUsernameCache(username?: string) {
+  if (username) {
+    const clean = username.trim().toLowerCase().replace(/^@+/, '');
+    usernameCheckCache.delete(clean);
+  } else {
+    usernameCheckCache.clear();
+  }
+}
 
 export async function isUsernameAvailable(
   rawUsername: string,
@@ -94,7 +109,7 @@ export async function isUsernameAvailable(
     return { available: false, error: 'This username is reserved. Please choose another.' };
   }
 
-  // 1. Check in-memory map
+  // 1. Check in-memory claimed usernames registry
   const existing = claimedUsernamesMap.get(clean);
   if (existing) {
     if (currentUserId && existing.userId === currentUserId) {
@@ -103,29 +118,54 @@ export async function isUsernameAvailable(
     return { available: false, error: `@${clean} is already registered. Please choose another username.` };
   }
 
-  // 2. Check Supabase profiles table
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const found = data[0];
-        if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
-          return { available: true };
-        }
-        return { available: false, error: `@${clean} is already registered. Please choose another username.` };
-      }
-    }
-  } catch (err) {
-    console.warn('[serverUsernameRegistry] Could not check Supabase profiles:', err);
+  // 2. Check local memory cache (0ms response)
+  const cached = usernameCheckCache.get(clean);
+  if (cached && Date.now() - cached.timestamp < USERNAME_CACHE_TTL_MS) {
+    return cached.result;
   }
 
-  return { available: true };
+  // 3. In-flight request deduplication
+  const inFlightKey = `${clean}:${currentUserId || ''}`;
+  if (inFlightUsernameChecks.has(inFlightKey)) {
+    return inFlightUsernameChecks.get(inFlightKey)!;
+  }
+
+  const checkPromise = (async () => {
+    try {
+      // Check Supabase profiles table with targeted column projection
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const found = data[0];
+          if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+            const okResult = { available: true };
+            usernameCheckCache.set(clean, { result: okResult, timestamp: Date.now() });
+            return okResult;
+          }
+          const takenResult = { available: false, error: `@${clean} is already registered. Please choose another username.` };
+          usernameCheckCache.set(clean, { result: takenResult, timestamp: Date.now() });
+          return takenResult;
+        }
+      }
+    } catch (err) {
+      console.warn('[serverUsernameRegistry] Could not check Supabase profiles:', err);
+    } finally {
+      inFlightUsernameChecks.delete(inFlightKey);
+    }
+
+    const finalOk = { available: true };
+    usernameCheckCache.set(clean, { result: finalOk, timestamp: Date.now() });
+    return finalOk;
+  })();
+
+  inFlightUsernameChecks.set(inFlightKey, checkPromise);
+  return checkPromise;
 }
 
 export async function registerServerUsername(
@@ -147,6 +187,7 @@ export async function registerServerUsername(
   };
 
   claimedUsernamesMap.set(clean, record);
+  invalidateUsernameCache(clean);
   persistToDisk();
 
   return { success: true };
@@ -165,6 +206,7 @@ export function deleteServerUsername(userId?: string, rawUsername?: string): boo
 
   if (clean && claimedUsernamesMap.has(clean)) {
     claimedUsernamesMap.delete(clean);
+    invalidateUsernameCache(clean);
     changed = true;
   }
 
@@ -172,6 +214,7 @@ export function deleteServerUsername(userId?: string, rawUsername?: string): boo
     for (const [key, record] of claimedUsernamesMap.entries()) {
       if (record.userId === userId) {
         claimedUsernamesMap.delete(key);
+        invalidateUsernameCache(key);
         changed = true;
       }
     }

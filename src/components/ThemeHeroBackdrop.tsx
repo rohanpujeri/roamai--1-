@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ThemeConfig } from '../types';
-import { MapPin, Sparkles, Compass, Eye, Image as ImageIcon } from 'lucide-react';
 import { SnowfallEffect } from './SnowfallAtmosphere';
 
 interface ThemeHeroBackdropProps {
@@ -62,13 +61,23 @@ const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
   }
 };
 
+// Memory cache of preloaded theme backdrop images
+const preloadedImages = new Set<string>();
+
+export function preloadThemeImage(url?: string) {
+  if (!url || preloadedImages.has(url) || typeof window === 'undefined') return;
+  preloadedImages.add(url);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = url;
+}
+
 export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   currentTheme,
   isDark = false,
   isAbsolute = false,
   isSticky = false,
 }) => {
-  const videoRef = React.useRef<HTMLVideoElement>(null);
   const themeId = currentTheme?.id || 'waterfall';
   const photoUrl = currentTheme?.heroPhotoUrl || '/images/bg_waterfall.jpg';
   const photoPosition = currentTheme?.heroPhotoPosition || 'center 35%';
@@ -77,13 +86,9 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
 
   const grade = COLOR_GRADE_PRESETS[themeId] || COLOR_GRADE_PRESETS.beach;
 
-  React.useEffect(() => {
-    if (themeId === 'beach' && videoRef.current) {
-      videoRef.current.play().catch(() => {
-        // Autoplay policy fallback handled gracefully by poster
-      });
-    }
-  }, [themeId]);
+  useEffect(() => {
+    preloadThemeImage(photoUrl);
+  }, [photoUrl]);
 
   return (
     <div 
@@ -96,58 +101,30 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
       } overflow-hidden pointer-events-none z-0 select-none`} 
       aria-hidden="true"
     >
-      {/* 1. Theme Scenic Landscape Photographic Background Layer with Smooth Transition */}
-      <AnimatePresence mode="wait">
+      {/* 1. Theme Scenic Landscape Photographic Background Layer with Seamless Crossfade (Never Blanks) */}
+      <AnimatePresence>
         <motion.div
           key={themeId + photoUrl}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: 'easeOut' }}
+          transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ transform: 'translateZ(0)', willChange: 'opacity' }}
           className="absolute inset-0 w-full h-full"
         >
-          {/* If Beach theme, render high-performance looping real aerial beach waves video with image fallback */}
-          {themeId === 'beach' ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              loop
-              muted
-              playsInline
-              poster={photoUrl}
-              style={{
-                objectPosition: photoPosition,
-                filter: grade.filter,
-              }}
-              className="w-full h-full object-cover transition-all duration-700 select-none pointer-events-none"
-            >
-              <source src="/videos/beach-waves.mp4" type="video/mp4" />
-              <img
-                src={photoUrl}
-                alt={currentTheme?.name || 'Beach Waves'}
-                style={{
-                  objectPosition: photoPosition,
-                  filter: grade.filter,
-                }}
-                className="w-full h-full object-cover"
-              />
-            </video>
-          ) : (
-            <img
-              src={photoUrl}
-              alt={currentTheme?.name || 'Theme Scenic Scenery'}
-              referrerPolicy="no-referrer"
-              decoding="async"
-              loading="eager"
-              style={{
-                objectPosition: photoPosition,
-                filter: grade.filter,
-                imageRendering: 'auto'
-              }}
-              className="w-full h-full object-cover transition-all duration-700 select-none"
-            />
-          )}
+          <img
+            src={photoUrl}
+            alt={currentTheme?.name || 'Theme Scenic Scenery'}
+            referrerPolicy="no-referrer"
+            decoding="async"
+            loading="eager"
+            style={{
+              objectPosition: photoPosition,
+              filter: grade.filter,
+              imageRendering: 'auto'
+            }}
+            className="w-full h-full object-cover transition-all duration-700 select-none"
+          />
 
           {/* Cinematic Optical Sun Flare / Key Light Accent */}
           <div

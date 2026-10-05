@@ -250,10 +250,17 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     return list;
   }, [activeList, searchQuery, sortOrder, isSelf]);
 
+  // Set of usernames currently undergoing follow/unfollow mutation
+  const [inFlightActions, setInFlightActions] = useState<Set<string>>(() => new Set());
+
   // Execute Unfollow confirmation
   const handleConfirmUnfollow = async () => {
     if (!unfollowConfirmUser || !currentUser?.username) return;
     const target = unfollowConfirmUser;
+    const targetUname = target.username.toLowerCase();
+    if (inFlightActions.has(targetUname)) return;
+
+    setInFlightActions((prev) => new Set(prev).add(targetUname));
     setUnfollowConfirmUser(null);
     setOptionsUser(null);
 
@@ -269,14 +276,26 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
       );
     }
 
-    await unfollowUser(currentUser, target);
-    showToast(`Unfollowed ${target.username}`);
+    try {
+      await unfollowUser(currentUser, target);
+      showToast(`Unfollowed ${target.username}`);
+    } finally {
+      setInFlightActions((prev) => {
+        const next = new Set(prev);
+        next.delete(targetUname);
+        return next;
+      });
+    }
   };
 
   // Follow a user directly
   const handleFollowUser = async (target: EnrichedFollowUser, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!currentUser?.username) return;
+    const targetUname = target.username.toLowerCase();
+    if (inFlightActions.has(targetUname)) return;
+
+    setInFlightActions((prev) => new Set(prev).add(targetUname));
 
     setFollowersList((prev) =>
       prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: true } : u))
@@ -285,20 +304,40 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
       prev.map((u) => (u.username.toLowerCase() === target.username.toLowerCase() ? { ...u, isFollowing: true } : u))
     );
 
-    await followUser(currentUser, target);
-    showToast(`Following ${target.username}`);
+    try {
+      await followUser(currentUser, target);
+      showToast(`Following ${target.username}`);
+    } finally {
+      setInFlightActions((prev) => {
+        const next = new Set(prev);
+        next.delete(targetUname);
+        return next;
+      });
+    }
   };
 
   // Execute Remove Follower confirmation
   const handleConfirmRemoveFollower = async () => {
     if (!removeFollowerConfirmUser || !currentUser?.username) return;
     const target = removeFollowerConfirmUser;
+    const targetUname = target.username.toLowerCase();
+    if (inFlightActions.has(targetUname)) return;
+
+    setInFlightActions((prev) => new Set(prev).add(targetUname));
     setRemoveFollowerConfirmUser(null);
     setOptionsUser(null);
 
     setFollowersList((prev) => prev.filter((u) => u.username.toLowerCase() !== target.username.toLowerCase()));
-    await removeFollowerUser(currentUser, target);
-    showToast(`Removed ${target.username} from followers`);
+    try {
+      await removeFollowerUser(currentUser, target);
+      showToast(`Removed ${target.username} from followers`);
+    } finally {
+      setInFlightActions((prev) => {
+        const next = new Set(prev);
+        next.delete(targetUname);
+        return next;
+      });
+    }
   };
 
   // Message button handler

@@ -7,7 +7,6 @@ import {
   Heart, 
   Eye, 
   Share2, 
-  Trash2, 
   Compass, 
   Volume2, 
   VolumeX, 
@@ -16,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { TrailReel } from '../services/sharedTrailsService';
-import { getSavedTrails, unsaveTrail } from '../services/savedTrailsService';
+import { getSavedTrails, unsaveTrail, getCachedSavedTrails, getSavedTrailIds } from '../services/savedTrailsService';
 import { sanitizeAvatarUrl } from '../services/supabaseClient';
 
 interface SavedTrailsViewProps {
@@ -32,8 +31,11 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
   onOpenTrailsTab,
   onStartPlanning
 }) => {
-  const [savedTrails, setSavedTrails] = useState<TrailReel[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Synchronous cache hydration for instant 0ms render
+  const [savedTrails, setSavedTrails] = useState<TrailReel[]>(() => getCachedSavedTrails());
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return getSavedTrailIds().length > 0 && getCachedSavedTrails().length === 0;
+  });
   const [activePlaybackTrail, setActivePlaybackTrail] = useState<TrailReel | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);

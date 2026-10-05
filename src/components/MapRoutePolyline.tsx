@@ -16,9 +16,25 @@ export const MapRoutePolyline: React.FC<MapRoutePolylineProps> = ({
   strokeOpacity = 0.85
 }) => {
   const map = useMap();
+  const polylineRef = React.useRef<google.maps.Polyline | null>(null);
 
   useEffect(() => {
     if (!map || typeof google === 'undefined' || !google.maps || coordinates.length < 2) {
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+        polylineRef.current = null;
+      }
+      return;
+    }
+
+    if (polylineRef.current) {
+      polylineRef.current.setPath(coordinates);
+      polylineRef.current.setOptions({
+        strokeColor,
+        strokeOpacity,
+        strokeWeight,
+        map
+      });
       return;
     }
 
@@ -45,8 +61,11 @@ export const MapRoutePolyline: React.FC<MapRoutePolylineProps> = ({
       map
     });
 
+    polylineRef.current = polyline;
+
     return () => {
       polyline.setMap(null);
+      polylineRef.current = null;
     };
   }, [map, coordinates, strokeColor, strokeWeight, strokeOpacity]);
 

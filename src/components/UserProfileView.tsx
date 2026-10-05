@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ArrowLeft,
   Camera,
-  Edit2,
   MapPin,
   Calendar,
   Compass,
   Mountain,
-  Heart,
   User,
-  Users,
   Check,
   CheckCircle2,
   Save,
   X,
-  Share2,
   Sparkles,
   Plus,
   Play,
@@ -24,30 +19,22 @@ import {
   Film,
   ChevronDown,
   Menu,
-  Copy,
   Layers,
   Award,
-  Flame,
-  Volume2,
-  VolumeX,
   Loader2,
-  AtSign,
   LogIn,
-  LogOut,
   Upload,
   Trash2,
   Eye,
   ChevronLeft,
   ChevronRight,
   Hash,
-  UserPlus,
   Pause
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { Trip, ThemeConfig, UserProfileData, SavedPlace } from '../types';
 import {
   getCachedUserProfile,
-  updateUserProfileData,
   getSupabaseClient,
   sanitizeAvatarUrl,
   processAvatarImageFile
@@ -69,7 +56,9 @@ import {
 } from '../services/sharedTrailsService';
 import { TrailsView } from './TrailsView';
 import { EditCoverModal } from './EditCoverModal';
-import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
+import type { SelectedTrailLocation } from './TrailLocationPickerModal';
+
+const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
 import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion';
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
@@ -77,6 +66,13 @@ import { NavigationDrawer } from './NavigationDrawer';
 import { FollowListModal } from './FollowListModal';
 import { getFollowCounts, isFakeMockUser, cleanBio } from '../services/followService';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import {
+  resolveInitialProfile,
+  persistUserProfile,
+  getUserInitial,
+  formatDobDisplay,
+  formatMemberSince
+} from '../services/userProfileService';
 
 
 interface UserProfileViewProps {
@@ -91,6 +87,7 @@ interface UserProfileViewProps {
   onNavigate?: (view: any) => void;
   onOpenThemeModal?: () => void;
   onOpenUploadPage?: () => void;
+  isActive?: boolean;
 }
 
 export interface UserTrailItem {
@@ -118,7 +115,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   onRequireAuth,
   onNavigate,
   onOpenThemeModal,
-  onOpenUploadPage
+  onOpenUploadPage,
+  isActive = true
 }) => {
   const user = session?.user;
   const userMeta = (user?.user_metadata || {}) as Record<string, any>;
@@ -574,17 +572,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   };
 
   const handleDeleteTrail = async (trailId: string) => {
-    try {
-      setIsDeletingTrail(true);
-      await deleteTrailMedia(trailId);
-    } catch {
-      // ignore
-    }
-    try {
-      await deleteGlobalTrail(trailId);
-    } catch (err) {
-      console.warn('Failed to delete global trail:', err);
-    }
+    // Snapshot previous state for rollback
+    const prevTrails = [...userTrails];
+    const prevFullTrails = [...profileFullTrails];
+
+    // 1. Immediate optimistic UI response (<5ms)
     setSelectedTrail(null);
     setTrailToDelete(null);
     if (activeReelTrailId === trailId) {
@@ -601,9 +593,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
       return updated;
     });
-    setIsDeletingTrail(false);
-    setAvatarToast('Trail deleted successfully');
-    setTimeout(() => setAvatarToast(null), 3000);
+    setAvatarToast('Trail deleted');
+    setTimeout(() => setAvatarToast(null), 2500);
+
+    // 2. Background deletion
+    try {
+      await Promise.allSettled([
+        deleteTrailMedia(trailId),
+        deleteGlobalTrail(trailId)
+      ]);
+    } catch (err) {
+      console.warn('Failed to delete trail from backend, rolling back:', err);
+      setUserTrails(prevTrails);
+      setProfileFullTrails(prevFullTrails);
+      setAvatarToast('Failed to delete trail');
+      setTimeout(() => setAvatarToast(null), 3000);
+    }
   };
 
   // Filter ONLY completed trips for travel footprint counters (trips, countries, places)
@@ -667,14 +672,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Profile data states - dynamically mapped to current authenticated user
   const [profile, setProfile] = useState<UserProfileData>(() => {
+    const resolved = resolveInitialProfile(user, userMeta);
     const cached = getCachedUserProfile(user?.id);
     return {
-      name: cached?.name || getFallbackName(user, userMeta),
-      username: cached?.username || getFallbackUsername(user, userMeta),
-      bio: cleanBio(typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || '')),
-      avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || ''),
-      dob: cached?.dob || userMeta.dob || '',
-      place: cached?.place || userMeta.place || '',
+      name: resolved.name,
+      username: resolved.username,
+      bio: cleanBio(resolved.bio),
+      avatarUrl: resolved.avatarUrl,
+      dob: resolved.dob,
+      place: resolved.place,
       email: user?.email || '',
       travelDNA: travelDNAAnalysis.hasCompletedTrips ? travelDNAAnalysis.scores : (cached?.travelDNA || undefined),
       travelPreferences: travelDNAAnalysis.hasCompletedTrips ? {
@@ -726,21 +732,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Sync profile when user identity or metadata changes
   useEffect(() => {
+    const resolved = resolveInitialProfile(user, userMeta);
     const cached = getCachedUserProfile(user?.id);
-    const name = cached?.name || getFallbackName(user, userMeta);
-    const username = cached?.username || getFallbackUsername(user, userMeta);
-    const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
-    const place = cached?.place || userMeta.place || '';
-    const bio = cleanBio(typeof cached?.bio === 'string' ? cached.bio : (userMeta.bio || ''));
-    const dob = cached?.dob || userMeta.dob || '';
+    const username = resolved.username;
 
     const synced: UserProfileData = {
-      name,
-      username,
-      avatarUrl,
-      place,
-      bio,
-      dob,
+      name: resolved.name,
+      username: resolved.username,
+      avatarUrl: resolved.avatarUrl,
+      place: resolved.place,
+      bio: cleanBio(resolved.bio),
+      dob: resolved.dob,
       email: user?.email || '',
       travelDNA: travelDNAAnalysis.hasCompletedTrips ? (travelDNAAnalysis.scores as any) : undefined,
       travelPreferences: travelDNAAnalysis.hasCompletedTrips ? {
@@ -767,7 +769,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setEditForm(synced);
     }
 
-    if (user?.id) {
+    if (isActive && user?.id) {
       try {
         localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(synced));
         const supabase = getSupabaseClient();
@@ -835,6 +837,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Sync profile-specific trails from global trails (server API & Supabase)
   useEffect(() => {
+    if (!isActive) return;
     let isMounted = true;
     const loadProfileTrails = async () => {
       try {
@@ -930,27 +933,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       setProfile(updatedData);
 
-      if (user?.id) {
-        try {
-          localStorage.setItem(`tripwise_user_profile_${user.id}`, JSON.stringify(updatedData));
-          localStorage.setItem(`roamai_user_profile_${user.id}`, JSON.stringify(updatedData));
-          localStorage.setItem('tripwise_user_profile', JSON.stringify(updatedData));
-          localStorage.setItem('roamai_user_profile', JSON.stringify(updatedData));
-        } catch {}
-        const result = await updateUserProfileData(updatedData, user.id);
-        if (result?.error) {
-          console.warn('Update profile notice:', result.error);
-        }
-      } else {
-        try {
-          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updatedData));
-          localStorage.setItem('roamai_user_profile_guest', JSON.stringify(updatedData));
-          localStorage.setItem('tripwise_user_profile', JSON.stringify(updatedData));
-          localStorage.setItem('roamai_user_profile', JSON.stringify(updatedData));
-        } catch {}
+      const result = await persistUserProfile(updatedData, user);
+      if (result?.error) {
+        console.warn('Update profile notice:', result.error);
       }
 
-      window.dispatchEvent(new CustomEvent('roamai_profile_updated', { detail: updatedData }));
       setIsEditModalOpen(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -972,15 +959,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       };
       setProfile(updated);
       setEditForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
-      if (user) {
-        await updateUserProfileData(updated);
-      } else {
-        try {
-          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
-      }
+      await persistUserProfile(updated, user);
       setAvatarToast('Profile photo updated!');
       setTimeout(() => setAvatarToast(null), 3000);
     } catch (err: any) {
@@ -1002,15 +981,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       };
       setProfile(updated);
       setEditForm((prev) => ({ ...prev, avatarUrl: '' }));
-      if (user) {
-        await updateUserProfileData(updated);
-      } else {
-        try {
-          localStorage.setItem('tripwise_user_profile_guest', JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
-      }
+      await persistUserProfile(updated, user);
       setAvatarToast('Profile photo removed');
       setTimeout(() => setAvatarToast(null), 3000);
     } catch (err: any) {
@@ -2742,16 +2713,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
-      <TrailLocationPickerModal
-        isOpen={isTrailLocationModalOpen}
-        onClose={() => setIsTrailLocationModalOpen(false)}
-        initialLocation={trailDestination}
-        onSelectLocation={(loc: SelectedTrailLocation) => {
-          const formatted = loc.name.trim() || loc.address.trim();
-          setTrailDestination(formatted);
-          setUploadLocationErrorTrail(null);
-        }}
-      />
+      {isTrailLocationModalOpen && (
+        <React.Suspense fallback={null}>
+          <TrailLocationPickerModal
+            isOpen={isTrailLocationModalOpen}
+            onClose={() => setIsTrailLocationModalOpen(false)}
+            initialLocation={trailDestination}
+            onSelectLocation={(loc: SelectedTrailLocation) => {
+              const formatted = loc.name.trim() || loc.address.trim();
+              setTrailDestination(formatted);
+              setUploadLocationErrorTrail(null);
+            }}
+          />
+        </React.Suspense>
+      )}
       {/* Self-Service Delete Account Modal */}
       <DeleteAccountModal
         isOpen={isDeleteAccountModalOpen}

@@ -17,7 +17,13 @@ import {
 import { DeleteAccountModal } from './DeleteAccountModal';
 import { Session } from '@supabase/supabase-js';
 import { ThemeConfig, UserProfileData } from '../types';
-import { getCachedUserProfile, updateUserProfileData, getSupabaseClient, sanitizeAvatarUrl } from '../services/supabaseClient';
+import {
+  resolveInitialProfile,
+  formatDobDisplay,
+  formatMemberSince,
+  persistUserProfile,
+  getUserInitial
+} from '../services/userProfileService';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -55,16 +61,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // Load user data on mount or session change
   useEffect(() => {
     if (!user) return;
-    const cached = getCachedUserProfile(user.id);
-    const initialName = cached?.name || userMeta.full_name || userMeta.name || user.email?.split('@')[0] || '';
-    const initialDob = cached?.dob || userMeta.dob || '';
-    const initialPlace = cached?.place || userMeta.place || '';
-    const initialAvatar = sanitizeAvatarUrl(cached?.avatarUrl || userMeta.avatar_url || userMeta.avatarUrl || '');
+    const resolved = resolveInitialProfile(user, userMeta);
 
-    setFullName(initialName);
-    setDob(initialDob);
-    setPlace(initialPlace);
-    setAvatarUrl(initialAvatar);
+    setFullName(resolved.name);
+    setDob(resolved.dob || '');
+    setPlace(resolved.place || '');
+    setAvatarUrl(resolved.avatarUrl || '');
     setIsEditing(false);
     setSaveSuccess(false);
     setErrorMessage(null);
@@ -83,30 +85,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (!isOpen || !session) return null;
 
-  // Format DOB nicely for display (e.g., "15 Aug 1998")
-  const formatDobDisplay = (dobStr?: string) => {
-    if (!dobStr) return 'Not provided';
-    const parts = dobStr.split('-').map(Number);
-    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-      const d = new Date(parts[0], parts[1] - 1, parts[2]);
-      const formatted = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-      
-      // Calculate age
-      const now = new Date();
-      let age = now.getFullYear() - parts[0];
-      const m = now.getMonth() - (parts[1] - 1);
-      if (m < 0 || (m === 0 && now.getDate() < parts[2])) {
-        age--;
-      }
-      return `${formatted}${age > 0 ? ` (${age} yrs)` : ''}`;
-    }
-    return dobStr;
-  };
-
   // Format Member Since date
-  const memberSince = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-    : 'Recent Traveler';
+  const memberSince = formatMemberSince(user?.created_at);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +100,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       email: user?.email
     };
 
-    const result = await updateUserProfileData(updatedProfile);
+    const result = await persistUserProfile(updatedProfile, user);
     setSaving(false);
 
     if (result.error) {
@@ -135,7 +115,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const userInitial = (fullName || user?.email || 'U').charAt(0).toUpperCase();
+  const userInitial = getUserInitial(fullName, user?.email);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn">

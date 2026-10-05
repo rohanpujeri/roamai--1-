@@ -34,7 +34,6 @@ import { isTripCompleted } from '../utils/tripCompletion';
 import { FollowListModal } from './FollowListModal';
 import { 
   getFollowCounts, 
-  toggleFollowUser, 
   isUserFollowing,
   isFollowedBy,
   getMutualFollowers,
@@ -42,8 +41,7 @@ import {
   unfollowUser,
   isFakeMockUser,
   isSelfRel,
-  cleanBio,
-  isFakeBio
+  cleanBio
 } from '../services/followService';
 
 
@@ -244,55 +242,74 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     }
 
     let isMounted = true;
-    setIsLoadingTrips(true);
+    const vId = viewingProfile.id;
+    const cleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
+    const cleanUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
+    const cleanUnameNoUnderscore = cleanUname.replace(/_/g, '');
+    const foundTrips: Trip[] = [];
 
-    const loadCompletedTrips = async () => {
-      const vId = viewingProfile.id;
-      const cleanId = vId.replace(/^supa_/, '').replace(/^user_/, '');
-      const cleanUname = viewingProfile.username.toLowerCase().replace(/^@+/, '');
-      const cleanUnameNoUnderscore = cleanUname.replace(/_/g, '');
-      const foundTrips: Trip[] = [];
-
-      // 1. Search local storage for cached trips under this user ID or general trips
-      if (typeof window !== 'undefined') {
-        try {
-          const keysToTry = [
-            `tripwise_user_trips_v2_${cleanId}`,
-            `tripwise_user_trips_v2_${vId}`,
-            `tripwise_user_trips_v2_${cleanUname}`,
-            `tripwise_user_trips_v2_${cleanUnameNoUnderscore}`,
-            'tripwise_user_trips_v2'
-          ];
-          for (const key of keysToTry) {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                parsed.forEach((t: any) => {
-                  if (t && (t.isCompleted || isTripCompleted(t))) {
-                    if (!foundTrips.some((existing) => existing.id === t.id)) {
-                      foundTrips.push(t);
-                    }
+    // 1. Search local storage for cached trips under this user ID or general trips (IMMEDIATE UI response: 0ms)
+    if (typeof window !== 'undefined') {
+      try {
+        const keysToTry = [
+          `tripwise_user_trips_v2_${cleanId}`,
+          `tripwise_user_trips_v2_${vId}`,
+          `tripwise_user_trips_v2_${cleanUname}`,
+          `tripwise_user_trips_v2_${cleanUnameNoUnderscore}`,
+          'tripwise_user_trips_v2'
+        ];
+        for (const key of keysToTry) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((t: any) => {
+                if (t && (t.isCompleted || isTripCompleted(t))) {
+                  if (!foundTrips.some((existing) => existing.id === t.id)) {
+                    foundTrips.push(t);
                   }
-                });
-              }
+                }
+              });
             }
           }
-        } catch (e) {
-          console.warn('Error reading local trips for profile:', e);
         }
+      } catch (e) {
+        console.warn('Error reading local trips for profile:', e);
+      }
+    }
+
+    // Hydrate immediately with local trips if found
+    if (foundTrips.length > 0) {
+      setViewingProfileCompletedTrips([...foundTrips]);
+      setIsLoadingTrips(false);
+    } else {
+      setIsLoadingTrips(true);
+    }
+
+    const loadCompletedTrips = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        if (isMounted) setIsLoadingTrips(false);
+        return;
       }
 
-      // 2. Query Supabase trips table for this user if available
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
+      // Parallelize Supabase trips query and profiles query with targeted columns
+      try {
+        const [tripsResult, profileResult] = await Promise.allSettled([
+          supabase
             .from('trips')
-            .select('*')
-            .or(`user_id.eq.${cleanId},user_id.eq.${vId}`);
+            .select('id, user_id, trip_data, created_at')
+            .or(`user_id.eq.${cleanId},user_id.eq.${vId}`),
+          supabase
+            .from('profiles')
+            .select('id, name, avatar_url, bio, trips_count, places_count, countries_count')
+            .or(`id.eq.${cleanId},username.ilike.@${cleanUname},username.ilike.${cleanUname}`)
+            .maybeSingle()
+        ]);
 
-          if (!error && Array.isArray(data)) {
+        if (tripsResult.status === 'fulfilled' && tripsResult.value.data) {
+          const data = tripsResult.value.data;
+          if (Array.isArray(data)) {
             data.forEach((row: any) => {
               const t = row.trip_data || row;
               if (t && (t.isCompleted || isTripCompleted(t))) {
@@ -302,35 +319,25 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               }
             });
           }
-        } catch (err) {
-          console.warn('Error fetching user trips from Supabase:', err);
         }
 
-        // 3. Also pull latest stats from public profiles table
-        try {
-          const { data: pData } = await supabase
-            .from('profiles')
-            .select('*')
-            .or(`id.eq.${cleanId},username.ilike.@${cleanUname},username.ilike.${cleanUname}`)
-            .maybeSingle();
-
-          if (pData && isMounted) {
-            setViewingProfile((prev) => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                name: pData.name || prev.name,
-                avatarUrl: pData.avatar_url || prev.avatarUrl,
-                bio: cleanBio(pData.bio) || cleanBio(prev.bio) || '',
-                tripsCount: pData.trips_count ?? prev.tripsCount,
-                placesCount: pData.places_count ?? prev.placesCount,
-                countriesCount: pData.countries_count ?? prev.countriesCount
-              };
-            });
-          }
-        } catch (err) {
-          console.warn('Error fetching profile from Supabase:', err);
+        if (profileResult.status === 'fulfilled' && profileResult.value.data && isMounted) {
+          const pData = profileResult.value.data;
+          setViewingProfile((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              name: pData.name || prev.name,
+              avatarUrl: pData.avatar_url || prev.avatarUrl,
+              bio: cleanBio(pData.bio) || cleanBio(prev.bio) || '',
+              tripsCount: pData.trips_count ?? prev.tripsCount,
+              placesCount: pData.places_count ?? prev.placesCount,
+              countriesCount: pData.countries_count ?? prev.countriesCount
+            };
+          });
         }
+      } catch (err) {
+        console.warn('Error fetching user trips and profile from Supabase:', err);
       }
 
       if (isMounted) {
@@ -344,7 +351,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [viewingProfile]);
+  }, [viewingProfile?.id, viewingProfile?.username]);
 
   // Compute Travel DNA profile for the currently viewed traveller
   const viewingProfileTravelDNA = useMemo<TravelDNAAnalysis>(() => {
@@ -404,23 +411,28 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       setTravellers([]);
       return;
     }
-    searchRealTravellers(searchQuery).then((results) => {
-      if (isMounted) {
-        const currentFollows = getFollowedUserIds();
-        const mapped = results
-          .filter((t) => !isFakeMockUser(t.username))
-          .map((t) => {
-            const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
-            const isF = currentFollows.has(t.id) || currentFollows.has(cleanUser);
-            return { ...t, isFollowing: isF };
-          });
-        setTravellers(mapped);
-      }
-    });
+
+    const timer = setTimeout(() => {
+      searchRealTravellers(searchQuery).then((results) => {
+        if (isMounted) {
+          const currentFollows = getFollowedUserIds();
+          const mapped = results
+            .filter((t) => !isFakeMockUser(t.username))
+            .map((t) => {
+              const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
+              const isF = currentFollows.has(t.id) || currentFollows.has(cleanUser);
+              return { ...t, isFollowing: isF };
+            });
+          setTravellers(mapped);
+        }
+      });
+    }, searchQuery.trim() ? 200 : 0);
+
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
-  }, [searchQuery, session]);
+  }, [searchQuery, session?.user?.id]);
 
   // Sync followed set with storage changes
   useEffect(() => {
@@ -437,12 +449,20 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
   // Instagram Unfollow Confirmation Dialog State
   const [unfollowConfirmUser, setUnfollowConfirmUser] = useState<{ id: string; username: string; name?: string; avatarUrl?: string } | null>(null);
+  const [inFlightFollowIds, setInFlightFollowIds] = useState<Set<string>>(new Set());
 
-  // Execute Unfollow
+  // Execute Unfollow with immediate optimistic UI response & rollback
   const executeUnfollow = useCallback(async (target: { id: string; username: string }) => {
     const cleanUser = target.username.replace(/^@+/, '').toLowerCase();
-    await unfollowUser(currentUserProfile, target);
+    if (inFlightFollowIds.has(target.id) || inFlightFollowIds.has(cleanUser)) return;
 
+    // Snapshot previous state for rollback
+    const prevFollowedSet = new Set(followedSet);
+    const prevTravellers = [...travellers];
+    const prevViewingProfile = viewingProfile ? { ...viewingProfile } : null;
+
+    // 1. Immediate optimistic UI response (<5ms)
+    setInFlightFollowIds((prev) => new Set(prev).add(target.id).add(cleanUser));
     setFollowedSet((prev) => {
       const next = new Set(prev);
       next.delete(target.id);
@@ -469,13 +489,38 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       }
       return cur;
     });
-  }, [currentUserProfile]);
 
-  // Execute Follow
+    // 2. Background request
+    try {
+      await unfollowUser(currentUserProfile, target);
+    } catch (err) {
+      console.warn('Failed to unfollow user, rolling back:', err);
+      setFollowedSet(prevFollowedSet);
+      saveFollowedUserIds(prevFollowedSet);
+      setTravellers(prevTravellers);
+      setViewingProfile(prevViewingProfile);
+    } finally {
+      setInFlightFollowIds((prev) => {
+        const next = new Set(prev);
+        next.delete(target.id);
+        next.delete(cleanUser);
+        return next;
+      });
+    }
+  }, [currentUserProfile, followedSet, travellers, viewingProfile, inFlightFollowIds]);
+
+  // Execute Follow with immediate optimistic UI response & rollback
   const executeFollow = useCallback(async (target: { id: string; username: string; name?: string; avatarUrl?: string }) => {
     const cleanUser = target.username.replace(/^@+/, '').toLowerCase();
-    await followUser(currentUserProfile, target);
+    if (inFlightFollowIds.has(target.id) || inFlightFollowIds.has(cleanUser)) return;
 
+    // Snapshot previous state for rollback
+    const prevFollowedSet = new Set(followedSet);
+    const prevTravellers = [...travellers];
+    const prevViewingProfile = viewingProfile ? { ...viewingProfile } : null;
+
+    // 1. Immediate optimistic UI response (<5ms)
+    setInFlightFollowIds((prev) => new Set(prev).add(target.id).add(cleanUser));
     setFollowedSet((prev) => {
       const next = new Set(prev);
       next.add(target.id);
@@ -502,7 +547,25 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       }
       return cur;
     });
-  }, [currentUserProfile]);
+
+    // 2. Background request
+    try {
+      await followUser(currentUserProfile, target);
+    } catch (err) {
+      console.warn('Failed to follow user, rolling back:', err);
+      setFollowedSet(prevFollowedSet);
+      saveFollowedUserIds(prevFollowedSet);
+      setTravellers(prevTravellers);
+      setViewingProfile(prevViewingProfile);
+    } finally {
+      setInFlightFollowIds((prev) => {
+        const next = new Set(prev);
+        next.delete(target.id);
+        next.delete(cleanUser);
+        return next;
+      });
+    }
+  }, [currentUserProfile, followedSet, travellers, viewingProfile, inFlightFollowIds]);
 
   // Handle follow button click (prompts confirmation if already following)
   const handleFollowAction = useCallback((id: string, username: string, e?: React.MouseEvent) => {
@@ -602,7 +665,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       });
     };
     syncTrails();
-    const interval = setInterval(syncTrails, 8000);
 
     const handleDeleted = (e: any) => {
       const deletedId = e.detail?.trailId;
@@ -612,18 +674,25 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       }
     };
 
+    const handleSaved = () => {
+      syncTrails();
+    };
+
     const handleCloseActiveReel = () => {
       setActiveReelTrailId(null);
       setActiveReelTrails(null);
     };
 
     window.addEventListener('roamai_trail_deleted', handleDeleted);
+    window.addEventListener('roamai_trail_saved', handleSaved);
+    window.addEventListener('roamai_trail_liked', handleSaved);
     window.addEventListener('roamai_close_active_reel', handleCloseActiveReel);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
       window.removeEventListener('roamai_trail_deleted', handleDeleted);
+      window.removeEventListener('roamai_trail_saved', handleSaved);
+      window.removeEventListener('roamai_trail_liked', handleSaved);
       window.removeEventListener('roamai_close_active_reel', handleCloseActiveReel);
     };
   }, []);
@@ -632,25 +701,30 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const exploreTiles = useMemo<ExploreTile[]>(() => {
     if (!globalTrailsList || globalTrailsList.length === 0) return [];
 
+    const isVideoExtension = (url?: string) => url && /\.(mp4|webm|mov|ogg)($|\?)/i.test(url);
+
     return globalTrailsList
       .filter((t: any) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t))
-      .map((t: any, idx: number) => ({
-        id: t.id || `trail-${idx}`,
-        type: 'trail' as const,
-        title: t.title || t.caption || 'Travel Reel',
-        destination: t.destination || 'Explore Destination',
-        imageUrl: t.posterUrl || t.videoUrl || '',
-        videoUrl: t.videoUrl,
-        viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-        likesCount: t.likesCount ? String(t.likesCount) : '0',
-        creator: {
-          id: t.creator?.id,
-          name: t.creator?.name || 'Traveler',
-          username: t.creator?.username || '@traveler',
-          avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
-        },
-        spanTwoRows: idx % 6 === 0
-      }));
+      .map((t: any, idx: number) => {
+        const cleanPoster = t.posterUrl && !isVideoExtension(t.posterUrl) ? t.posterUrl : '';
+        return {
+          id: t.id || `trail-${idx}`,
+          type: 'trail' as const,
+          title: t.title || t.caption || 'Travel Reel',
+          destination: t.destination || 'Explore Destination',
+          imageUrl: cleanPoster,
+          videoUrl: t.videoUrl,
+          viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
+          likesCount: t.likesCount ? String(t.likesCount) : '0',
+          creator: {
+            id: t.creator?.id,
+            name: t.creator?.name || 'Traveler',
+            username: t.creator?.username || '@traveler',
+            avatarUrl: sanitizeAvatarUrl(t.creator?.avatarUrl) || ''
+          },
+          spanTwoRows: idx % 6 === 0
+        };
+      });
   }, [globalTrailsList]);
 
   // Trails uploaded by currently viewed user profile
@@ -755,7 +829,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         t.name.toLowerCase().includes(q) ||
         cleanUser.includes(q) ||
         t.bio.toLowerCase().includes(q) ||
-        t.recentPlaces.some((p) => p.toLowerCase().includes(q))
+        t.recentPlaces.some((p) => p.toLowerCase().includes(q)) ||
+        (t.topDNA && t.topDNA.some((dna) => dna.toLowerCase().includes(q)))
       );
     });
   }, [travellers, searchQuery]);

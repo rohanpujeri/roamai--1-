@@ -82,13 +82,32 @@ export async function deleteTrailMedia(trailId: string): Promise<void> {
   }
 }
 
-// Memory cache of active Object URLs to avoid repeatedly creating new ones
+// Memory cache of active Object URLs with LRU size limit to prevent memory bloat
+const MAX_ACTIVE_OBJECT_URLS = 25;
 const activeObjectUrlMap = new Map<string, string>();
+
+function cacheMediaUrl(trailId: string, url: string): void {
+  if (activeObjectUrlMap.has(trailId)) {
+    activeObjectUrlMap.delete(trailId);
+  } else if (activeObjectUrlMap.size >= MAX_ACTIVE_OBJECT_URLS) {
+    const oldestKey = activeObjectUrlMap.keys().next().value;
+    if (oldestKey) {
+      const oldestUrl = activeObjectUrlMap.get(oldestKey);
+      if (oldestUrl && oldestUrl.startsWith('blob:') && typeof URL !== 'undefined') {
+        try {
+          URL.revokeObjectURL(oldestUrl);
+        } catch {}
+      }
+      activeObjectUrlMap.delete(oldestKey);
+    }
+  }
+  activeObjectUrlMap.set(trailId, url);
+}
 
 /**
  * Resolve an active, playable media URL for a given trail.
- * If the original videoUrl was a temporary blob URL that has expired,
- * this function retrieves the file from IndexedDB and creates a fresh valid object URL.
+ * Prioritizes local IndexedDB storage for instant 0ms playback with zero network usage,
+ * falling back to cached remote HTTP URLs.
  */
 export async function resolveTrailMediaUrl(trailId: string, fallbackUrl?: string): Promise<string> {
   // If we already have a live Object URL in this tab session, return it
@@ -96,17 +115,22 @@ export async function resolveTrailMediaUrl(trailId: string, fallbackUrl?: string
     return activeObjectUrlMap.get(trailId)!;
   }
 
-  // If fallbackUrl is a valid external URL (not blob:), use it
-  if (fallbackUrl && !fallbackUrl.startsWith('blob:') && fallbackUrl.startsWith('http')) {
-    return fallbackUrl;
+  // 1. Check local IndexedDB first for instant local playback without network transfer
+  try {
+    const blob = await getTrailMediaBlob(trailId);
+    if (blob) {
+      const newUrl = URL.createObjectURL(blob);
+      cacheMediaUrl(trailId, newUrl);
+      return newUrl;
+    }
+  } catch {
+    // Non-fatal, proceed to remote fallback
   }
 
-  // Try retrieving from IndexedDB
-  const blob = await getTrailMediaBlob(trailId);
-  if (blob) {
-    const newUrl = URL.createObjectURL(blob);
-    activeObjectUrlMap.set(trailId, newUrl);
-    return newUrl;
+  // 2. If fallbackUrl is a valid external URL (not expired blob:), cache and return it
+  if (fallbackUrl && !fallbackUrl.startsWith('blob:') && fallbackUrl.startsWith('http')) {
+    cacheMediaUrl(trailId, fallbackUrl);
+    return fallbackUrl;
   }
 
   return fallbackUrl || '';

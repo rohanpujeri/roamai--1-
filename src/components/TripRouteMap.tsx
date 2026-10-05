@@ -3,26 +3,20 @@ import {
   APIProvider,
   Map,
   AdvancedMarker,
-  Pin,
-  InfoWindow,
-  useMap
+  InfoWindow
 } from '@vis.gl/react-google-maps';
 import {
   Navigation,
   MapPin,
   Route,
   Layers,
-  ExternalLink,
-  Sparkles,
-  ChevronRight,
-  Clock,
-  Compass,
-  CheckCircle2,
-  Car
+  ExternalLink
 } from 'lucide-react';
 import { Activity, DayItinerary, Trip } from '../types';
-import { getActivityCoordinates, getDestinationMapCenter, LatLng } from '../utils/geoCoordinates';
+import { getActivityCoordinates, getDestinationMapCenter } from '../utils/geoCoordinates';
 import { MapRoutePolyline } from './MapRoutePolyline';
+import { MapCameraController } from './MapCameraController';
+import { parseTimeToMinutes, buildGoogleMapsMultiStopUrl } from '../utils/mapUtils';
 
 interface TripRouteMapProps {
   trip: Trip;
@@ -31,50 +25,6 @@ interface TripRouteMapProps {
   onSelectActivity?: (activity: Activity) => void;
   onStartNavigation: (activity: Activity) => void;
   className?: string;
-}
-
-// Camera Auto-Fitter
-const CameraAutoFit: React.FC<{
-  centerCoords: LatLng;
-  activitiesCoords: LatLng[];
-  selectedCoord?: LatLng | null;
-}> = ({ centerCoords, activitiesCoords, selectedCoord }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map) return;
-
-    if (selectedCoord) {
-      map.panTo(selectedCoord);
-      map.setZoom(15);
-      return;
-    }
-
-    if (activitiesCoords.length > 1 && typeof google !== 'undefined' && google.maps) {
-      const bounds = new google.maps.LatLngBounds();
-      activitiesCoords.forEach((coord) => bounds.extend(coord));
-      map.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
-    } else if (centerCoords) {
-      map.panTo(centerCoords);
-      map.setZoom(13);
-    }
-  }, [map, centerCoords, activitiesCoords, selectedCoord]);
-
-  return null;
-};
-
-function parseTimeToMinutes(timeStr?: string): number {
-  if (!timeStr) return 0;
-  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-  if (!match) return 0;
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const meridian = match[3]?.toUpperCase();
-
-  if (meridian === 'PM' && hours < 12) hours += 12;
-  if (meridian === 'AM' && hours === 12) hours = 0;
-
-  return hours * 60 + minutes;
 }
 
 export const TripRouteMap: React.FC<TripRouteMapProps> = ({
@@ -98,14 +48,16 @@ export const TripRouteMap: React.FC<TripRouteMapProps> = ({
   // Google Maps API Key from env
   const apiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
 
-  // Calculate coordinates for all activities of today
-  const activitiesWithCoords = activities.map((act, index) => {
-    const coords = getActivityCoordinates(act, trip.destination, index, activities.length);
-    return { ...act, mapCoords: coords, stopIndex: index + 1 };
-  });
+  // Calculate coordinates for all activities of today (memoized to prevent re-creation)
+  const activitiesWithCoords = React.useMemo(() => {
+    return activities.map((act, index) => {
+      const coords = getActivityCoordinates(act, trip.destination, index, activities.length);
+      return { ...act, mapCoords: coords, stopIndex: index + 1 };
+    });
+  }, [activities, trip.destination]);
 
-  const { center } = getDestinationMapCenter(trip, activities);
-  const polylineCoords = activitiesWithCoords.map((a) => a.mapCoords);
+  const { center } = React.useMemo(() => getDestinationMapCenter(trip, activities), [trip, activities]);
+  const polylineCoords = React.useMemo(() => activitiesWithCoords.map((a) => a.mapCoords), [activitiesWithCoords]);
 
   // Sync selected activity when prop changes
   useEffect(() => {
@@ -123,20 +75,10 @@ export const TripRouteMap: React.FC<TripRouteMapProps> = ({
   // Open multi-stop day route in Google Maps
   const openFullDayRoute = () => {
     if (activities.length === 0) return;
-    const origin = encodeURIComponent(activities[0].title + ', ' + (activities[0].location || trip.destination));
-    const destination = encodeURIComponent(
-      activities[activities.length - 1].title + ', ' + (activities[activities.length - 1].location || trip.destination)
-    );
-    const waypoints = activities
-      .slice(1, -1)
-      .map((a) => encodeURIComponent(a.title + ', ' + (a.location || trip.destination)))
-      .join('|');
-
-    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
-    if (waypoints) {
-      url += `&waypoints=${waypoints}`;
+    const url = buildGoogleMapsMultiStopUrl(activities, trip.destination);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -212,10 +154,12 @@ export const TripRouteMap: React.FC<TripRouteMapProps> = ({
               streetViewControl={false}
               fullscreenControl={true}
             >
-              <CameraAutoFit
+              <MapCameraController
                 centerCoords={center}
                 activitiesCoords={polylineCoords}
                 selectedCoord={activeStop?.mapCoords}
+                padding={50}
+                selectedZoom={15}
               />
 
               {/* Route Polyline */}

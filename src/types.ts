@@ -84,7 +84,7 @@ export interface Activity {
   time: string; // e.g. "09:00 AM"
   endTime?: string;
   title: string;
-  category: 'Food' | 'Sightseeing' | 'Adventure' | 'Relaxation' | 'Culture' | 'Nightlife' | 'Shopping' | 'Transit';
+  category: 'Food' | 'Sightseeing' | 'Adventure' | 'Relaxation' | 'Culture' | 'Nightlife' | 'Shopping' | 'Transit' | 'Nature';
   location: string;
   coordinates?: { lat: number; lng: number };
   estimatedCost: number; // in INR/USD

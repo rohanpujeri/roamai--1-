@@ -1,4 +1,4 @@
-import { TrailReel, fetchGlobalTrails, getLocalTrails } from './sharedTrailsService';
+import type { TrailReel } from './sharedTrailsService';
 
 const SAVED_IDS_KEY = 'roamai_saved_trail_ids';
 const SAVED_CACHE_KEY = 'roamai_saved_trails_cache';
@@ -37,7 +37,7 @@ export function getSavedTrailsCount(): number {
 /**
  * Read cached saved trail objects
  */
-function getCachedSavedTrails(): TrailReel[] {
+export function getCachedSavedTrails(): TrailReel[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(SAVED_CACHE_KEY);
@@ -136,6 +136,7 @@ export async function getSavedTrails(): Promise<TrailReel[]> {
 
   // 2. Fetch fresh global trails
   try {
+    const { fetchGlobalTrails } = await import('./sharedTrailsService');
     const globalList = await fetchGlobalTrails();
     globalList.forEach((t) => {
       if (savedIds.has(t.id)) {
@@ -144,6 +145,7 @@ export async function getSavedTrails(): Promise<TrailReel[]> {
     });
   } catch {
     // fallback to local trails
+    const { getLocalTrails } = await import('./sharedTrailsService');
     const local = getLocalTrails();
     local.forEach((t) => {
       if (savedIds.has(t.id)) {

@@ -96,11 +96,14 @@ export async function deleteUserAccountCompletely(
 
     // 8. Inform backend server to purge cached trails, usernames, and follows
     try {
+      const session = (await supabase?.auth.getSession())?.data.session;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
       await fetch('/api/auth/delete-account', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({ userId, username, email })
       });
     } catch (serverErr) {

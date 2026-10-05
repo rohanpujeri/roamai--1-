@@ -175,6 +175,8 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const coordsRef = useRef(coords);
+  coordsRef.current = coords;
 
   // Sync initial location when modal opens
   useEffect(() => {
@@ -233,7 +235,10 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
     }
   }, []);
 
-  // Initialize and mount Leaflet map when map tab is open
+  const handleCoordChangeRef = useRef(handleCoordChange);
+  handleCoordChangeRef.current = handleCoordChange;
+
+  // Initialize and mount Leaflet map when map tab is open (stable instance)
   useEffect(() => {
     if (!isOpen || activeTab !== 'map' || !mapContainerRef.current) return;
 
@@ -245,24 +250,30 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
       return;
     }
 
+    const initialLat = coordsRef.current.lat;
+    const initialLng = coordsRef.current.lng;
+
     const map = L.map(mapContainerRef.current, {
-      center: [coords.lat, coords.lng],
+      center: [initialLat, initialLng],
       zoom: 13,
       zoomControl: false,
       attributionControl: false
     });
 
-    // Add CartoDB Voyager tiles (rich, ultra-reliable, crisp dark-compatible road tiles)
+    // Add CartoDB Voyager tiles with idle throttling & buffer limit to eliminate tile request storms
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
-      subdomains: 'abcd'
+      subdomains: 'abcd',
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 2
     }).addTo(map);
 
     // Zoom controls top-right
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // Add marker
-    const marker = L.marker([coords.lat, coords.lng], {
+    const marker = L.marker([initialLat, initialLng], {
       icon: createEmeraldMarkerIcon(),
       draggable: true
     }).addTo(map);
@@ -270,13 +281,13 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
     marker.on('dragend', (ev) => {
       const m = ev.target;
       const pos = m.getLatLng();
-      handleCoordChange(pos.lat, pos.lng, false);
+      handleCoordChangeRef.current(pos.lat, pos.lng, false);
     });
 
     // Click anywhere on map to reposition marker
     map.on('click', (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
-      handleCoordChange(lat, lng, true);
+      handleCoordChangeRef.current(lat, lng, true);
     });
 
     mapInstanceRef.current = map;
@@ -295,7 +306,7 @@ export const TrailLocationPickerModal: React.FC<TrailLocationPickerModalProps> =
         markerRef.current = null;
       }
     };
-  }, [isOpen, activeTab, coords.lat, coords.lng, handleCoordChange]);
+  }, [isOpen, activeTab]);
 
   // Re-invalidate size whenever tab changes to 'map'
   useEffect(() => {

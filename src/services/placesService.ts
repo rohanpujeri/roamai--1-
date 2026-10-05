@@ -1,21 +1,12 @@
 import { SavedPlace, PlaceSearchResult } from '../types';
-import { fetchSavedPlaces, savePlaceToBackend, deletePlaceFromBackend } from './supabaseClient';
+import { savePlaceToBackend, deletePlaceFromBackend } from './supabaseClient';
+import { calculateHaversineDistanceKm } from '../utils/geoCoordinates';
 
 const SAVED_PLACES_STORAGE_KEY = 'tripwise_saved_places_v1';
 
-// Calculate distance between two coordinates in kilometers using Haversine formula
+// Calculate distance between two coordinates in kilometers using canonical Haversine formula
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Number((R * c).toFixed(1));
+  return calculateHaversineDistanceKm(lat1, lon1, lat2, lon2, 1);
 }
 
 // Synchronous local reading for instant UI components
@@ -149,6 +140,15 @@ async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; l
   return [];
 }
 
+// In-flight and memory cache for Google Places predictions and details
+const predictionsCache = new Map<string, { timestamp: number; data: AutocompleteSuggestion[] }>();
+const inFlightPredictions = new Map<string, Promise<AutocompleteSuggestion[]>>();
+const PREDICTIONS_CACHE_TTL_MS = 60000; // 1 minute
+
+const placeDetailsCache = new Map<string, { timestamp: number; data: PlaceSearchResult }>();
+const inFlightDetails = new Map<string, Promise<PlaceSearchResult>>();
+const PLACE_DETAILS_CACHE_TTL_MS = 300000; // 5 minutes
+
 /**
  * Fetch autocomplete predictions using Google Places Autocomplete API with live geocoder fallback
  */
@@ -158,63 +158,87 @@ export async function getGooglePlacesPredictions(
 ): Promise<AutocompleteSuggestion[]> {
   if (!input || !input.trim()) return [];
   const query = input.trim();
+  const cacheKey = `${query.toLowerCase()}_${userCoords ? `${userCoords.lat.toFixed(2)},${userCoords.lng.toFixed(2)}` : 'none'}`;
 
-  // Check if Google Maps Places SDK is available in the browser window
-  if (
-    typeof window !== 'undefined' &&
-    typeof (window as any).google !== 'undefined' &&
-    (window as any).google.maps &&
-    (window as any).google.maps.places &&
-    (window as any).google.maps.places.AutocompleteService
-  ) {
-    try {
-      const autocompleteService = new (window as any).google.maps.places.AutocompleteService();
-      const request: any = { input: query };
-
-      if (userCoords && userCoords.lat && userCoords.lng) {
-        request.locationBias = new (window as any).google.maps.Circle({
-          center: { lat: userCoords.lat, lng: userCoords.lng },
-          radius: 50000
-        });
-      }
-
-      const predictions: AutocompleteSuggestion[] = await new Promise((resolve) => {
-        autocompleteService.getPlacePredictions(request, (results: any[], status: any) => {
-          if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && results) {
-            resolve(
-              results.map((pred) => ({
-                placeId: pred.place_id,
-                mainText: pred.structured_formatting?.main_text || pred.description,
-                secondaryText: pred.structured_formatting?.secondary_text || '',
-                description: pred.description,
-                types: pred.types
-              }))
-            );
-          } else {
-            resolve([]);
-          }
-        });
-      });
-
-      if (predictions.length > 0) {
-        return predictions;
-      }
-    } catch (e) {
-      console.warn('Google Places autocomplete service error, checking live geocoder:', e);
-    }
+  // 1. Check memory cache
+  const cached = predictionsCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < PREDICTIONS_CACHE_TTL_MS) {
+    return cached.data;
   }
 
-  // Fallback to live OSM Nominatim Geocoding without any predefined places
-  const fallbackResults = await fallbackSearchPlaces(query, userCoords);
-  return fallbackResults.map((p) => ({
-    placeId: p.placeId,
-    mainText: p.name,
-    secondaryText: p.address,
-    description: p.address ? `${p.name}, ${p.address}` : p.name,
-    types: p.types,
-    lat: p.latitude,
-    lng: p.longitude
-  }));
+  // 2. In-flight request deduplication
+  const existingPromise = inFlightPredictions.get(cacheKey);
+  if (existingPromise) return existingPromise;
+
+  const fetchPromise = (async (): Promise<AutocompleteSuggestion[]> => {
+    try {
+      // Check if Google Maps Places SDK is available in the browser window
+      if (
+        typeof window !== 'undefined' &&
+        typeof (window as any).google !== 'undefined' &&
+        (window as any).google.maps &&
+        (window as any).google.maps.places &&
+        (window as any).google.maps.places.AutocompleteService
+      ) {
+        try {
+          const autocompleteService = new (window as any).google.maps.places.AutocompleteService();
+          const request: any = { input: query };
+
+          if (userCoords && userCoords.lat && userCoords.lng) {
+            request.locationBias = new (window as any).google.maps.Circle({
+              center: { lat: userCoords.lat, lng: userCoords.lng },
+              radius: 50000
+            });
+          }
+
+          const predictions: AutocompleteSuggestion[] = await new Promise((resolve) => {
+            autocompleteService.getPlacePredictions(request, (results: any[], status: any) => {
+              if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && results) {
+                resolve(
+                  results.map((pred) => ({
+                    placeId: pred.place_id,
+                    mainText: pred.structured_formatting?.main_text || pred.description,
+                    secondaryText: pred.structured_formatting?.secondary_text || '',
+                    description: pred.description,
+                    types: pred.types
+                  }))
+                );
+              } else {
+                resolve([]);
+              }
+            });
+          });
+
+          if (predictions.length > 0) {
+            predictionsCache.set(cacheKey, { timestamp: Date.now(), data: predictions });
+            return predictions;
+          }
+        } catch (e) {
+          console.warn('Google Places autocomplete service error, checking live geocoder:', e);
+        }
+      }
+
+      // Fallback to live OSM Nominatim Geocoding without any predefined places
+      const fallbackResults = await fallbackSearchPlaces(query, userCoords);
+      const results = fallbackResults.map((p) => ({
+        placeId: p.placeId,
+        mainText: p.name,
+        secondaryText: p.address,
+        description: p.address ? `${p.name}, ${p.address}` : p.name,
+        types: p.types,
+        lat: p.latitude,
+        lng: p.longitude
+      }));
+
+      predictionsCache.set(cacheKey, { timestamp: Date.now(), data: results });
+      return results;
+    } finally {
+      inFlightPredictions.delete(cacheKey);
+    }
+  })();
+
+  inFlightPredictions.set(cacheKey, fetchPromise);
+  return fetchPromise;
 }
 
 /**
@@ -224,54 +248,68 @@ export async function getGooglePlaceDetails(
   placeId: string,
   mapInstance?: any
 ): Promise<PlaceSearchResult> {
-  // Use Google PlacesService if available
-  if (
-    typeof window !== 'undefined' &&
-    typeof (window as any).google !== 'undefined' &&
-    (window as any).google.maps &&
-    (window as any).google.maps.places &&
-    (window as any).google.maps.places.PlacesService
-  ) {
-    try {
-      const serviceContainer = mapInstance || document.createElement('div');
-      const service = new (window as any).google.maps.places.PlacesService(serviceContainer);
-
-      const placeDetails: PlaceSearchResult = await new Promise((resolve, reject) => {
-        service.getDetails(
-          {
-            placeId,
-            fields: ['name', 'formatted_address', 'geometry', 'place_id', 'rating', 'photos', 'types', 'vicinity']
-          },
-          (place: any, status: any) => {
-            if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && place && place.geometry?.location) {
-              const lat = place.geometry.location.lat();
-              const lng = place.geometry.location.lng();
-              const photoUrl = place.photos && place.photos.length > 0
-                ? place.photos[0].getUrl({ maxWidth: 800, maxHeight: 600 })
-                : undefined;
-
-              resolve({
-                placeId: place.place_id || placeId,
-                name: place.name || 'Selected Place',
-                address: place.formatted_address || place.vicinity || 'Address not available',
-                latitude: Number(lat.toFixed(6)),
-                longitude: Number(lng.toFixed(6)),
-                types: place.types,
-                rating: place.rating || 4.5,
-                photoUrl
-              });
-            } else {
-              reject(new Error(`PlacesService status: ${status}`));
-            }
-          }
-        );
-      });
-
-      return placeDetails;
-    } catch (e) {
-      console.warn('Google PlaceDetails failed, checking Geocoder fallback:', e);
-    }
+  // 1. Check memory cache
+  const cached = placeDetailsCache.get(placeId);
+  if (cached && Date.now() - cached.timestamp < PLACE_DETAILS_CACHE_TTL_MS) {
+    return cached.data;
   }
+
+  // 2. In-flight request deduplication
+  const existingPromise = inFlightDetails.get(placeId);
+  if (existingPromise) return existingPromise;
+
+  const detailsPromise = (async (): Promise<PlaceSearchResult> => {
+    try {
+      // Use Google PlacesService if available
+      if (
+        typeof window !== 'undefined' &&
+        typeof (window as any).google !== 'undefined' &&
+        (window as any).google.maps &&
+        (window as any).google.maps.places &&
+        (window as any).google.maps.places.PlacesService
+      ) {
+        try {
+          const serviceContainer = mapInstance || document.createElement('div');
+          const service = new (window as any).google.maps.places.PlacesService(serviceContainer);
+
+          const placeDetails: PlaceSearchResult = await new Promise((resolve, reject) => {
+            service.getDetails(
+              {
+                placeId,
+                fields: ['name', 'formatted_address', 'geometry', 'place_id', 'rating', 'photos', 'types', 'vicinity']
+              },
+              (place: any, status: any) => {
+                if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && place && place.geometry?.location) {
+                  const lat = place.geometry.location.lat();
+                  const lng = place.geometry.location.lng();
+                  // Right-sized image: 480x360 matches mobile & desktop card viewports without downloading massive 800px files
+                  const photoUrl = place.photos && place.photos.length > 0
+                    ? place.photos[0].getUrl({ maxWidth: 480, maxHeight: 360 })
+                    : undefined;
+
+                  resolve({
+                    placeId: place.place_id || placeId,
+                    name: place.name || 'Selected Place',
+                    address: place.formatted_address || place.vicinity || 'Address not available',
+                    latitude: Number(lat.toFixed(6)),
+                    longitude: Number(lng.toFixed(6)),
+                    types: place.types,
+                    rating: place.rating || 4.5,
+                    photoUrl
+                  });
+                } else {
+                  reject(new Error(`PlacesService status: ${status}`));
+                }
+              }
+            );
+          });
+
+          placeDetailsCache.set(placeId, { timestamp: Date.now(), data: placeDetails });
+          return placeDetails;
+        } catch (e) {
+          console.warn('Google PlaceDetails failed, checking Geocoder fallback:', e);
+        }
+      }
 
   // Geocoder fallback if google.maps.Geocoder is available
   if (typeof (window as any).google !== 'undefined' && (window as any).google.maps?.Geocoder) {
@@ -301,21 +339,37 @@ export async function getGooglePlaceDetails(
     }
   }
 
-  // Dynamic geocoding fallback
-  const searchMatch = await fallbackSearchPlaces(placeId);
-  if (searchMatch.length > 0) {
-    return searchMatch[0];
-  }
+    // Dynamic geocoding fallback
+    const searchMatch = await fallbackSearchPlaces(placeId);
+    if (searchMatch.length > 0) {
+      placeDetailsCache.set(placeId, { timestamp: Date.now(), data: searchMatch[0] });
+      return searchMatch[0];
+    }
 
-  return {
-    placeId,
-    name: 'Selected Place',
-    address: 'Location verified on Google Maps',
-    latitude: 0,
-    longitude: 0,
-    rating: 4.5
-  };
+    const fallbackResult: PlaceSearchResult = {
+      placeId,
+      name: 'Selected Place',
+      address: 'Location verified on Google Maps',
+      latitude: 0,
+      longitude: 0,
+      rating: 4.5
+    };
+    return fallbackResult;
+  } finally {
+    inFlightDetails.delete(placeId);
+  }
+  })();
+
+  inFlightDetails.set(placeId, detailsPromise);
+  return detailsPromise;
 }
+
+/**
+ * Text search for queries like "restaurants near me", "airport", "mall", "cafes"
+ */
+const querySearchCache = new Map<string, { timestamp: number; data: PlaceSearchResult[] }>();
+const inFlightQuerySearch = new Map<string, Promise<PlaceSearchResult[]>>();
+const QUERY_SEARCH_CACHE_TTL_MS = 120000; // 2 minutes
 
 /**
  * Text search for queries like "restaurants near me", "airport", "mall", "cafes"
@@ -327,68 +381,91 @@ export async function searchPlacesByQuery(
 ): Promise<PlaceSearchResult[]> {
   if (!query || !query.trim()) return [];
   const cleanQuery = query.trim();
+  const cacheKey = `${cleanQuery.toLowerCase()}_${userCoords ? `${userCoords.lat.toFixed(2)},${userCoords.lng.toFixed(2)}` : 'none'}`;
 
-  // Try Google Maps PlacesService
-  if (
-    typeof window !== 'undefined' &&
-    typeof (window as any).google !== 'undefined' &&
-    (window as any).google.maps &&
-    (window as any).google.maps.places &&
-    (window as any).google.maps.places.PlacesService
-  ) {
-    try {
-      const serviceContainer = mapInstance || document.createElement('div');
-      const service = new (window as any).google.maps.places.PlacesService(serviceContainer);
-
-      const request: any = { query: cleanQuery };
-
-      if (userCoords && userCoords.lat && userCoords.lng) {
-        request.location = new (window as any).google.maps.LatLng(userCoords.lat, userCoords.lng);
-        request.radius = 30000;
-      }
-
-      const results: PlaceSearchResult[] = await new Promise((resolve) => {
-        service.textSearch(request, (items: any[], status: any) => {
-          if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && items) {
-            const mapped: PlaceSearchResult[] = items.slice(0, 10).map((r) => {
-              const lat = r.geometry?.location?.lat() || (userCoords?.lat ?? 0);
-              const lng = r.geometry?.location?.lng() || (userCoords?.lng ?? 0);
-              const photoUrl = r.photos && r.photos.length > 0
-                ? r.photos[0].getUrl({ maxWidth: 500, maxHeight: 400 })
-                : undefined;
-
-              let distanceKm: number | undefined;
-              if (userCoords && userCoords.lat && userCoords.lng && lat && lng) {
-                distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, lat, lng);
-              }
-
-              return {
-                placeId: r.place_id || `place-${Math.random()}`,
-                name: r.name || 'Place',
-                address: r.formatted_address || r.vicinity || '',
-                latitude: Number(lat.toFixed(6)),
-                longitude: Number(lng.toFixed(6)),
-                types: r.types,
-                rating: r.rating || 4.5,
-                photoUrl,
-                distanceKm
-              };
-            });
-            resolve(mapped);
-          } else {
-            resolve([]);
-          }
-        });
-      });
-
-      if (results.length > 0) {
-        return results;
-      }
-    } catch (e) {
-      console.warn('Google Places textSearch error, using fallback live geocoding:', e);
-    }
+  // 1. Check memory cache
+  const cached = querySearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < QUERY_SEARCH_CACHE_TTL_MS) {
+    return cached.data;
   }
 
-  // Fallback to live geocoding
-  return fallbackSearchPlaces(cleanQuery, userCoords);
+  // 2. In-flight deduplication
+  const existingPromise = inFlightQuerySearch.get(cacheKey);
+  if (existingPromise) return existingPromise;
+
+  const searchPromise = (async (): Promise<PlaceSearchResult[]> => {
+    try {
+      // Try Google Maps PlacesService
+      if (
+        typeof window !== 'undefined' &&
+        typeof (window as any).google !== 'undefined' &&
+        (window as any).google.maps &&
+        (window as any).google.maps.places &&
+        (window as any).google.maps.places.PlacesService
+      ) {
+        try {
+          const serviceContainer = mapInstance || document.createElement('div');
+          const service = new (window as any).google.maps.places.PlacesService(serviceContainer);
+
+          const request: any = { query: cleanQuery };
+
+          if (userCoords && userCoords.lat && userCoords.lng) {
+            request.location = new (window as any).google.maps.LatLng(userCoords.lat, userCoords.lng);
+            request.radius = 30000;
+          }
+
+          const results: PlaceSearchResult[] = await new Promise((resolve) => {
+            service.textSearch(request, (items: any[], status: any) => {
+              if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && items) {
+                const mapped: PlaceSearchResult[] = items.slice(0, 10).map((r) => {
+                  const lat = r.geometry?.location?.lat() || (userCoords?.lat ?? 0);
+                  const lng = r.geometry?.location?.lng() || (userCoords?.lng ?? 0);
+                  const photoUrl = r.photos && r.photos.length > 0
+                    ? r.photos[0].getUrl({ maxWidth: 480, maxHeight: 360 })
+                    : undefined;
+
+                  let distanceKm: number | undefined;
+                  if (userCoords && userCoords.lat && userCoords.lng && lat && lng) {
+                    distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, lat, lng);
+                  }
+
+                  return {
+                    placeId: r.place_id || `place-${Math.random()}`,
+                    name: r.name || 'Place',
+                    address: r.formatted_address || r.vicinity || '',
+                    latitude: Number(lat.toFixed(6)),
+                    longitude: Number(lng.toFixed(6)),
+                    types: r.types,
+                    rating: r.rating || 4.5,
+                    photoUrl,
+                    distanceKm
+                  };
+                });
+                resolve(mapped);
+              } else {
+                resolve([]);
+              }
+            });
+          });
+
+          if (results.length > 0) {
+            querySearchCache.set(cacheKey, { timestamp: Date.now(), data: results });
+            return results;
+          }
+        } catch (e) {
+          console.warn('Google Places textSearch error, using fallback live geocoding:', e);
+        }
+      }
+
+      // Fallback to live geocoding
+      const fallback = await fallbackSearchPlaces(cleanQuery, userCoords);
+      querySearchCache.set(cacheKey, { timestamp: Date.now(), data: fallback });
+      return fallback;
+    } finally {
+      inFlightQuerySearch.delete(cacheKey);
+    }
+  })();
+
+  inFlightQuerySearch.set(cacheKey, searchPromise);
+  return searchPromise;
 }

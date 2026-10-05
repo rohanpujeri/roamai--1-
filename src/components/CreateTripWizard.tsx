@@ -242,7 +242,6 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   const [startCity, setStartCity] = useState<string>(() => initialTrip?.startCity || '');
   const [customStartCity, setCustomStartCity] = useState<string>('');
   const [isCustomCityInput, setIsCustomCityInput] = useState<boolean>(false);
-  const [originSearch, setOriginSearch] = useState<string>('');
   const [originSelectionMode, setOriginSelectionMode] = useState<'ask_location' | 'manual' | 'detected'>(() => initialTrip?.startCity ? 'manual' : 'ask_location');
   const [locatingStatus, setLocatingStatus] = useState<'idle' | 'locating' | 'success' | 'error'>('idle');
   const [locationErrorMsg, setLocationErrorMsg] = useState<string>('');

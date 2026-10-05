@@ -2,23 +2,18 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'motion/react';
 import {
   Clock,
-  MapPin,
   Zap,
   Sparkles,
   CheckCircle2,
   Circle,
-  ExternalLink,
-  MoreVertical,
   RefreshCw,
-  Trash2,
   ChevronUp,
   ChevronDown,
   Info,
   Plus,
-  ArrowRight,
-  Compass
+  ArrowRight
 } from 'lucide-react';
-import { Activity, Trip, TravelMode } from '../types';
+import { Activity, Trip } from '../types';
 import { resolvePlaceImage, handleImageError } from '../utils/placeImages';
 
 interface SerpentineItineraryTimelineProps {

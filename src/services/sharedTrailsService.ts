@@ -1,12 +1,15 @@
+import { config } from '../config';
 import { getSupabaseClient } from './supabaseClient';
 import { saveTrailMedia, deleteTrailMedia } from './trailMediaStorage';
 import { isFakeMockUser } from './followService';
+import { optimizeMp4ForWeb } from '../utils/mp4Faststart';
 
 export interface TrailCreator {
   id?: string;
   name: string;
   username: string;
   avatarUrl?: string;
+  bio?: string;
   isFollowed?: boolean;
   isVerified?: boolean;
 }
@@ -94,6 +97,7 @@ export interface TrailLiker {
   avatarUrl?: string;
   bio?: string;
   likedAt?: string;
+  isFollowing?: boolean;
 }
 
 export interface TrailReel {
@@ -522,6 +526,8 @@ export async function saveStorageTrailsIndex(trails: TrailReel[]): Promise<boole
   }
 }
 
+const INITIAL_TRAILS_BATCH_LIMIT = 12;
+
 // In-memory cache & request deduplication for instant response
 let cachedGlobalTrails: TrailReel[] | null = null;
 let lastGlobalTrailsFetchTime = 0;
@@ -536,186 +542,198 @@ export function invalidateGlobalTrailsCache(): void {
 /**
  * Fetch all shared trails globally from Supabase and the backend API,
  * merging with local cache so all profiles see everyone's trails in real time.
+ * Stale-While-Revalidate: Returns cached memory/local trails in 0ms, revalidating in background.
  */
 export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel[]> {
   const now = Date.now();
-  if (!forceRefresh && cachedGlobalTrails && cachedGlobalTrails.length > 0 && (now - lastGlobalTrailsFetchTime < GLOBAL_TRAILS_CACHE_TTL)) {
+
+  // If memory cache exists
+  if (!forceRefresh && cachedGlobalTrails && cachedGlobalTrails.length > 0) {
+    if (now - lastGlobalTrailsFetchTime < GLOBAL_TRAILS_CACHE_TTL) {
+      return cachedGlobalTrails;
+    }
+    // Stale-While-Revalidate: Return existing cache immediately for 0ms lag,
+    // and revalidate in background without blocking the caller!
+    revalidateGlobalTrails().catch(() => {});
     return cachedGlobalTrails;
+  }
+
+  // If memory cache is null, check local storage
+  if (!cachedGlobalTrails) {
+    const local = getLocalTrails();
+    if (local && local.length > 0) {
+      cachedGlobalTrails = local;
+      lastGlobalTrailsFetchTime = now;
+      if (!forceRefresh) {
+        // Trigger background revalidation asynchronously without blocking the caller
+        revalidateGlobalTrails().catch(() => {});
+        return local;
+      }
+    }
   }
 
   if (inFlightGlobalTrailsPromise) {
     return inFlightGlobalTrailsPromise;
   }
 
-  inFlightGlobalTrailsPromise = (async () => {
+  inFlightGlobalTrailsPromise = revalidateGlobalTrails();
+  return inFlightGlobalTrailsPromise;
+}
+
+/**
+ * Non-blocking background avatar & profile enrichment for creators without avatars
+ */
+async function hydrateMissingAvatars(missingAvatarIds: string[], supabase: any) {
+  if (!missingAvatarIds.length || !supabase) return;
+  try {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, username, name, avatar_url')
+      .in('id', missingAvatarIds.slice(0, 20));
+
+    if (Array.isArray(profs) && profs.length > 0 && cachedGlobalTrails) {
+      const profMap = new Map<string, any>(profs.map((p) => [p.id, p]));
+      let updatedAny = false;
+
+      cachedGlobalTrails = cachedGlobalTrails.map((t) => {
+        if (t.creator && t.creator.id) {
+          const matched = profMap.get(t.creator.id.replace(/^supa_/, ''));
+          if (matched && (matched.avatar_url || matched.name)) {
+            updatedAny = true;
+            return {
+              ...t,
+              creator: {
+                ...t.creator,
+                avatarUrl: matched.avatar_url || t.creator.avatarUrl,
+                name: matched.name || t.creator.name
+              }
+            };
+          }
+        }
+        return t;
+      });
+
+      if (updatedAny && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cachedGlobalTrails));
+          window.dispatchEvent(new CustomEvent('roamai_trail_creators_hydrated'));
+        } catch {}
+      }
+    }
+  } catch {
+    // Non-fatal background task
+  }
+}
+
+/**
+ * Background revalidation for global trails:
+ * Prioritizes the indexed Supabase trails table with targeted column selection,
+ * small first batch limit (12 items) to render fast, and non-blocking avatar hydration.
+ */
+async function revalidateGlobalTrails(): Promise<TrailReel[]> {
+  try {
     const deletedIds = new Set(getDeletedTrailIds());
     const localList = getLocalTrails();
     const trailMap = new Map<string, TrailReel>();
 
-    // 1. Fetch remote sources concurrently in parallel
-    const [storageResult, supabaseResult, serverResult, profilesResult] = await Promise.allSettled([
-      // Storage registry index
-      fetchStorageTrailsIndex(),
-      // Supabase public.trails table
-      (async () => {
-        const supabase = getSupabaseClient();
-        if (!supabase) return [];
+    const supabase = getSupabaseClient();
+    let supabaseSuccess = false;
+
+    // 1. Primary Source: Query indexed Supabase trails table with lean initial batch (limit 12)
+    if (supabase) {
+      try {
         const { data, error } = await supabase
           .from('trails')
-          .select('*')
-          .order('created_at', { ascending: false });
-        return (!error && Array.isArray(data)) ? data : [];
-      })(),
-      // Backend Express server API
-      (async () => {
-        try {
-          const res = await fetch('/api/trails');
-          if (res.ok) {
-            const data = await res.json();
-            return Array.isArray(data.trails) ? data.trails : [];
-          }
-        } catch {}
-        return [];
-      })(),
-      // Live user profiles
-      (async () => {
-        try {
-          const supabase = getSupabaseClient();
-          if (!supabase) return [];
-          const { data } = await supabase
-            .from('profiles')
-            .select('id, username, name, avatar_url')
-            .limit(500);
-          return Array.isArray(data) ? data : [];
-        } catch {
-          return [];
-        }
-      })()
-    ]);
+          .select('id, user_id, trail_data, created_at')
+          .order('created_at', { ascending: false })
+          .limit(INITIAL_TRAILS_BATCH_LIMIT);
 
-    const isSupabaseLive = supabaseResult.status === 'fulfilled';
-
-    // Process storage index trails
-    if (storageResult.status === 'fulfilled' && Array.isArray(storageResult.value)) {
-      storageResult.value.forEach((t) => {
-        if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t)) {
-          trailMap.set(t.id, t);
-        }
-      });
-    }
-
-    // Process Supabase trails (primary source of truth)
-    if (supabaseResult.status === 'fulfilled' && Array.isArray(supabaseResult.value)) {
-      supabaseResult.value.forEach((row: any) => {
-        const rawTrail = row.trail_data || row;
-        if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-') && isValidTrailMedia(rawTrail)) {
-          const t = sanitizeTrail({
-            ...rawTrail,
-            createdAt: row.created_at || rawTrail.createdAt,
+        if (!error && Array.isArray(data) && data.length > 0) {
+          supabaseSuccess = true;
+          data.forEach((row: any) => {
+            const rawTrail = row.trail_data || row;
+            if (rawTrail && rawTrail.id && !deletedIds.has(rawTrail.id) && !rawTrail.id.startsWith('sample-trail-') && isValidTrailMedia(rawTrail)) {
+              const t = sanitizeTrail({
+                ...rawTrail,
+                createdAt: row.created_at || rawTrail.createdAt,
+              });
+              if (!isFakeMockUser(t.creator?.username)) {
+                trailMap.set(t.id, t);
+              }
+            }
           });
-          if (!isFakeMockUser(t.creator?.username)) {
-            trailMap.set(t.id, t);
-          }
         }
-      });
+      } catch (err) {
+        console.warn('[sharedTrailsService] Supabase trails query notice:', err);
+      }
     }
 
-    // Process server trails
-    if (serverResult.status === 'fulfilled' && Array.isArray(serverResult.value)) {
-      serverResult.value.forEach((tRaw: any) => {
-        if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && isValidTrailMedia(tRaw) && !trailMap.has(tRaw.id)) {
-          const t = sanitizeTrail(tRaw);
-          if (!isFakeMockUser(t.creator?.username)) {
+    // 2. Fallback: If Supabase returned no trails or failed, query storage index and Express API in parallel
+    if (!supabaseSuccess || trailMap.size === 0) {
+      const [storageResult, serverResult] = await Promise.allSettled([
+        fetchStorageTrailsIndex(),
+        (async () => {
+          try {
+            const res = await fetch('/api/trails');
+            if (res.ok) {
+              const data = await res.json();
+              return Array.isArray(data.trails) ? data.trails : [];
+            }
+          } catch {}
+          return [];
+        })()
+      ]);
+
+      if (storageResult.status === 'fulfilled' && Array.isArray(storageResult.value)) {
+        storageResult.value.forEach((t) => {
+          if (t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && isValidTrailMedia(t)) {
             trailMap.set(t.id, t);
           }
-        }
-      });
+        });
+      }
+
+      if (serverResult.status === 'fulfilled' && Array.isArray(serverResult.value)) {
+        serverResult.value.forEach((tRaw: any) => {
+          if (tRaw && tRaw.id && !deletedIds.has(tRaw.id) && !tRaw.id.startsWith('sample-trail-') && isValidTrailMedia(tRaw) && !trailMap.has(tRaw.id)) {
+            const t = sanitizeTrail(tRaw);
+            if (!isFakeMockUser(t.creator?.username)) {
+              trailMap.set(t.id, t);
+            }
+          }
+        });
+      }
     }
 
-    // Handle local trails:
-    // If Supabase is live, only include local items if they are freshly uploaded (last 2 minutes)
-    // and never resurrect stale/deleted trails from previous sessions
-    if (isSupabaseLive) {
-      const nowMs = Date.now();
-      localList.forEach((t) => {
-        if (t && t.id && !deletedIds.has(t.id) && isValidTrailMedia(t)) {
-          const createdTime = t.createdAt ? new Date(t.createdAt).getTime() : 0;
-          const isFreshDraft = createdTime && (nowMs - createdTime < 2 * 60 * 1000);
-          if (isFreshDraft && !trailMap.has(t.id)) {
-            trailMap.set(t.id, sanitizeTrail(t));
-          }
-        }
-      });
-    } else {
-      // Offline fallback: include cached valid local trails
-      localList.forEach((t) => {
-        if (t && t.id && !deletedIds.has(t.id) && isValidTrailMedia(t) && !trailMap.has(t.id)) {
+    // 3. Include recent local drafts (uploaded in the last 2 minutes)
+    const nowMs = Date.now();
+    localList.forEach((t) => {
+      if (t && t.id && !deletedIds.has(t.id) && isValidTrailMedia(t)) {
+        const createdTime = t.createdAt ? new Date(t.createdAt).getTime() : 0;
+        const isFreshDraft = createdTime && (nowMs - createdTime < 2 * 60 * 1000);
+        if (isFreshDraft && !trailMap.has(t.id)) {
+          trailMap.set(t.id, sanitizeTrail(t));
+        } else if (!supabaseSuccess && !trailMap.has(t.id)) {
           trailMap.set(t.id, sanitizeTrail(t));
         }
-      });
-    }
+      }
+    });
 
-    // Hydrate creator profiles
-    if (profilesResult.status === 'fulfilled' && Array.isArray(profilesResult.value) && profilesResult.value.length > 0) {
-      const liveProfiles = profilesResult.value;
-      const profMap = new Map<string, any>();
-      liveProfiles.forEach((p: any) => {
-        if (p.id) profMap.set(p.id, p);
-        const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
-        if (clean) {
-          profMap.set(clean, p);
-          profMap.set(clean.replace(/[._]/g, ''), p);
-        }
-      });
+    // Extract creators missing avatars for asynchronous background hydration
+    const missingAvatarIds: string[] = [];
+    trailMap.forEach((t) => {
+      if (t.creator && !t.creator.avatarUrl && t.creator.id && !t.creator.id.startsWith('user_')) {
+        missingAvatarIds.push(t.creator.id.replace(/^supa_/, ''));
+      }
+    });
 
-      trailMap.forEach((t) => {
-        if (t.creator) {
-          const cId = t.creator.id;
-          const cUname = (t.creator.username || '').toLowerCase().replace(/^@+/, '');
-          const matched = (cId && profMap.get(cId)) || (cUname && (profMap.get(cUname) || profMap.get(cUname.replace(/[._]/g, ''))));
-          if (matched) {
-            if (matched.username) {
-              t.creator.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
-            }
-            if (matched.name) {
-              t.creator.name = matched.name;
-            }
-            if (matched.avatar_url) {
-              t.creator.avatarUrl = matched.avatar_url;
-            }
-          }
-        }
-
-        // Hydrate likedBy likers with live profiles
-        if (Array.isArray(t.likedBy) && t.likedBy.length > 0) {
-          t.likedBy.forEach((liker) => {
-            const lId = liker.id;
-            const lUname = (liker.username || '').toLowerCase().replace(/^@+/, '');
-            const matched = (lId && profMap.get(lId)) || (lUname && (profMap.get(lUname) || profMap.get(lUname.replace(/[._]/g, ''))));
-            if (matched) {
-              if (matched.username) {
-                liker.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
-              }
-              if (matched.name) {
-                liker.name = matched.name;
-              }
-              if (matched.avatar_url) {
-                liker.avatarUrl = matched.avatar_url;
-              }
-            }
-          });
-        }
-      });
-    }
-
-    // Convert map to sorted array (newest first)
+    // 4. Convert map to sorted array (newest first)
     const combined = Array.from(trailMap.values()).map(sanitizeTrail).sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id.replace(/\D/g, '')) || 0;
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id.replace(/\D/g, '')) || 0;
       return timeB - timeA;
     });
 
-    // Update in-memory cache & local storage
+    // Update in-memory cache & local storage immediately
     cachedGlobalTrails = combined;
     lastGlobalTrailsFetchTime = Date.now();
 
@@ -727,12 +745,90 @@ export async function fetchGlobalTrails(forceRefresh = false): Promise<TrailReel
       }
     }
 
-    return combined;
-  })().finally(() => {
-    inFlightGlobalTrailsPromise = null;
-  });
+    // 5. Fire non-blocking profile hydration in background without blocking initial feed display
+    if (missingAvatarIds.length > 0 && supabase) {
+      hydrateMissingAvatars(missingAvatarIds, supabase).catch(() => {});
+    }
 
-  return inFlightGlobalTrailsPromise;
+    return combined;
+  } finally {
+    inFlightGlobalTrailsPromise = null;
+  }
+}
+
+let inFlightFetchMorePromise: Promise<TrailReel[]> | null = null;
+
+/**
+ * Fetch more trails progressively from Supabase without loading the entire database at once
+ */
+export async function fetchMoreGlobalTrails(offset: number, limit = 20): Promise<TrailReel[]> {
+  if (inFlightFetchMorePromise) return inFlightFetchMorePromise;
+
+  inFlightFetchMorePromise = (async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return [];
+      const deletedIds = new Set(getDeletedTrailIds());
+
+      const { data, error } = await supabase
+        .from('trails')
+        .select('id, user_id, trail_data, created_at')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const moreTrails: TrailReel[] = [];
+        data.forEach((row: any) => {
+          const raw = row.trail_data || row;
+          if (raw && raw.id && !deletedIds.has(raw.id) && !raw.id.startsWith('sample-trail-') && isValidTrailMedia(raw)) {
+            const t = sanitizeTrail({
+              ...raw,
+              createdAt: row.created_at || raw.createdAt
+            });
+            if (!isFakeMockUser(t.creator?.username)) {
+              moreTrails.push(t);
+            }
+          }
+        });
+
+        if (moreTrails.length > 0 && cachedGlobalTrails) {
+          const existingIds = new Set(cachedGlobalTrails.map((t) => t.id));
+          const newUnique = moreTrails.filter((t) => !existingIds.has(t.id));
+          cachedGlobalTrails = [...cachedGlobalTrails, ...newUnique];
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cachedGlobalTrails));
+          } catch {}
+          return newUnique;
+        }
+      }
+      return [];
+    } catch (e) {
+      console.warn('[sharedTrailsService] fetchMoreGlobalTrails notice:', e);
+      return [];
+    } finally {
+      inFlightFetchMorePromise = null;
+    }
+  })();
+
+  return inFlightFetchMorePromise;
+}
+
+/**
+ * Paginate an in-memory or loaded trails array for smooth infinite scrolling
+ */
+export function getPaginatedTrails(
+  allTrails: TrailReel[],
+  page = 1,
+  pageSize = 10
+): { trails: TrailReel[]; hasMore: boolean; total: number } {
+  const start = 0;
+  const end = page * pageSize;
+  const sliced = allTrails.slice(start, end);
+  return {
+    trails: sliced,
+    hasMore: end < allTrails.length,
+    total: allTrails.length
+  };
 }
 
 /**
@@ -749,26 +845,36 @@ export async function publishGlobalTrail(
   removeDeletedTrailId(trail.id);
   invalidateGlobalTrailsCache();
 
-  // 1. Save binary file to IndexedDB for instant, zero-lag local playback on this device
-  if (file) {
-    await saveTrailMedia(trail.id, file);
+  // 1. Optimize video with client-side faststart (moves moov atom to start for instant progressive streaming)
+  let uploadFile = file;
+  if (file && (file.type?.includes('mp4') || file.type?.includes('video') || file.type?.includes('quicktime'))) {
+    try {
+      uploadFile = await optimizeMp4ForWeb(file);
+    } catch {
+      uploadFile = file;
+    }
+  }
+
+  // Save optimized binary file to IndexedDB for instant, zero-lag local playback on this device
+  if (uploadFile) {
+    await saveTrailMedia(trail.id, uploadFile);
   }
 
   // 2. Upload video/image binary directly to Supabase Storage bucket 'trails'
-  if (file && supabase) {
+  if (uploadFile && supabase) {
     try {
-      const isImg = file.type?.startsWith('image/') || trail.mediaType === 'image';
+      const isImg = uploadFile.type?.startsWith('image/') || trail.mediaType === 'image';
       const ext = isImg
-        ? (file.type?.includes('png') ? 'png' : 'jpg')
-        : (file.type?.includes('webm') ? 'webm' : 'mp4');
+        ? (uploadFile.type?.includes('png') ? 'png' : 'jpg')
+        : (uploadFile.type?.includes('webm') ? 'webm' : 'mp4');
       const filePath = `media/${trail.id}.${ext}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('trails')
-        .upload(filePath, file, {
-          cacheControl: '3600',
+        .upload(filePath, uploadFile, {
+          cacheControl: '31536000',
           upsert: true,
-          contentType: file.type || (isImg ? 'image/jpeg' : 'video/mp4')
+          contentType: uploadFile.type || (isImg ? 'image/jpeg' : 'video/mp4')
         });
 
       if (!uploadError && uploadData) {
@@ -796,7 +902,7 @@ export async function publishGlobalTrail(
       const { data: pData, error: pErr } = await supabase.storage
         .from('trails')
         .upload(posterPath, posterBlob, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: true,
           contentType: 'image/jpeg'
         });
@@ -1028,6 +1134,8 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
   }
 }
 
+const inFlightLikes = new Set<string>();
+
 /**
  * Like / unlike a trail globally.
  * ONLY signed up users with a valid username can like a trail.
@@ -1036,85 +1144,90 @@ export async function likeGlobalTrail(
   trailId: string, 
   increment: boolean,
   liker?: TrailLiker
-): Promise<void> {
+): Promise<{ success: boolean }> {
   // Strict check: only registered/signed up users can like
   if (!liker || (!liker.username && !liker.id)) {
     console.warn('[sharedTrailsService] likeGlobalTrail requires a signed-up user');
-    return;
+    return { success: false };
   }
 
-  // 1. Update user liked state
-  setTrailLikedByUser(trailId, increment);
+  if (inFlightLikes.has(trailId)) {
+    return { success: true };
+  }
+  inFlightLikes.add(trailId);
 
-  // 2. Update local likers list
-  let currentLikers = getLocalTrailLikers(trailId);
-  const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-  if (!cleanU) return;
+  try {
+    // 1. Update user liked state
+    setTrailLikedByUser(trailId, increment);
 
-  if (increment) {
-    if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
-      currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
+    // 2. Update local likers list
+    let currentLikers = getLocalTrailLikers(trailId);
+    const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
+    if (!cleanU) return { success: false };
+
+    if (increment) {
+      if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
+        currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
+      }
+    } else {
+      currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
     }
-  } else {
-    currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
-  }
-  setLocalTrailLikers(trailId, currentLikers);
+    setLocalTrailLikers(trailId, currentLikers);
 
-  // 3. Update local storage cache immediately for zero latency
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (raw) {
-        const trails: TrailReel[] = JSON.parse(raw);
-        if (Array.isArray(trails)) {
-          const updated = trails.map((t) => {
-            if (t.id === trailId) {
-              return { 
-                ...t, 
-                likesCount: currentLikers.length, 
-                isLiked: increment,
-                likedBy: currentLikers 
-              };
-            }
-            return t;
-          });
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    // 3. Update local storage cache immediately for zero latency
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) {
+          const trails: TrailReel[] = JSON.parse(raw);
+          if (Array.isArray(trails)) {
+            const updated = trails.map((t) => {
+              if (t.id === trailId) {
+                return { 
+                  ...t, 
+                  likesCount: currentLikers.length, 
+                  isLiked: increment,
+                  likedBy: currentLikers 
+                };
+              }
+              return t;
+            });
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+          }
         }
-      }
-      window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: currentLikers.length } }));
-      window.dispatchEvent(new Event('storage'));
-    } catch {
-      // ignore
-    }
-  }
-
-  // 4. Update in Supabase
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
-      if (data && data.trail_data) {
-        const updatedTrail = { 
-          ...data.trail_data, 
-          likesCount: currentLikers.length,
-          likedBy: currentLikers 
-        };
-        await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
+        window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: currentLikers.length } }));
+        window.dispatchEvent(new Event('storage'));
+      } catch {
+        // ignore
       }
     }
-  } catch {
-    // ignore
-  }
 
-  // 5. Update in server
-  try {
-    await fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ increment, liker })
-    });
-  } catch {
-    // ignore
+    // 4. Update in Supabase & Server concurrently in background
+    Promise.allSettled([
+      (async () => {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
+          if (data && data.trail_data) {
+            const updatedTrail = { 
+              ...data.trail_data, 
+              likesCount: currentLikers.length, 
+              likedBy: currentLikers 
+            };
+            await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
+          }
+        }
+      })(),
+      fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ increment, liker })
+      })
+    ]).catch(() => {});
+
+    return { success: true };
+  } finally {
+    inFlightLikes.delete(trailId);
   }
 }
 
@@ -1181,27 +1294,24 @@ export async function recordTrailView(
     }
   }
 
-  // 2. Update in server API
+  // 2. Update in server API and Supabase concurrently without sequential waterfalls
   try {
-    const res = await fetch(`/api/trails/${encodeURIComponent(trailId)}/view`, {
+    const serverPromise = fetch(`/api/trails/${encodeURIComponent(trailId)}/view`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ viewer })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (typeof data.viewsCount === 'number') {
-        updatedViewsCount = data.viewsCount;
+    }).then(async (res) => {
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.viewsCount === 'number') {
+          updatedViewsCount = data.viewsCount;
+        }
       }
-    }
-  } catch (err) {
-    // ignore
-  }
+    }).catch(() => {});
 
-  // 3. Update in Supabase
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
+    const supabasePromise = (async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
       const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
       if (data && data.trail_data) {
         const currentViews = Number(data.trail_data.viewsCount || 0);
@@ -1221,7 +1331,9 @@ export async function recordTrailView(
           }
         }).eq('id', trailId);
       }
-    }
+    })().catch(() => {});
+
+    await Promise.allSettled([serverPromise, supabasePromise]);
   } catch (err) {
     // ignore
   }

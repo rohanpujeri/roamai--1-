@@ -316,163 +316,208 @@ export interface RealTravellerResult {
   isFollowing?: boolean;
 }
 
+// In-flight request deduplication and memory cache for real travellers
+const inFlightSearchPromises = new Map<string, Promise<RealTravellerResult[]>>();
+const searchCache = new Map<string, { timestamp: number; data: RealTravellerResult[] }>();
+const SEARCH_CACHE_TTL_MS = 25000; // 25 seconds cache
+
+export function invalidateTravellerCache() {
+  searchCache.clear();
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('roamai_profile_updated', invalidateTravellerCache);
+  window.addEventListener('roamai_follow_changed', invalidateTravellerCache);
+}
+
 /**
  * Searches real registered users across Supabase database, server username registry, and local profiles.
  * Eliminates all fake / predefined mock profiles.
+ * Features in-flight deduplication, parallel queries, and short-term memory caching.
  */
 export async function searchRealTravellers(searchQuery?: string): Promise<RealTravellerResult[]> {
   const q = (searchQuery || '').trim().toLowerCase().replace(/^@+/, '');
-  const profilesMap = new Map<string, RealTravellerResult>();
+  const cacheKey = q;
 
-  const recordProfile = (p: Partial<RealTravellerResult> & { username: string }) => {
-    const cleanUser = cleanUsernameInput(p.username);
-    if (!cleanUser || isFakeMockUser(cleanUser)) return;
-    const existing = profilesMap.get(cleanUser);
-    const updated: RealTravellerResult = {
-      id: p.id || existing?.id || `user_${cleanUser}`,
-      name: p.name || existing?.name || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
-      username: `@${cleanUser}`,
-      avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
-      location: '',
-      bio: cleanBio(p.bio) || cleanBio(existing?.bio) || '',
-      level: p.level || existing?.level || 'Travel Explorer',
-      tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
-      placesCount: p.placesCount ?? existing?.placesCount ?? 0,
-      countriesCount: p.countriesCount ?? existing?.countriesCount ?? 0,
-      topDNA: p.topDNA || existing?.topDNA || [],
-      recentPlaces: p.recentPlaces || existing?.recentPlaces || [],
-      isFollowing: p.isFollowing ?? existing?.isFollowing ?? false
+  // 1. Cache hit check (immediate 0ms response)
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  // 2. In-flight request deduplication: return existing promise if identical query is already running
+  const inFlight = inFlightSearchPromises.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const searchPromise = (async (): Promise<RealTravellerResult[]> => {
+    const profilesMap = new Map<string, RealTravellerResult>();
+
+    const recordProfile = (p: Partial<RealTravellerResult> & { username: string }) => {
+      const cleanUser = cleanUsernameInput(p.username);
+      if (!cleanUser || isFakeMockUser(cleanUser)) return;
+      const existing = profilesMap.get(cleanUser);
+      const updated: RealTravellerResult = {
+        id: p.id || existing?.id || `user_${cleanUser}`,
+        name: p.name || existing?.name || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
+        username: `@${cleanUser}`,
+        avatarUrl: sanitizeAvatarUrl(p.avatarUrl || existing?.avatarUrl || ''),
+        location: '',
+        bio: cleanBio(p.bio) || cleanBio(existing?.bio) || '',
+        level: p.level || existing?.level || 'Travel Explorer',
+        tripsCount: p.tripsCount ?? existing?.tripsCount ?? 0,
+        placesCount: p.placesCount ?? existing?.placesCount ?? 0,
+        countriesCount: p.countriesCount ?? existing?.countriesCount ?? 0,
+        topDNA: p.topDNA || existing?.topDNA || [],
+        recentPlaces: p.recentPlaces || existing?.recentPlaces || [],
+        isFollowing: p.isFollowing ?? existing?.isFollowing ?? false
+      };
+      profilesMap.set(cleanUser, updated);
     };
-    profilesMap.set(cleanUser, updated);
-  };
 
-  // 1. PRIMARY SOURCE OF TRUTH: Query Supabase public profiles & usernames tables
-  const supabase = getSupabaseClient();
-  let supabaseSucceeded = false;
+    const supabase = getSupabaseClient();
+    let supabaseSucceeded = false;
 
-  if (supabase) {
-    try {
-      let query = supabase.from('profiles').select('*');
+    // Parallel fetch: query Supabase profiles, usernames, and backend search concurrently
+    const queryPromises: Promise<any>[] = [];
+
+    // 1. Query Supabase public profiles table (targeted columns only)
+    if (supabase) {
+      let pQuery = supabase
+        .from('profiles')
+        .select('id, username, name, avatar_url, bio, location, level, trips_count, places_count, countries_count');
       if (q) {
-        query = query.or(`username.ilike.%${q}%,name.ilike.%${q}%,location.ilike.%${q}%,place.ilike.%${q}%`);
+        pQuery = pQuery.or(`username.ilike.%${q}%,name.ilike.%${q}%,location.ilike.%${q}%`);
       }
-      const { data, error } = await query.limit(50);
-      if (!error && Array.isArray(data)) {
-        supabaseSucceeded = true;
-        const validSupabaseUsernames = new Set<string>();
-
-        data.forEach((row: any) => {
-          if (row.username) {
-            const clean = cleanUsernameInput(row.username);
-            if (clean && !isFakeMockUser(clean)) {
-              validSupabaseUsernames.add(clean);
-              recordProfile({
-                id: row.id,
-                username: `@${clean}`,
-                name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
-                avatarUrl: row.avatar_url,
-                bio: cleanBio(row.bio),
-                location: row.location || row.place,
-                level: row.level || 'Travel Explorer',
-                tripsCount: row.trips_count || 0,
-                placesCount: row.places_count || 0,
-                countriesCount: row.countries_count || 0
-              });
-            }
-          }
-        });
-
-        // Prune stale localStorage profiles that do not exist in the active Supabase project
-        if (typeof window !== 'undefined') {
+      queryPromises.push(
+        (async () => {
           try {
-            const keysToRemove: string[] = [];
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && key.startsWith('tripwise_user_profile_')) {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                  const parsed = JSON.parse(raw);
-                  const u = cleanUsernameInput(parsed?.username);
-                  if (u && !validSupabaseUsernames.has(u)) {
-                    keysToRemove.push(key);
+            const { data, error } = await pQuery.limit(50);
+            if (!error && Array.isArray(data)) {
+              supabaseSucceeded = true;
+              const validSupabaseUsernames = new Set<string>();
+
+              data.forEach((row: any) => {
+                if (row.username) {
+                  const clean = cleanUsernameInput(row.username);
+                  if (clean && !isFakeMockUser(clean)) {
+                    validSupabaseUsernames.add(clean);
+                    recordProfile({
+                      id: row.id,
+                      username: `@${clean}`,
+                      name: row.name || (clean.charAt(0).toUpperCase() + clean.slice(1)),
+                      avatarUrl: row.avatar_url,
+                      bio: cleanBio(row.bio),
+                      location: row.location,
+                      level: row.level || 'Travel Explorer',
+                      tripsCount: row.trips_count || 0,
+                      placesCount: row.places_count || 0,
+                      countriesCount: row.countries_count || 0
+                    });
                   }
                 }
+              });
+
+              // Prune stale localStorage profiles only on full unfiltered fetch, deferred off the critical path
+              if (!q && typeof window !== 'undefined') {
+                setTimeout(() => {
+                  try {
+                    const keysToRemove: string[] = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                      const key = localStorage.key(i);
+                      if (key && key.startsWith('tripwise_user_profile_')) {
+                        const raw = localStorage.getItem(key);
+                        if (raw) {
+                          const parsed = JSON.parse(raw);
+                          const u = cleanUsernameInput(parsed?.username);
+                          if (u && !validSupabaseUsernames.has(u)) {
+                            keysToRemove.push(key);
+                          }
+                        }
+                      }
+                    }
+                    keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+                    // Also clean up stale claimed usernames
+                    const claimed = getLocalClaimedUsernames();
+                    let claimedChanged = false;
+                    Object.keys(claimed).forEach((u) => {
+                      const clean = cleanUsernameInput(u);
+                      if (!validSupabaseUsernames.has(clean)) {
+                        delete claimed[u];
+                        claimedChanged = true;
+                      }
+                    });
+                    if (claimedChanged) {
+                      localStorage.setItem(LOCAL_STORAGE_USERNAMES_KEY, JSON.stringify(claimed));
+                    }
+                  } catch (e) {
+                    console.warn('Error pruning stale profiles:', e);
+                  }
+                }, 100);
               }
             }
-            keysToRemove.forEach((k) => localStorage.removeItem(k));
+          } catch {}
+        })()
+      );
 
-            // Also clean up stale claimed usernames
-            const claimed = getLocalClaimedUsernames();
-            let claimedChanged = false;
-            Object.keys(claimed).forEach((u) => {
-              const clean = cleanUsernameInput(u);
-              if (!validSupabaseUsernames.has(clean)) {
-                delete claimed[u];
-                claimedChanged = true;
-              }
-            });
-            if (claimedChanged) {
-              localStorage.setItem(LOCAL_STORAGE_USERNAMES_KEY, JSON.stringify(claimed));
-            }
-          } catch (e) {
-            console.warn('Error pruning stale profiles:', e);
-          }
-        }
-      }
-    } catch {
-      // Table may not be active yet; gracefully handled
-    }
-
-    // 2. Also query Supabase public usernames table
-    try {
+      // 2. Query Supabase public usernames table concurrently
       let uQuery = supabase.from('usernames').select('username, user_id, created_at');
       if (q) {
         uQuery = uQuery.ilike('username', `%${q}%`);
       }
-      const { data: uData, error: uErr } = await uQuery.limit(40);
-      if (!uErr && Array.isArray(uData)) {
-        supabaseSucceeded = true;
-        uData.forEach((row) => {
-          if (row.username) {
-            const clean = cleanUsernameInput(row.username);
-            if (clean && !isFakeMockUser(clean)) {
-              recordProfile({
-                id: row.user_id || `supa_${clean}`,
-                username: `@${clean}`,
-                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+      queryPromises.push(
+        (async () => {
+          try {
+            const { data: uData, error: uErr } = await uQuery.limit(40);
+            if (!uErr && Array.isArray(uData)) {
+              supabaseSucceeded = true;
+              uData.forEach((row) => {
+                if (row.username) {
+                  const clean = cleanUsernameInput(row.username);
+                  if (clean && !isFakeMockUser(clean)) {
+                    recordProfile({
+                      id: row.user_id || `supa_${clean}`,
+                      username: `@${clean}`,
+                      name: clean.charAt(0).toUpperCase() + clean.slice(1)
+                    });
+                  }
+                }
               });
             }
-          }
-        });
-      }
-    } catch {
-      // Table may not be active; gracefully handled
+          } catch {}
+        })()
+      );
     }
-  }
 
-  // 3. Query backend API endpoint /api/auth/search-users
-  try {
-    const res = await fetch(`/api/auth/search-users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.users)) {
-        data.users.forEach((u: any) => {
-          if (u.username) {
-            const clean = cleanUsernameInput(u.username);
-            if (clean && !isFakeMockUser(clean)) {
-              recordProfile({
-                id: u.userId || `server_${clean}`,
-                username: clean,
-                name: clean.charAt(0).toUpperCase() + clean.slice(1)
+    // 3. Query backend API endpoint /api/auth/search-users concurrently
+    queryPromises.push(
+      fetch(`/api/auth/search-users${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.users)) {
+              data.users.forEach((u: any) => {
+                if (u.username) {
+                  const clean = cleanUsernameInput(u.username);
+                  if (clean && !isFakeMockUser(clean)) {
+                    recordProfile({
+                      id: u.userId || `server_${clean}`,
+                      username: clean,
+                      name: clean.charAt(0).toUpperCase() + clean.slice(1)
+                    });
+                  }
+                }
               });
             }
           }
-        });
-      }
-    }
-  } catch {
-    // Local / offline fallback handled
-  }
+        })
+        .catch(() => {})
+    );
+
+    // Wait for all queries to settle in parallel
+    await Promise.allSettled(queryPromises);
 
   // 4. Fallback ONLY if Supabase is offline / unreachable: gather local profiles
   if (!supabaseSucceeded && typeof window !== 'undefined') {
@@ -521,13 +566,25 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
     }
   }
 
-  const all = Array.from(profilesMap.values());
-  if (!q) return all;
+    try {
+      const all = Array.from(profilesMap.values());
+      const result = !q
+        ? all
+        : all.filter((p) => {
+            const uClean = p.username.toLowerCase().replace(/^@+/, '');
+            const nClean = p.name.toLowerCase();
+            return uClean.includes(q) || nClean.includes(q);
+          });
 
-  return all.filter((p) => {
-    const uClean = p.username.toLowerCase().replace(/^@+/, '');
-    const nClean = p.name.toLowerCase();
-    return uClean.includes(q) || nClean.includes(q);
-  });
+      // Save to memory cache
+      searchCache.set(cacheKey, { timestamp: Date.now(), data: result });
+      return result;
+    } finally {
+      inFlightSearchPromises.delete(cacheKey);
+    }
+  })();
+
+  inFlightSearchPromises.set(cacheKey, searchPromise);
+  return searchPromise;
 }
 

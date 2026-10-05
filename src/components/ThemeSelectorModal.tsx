@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Palette, Check, X } from 'lucide-react';
 import { ThemeConfig, ThemeId } from '../types';
 import { THEME_OPTIONS } from '../services/theme';
+import { preloadThemeImage } from './ThemeHeroBackdrop';
 
 interface ThemeSelectorModalProps {
   isOpen: boolean;
@@ -16,6 +17,16 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   currentTheme,
   onSelectTheme,
 }) => {
+  useEffect(() => {
+    if (isOpen) {
+      THEME_OPTIONS.forEach((t) => {
+        if (t.heroPhotoUrl) {
+          preloadThemeImage(t.heroPhotoUrl);
+        }
+      });
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (

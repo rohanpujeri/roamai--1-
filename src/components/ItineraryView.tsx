@@ -30,7 +30,7 @@ import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem, HotelStayRecomm
 import { ActivityCard } from './ActivityCard';
 import { SerpentineItineraryTimeline } from './SerpentineItineraryTimeline';
 import { PreparationView } from './PreparationView';
-import { MapView } from './MapView';
+const MapView = React.lazy(() => import('./MapView'));
 import { HotelsAndStaysView } from './HotelsAndStaysView';
 import { AddNearbyPlaceModal } from './AddNearbyPlaceModal';
 import { getTravelModeTransitCost } from './CreateTripWizard';
@@ -914,13 +914,21 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
       {/* TAB 3: MAP VIEW */}
       {activeTab === 'map' && (
-        <MapView
-          trip={trip}
-          activeDayNumber={activeDayNumber}
-          onSelectDay={onSelectDay}
-          onSelectActivity={onOpenActivityDetails}
-          onOpenMapSearch={onOpenMapSearch}
-        />
+        <React.Suspense
+          fallback={
+            <div className="w-full h-[540px] rounded-3xl bg-slate-900/60 border border-slate-800 flex items-center justify-center text-slate-400 text-xs font-semibold animate-pulse">
+              Loading Interactive Map...
+            </div>
+          }
+        >
+          <MapView
+            trip={trip}
+            activeDayNumber={activeDayNumber}
+            onSelectDay={onSelectDay}
+            onSelectActivity={onOpenActivityDetails}
+            onOpenMapSearch={onOpenMapSearch}
+          />
+        </React.Suspense>
       )}
 
       {/* TAB 4: PREPARATION & PACKING */}

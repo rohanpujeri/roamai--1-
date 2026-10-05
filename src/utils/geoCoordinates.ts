@@ -6,6 +6,62 @@ export interface LatLng {
 }
 
 /**
+ * Calculates Great Circle Distance between two coordinates in Kilometers (Haversine formula).
+ * Canonical implementation supporting LatLng coordinate objects or individual lat/lng numbers.
+ */
+export function calculateHaversineDistanceKm(
+  coord1: LatLng,
+  coord2: LatLng
+): number;
+export function calculateHaversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  precision?: number
+): number;
+export function calculateHaversineDistanceKm(
+  arg1: LatLng | number,
+  arg2: LatLng | number,
+  arg3?: number,
+  arg4?: number,
+  precision?: number
+): number {
+  let lat1: number, lon1: number, lat2: number, lon2: number;
+  let roundToInt = true;
+  let decimals = 0;
+
+  if (typeof arg1 === 'object' && typeof arg2 === 'object') {
+    lat1 = arg1.lat;
+    lon1 = arg1.lng;
+    lat2 = arg2.lat;
+    lon2 = arg2.lng;
+    roundToInt = true;
+  } else {
+    lat1 = arg1 as number;
+    lon1 = arg2 as number;
+    lat2 = arg3 as number;
+    lon2 = arg4 as number;
+    roundToInt = precision === undefined;
+    decimals = precision ?? 1;
+  }
+
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const dist = R * c;
+
+  return roundToInt ? Math.round(dist) : Number(dist.toFixed(decimals));
+}
+
+/**
  * Gets exact or approximate coordinates for an activity dynamically
  */
 export function getActivityCoordinates(

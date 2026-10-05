@@ -1,20 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import React from 'react';
 import {
-  Sparkles,
   ArrowRight,
-  Zap,
-  CheckCircle2,
-  Calendar,
-  Users,
-  Compass,
-  Loader2
+  CheckCircle2
 } from 'lucide-react';
 
 import { ThemeConfig, Trip } from '../types';
-import { ThemeHeroBackdrop } from './ThemeHeroBackdrop';
-import { fetchAiDynamicPreviewTrip, DynamicPreviewTrip } from '../services/aiInspiration';
-import heroCardImage from '../assets/images/regenerated_image_1787112827232.png';
 import { RotatingTripsCarousel } from './RotatingTripsCarousel';
 
 interface LandingPageProps {
@@ -49,43 +39,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroBadgeBg = currentTheme?.heroBadgeBg || 'var(--hero-badge-bg)';
   const heroBadgeBorder = currentTheme?.heroBadgeBorder || 'var(--hero-badge-border)';
   const heroBadgeText = currentTheme?.heroBadgeText || 'var(--hero-badge-text)';
-
-  const [aiPreviewTrip, setAiPreviewTrip] = useState<DynamicPreviewTrip | null>(null);
-  const [isLoadingAiPreview, setIsLoadingAiPreview] = useState(false);
-
-  const hasUserRecentTrip = Boolean(recentTrip);
-  const displayTrip = recentTrip;
-  const isUserTrip = hasUserRecentTrip;
-
-  useEffect(() => {
-    if (hasUserRecentTrip) return;
-    let isMounted = true;
-    setIsLoadingAiPreview(true);
-    fetchAiDynamicPreviewTrip(currentTheme?.id || 'basic', currentTheme?.name, currentTheme?.vibe)
-      .then((data) => {
-        if (isMounted && data) {
-          setAiPreviewTrip(data);
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoadingAiPreview(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [currentTheme?.id, currentTheme?.name, currentTheme?.vibe, hasUserRecentTrip]);
-
-  const preview = aiPreviewTrip || currentTheme?.previewTrip || {
-    title: 'Personalized AI Journey',
-    destination: 'Scenic Destination',
-    image: heroCardImage,
-    subtitle: 'Tailored Itinerary • Real Coordinates • Live Weather',
-    budget: '₹28,000 Budget',
-    temp: '26°C ☀️',
-    day1Title: 'Day 1 • Arrival & Highlights',
-    activity1: { time: '10:00 AM', title: 'Local Heritage Immersion', category: 'Culture', cost: '₹500' },
-    activity2: { time: '05:30 PM', title: 'Golden Hour Sunset Vista', category: 'Relaxation', cost: '₹300' }
-  };
 
   return (
     <div className="transition-colors duration-300 relative bg-transparent">

@@ -15,7 +15,6 @@ import {
   X, 
   ChevronUp, 
   ChevronDown, 
-  Send,
   Check,
   Film,
   LogIn,
@@ -24,7 +23,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Hash,
-  UserPlus,
   Camera,
   Sparkles,
   Compass,
@@ -35,7 +33,9 @@ import {
 } from 'lucide-react';
 import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
-import { TrailLocationPickerModal, SelectedTrailLocation } from './TrailLocationPickerModal';
+import type { SelectedTrailLocation } from './TrailLocationPickerModal';
+
+const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import {
@@ -46,6 +46,7 @@ import {
 import {
   getLocalTrails,
   fetchGlobalTrails,
+  fetchMoreGlobalTrails,
   publishGlobalTrail,
   likeGlobalTrail,
   commentOnGlobalTrail,
@@ -54,7 +55,6 @@ import {
   TrailReel,
   TrailComment,
   recordTrailView,
-  deleteGlobalTrail,
   sanitizeTrail,
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
@@ -148,9 +148,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   }, [customTrails]);
 
-  // Periodically sync global trails from server API & Supabase ONLY if NOT in custom user feed
+  // Periodically sync global trails from server API & Supabase ONLY if active and NOT in custom user feed
   useEffect(() => {
-    if (customTrails) return; // Never overwrite user-specific feed with global trails!
+    if (customTrails || !isActive) return; // Only sync when view is active and not on custom feed
     let isMounted = true;
     const syncTrails = async () => {
       try {
@@ -169,11 +169,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             if (prevIds !== nextIds || prev.length !== mapped.length) {
               return mapped;
             }
-            return prev.map((p) => sanitizeTrail({ 
-              ...p, 
-              isSaved: isTrailSaved(p.id),
-              isLiked: isTrailLikedByUser(p.id)
-            }));
+            // Check if any like or save status changed before creating a new state reference
+            const anyDiff = prev.some((p) => {
+              return p.isSaved !== isTrailSaved(p.id) || p.isLiked !== isTrailLikedByUser(p.id);
+            });
+            if (anyDiff) {
+              return prev.map((p) => sanitizeTrail({ 
+                ...p, 
+                isSaved: isTrailSaved(p.id),
+                isLiked: isTrailLikedByUser(p.id)
+              }));
+            }
+            return prev;
           });
         }
       } catch (err) {
@@ -182,12 +189,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     };
 
     syncTrails();
-    const interval = setInterval(syncTrails, 10000);
+    const interval = setInterval(syncTrails, 30000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [customTrails, isActive]);
 
   // Listen for newly published trails from the dedicated UploadTrailView page
   useEffect(() => {
@@ -274,6 +281,37 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     window.addEventListener('roamai_trail_liked', handleTrailLiked);
     return () => window.removeEventListener('roamai_trail_liked', handleTrailLiked);
   }, [currentUsername]);
+
+  // Listen for non-blocking background creator profile hydration updates
+  useEffect(() => {
+    const handleHydrated = () => {
+      const local = getLocalTrails();
+      if (local && local.length > 0 && !customTrails) {
+        setTrails((prev) => {
+          const map = new Map(local.map((l) => [l.id, l]));
+          let changed = false;
+          const updated = prev.map((p) => {
+            const fresh = map.get(p.id);
+            if (fresh && fresh.creator?.avatarUrl && fresh.creator.avatarUrl !== p.creator?.avatarUrl) {
+              changed = true;
+              return {
+                ...p,
+                creator: {
+                  ...p.creator,
+                  avatarUrl: fresh.creator.avatarUrl,
+                  name: fresh.creator.name || p.creator?.name
+                }
+              };
+            }
+            return p;
+          });
+          return changed ? updated : prev;
+        });
+      }
+    };
+    window.addEventListener('roamai_trail_creators_hydrated', handleHydrated);
+    return () => window.removeEventListener('roamai_trail_creators_hydrated', handleHydrated);
+  }, [customTrails]);
 
   // Auto-sync user's uploaded trails with their latest canonical profile username and avatar
   useEffect(() => {
@@ -377,6 +415,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   });
   const [activeMediaError, setActiveMediaError] = useState<boolean>(false);
   const [isMediaLoading, setIsMediaLoading] = useState<boolean>(false);
+  const [nextMediaUrl, setNextMediaUrl] = useState<string>('');
+  const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
 
   // Upload modal form state
   const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
@@ -429,16 +469,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     return () => clearTimeout(timer);
   }, [isActive, activeReel?.id, session?.user?.id, currentUsername]);
 
-  // Resolve active media URL whenever active reel changes
+  // Resolve active media URL whenever active reel changes and view is active, and preload next reel
   useEffect(() => {
-    if (!activeReel) {
-      setActiveMediaUrl('');
+    if (!isActive || !activeReel) {
+      setActiveMediaUrl(activeReel?.posterUrl || '');
       setActiveMediaError(false);
+      setIsVideoReady(false);
       return;
     }
     let isMounted = true;
     setActiveMediaError(false);
     setIsMediaLoading(true);
+    setIsVideoReady(false);
 
     resolveTrailMediaUrl(activeReel.id, activeReel.videoUrl).then((resolved) => {
       if (isMounted) {
@@ -447,10 +489,26 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       }
     });
 
+    // Proactively pre-resolve and warm next reel media and poster for instantaneous transitions
+    const nextReel = trails[currentIndex + 1];
+    if (nextReel && nextReel.id) {
+      resolveTrailMediaUrl(nextReel.id, nextReel.videoUrl).then((resUrl) => {
+        if (isMounted && resUrl) {
+          setNextMediaUrl(resUrl);
+        }
+      }).catch(() => {});
+      if (nextReel.posterUrl && !nextReel.posterUrl.startsWith('blob:') && typeof Image !== 'undefined') {
+        const img = new Image();
+        img.src = nextReel.posterUrl;
+      }
+    } else {
+      setNextMediaUrl('');
+    }
+
     return () => {
       isMounted = false;
     };
-  }, [activeReel?.id, activeReel?.videoUrl]);
+  }, [isActive, activeReel?.id, activeReel?.videoUrl, currentIndex, trails]);
 
   // Auto-play when active reel changes or when trails page opens
   useEffect(() => {
@@ -534,7 +592,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (slideTimeoutRef.current) clearTimeout(slideTimeoutRef.current);
     slideTimeoutRef.current = setTimeout(() => {
       if (currentIndex < trails.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
+        const nextIdx = currentIndex + 1;
+        setCurrentIndex(nextIdx);
+        // Progressive prefetching: load more trails in background when user approaches end of feed
+        if (nextIdx >= trails.length - 3 && !customTrails) {
+          fetchMoreGlobalTrails(trails.length, 20).then((more) => {
+            if (more && more.length > 0) {
+              setTrails((prev) => {
+                const existing = new Set(prev.map((p) => p.id));
+                const filtered = more.filter((m) => !existing.has(m.id)).map(sanitizeTrail);
+                return filtered.length > 0 ? [...prev, ...filtered] : prev;
+              });
+            }
+          }).catch(() => {});
+        }
       } else {
         setCurrentIndex(0);
       }
@@ -1396,40 +1467,69 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
                 />
               ) : (
-                <video
-                  ref={videoRef}
-                  key={activeMediaUrl}
-                  src={activeMediaUrl}
-                  poster={activeReel.posterUrl}
-                  playsInline
-                  webkit-playsinline="true"
-                  loop
-                  autoPlay={isActive && !showUploadModal && !showLikesModal}
-                  preload={isActive ? 'auto' : 'none'}
-                  muted={isMuted}
-                  className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'}`}
-                  style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
-                  onPlay={() => {
-                    if (!isActive || showUploadModal || showLikesModal) {
-                      videoRef.current?.pause();
-                      setIsPlaying(false);
-                      return;
-                    }
-                    setIsPlaying(true);
-                  }}
-                  onPause={() => setIsPlaying(false)}
-                  onError={() => {
-                    setActiveMediaError(true);
-                  }}
-                  onTimeUpdate={() => {
-                    if (videoRef.current && videoRef.current.duration) {
-                      setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
-                    }
-                  }}
-                />
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    key={activeMediaUrl}
+                    src={activeMediaUrl}
+                    poster={activeReel.posterUrl}
+                    playsInline
+                    webkit-playsinline="true"
+                    loop
+                    autoPlay={isActive && !showUploadModal && !showLikesModal}
+                    preload={isActive ? 'auto' : 'metadata'}
+                    muted={isMuted}
+                    className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'}`}
+                    style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
+                    onCanPlay={() => setIsVideoReady(true)}
+                    onPlay={() => {
+                      if (!isActive || showUploadModal || showLikesModal) {
+                        videoRef.current?.pause();
+                        setIsPlaying(false);
+                        return;
+                      }
+                      setIsVideoReady(true);
+                      setIsPlaying(true);
+                    }}
+                    onPause={() => setIsPlaying(false)}
+                    onError={() => {
+                      setActiveMediaError(true);
+                    }}
+                    onTimeUpdate={() => {
+                      if (videoRef.current && videoRef.current.duration) {
+                        setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                      }
+                    }}
+                  />
+
+                  {/* Seamless instant poster frame cover while video buffers */}
+                  {activeReel.posterUrl && !isVideoReady && (
+                    <img
+                      src={activeReel.posterUrl}
+                      alt="Poster preview"
+                      className={`absolute inset-0 w-full h-full ${isContain ? 'object-contain' : 'object-cover'} pointer-events-none z-10 transition-opacity duration-200`}
+                      style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
+                    />
+                  )}
+                </div>
               );
             })()}
           </div>
+
+          {/* Hidden prewarmer for immediate next reel only (downloads metadata headers into browser cache) */}
+          {isActive && nextMediaUrl && trails[currentIndex + 1]?.mediaType === 'video' && (
+            <video
+              key={`prewarm-${nextMediaUrl}`}
+              src={nextMediaUrl}
+              preload="metadata"
+              muted
+              playsInline
+              webkit-playsinline="true"
+              className="hidden pointer-events-none"
+              style={{ display: 'none' }}
+              aria-hidden="true"
+            />
+          )}
 
           {/* Recovery overlay if old session clip expired */}
           {activeMediaError && (
@@ -2872,16 +2972,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
-      <TrailLocationPickerModal
-        isOpen={isTrailLocationModalOpen}
-        onClose={() => setIsTrailLocationModalOpen(false)}
-        initialLocation={uploadDestination}
-        onSelectLocation={(loc: SelectedTrailLocation) => {
-          const formatted = loc.name.trim() || loc.address.trim();
-          setUploadDestination(formatted);
-          setUploadLocationError(null);
-        }}
-      />
+      {isTrailLocationModalOpen && (
+        <React.Suspense fallback={null}>
+          <TrailLocationPickerModal
+            isOpen={isTrailLocationModalOpen}
+            onClose={() => setIsTrailLocationModalOpen(false)}
+            initialLocation={uploadDestination}
+            onSelectLocation={(loc: SelectedTrailLocation) => {
+              const formatted = loc.name.trim() || loc.address.trim();
+              setUploadDestination(formatted);
+              setUploadLocationError(null);
+            }}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

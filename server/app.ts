@@ -25,16 +25,12 @@ import {
 } from './services/serverTrailsRegistry';
 import {
   getAllServerFollows,
-  getServerFollowCounts,
-  isServerUserFollowing,
-  getServerFollowers,
-  getServerFollowing,
   followServerUser,
   unfollowServerUser,
-  toggleServerFollow,
   removeServerFollower,
   deleteServerUserFollows
 } from './services/serverFollowsRegistry';
+import { serverConfig } from './config';
 
 dotenv.config();
 
@@ -55,14 +51,23 @@ export function createExpressApp() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  // Static options for immutable long-term caching of theme background images
+  const staticImageOptions = {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res: express.Response) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  };
+
   // Static alias for case-insensitive image access
-  app.use('/Images', express.static(path.join(process.cwd(), 'public/images')));
-  app.use('/images', express.static(path.join(process.cwd(), 'public/images')));
+  app.use('/Images', express.static(path.join(process.cwd(), 'public/images'), staticImageOptions));
+  app.use('/images', express.static(path.join(process.cwd(), 'public/images'), staticImageOptions));
 
   // Static uploads for user trail videos and photos
-  app.use('/uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails')));
-  app.use('/Uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails')));
-  app.use('/uploads/trails', express.static('/tmp/roamai_uploads'));
+  app.use('/uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails'), { maxAge: '7d' }));
+  app.use('/Uploads/trails', express.static(path.join(process.cwd(), 'public/uploads/trails'), { maxAge: '7d' }));
+  app.use('/uploads/trails', express.static('/tmp/roamai_uploads', { maxAge: '7d' }));
 
   // Create modular API Router
   const apiRouter = express.Router();
@@ -260,6 +265,43 @@ export function createExpressApp() {
         return;
       }
 
+      const SUPABASE_URL = serverConfig.supabase.url;
+      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const ANON_KEY = serverConfig.supabase.anonKey;
+      const authKey = SERVICE_KEY || ANON_KEY;
+
+      // Security check: Validate caller identity using Supabase Auth JWT token
+      const authHeader = req.headers.authorization;
+      if (SUPABASE_URL && ANON_KEY) {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.status(401).json({ error: 'Unauthorized: Valid session authorization token is required to delete an account' });
+          return;
+        }
+        const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+        try {
+          const verifyRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            headers: {
+              apikey: ANON_KEY,
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (verifyRes.ok) {
+            const authUser = await verifyRes.json();
+            if (authUser?.id && userId && authUser.id !== userId) {
+              res.status(403).json({ error: 'Forbidden: Session token does not match user account' });
+              return;
+            }
+          } else {
+            res.status(401).json({ error: 'Unauthorized: Invalid or expired session token' });
+            return;
+          }
+        } catch (verifyErr) {
+          console.warn('[server] Token verification network error:', verifyErr);
+          res.status(502).json({ error: 'Authentication service temporarily unreachable' });
+          return;
+        }
+      }
+
       // 1. Delete all user trails from disk, memory registry, and storage
       await deleteServerUserTrails(userId, username);
 
@@ -270,11 +312,6 @@ export function createExpressApp() {
       deleteServerUsername(userId, username);
 
       // 4. Try Supabase direct cleanups if service key or anon REST available
-      const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-      const authKey = SERVICE_KEY || ANON_KEY;
-
       if (SUPABASE_URL && authKey && userId) {
         try {
           const tables = ['trips', 'saved_places', 'trails', 'usernames', 'profiles'];
@@ -314,21 +351,29 @@ export function createExpressApp() {
   apiRouter.delete('/auth/delete-account', handleDeleteAccount);
   apiRouter.post('/auth/delete-account', handleDeleteAccount);
 
-  // Search real registered users
+  // Search real registered users (strips private email from returned payload)
   apiRouter.get('/auth/search-users', (req, res) => {
     const q = (req.query.q as string) || '';
-    const users = searchServerUsers(q);
+    const users = searchServerUsers(q).map((u) => ({
+      username: u.username,
+      userId: u.userId,
+      createdAt: u.createdAt
+    }));
     res.json({ users });
   });
 
-  // Get all global shared trails across all profiles
+  // Get all global shared trails across all profiles (with optional pagination)
   apiRouter.get('/trails', async (req, res) => {
     try {
       if (getAllServerTrails().length === 0) {
         await syncServerTrailsFromStorage();
       }
       const trails = getAllServerTrails();
-      res.json({ trails });
+      const limit = req.query.limit ? Math.max(1, parseInt(String(req.query.limit), 10)) : undefined;
+      const offset = req.query.offset ? Math.max(0, parseInt(String(req.query.offset), 10)) : 0;
+      const paged = limit !== undefined ? trails.slice(offset, offset + limit) : trails;
+
+      res.json({ trails: paged, total: trails.length });
     } catch (err: any) {
       console.error('Error fetching trails:', err);
       res.status(500).json({ error: 'Failed to fetch trails' });
@@ -436,39 +481,6 @@ export function createExpressApp() {
     }
   });
 
-  // Get followers and following counts
-  apiRouter.get('/follows/counts', (req, res) => {
-    try {
-      const identifier = (req.query.identifier as string) || '';
-      const counts = getServerFollowCounts(identifier);
-      res.json(counts);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to fetch follow counts' });
-    }
-  });
-
-  // Get list of followers
-  apiRouter.get('/follows/followers', (req, res) => {
-    try {
-      const identifier = (req.query.identifier as string) || '';
-      const followers = getServerFollowers(identifier);
-      res.json({ followers });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to fetch followers' });
-    }
-  });
-
-  // Get list of following
-  apiRouter.get('/follows/following', (req, res) => {
-    try {
-      const identifier = (req.query.identifier as string) || '';
-      const following = getServerFollowing(identifier);
-      res.json({ following });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to fetch following' });
-    }
-  });
-
   // Follow a user
   apiRouter.post('/follows/follow', (req, res) => {
     try {
@@ -496,21 +508,6 @@ export function createExpressApp() {
       res.json({ success });
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to unfollow user' });
-    }
-  });
-
-  // Toggle follow status
-  apiRouter.post('/follows/toggle', (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: 'follower and target objects are required' });
-        return;
-      }
-      const result = toggleServerFollow(follower, target);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to toggle follow' });
     }
   });
 

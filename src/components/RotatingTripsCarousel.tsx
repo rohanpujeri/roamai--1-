@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Calendar, ArrowRight, Compass } from 'lucide-react';
+import { Sparkles, ArrowRight, Compass } from 'lucide-react';
 import { Trip, ThemeConfig } from '../types';
 import { DEMO_TRIPS } from '../services/demoTrips';
 
@@ -52,6 +52,8 @@ export function getInitialPhotoFallback(destination: string): string {
  * Wikipedia REST APIs, Wikimedia Commons, and AI image generation fallback.
  * Results are cached in memory and localStorage for zero-latency instant display.
  */
+const inFlightPhotoPromises = new Map<string, Promise<string>>();
+
 export async function fetchDestinationPhoto(destination: string): Promise<string> {
   const clean = cleanDestinationName(destination);
   if (!clean) return '/images/bg_beach.jpg';
@@ -70,58 +72,71 @@ export async function fetchDestinationPhoto(destination: string): Promise<string
     }
   } catch {}
 
-  // 1. Wikipedia Summary REST API (unthrottled, public CORS enabled)
-  try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean.replace(/\s+/g, '_'))}`);
-    if (res.ok) {
-      const data = await res.json();
-      const img = data.originalimage?.source || data.thumbnail?.source;
-      if (img && typeof img === 'string' && img.startsWith('http') && !img.endsWith('.svg')) {
-        memoryPhotoCache.set(cacheKey, img);
-        try { localStorage.setItem(cacheKey, img); } catch {}
-        return img;
-      }
-    }
-  } catch {}
+  if (inFlightPhotoPromises.has(cacheKey)) {
+    return inFlightPhotoPromises.get(cacheKey)!;
+  }
 
-  // 2. Wikipedia Search Generator API for multi-word or compound queries
-  try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(clean + ' tourism')}&gsrlimit=2&prop=pageimages&pithumbsize=1000&format=json&origin=*`;
-    const res = await fetch(searchUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const pages = data.query?.pages;
-      if (pages) {
-        for (const page of Object.values(pages) as any[]) {
-          const src = page.thumbnail?.source;
-          if (src && typeof src === 'string' && src.startsWith('http') && !src.endsWith('.svg')) {
-            memoryPhotoCache.set(cacheKey, src);
-            try { localStorage.setItem(cacheKey, src); } catch {}
-            return src;
+  const promise = (async () => {
+    try {
+      // 1. Wikipedia Summary REST API (unthrottled, public CORS enabled)
+      try {
+        const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean.replace(/\s+/g, '_'))}`);
+        if (res.ok) {
+          const data = await res.json();
+          const img = data.originalimage?.source || data.thumbnail?.source;
+          if (img && typeof img === 'string' && img.startsWith('http') && !img.endsWith('.svg')) {
+            memoryPhotoCache.set(cacheKey, img);
+            try { localStorage.setItem(cacheKey, img); } catch {}
+            return img;
           }
         }
-      }
-    }
-  } catch {}
+      } catch {}
 
-  // 3. Backend Real Photo API
-  try {
-    const res = await fetch(`/api/places/real-photo?title=${encodeURIComponent(clean)}&destination=${encodeURIComponent(clean)}&category=landmark`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.photoUrl && !isGenericPlaceholder(data.photoUrl)) {
-        memoryPhotoCache.set(cacheKey, data.photoUrl);
-        try { localStorage.setItem(cacheKey, data.photoUrl); } catch {}
-        return data.photoUrl;
-      }
-    }
-  } catch {}
+      // 2. Wikipedia Search Generator API for multi-word or compound queries
+      try {
+        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(clean + ' tourism')}&gsrlimit=2&prop=pageimages&pithumbsize=1000&format=json&origin=*`;
+        const res = await fetch(searchUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const pages = data.query?.pages;
+          if (pages) {
+            for (const page of Object.values(pages) as any[]) {
+              const src = page.thumbnail?.source;
+              if (src && typeof src === 'string' && src.startsWith('http') && !src.endsWith('.svg')) {
+                memoryPhotoCache.set(cacheKey, src);
+                try { localStorage.setItem(cacheKey, src); } catch {}
+                return src;
+              }
+            }
+          }
+        }
+      } catch {}
 
-  // 4. Dynamic AI-Generated Travel Photography (Pollinations AI)
-  const aiImageUrl = getInitialPhotoFallback(clean);
-  memoryPhotoCache.set(cacheKey, aiImageUrl);
-  try { localStorage.setItem(cacheKey, aiImageUrl); } catch {}
-  return aiImageUrl;
+      // 3. Backend Real Photo API
+      try {
+        const res = await fetch(`/api/places/real-photo?title=${encodeURIComponent(clean)}&destination=${encodeURIComponent(clean)}&category=landmark`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.photoUrl && !isGenericPlaceholder(data.photoUrl)) {
+            memoryPhotoCache.set(cacheKey, data.photoUrl);
+            try { localStorage.setItem(cacheKey, data.photoUrl); } catch {}
+            return data.photoUrl;
+          }
+        }
+      } catch {}
+
+      // 4. Dynamic AI-Generated Travel Photography (Pollinations AI)
+      const aiImageUrl = getInitialPhotoFallback(clean);
+      memoryPhotoCache.set(cacheKey, aiImageUrl);
+      try { localStorage.setItem(cacheKey, aiImageUrl); } catch {}
+      return aiImageUrl;
+    } finally {
+      inFlightPhotoPromises.delete(cacheKey);
+    }
+  })();
+
+  inFlightPhotoPromises.set(cacheKey, promise);
+  return promise;
 }
 
 const DEFAULT_SHOWCASE_TRIPS: DisplayTripItem[] = [

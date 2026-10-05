@@ -124,10 +124,22 @@ export async function reverseGeocodeCoordinates(
   return null;
 }
 
+// Memory cache for detected IP locations (24 hours TTL)
+const ipLocationCache = new Map<string, { result: DetectedLocationResult; timestamp: number }>();
+const IP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 /**
  * IP-based fallback when browser geolocation is denied or unavailable
  */
 export async function detectLocationFromIp(clientIp?: string): Promise<DetectedLocationResult | null> {
+  const cacheKey = (clientIp && clientIp !== '127.0.0.1' && clientIp !== '::1') ? clientIp : 'default_geo_ip';
+
+  // 1. Fast cache check (0ms response)
+  const cached = ipLocationCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < IP_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
   // Try ipwho.is (fast, HTTPS, CORS & proxy friendly)
   try {
     const targetUrl = clientIp && clientIp !== '127.0.0.1' && clientIp !== '::1'
@@ -138,7 +150,7 @@ export async function detectLocationFromIp(clientIp?: string): Promise<DetectedL
     if (res.ok) {
       const data = await res.json();
       if (data.success !== false && data.city) {
-        return {
+        const result: DetectedLocationResult = {
           cityName: data.city,
           state: data.region || undefined,
           country: data.country || undefined,
@@ -146,6 +158,8 @@ export async function detectLocationFromIp(clientIp?: string): Promise<DetectedL
           lng: typeof data.longitude === 'number' ? data.longitude : undefined,
           source: 'ip'
         };
+        ipLocationCache.set(cacheKey, { result, timestamp: Date.now() });
+        return result;
       }
     }
   } catch (e) {
@@ -166,7 +180,7 @@ export async function detectLocationFromIp(clientIp?: string): Promise<DetectedL
     if (res.ok) {
       const data = await res.json();
       if (data.city && !data.error) {
-        return {
+        const result: DetectedLocationResult = {
           cityName: data.city,
           state: data.region || undefined,
           country: data.country_name || undefined,
@@ -174,6 +188,8 @@ export async function detectLocationFromIp(clientIp?: string): Promise<DetectedL
           lng: typeof data.longitude === 'number' ? data.longitude : undefined,
           source: 'ip'
         };
+        ipLocationCache.set(cacheKey, { result, timestamp: Date.now() });
+        return result;
       }
     }
   } catch (e) {

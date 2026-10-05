@@ -7,7 +7,6 @@ import {
   UserPlus, 
   UserCheck, 
   Loader2,
-  Users,
   Check
 } from 'lucide-react';
 import { TrailLiker, fetchTrailLikers } from '../services/sharedTrailsService';

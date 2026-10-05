@@ -24,7 +24,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   currentTheme,
   onRequireAuth
 }) => {
-  const cachedProfile = getCachedUserProfile(session?.user?.id);
+  const cachedProfile = session?.user?.id ? getCachedUserProfile(session.user.id) : null;
   const rawAvatar = cachedProfile?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
   const userAvatar = sanitizeAvatarUrl(rawAvatar);
   const userName = cachedProfile?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email?.split('@')[0] || 'Traveler';

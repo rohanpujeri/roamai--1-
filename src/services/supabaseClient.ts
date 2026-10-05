@@ -28,7 +28,7 @@ export const isSupabaseConfigured = (): boolean => {
 
 const CURRENT_PROJECT_KEY = 'tripwise_current_supabase_url';
 const PROJECT_CACHE_VERSION_KEY = 'roamai_storage_version';
-const STORAGE_VERSION = 'v2_majtaremnrjzzzxpquef_clean';
+const STORAGE_VERSION = config.supabase.storageVersion;
 
 export function purgeStaleStorageIfNeeded(): void {
   if (typeof window === 'undefined') return;
@@ -97,46 +97,100 @@ const getPlacesStorageKey = (userId?: string) => userId ? `${PLACES_LOCAL_STORAG
 
 // --- Trips Persistence ---
 
-export async function fetchUserTrips(): Promise<Trip[]> {
+let inFlightFetchTripsPromise: Promise<Trip[]> | null = null;
+let cachedUserTrips: { timestamp: number; userId?: string; trips: Trip[] } | null = null;
+const TRIPS_CACHE_TTL_MS = 15000; // 15 seconds cache
+
+export function invalidateUserTripsCache() {
+  cachedUserTrips = null;
+}
+
+async function revalidateUserTrips(user: any, storageKey: string): Promise<Trip[]> {
+  if (inFlightFetchTripsPromise) {
+    return inFlightFetchTripsPromise;
+  }
+
+  inFlightFetchTripsPromise = (async () => {
+    try {
+      if (user) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from(config.db.tables.trips)
+              .select('id, user_id, trip_data, created_at')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false });
+
+            if (error) {
+              console.warn('Supabase fetch trips error, falling back to local storage:', error.message);
+            } else if (data) {
+              const trips = data.map((row: any) => row.trip_data || row);
+              // Sync successful fetch (even if empty) to local storage
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(storageKey, JSON.stringify(trips));
+              }
+              cachedUserTrips = { timestamp: Date.now(), userId: user.id, trips };
+              return trips;
+            }
+          } catch (err) {
+            console.warn('Supabase fetch trips failed:', err);
+          }
+        }
+      }
+
+      // Local storage fallback
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            cachedUserTrips = { timestamp: Date.now(), userId: user?.id, trips: parsed };
+            return parsed;
+          }
+        } catch (e) {
+          console.error('Error reading local trips:', e);
+        }
+      }
+      return [];
+    } finally {
+      inFlightFetchTripsPromise = null;
+    }
+  })();
+
+  return inFlightFetchTripsPromise;
+}
+
+export async function fetchUserTrips(forceRefresh = false): Promise<Trip[]> {
   const user = await getCurrentUser();
   const storageKey = getTripsStorageKey(user?.id);
 
-  if (user) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from(config.db.tables.trips)
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.warn('Supabase fetch trips error, falling back to local storage:', error.message);
-        } else if (data) {
-          const trips = data.map((row: any) => row.trip_data || row);
-          // Sync successful fetch (even if empty) to local storage
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(storageKey, JSON.stringify(trips));
-          }
-          return trips;
-        }
-      } catch (err) {
-        console.warn('Supabase fetch trips failed:', err);
-      }
+  // 1. Fast memory cache check with Stale-While-Revalidate (0ms response)
+  if (!forceRefresh && cachedUserTrips && cachedUserTrips.userId === user?.id) {
+    if (Date.now() - cachedUserTrips.timestamp < TRIPS_CACHE_TTL_MS) {
+      return cachedUserTrips.trips;
     }
+    // Revalidate in background without blocking the caller
+    revalidateUserTrips(user, storageKey).catch(() => {});
+    return cachedUserTrips.trips;
   }
 
-  // Local storage fallback
-  if (typeof window !== 'undefined') {
+  // 2. Local storage immediate hydration if memory cache is null
+  if (!forceRefresh && !cachedUserTrips && typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem(storageKey);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {
-      console.error('Error reading local trips:', e);
-    }
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedUserTrips = { timestamp: Date.now(), userId: user?.id, trips: parsed };
+          revalidateUserTrips(user, storageKey).catch(() => {});
+          return parsed;
+        }
+      }
+    } catch {}
   }
-  return [];
+
+  return revalidateUserTrips(user, storageKey);
 }
 
 export async function saveTripToBackend(trip: Trip): Promise<Trip> {
@@ -155,6 +209,8 @@ export async function saveTripToBackend(trip: Trip): Promise<Trip> {
       console.warn('Local storage error:', e);
     }
   }
+
+  invalidateUserTripsCache();
 
   if (user) {
     const supabase = getSupabaseClient();
@@ -208,6 +264,8 @@ export async function deleteTripFromBackend(tripId: string): Promise<void> {
     }
   }
 
+  invalidateUserTripsCache();
+
   if (user) {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -232,7 +290,7 @@ export async function fetchSavedPlaces(): Promise<SavedPlace[]> {
       try {
         const { data, error } = await supabase
           .from(config.db.tables.places)
-          .select('*')
+          .select('id, user_id, place_data, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
@@ -394,8 +452,19 @@ export function processAvatarImageFile(file: File, maxDimension = 512, quality =
   });
 }
 
+const inMemoryProfileCache = new Map<string, UserProfileData | null>();
+
+export function clearProfileMemoryCache(): void {
+  inMemoryProfileCache.clear();
+}
+
 export function getCachedUserProfile(userId?: string): UserProfileData | null {
   if (typeof window === 'undefined') return null;
+  const cacheKey = userId || '__guest__';
+  if (inMemoryProfileCache.has(cacheKey)) {
+    return inMemoryProfileCache.get(cacheKey) || null;
+  }
+
   try {
     if (userId) {
       const scopedKeys = [
@@ -409,10 +478,12 @@ export function getCachedUserProfile(userId?: string): UserProfileData | null {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {
             parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
+            inMemoryProfileCache.set(cacheKey, parsed);
             return parsed;
           }
         }
       }
+      inMemoryProfileCache.set(cacheKey, null);
       return null;
     }
 
@@ -428,10 +499,12 @@ export function getCachedUserProfile(userId?: string): UserProfileData | null {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
           parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
+          inMemoryProfileCache.set(cacheKey, parsed);
           return parsed;
         }
       }
     }
+    inMemoryProfileCache.set(cacheKey, null);
   } catch (e) {
     console.warn('Failed to parse cached user profile:', e);
   }
@@ -495,6 +568,9 @@ export async function updateUserProfileData(profile: UserProfileData, fallbackUs
       console.warn('Failed to cache profile in localStorage:', e);
     }
   }
+
+  inMemoryProfileCache.set(userId, sanitizedProfile);
+  inMemoryProfileCache.delete('__guest__');
 
   const supabase = getSupabaseClient();
   if (supabase) {

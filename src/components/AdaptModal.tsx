@@ -24,14 +24,12 @@ export const AdaptModal: React.FC<AdaptModalProps> = ({
   onApplyAdaptation,
   activeDayNumber
 }) => {
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isAdapting, setIsAdapting] = useState<boolean>(false);
   const [adaptingStep, setAdaptingStep] = useState<string>('');
 
   if (!isOpen) return null;
 
   const handleTrigger = (optionId: string) => {
-    setSelectedOptionId(optionId);
     setIsAdapting(true);
     setAdaptingStep('Analyzing real-time conditions…');
 

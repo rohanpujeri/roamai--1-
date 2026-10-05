@@ -1,4 +1,4 @@
-import { Activity, TravelStyle, BudgetTier } from '../../src/types';
+import { Activity } from '../../src/types';
 import { GoogleGenAI } from '@google/genai';
 import { fetchRealPlacePhoto } from '../utils/realPlacePhotos';
 import { PREFERRED_GEMINI_MODELS, getGeminiApiKey } from '../utils/geminiModels';

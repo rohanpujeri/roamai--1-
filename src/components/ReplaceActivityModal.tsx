@@ -12,8 +12,7 @@ import {
   Filter,
   Layers,
   ChevronRight,
-  Zap,
-  CheckCircle2
+  Zap
 } from 'lucide-react';
 import { Activity, TravelStyle } from '../types';
 import { resolvePlaceImage, handleImageError } from '../utils/placeImages';
