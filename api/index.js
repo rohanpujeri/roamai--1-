@@ -606,9 +606,8 @@ async function generateTripFromInputs(params) {
   if (!apiKey) {
     throw new Error("Gemini API key is not configured. Please add GEMINI_API_KEY in your Vercel Environment Variables or .env file.");
   }
-  const preferences = params.preferences || {};
-  const travelMode = params.travelMode || preferences.travelMode || "Flight";
-  const startCity = params.startCity || preferences.startCity || "Origin City";
+  const travelMode = params.travelMode || params.preferences.travelMode || "Flight";
+  const startCity = params.startCity || params.preferences.startCity || "Origin City";
   const destName = params.destinationPlace?.name || params.destinationId;
   const destAddress = params.destinationPlace?.address || destName;
   const destLat = params.destinationPlace?.latitude;
@@ -622,12 +621,12 @@ async function generateTripFromInputs(params) {
       }
     }
   });
-  const hasUserSelectedStyles = Array.isArray(preferences.styles) && preferences.styles.length > 0;
-  const foodPref = preferences.food;
-  const alcoholPref = preferences.alcohol;
-  const customNotesText = preferences.customNotes ? preferences.customNotes.trim() : "";
+  const hasUserSelectedStyles = Array.isArray(params.preferences.styles) && params.preferences.styles.length > 0;
+  const foodPref = params.preferences.food;
+  const alcoholPref = params.preferences.alcohol;
+  const customNotesText = params.preferences.customNotes ? params.preferences.customNotes.trim() : "";
   const isRoadVehicleMode = travelMode === "Car / Road Trip" || travelMode === "Bike / Motorcycle";
-  const startCoordinates = preferences?.startCoordinates || params?.startCoordinates || "";
+  const startCoordinates = params.preferences?.startCoordinates || params?.startCoordinates || "";
   const vehicleType = travelMode === "Bike / Motorcycle" ? "touring motorcycle / bike" : travelMode === "Car / Road Trip" ? "car / personal road vehicle" : travelMode;
   const actionVerb = travelMode === "Bike / Motorcycle" ? "motorcycle ride" : "car drive";
   const prompt = `You are the AI travel-planning engine for a real-world travel planning application.
@@ -695,7 +694,7 @@ Target Budget:
 "${params.targetBudget || ""}"
 
 Travel Styles:
-"${hasUserSelectedStyles && preferences.styles ? preferences.styles.join(", ") : ""}"
+"${hasUserSelectedStyles ? params.preferences.styles.join(", ") : ""}"
 
 Food Preference:
 "${foodPref || ""}"
@@ -1847,11 +1846,7 @@ Geographic efficiency, realistic travel time and minimal backtracking are mandat
     targetBudget: params.targetBudget || 25e3,
     currency: "INR",
     preferences: {
-      styles: preferences.styles || [],
-      pace: preferences.pace || "Balanced",
-      idealDay: preferences.idealDay || [],
-      avoidances: preferences.avoidances || [],
-      ...preferences,
+      ...params.preferences,
       startCity
     },
     days: daysWithStays,
@@ -4183,7 +4178,7 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
     destination: trailData.destination || existing?.destination || "Everywhere",
     tags: Array.isArray(trailData.tags) ? trailData.tags : existing?.tags || [],
     audioTitle: trailData.audioTitle || existing?.audioTitle || "Original Travel Sound",
-    likesCount: trailData.likedBy?.length ?? existing?.likedBy?.length ?? (typeof trailData.likesCount === "number" ? trailData.likesCount : existing?.likesCount ?? 0),
+    likesCount: typeof trailData.likesCount === "number" ? trailData.likesCount : typeof existing?.likesCount === "number" ? existing.likesCount : Array.isArray(trailData.likedBy) ? trailData.likedBy.length : existing?.likedBy?.length ?? 0,
     commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
     viewsCount: typeof trailData.viewsCount === "number" ? trailData.viewsCount : existing?.viewsCount ?? 0,
     viewedBy: trailData.viewedBy || existing?.viewedBy || [],
@@ -4353,12 +4348,12 @@ function toggleLikeServerTrail(trailId, increment, liker) {
   const trail = trailsMap.get(trailId);
   if (!trail) return { success: false, likesCount: 0 };
   if (!liker || !liker.username && !liker.id) {
-    return { success: false, likesCount: trail.likedBy ? trail.likedBy.length : trail.likesCount || 0, likedBy: trail.likedBy };
+    return { success: false, likesCount: typeof trail.likesCount === "number" ? trail.likesCount : trail.likedBy?.length || 0, likedBy: trail.likedBy };
   }
   if (!trail.likedBy) trail.likedBy = [];
   const cleanU = (liker.username || "").toLowerCase().replace(/^@+/, "");
   if (!cleanU) {
-    return { success: false, likesCount: trail.likedBy.length, likedBy: trail.likedBy };
+    return { success: false, likesCount: typeof trail.likesCount === "number" ? trail.likesCount : trail.likedBy?.length || 0, likedBy: trail.likedBy };
   }
   if (increment) {
     if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, "") === cleanU)) {
@@ -4373,7 +4368,8 @@ function toggleLikeServerTrail(trailId, increment, liker) {
   } else {
     trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, "") !== cleanU);
   }
-  trail.likesCount = trail.likedBy.length;
+  const prevCount = typeof trail.likesCount === "number" ? trail.likesCount : Number(trail.likesCount) || 0;
+  trail.likesCount = increment ? Math.max(prevCount + 1, trail.likedBy.length) : Math.max(0, prevCount - 1);
   trail.isLiked = increment;
   persistToDisk3();
   return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };

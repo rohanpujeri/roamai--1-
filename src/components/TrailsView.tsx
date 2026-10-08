@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { ThemeConfig, SavedPlace } from '../types';
 import { EditCoverModal } from './EditCoverModal';
+import { resolvePlaceImage } from '../utils/placeImages';
 import type { SelectedTrailLocation } from './TrailLocationPickerModal';
 
 const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
@@ -267,10 +268,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             const updatedLikers = increment && liker
               ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
               : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
+            const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
+            const resolvedCount = typeof likesCount === 'number' ? likesCount : (increment ? Math.max(prevCount + 1, updatedLikers.length) : Math.max(0, prevCount - 1));
             return {
               ...t,
               isLiked: cleanU === currentUsername ? increment : t.isLiked,
-              likesCount: typeof likesCount === 'number' ? likesCount : updatedLikers.length,
+              likesCount: resolvedCount,
               likedBy: updatedLikers
             };
           }
@@ -382,7 +385,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const QUICK_EMOJIS = ['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number>(0);
+  const progressBarRef = useRef<HTMLDivElement | null>(null);
   const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
   const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
   const [locationActionTrail, setLocationActionTrail] = useState<TrailReel | null>(null);
@@ -404,6 +407,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   };
 
   const activeReel = trails[currentIndex] || trails[0];
+
+  const fallbackPoster = useMemo(() => {
+    return resolvePlaceImage(activeReel?.destination || activeReel?.title || 'Scenic Travel', 'Nature');
+  }, [activeReel?.destination, activeReel?.title]);
+
+  const effectivePoster = activeReel?.posterUrl || fallbackPoster;
 
   // Active media resolution states - initialized immediately so media/background is instantly visible
   const [activeMediaUrl, setActiveMediaUrl] = useState<string>(() => {
@@ -589,6 +598,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const handleNextReel = () => {
     if (slideState !== 'idle') return;
     setSlideState('sliding-up');
+    setIsVideoReady(false);
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = '0%';
+    }
     if (slideTimeoutRef.current) clearTimeout(slideTimeoutRef.current);
     slideTimeoutRef.current = setTimeout(() => {
       if (currentIndex < trails.length - 1) {
@@ -616,6 +629,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const handlePrevReel = () => {
     if (slideState !== 'idle') return;
     setSlideState('sliding-down');
+    setIsVideoReady(false);
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = '0%';
+    }
     if (slideTimeoutRef.current) clearTimeout(slideTimeoutRef.current);
     slideTimeoutRef.current = setTimeout(() => {
       if (currentIndex > 0) {
@@ -665,7 +682,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const clickX = e.clientX - rect.left;
     const newProgress = Math.max(0, Math.min(1, clickX / rect.width));
     videoRef.current.currentTime = newProgress * videoRef.current.duration;
-    setProgress(newProgress * 100);
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = `${newProgress * 100}%`;
+    }
   };
 
   // Mouse wheel scroll to change trails (with throttle)
@@ -725,7 +744,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       if (onRequireAuth) onRequireAuth();
       return;
     }
-    likeGlobalTrail(activeReel.id, isLiked, liker);
     setTrails((prev) =>
       prev.map((t, idx) => {
         if (idx === currentIndex) {
@@ -735,16 +753,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
             : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
 
+          const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
+          const nextCount = isLiked ? Math.max(prevCount + 1, updatedLikers.length) : Math.max(0, prevCount - 1);
+
           return {
             ...t,
             isLiked,
-            likesCount: updatedLikers.length,
+            likesCount: nextCount,
             likedBy: updatedLikers
           };
         }
         return t;
       })
     );
+    likeGlobalTrail(activeReel.id, isLiked, liker);
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -1376,10 +1398,13 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
                         const updatedLikers = [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)];
 
+                        const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
+                        const nextCount = Math.max(prevCount + 1, updatedLikers.length);
+
                         return {
                           ...t,
                           isLiked: true,
-                          likesCount: updatedLikers.length,
+                          likesCount: nextCount,
                           likedBy: updatedLikers
                         };
                       }
@@ -1421,21 +1446,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           )}
           {/* Ambient optimized backdrop for non-9:16 aspect ratios */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
-              <img
-                src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
-                alt=""
-                className="w-full h-full object-cover opacity-25 scale-105"
-                style={{ filter: 'blur(10px)', transform: 'translateZ(0)' }}
-              />
-            ) : (
-              <img
-                src={activeReel.posterUrl || activeMediaUrl}
-                alt=""
-                className="w-full h-full object-cover opacity-25 scale-105"
-                style={{ filter: 'blur(10px)', transform: 'translateZ(0)' }}
-              />
-            )}
+            <img
+              src={effectivePoster}
+              alt=""
+              className="w-full h-full object-cover opacity-25 scale-105"
+              style={{ filter: 'blur(10px)', transform: 'translateZ(0)' }}
+            />
           </div>
 
           {/* Video or Image Media Player with Smooth Slide Transition */}
@@ -1461,7 +1477,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
               return activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
                 <img
-                  src={activeMediaUrl || activeReel.posterUrl || activeReel.videoUrl}
+                  src={activeMediaUrl || effectivePoster || activeReel.videoUrl}
                   alt={activeReel.caption}
                   className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'} select-none`}
                   style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
@@ -1470,9 +1486,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 <div className="relative w-full h-full flex items-center justify-center">
                   <video
                     ref={videoRef}
-                    key={activeMediaUrl}
+                    key={activeReel.id}
                     src={activeMediaUrl}
-                    poster={activeReel.posterUrl}
+                    poster={effectivePoster}
                     playsInline
                     webkit-playsinline="true"
                     loop
@@ -1496,16 +1512,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       setActiveMediaError(true);
                     }}
                     onTimeUpdate={() => {
-                      if (videoRef.current && videoRef.current.duration) {
-                        setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                      const v = videoRef.current;
+                      if (v && v.duration) {
+                        if (!isVideoReady && v.currentTime > 0) {
+                          setIsVideoReady(true);
+                        }
+                        if (progressBarRef.current) {
+                          const pct = Math.min(100, Math.max(0, (v.currentTime / v.duration) * 100));
+                          progressBarRef.current.style.width = `${pct}%`;
+                        }
                       }
                     }}
                   />
 
                   {/* Seamless instant poster frame cover while video buffers */}
-                  {activeReel.posterUrl && !isVideoReady && (
+                  {!isVideoReady && (
                     <img
-                      src={activeReel.posterUrl}
+                      src={effectivePoster}
                       alt="Poster preview"
                       className={`absolute inset-0 w-full h-full ${isContain ? 'object-contain' : 'object-cover'} pointer-events-none z-10 transition-opacity duration-200`}
                       style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
@@ -1516,27 +1539,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             })()}
           </div>
 
-          {/* Hidden prewarmer for immediate next reel only (downloads metadata headers into browser cache) */}
-          {isActive && nextMediaUrl && trails[currentIndex + 1]?.mediaType === 'video' && (
-            <video
-              key={`prewarm-${nextMediaUrl}`}
-              src={nextMediaUrl}
-              preload="metadata"
-              muted
-              playsInline
-              webkit-playsinline="true"
+          {/* Lightweight next reel poster prefetch without competing for GPU decoders or video bandwidth */}
+          {isActive && trails[currentIndex + 1] && (
+            <img
+              src={trails[currentIndex + 1]?.posterUrl || resolvePlaceImage(trails[currentIndex + 1]?.destination || trails[currentIndex + 1]?.title, 'Nature')}
+              alt=""
               className="hidden pointer-events-none"
               style={{ display: 'none' }}
               aria-hidden="true"
             />
           )}
 
-          {/* Recovery overlay if old session clip expired */}
+          {/* Recovery overlay if clip unavailable */}
           {activeMediaError && (
             <div className="absolute inset-0 bg-neutral-950/95 flex flex-col items-center justify-center p-6 text-center space-y-4 z-20">
-              {activeReel.posterUrl && (
+              {effectivePoster && (
                 <img
-                  src={activeReel.posterUrl}
+                  src={effectivePoster}
                   alt="Poster frame"
                   className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs pointer-events-none"
                 />
@@ -1547,27 +1566,38 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               <div className="relative z-10 space-y-1">
                 <h4 className="text-sm font-bold text-white">Clip Stream Unavailable</h4>
                 <p className="text-xs text-neutral-300 max-w-xs leading-relaxed">
-                  This video was saved in temporary session memory and expired on reload.
+                  Unable to buffer this clip stream right now.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!session) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  if (onOpenUploadPage) {
-                    onOpenUploadPage();
-                  } else {
-                    setShowUploadModal(true);
-                  }
-                }}
-                className="relative z-10 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg cursor-pointer transition-all"
-              >
-                Upload Clip to Replace
-              </button>
+              <div className="relative z-10 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMediaError(false);
+                    setIsVideoReady(false);
+                    if (videoRef.current) {
+                      videoRef.current.load();
+                      videoRef.current.play().catch(() => {});
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 shadow-lg cursor-pointer transition-all"
+                >
+                  Retry Stream
+                </button>
+                {currentIndex < trails.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNextReel();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg cursor-pointer transition-all"
+                  >
+                    Next Trail →
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -1613,7 +1643,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] hover:text-emerald-400 hover:underline transition-all cursor-pointer"
               title="View profiles who liked this trail"
             >
-              {activeReel.likesCount}
+              {Number(activeReel.likesCount || 0).toLocaleString()}
             </button>
           </div>
 
@@ -1862,8 +1892,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         >
           <div className="w-full h-[3px] sm:h-[4px] bg-white/40 group-hover/playline:h-[6px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
             <div
+              ref={progressBarRef}
               className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
-              style={{ width: `${progress}%` }}
+              style={{ width: '0%' }}
             />
           </div>
         </div>

@@ -234,7 +234,7 @@ export interface DestinationPreset {
   officialPermitNote?: string;
 }
 
-export type ThemeId = 'black-iris' | 'basic' | 'beach' | 'mountain' | 'waterfall' | 'trekking' | 'snow';
+export type ThemeId = 'black-iris' | 'beach' | 'mountain' | 'waterfall' | 'trekking' | 'snow';
 
 export interface SavedPlace {
   placeId: string;

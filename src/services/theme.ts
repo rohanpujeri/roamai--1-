@@ -35,68 +35,16 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-[#A0BDDB]',
     swatches: ['#080813', '#A0BDDB', '#0e101f', '#7ea2c6'],
     isDark: true,
-    heroPhotoUrl: '/images/bg_snow.jpg',
+    heroPhotoUrl: '/images/bg_black_iris.jpg',
     heroPhotoPosition: 'center 40%',
     heroPhotoTag: '❄️ Black Iris & Frozen Glow • Ultra HD',
     heroFloatingPhotos: [
-      { url: '/images/bg_snow.jpg', title: 'Black Iris Void', location: 'Obsidian Vista • 18°C' },
-      { url: '/images/bg_snow.jpg', title: 'Frozen Heights', location: 'Glacial Peak • -4°C' }
+      { url: '/images/bg_black_iris.jpg', title: 'Black Iris Void', location: 'Obsidian Vista • 18°C' },
+      { url: '/images/bg_black_iris.jpg', title: 'Frozen Heights', location: 'Glacial Peak • -4°C' }
     ],
     previewTrip: {
       title: 'Obsidian & Frozen Glacial Escape',
-      image: '/images/bg_snow.jpg',
-      subtitle: '4 Days • 2 Travellers • Pure Travel',
-      budget: '₹28,000 Budget',
-      temp: '18°C ❄️',
-      day1Title: 'Day 1 • Arrival & Evening Twilight Walk',
-      activity1: { time: '04:30 PM', title: 'Glacial Twilight Trail', category: 'Relaxation', cost: '₹500' },
-      activity2: { time: '07:30 PM', title: 'Midnight Lounge & Fireside Dining', category: 'Food', cost: '₹1,200' }
-    }
-  },
-  {
-    id: 'basic',
-    name: 'Basic Theme',
-    vibe: 'Midnight Obsidian & Frosted Glacial Sheen',
-    tagline: 'Deep #080813 void with luminous #A0BDDB Frozen accents',
-    icon: '✨',
-    primaryColor: '#A0BDDB',
-    secondaryColor: '#7ea2c6',
-    accentColor: '#A0BDDB',
-    canvasBg: '#080813',
-    canvasTint: 'linear-gradient(180deg, #0e101f 0%, #080813 320px, #080813 100%)',
-    cardBg: '#0e101f',
-    cardBorder: 'rgba(160, 189, 219, 0.2)',
-    optionBg: 'rgba(14, 16, 31, 0.8)',
-    optionHoverBg: 'rgba(160, 189, 219, 0.12)',
-    optionSelectedBg: 'rgba(160, 189, 219, 0.22)',
-    optionBorder: 'rgba(160, 189, 219, 0.3)',
-    bgSubtle: 'rgba(160, 189, 219, 0.08)',
-    borderSubtle: 'rgba(160, 189, 219, 0.15)',
-    taglineColor: '#A0BDDB',
-    heroGradient: 'linear-gradient(135deg, #A0BDDB 0%, #7ea2c6 50%, #4a6fa5 100%)',
-    heroBannerBg: 'linear-gradient(180deg, rgba(8, 8, 19, 0.96) 0%, rgba(14, 16, 31, 0.75) 55%, #080813 100%)',
-    heroAtmosphereGlow: 'radial-gradient(ellipse at 50% 32%, rgba(160, 189, 219, 0.25) 0%, rgba(8, 8, 19, 0.5) 45%, transparent 100%)',
-    vibeTextGradient: 'linear-gradient(135deg, #ffffff 0%, #A0BDDB 50%, #7ea2c6 100%)',
-    heroBadgeBg: 'rgba(160, 189, 219, 0.12)',
-    heroBadgeBorder: 'rgba(160, 189, 219, 0.3)',
-    heroBadgeText: '#A0BDDB',
-    badgeClass: 'bg-[#080813] text-[#A0BDDB] border-[#A0BDDB]/30',
-    activeRingClass: 'ring-[#A0BDDB] border-[#A0BDDB]',
-    primaryBtnClass: 'bg-[#A0BDDB] hover:bg-[#8eadd0] text-[#080813] font-bold shadow-lg shadow-[#A0BDDB]/25',
-    secondaryBtnClass: 'bg-[#0e101f] text-[#A0BDDB] hover:bg-[#A0BDDB]/10 border border-[#A0BDDB]/30',
-    textAccentClass: 'text-[#A0BDDB]',
-    swatches: ['#080813', '#A0BDDB', '#0e101f', '#7ea2c6'],
-    isDark: true,
-    heroPhotoUrl: '/images/bg_snow.jpg',
-    heroPhotoPosition: 'center 40%',
-    heroPhotoTag: '✨ Black Iris & Frozen Glow • Ultra HD',
-    heroFloatingPhotos: [
-      { url: '/images/bg_snow.jpg', title: 'Black Iris Void', location: 'Obsidian Vista • 18°C' },
-      { url: '/images/bg_snow.jpg', title: 'Frozen Heights', location: 'Glacial Peak • -4°C' }
-    ],
-    previewTrip: {
-      title: 'Obsidian & Frozen Glacial Escape',
-      image: '/images/bg_snow.jpg',
+      image: '/images/bg_black_iris.jpg',
       subtitle: '4 Days • 2 Travellers • Pure Travel',
       budget: '₹28,000 Budget',
       temp: '18°C ❄️',
@@ -406,9 +354,13 @@ export function applyThemeToDocument(theme: ThemeConfig): void {
 export function getSavedThemeId(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME_ID;
   try {
-    const saved = (localStorage.getItem('tripwise_theme_id') || localStorage.getItem('roamai_theme_id')) as ThemeId;
+    const saved = (localStorage.getItem('tripwise_theme_id') || localStorage.getItem('roamai_theme_id')) as any;
     if (saved && THEME_OPTIONS.some((t) => t.id === saved)) {
       return saved;
+    }
+    if (saved === 'basic') {
+      localStorage.setItem('tripwise_theme_id', DEFAULT_THEME_ID);
+      localStorage.setItem('roamai_theme_id', DEFAULT_THEME_ID);
     }
   } catch (e) {
     console.warn('Unable to read saved theme:', e);

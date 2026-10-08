@@ -18,11 +18,11 @@ interface ColorGradePreset {
 }
 
 const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
-  basic: {
-    filter: 'brightness(1.02) contrast(1.06) saturate(1.1)',
-    sunFlare: 'radial-gradient(circle at 80% 15%, rgba(254, 240, 138, 0.25) 0%, transparent 60%)',
-    shadowTint: 'transparent',
-    highlightTint: 'radial-gradient(ellipse at 60% 30%, rgba(2, 132, 199, 0.12) 0%, transparent 70%)'
+  'black-iris': {
+    filter: 'brightness(1.0) contrast(1.08) saturate(1.12)',
+    sunFlare: 'radial-gradient(circle at 80% 15%, rgba(160, 189, 219, 0.25) 0%, transparent 60%)',
+    shadowTint: 'linear-gradient(to top right, rgba(8, 8, 19, 0.45) 0%, transparent 60%)',
+    highlightTint: 'radial-gradient(ellipse at 60% 30%, rgba(160, 189, 219, 0.18) 0%, transparent 70%)'
   },
   beach: {
     // Vibrant tropical grading: warm golden highlights, vivid turquoise oceans, deep palm greens
@@ -78,8 +78,8 @@ export const ThemeHeroBackdrop: React.FC<ThemeHeroBackdropProps> = ({
   isAbsolute = false,
   isSticky = false,
 }) => {
-  const themeId = currentTheme?.id || 'waterfall';
-  const photoUrl = currentTheme?.heroPhotoUrl || '/images/bg_waterfall.jpg';
+  const themeId = currentTheme?.id || 'black-iris';
+  const photoUrl = currentTheme?.heroPhotoUrl || '/images/bg_black_iris.jpg';
   const photoPosition = currentTheme?.heroPhotoPosition || 'center 35%';
   const primaryColor = currentTheme?.primaryColor || '#06b6d4';
   const secondaryColor = currentTheme?.secondaryColor || '#059669';

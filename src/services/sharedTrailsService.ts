@@ -61,9 +61,11 @@ export function sanitizeTrail(t: any): TrailReel {
     destination: t.destination || '',
     tags: Array.isArray(t.tags) ? t.tags : [],
     audioTitle: t.audioTitle || 'Original Audio',
-    likesCount: Array.isArray(t.likedBy)
-      ? t.likedBy.length
-      : (typeof t.likesCount === 'number' ? Math.max(0, t.likesCount) : (Number(t.likesCount) || 0)),
+    likesCount: typeof t.likesCount === 'number' && !isNaN(t.likesCount)
+      ? Math.max(t.likesCount, Array.isArray(t.likedBy) ? t.likedBy.length : 0)
+      : (Array.isArray(t.likedBy) && t.likedBy.length > 0
+          ? t.likedBy.length
+          : Math.max(0, Number(t.likesCount) || 0)),
     commentsCount: typeof t.commentsCount === 'number' ? t.commentsCount : (Number(t.commentsCount) || 0),
     viewsCount: typeof t.viewsCount === 'number' ? Math.max(0, t.viewsCount) : (Number(t.viewsCount) || 0),
     viewedBy: Array.isArray(t.viewedBy) ? t.viewedBy : [],
@@ -1175,6 +1177,7 @@ export async function likeGlobalTrail(
     setLocalTrailLikers(trailId, currentLikers);
 
     // 3. Update local storage cache immediately for zero latency
+    let calculatedLikesCount: number = currentLikers.length;
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
@@ -1183,9 +1186,11 @@ export async function likeGlobalTrail(
           if (Array.isArray(trails)) {
             const updated = trails.map((t) => {
               if (t.id === trailId) {
+                const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
+                calculatedLikesCount = increment ? Math.max(prevCount + 1, currentLikers.length) : Math.max(0, prevCount - 1);
                 return { 
                   ...t, 
-                  likesCount: currentLikers.length, 
+                  likesCount: calculatedLikesCount, 
                   isLiked: increment,
                   likedBy: currentLikers 
                 };
@@ -1195,7 +1200,7 @@ export async function likeGlobalTrail(
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
           }
         }
-        window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: currentLikers.length } }));
+        window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: calculatedLikesCount } }));
         window.dispatchEvent(new Event('storage'));
       } catch {
         // ignore
@@ -1209,9 +1214,11 @@ export async function likeGlobalTrail(
         if (supabase) {
           const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
           if (data && data.trail_data) {
+            const prevCount = typeof data.trail_data.likesCount === 'number' ? data.trail_data.likesCount : (Number(data.trail_data.likesCount) || 0);
+            const nextCount = increment ? Math.max(prevCount + 1, currentLikers.length) : Math.max(0, prevCount - 1);
             const updatedTrail = { 
               ...data.trail_data, 
-              likesCount: currentLikers.length, 
+              likesCount: nextCount, 
               likedBy: currentLikers 
             };
             await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);

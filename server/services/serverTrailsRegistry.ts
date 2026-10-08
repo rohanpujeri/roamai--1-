@@ -222,7 +222,7 @@ export function saveServerTrail(
     destination: trailData.destination || existing?.destination || 'Everywhere',
     tags: Array.isArray(trailData.tags) ? trailData.tags : (existing?.tags || []),
     audioTitle: trailData.audioTitle || existing?.audioTitle || 'Original Travel Sound',
-    likesCount: trailData.likedBy?.length ?? existing?.likedBy?.length ?? (typeof trailData.likesCount === 'number' ? trailData.likesCount : existing?.likesCount ?? 0),
+    likesCount: typeof trailData.likesCount === 'number' ? trailData.likesCount : (typeof existing?.likesCount === 'number' ? existing.likesCount : (Array.isArray(trailData.likedBy) ? trailData.likedBy.length : (existing?.likedBy?.length ?? 0))),
     commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
     viewsCount: typeof trailData.viewsCount === 'number' ? trailData.viewsCount : (existing?.viewsCount ?? 0),
     viewedBy: trailData.viewedBy || existing?.viewedBy || [],
@@ -449,13 +449,13 @@ export function toggleLikeServerTrail(
 
   // Strict check: only registered/signed up users can like
   if (!liker || (!liker.username && !liker.id)) {
-    return { success: false, likesCount: trail.likedBy ? trail.likedBy.length : (trail.likesCount || 0), likedBy: trail.likedBy };
+    return { success: false, likesCount: typeof trail.likesCount === 'number' ? trail.likesCount : (trail.likedBy?.length || 0), likedBy: trail.likedBy };
   }
 
   if (!trail.likedBy) trail.likedBy = [];
   const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
   if (!cleanU) {
-    return { success: false, likesCount: trail.likedBy.length, likedBy: trail.likedBy };
+    return { success: false, likesCount: typeof trail.likesCount === 'number' ? trail.likesCount : (trail.likedBy?.length || 0), likedBy: trail.likedBy };
   }
 
   if (increment) {
@@ -472,7 +472,8 @@ export function toggleLikeServerTrail(
     trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, '') !== cleanU);
   }
 
-  trail.likesCount = trail.likedBy.length;
+  const prevCount = typeof trail.likesCount === 'number' ? trail.likesCount : (Number(trail.likesCount) || 0);
+  trail.likesCount = increment ? Math.max(prevCount + 1, trail.likedBy.length) : Math.max(0, prevCount - 1);
   trail.isLiked = increment;
   persistToDisk();
 

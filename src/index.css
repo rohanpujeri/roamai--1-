@@ -31,8 +31,7 @@
   --shadow-primary: rgba(160, 189, 219, 0.25);
 }
 
-[data-theme="black-iris"],
-[data-theme="basic"] {
+[data-theme="black-iris"] {
   --color-primary: #A0BDDB;
   --color-primary-dark: #7ea2c6;
   --color-secondary: #7ea2c6;
