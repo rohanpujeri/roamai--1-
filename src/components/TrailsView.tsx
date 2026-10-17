@@ -60,7 +60,7 @@ import {
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
-import { isUserFollowing, followUser, unfollowUser, isFollowedBy, isFakeMockUser, cleanBio } from '../services/followService';
+import { isFakeMockUser, cleanBio } from '../services/followService';
 import { getSavedPlaces, savePlaceToStorage, removeSavedPlace } from '../services/placesService';
 import { TrailLikesModal } from './TrailLikesModal';
 
@@ -133,6 +133,31 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       isLiked: isTrailLikedByUser(t.id)
     }));
   });
+
+  // On mount: purge any legacy video entries from localStorage so only photos remain
+  useEffect(() => {
+    try {
+      const keys = ['roamai_user_trails', 'tripwise_user_trails', 'roamai_global_trails', 'roamai_trails_cache'];
+      keys.forEach((key) => {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter((t: any) => {
+              if (!t) return false;
+              if (t.mediaType === 'video') return false;
+              const u = (t.videoUrl || t.mediaUrl || '').toLowerCase();
+              if (u.includes('.mp4') || u.includes('.mov') || u.includes('.webm')) return false;
+              return true;
+            });
+            if (cleaned.length !== parsed.length) {
+              localStorage.setItem(key, JSON.stringify(cleaned));
+            }
+          }
+        }
+      });
+    } catch {}
+  }, []);
 
   // Sync custom trails if prop updates
   useEffect(() => {
@@ -386,7 +411,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
-  const [unfollowConfirmCreator, setUnfollowConfirmCreator] = useState<{ id?: string; username: string; name: string; avatarUrl?: string } | null>(null);
   const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
   const [locationActionTrail, setLocationActionTrail] = useState<TrailReel | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>(() => getSavedPlaces());
@@ -1611,60 +1635,17 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {/* Gradient Overlays for readable text */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-        {/* Right Action Sidebar (Pure symbols without background shade, Instagram Reels style) */}
+        {/* Right Action Sidebar (Only Save Option) */}
         <div 
           className="absolute right-3.5 sm:right-6 z-20 flex flex-col items-center gap-4 sm:gap-5 pointer-events-auto select-none"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 116px)' }}
         >
-          {/* Like Button & Likes Count */}
-          <div className="flex flex-col items-center gap-1 group/btn">
-            <button
-              type="button"
-              onClick={handleLike}
-              className="flex items-center justify-center cursor-pointer transition-transform active:scale-75 hover:scale-110"
-              title={activeReel.isLiked ? 'Unlike' : 'Like'}
-            >
-              <Heart 
-                className={`w-7 h-7 sm:w-8 sm:h-8 transition-all ${
-                  activeReel.isLiked 
-                    ? 'fill-red-500 text-red-500 scale-105 drop-shadow-[0_2px_12px_rgba(239,68,68,0.7)]' 
-                    : 'text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]'
-                }`} 
-              />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLikesModal(true);
-              }}
-              className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] hover:text-emerald-400 hover:underline transition-all cursor-pointer"
-              title="View profiles who liked this trail"
-            >
-              {Number(activeReel.likesCount || 0).toLocaleString()}
-            </button>
-          </div>
-
-          {/* Comments Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowComments(true);
-            }}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
-          >
-            <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-              {activeReel.commentsCount}
-            </span>
-          </button>
-
           {/* Save / Bookmark Button */}
           <button
             type="button"
             onClick={handleSave}
             className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
+            title={activeReel.isSaved ? 'Unsave Trail' : 'Save Trail'}
           >
             <Bookmark 
               className={`w-7 h-7 sm:w-8 sm:h-8 transition-all ${
@@ -1674,37 +1655,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               }`} 
             />
             <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-              Save
+              {activeReel.isSaved ? 'Saved' : 'Save'}
             </span>
           </button>
-
-          {/* Share Button */}
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex flex-col items-center gap-1 group/btn cursor-pointer transition-transform active:scale-75 hover:scale-110"
-          >
-            <Share2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-            <span className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-              Share
-            </span>
-          </button>
-
-          {/* Sound Mute/Unmute Toggle (only for video reels) */}
-          {activeReel.mediaType !== 'image' && !activeMediaUrl.startsWith('data:image') && (
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="flex items-center justify-center transition-transform active:scale-75 hover:scale-110 cursor-pointer pt-0.5"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-neutral-300 stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-              ) : (
-                <Volume2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-              )}
-            </button>
-          )}
         </div>
 
         {/* Bottom Left Info & Caption Overlay (Above playline & low bottom nav) */}
@@ -1726,8 +1679,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             ? sanitizeAvatarUrl(cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || creator.avatarUrl)
             : sanitizeAvatarUrl(creator.avatarUrl);
 
-          const isFollowed = isUserFollowing(currentUsername, creator.username) || !!creator.isFollowed;
-
           const handleOpenCreatorProfile = (e: React.MouseEvent) => {
             e.stopPropagation();
             if (isOwnTrail) {
@@ -1744,8 +1695,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               username: effectiveUsername,
               name: creator.name,
               avatarUrl: effectiveAvatarUrl,
-              location: activeReel?.destination || '',
-              isFollowing: isFollowed
+              location: activeReel?.destination || ''
             };
 
             if (onOpenUserProfile) {
@@ -1797,54 +1747,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 >
                   {creatorCleanDisplay}
                 </span>
-
-                {/* Follow / Following Button (hidden for own profile) */}
-                {!isOwnTrail && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isFollowed) {
-                        setUnfollowConfirmCreator(creator);
-                      } else {
-                        followUser(
-                          {
-                            id: session?.user?.id,
-                            username: currentUsername,
-                            name: cachedUser?.name || currentUsername,
-                            avatarUrl: cachedUser?.avatarUrl
-                          },
-                          {
-                            id: creator.id,
-                            username: creator.username,
-                            name: creator.name,
-                            avatarUrl: creator.avatarUrl
-                          }
-                        );
-                        setTrails((prev) =>
-                          prev.map((t, idx) => {
-                            if (idx === currentIndex) {
-                              return {
-                                ...t,
-                                creator: { ...(t.creator || DEFAULT_TRAIL_CREATOR), isFollowed: true }
-                              };
-                            }
-                            return t;
-                          })
-                        );
-                      }
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs sm:text-sm font-bold border transition-all cursor-pointer ${
-                      isFollowed
-                        ? 'bg-white/20 border-white/30 text-white'
-                        : isFollowedBy(currentUsername, creator.username)
-                        ? 'bg-[#0095f6] border-transparent text-white'
-                        : 'bg-transparent hover:bg-white/15 border-white/60 text-white'
-                    }`}
-                  >
-                    {isFollowed ? 'Following' : (isFollowedBy(currentUsername, creator.username) ? 'Follow Back' : 'Follow')}
-                  </button>
-                )}
               </div>
 
               {/* Creator Bio (if available on creator profile) */}
@@ -1955,8 +1857,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               username: rawU.startsWith('@') ? rawU : `@${rawU}`,
               name: likerObj?.name || rawU,
               avatarUrl: likerObj?.avatarUrl || '',
-              location: 'Traveler',
-              isFollowing: !!likerObj?.isFollowing
+              location: 'Traveler'
             };
             if (onOpenUserProfile) {
               onOpenUserProfile(travellerData);
@@ -2682,82 +2583,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             )}
           </div>
         </div>
-      )}
-
-      {/* Instagram Unfollow Confirmation Dialog for Trail Creator */}
-      {unfollowConfirmCreator && typeof document !== 'undefined' && createPortal(
-        <div 
-          className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setUnfollowConfirmCreator(null)}
-        >
-          <div 
-            className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
-              {unfollowConfirmCreator?.avatarUrl ? (
-                <img
-                  src={sanitizeAvatarUrl(unfollowConfirmCreator.avatarUrl)}
-                  alt={unfollowConfirmCreator.username || 'Creator'}
-                  className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-                  {unfollowConfirmCreator?.name?.charAt(0).toUpperCase() || unfollowConfirmCreator?.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
-                </div>
-              )}
-              <h3 className="text-base font-bold text-white leading-tight">
-                Unfollow {(unfollowConfirmCreator?.username || 'user').startsWith('@') ? unfollowConfirmCreator?.username : `@${unfollowConfirmCreator?.username || 'user'}`}?
-              </h3>
-              <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={async () => {
-                if (unfollowConfirmCreator) {
-                  await unfollowUser(
-                    {
-                      id: session?.user?.id,
-                      username: currentUsername
-                    },
-                    {
-                      id: unfollowConfirmCreator.id,
-                      username: unfollowConfirmCreator.username || ''
-                    }
-                  );
-                  setTrails((prev) =>
-                    prev.map((t, idx) => {
-                      if (idx === currentIndex) {
-                        return {
-                          ...t,
-                          creator: { ...(t.creator || DEFAULT_TRAIL_CREATOR), isFollowed: false }
-                        };
-                      }
-                      return t;
-                    })
-                  );
-                  setUnfollowConfirmCreator(null);
-                }
-              }}
-              className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
-            >
-              Unfollow
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setUnfollowConfirmCreator(null)}
-              className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>,
-        document.body
       )}
 
       {/* Trail Location Action Modal (Save Place & Plan a Trip) */}

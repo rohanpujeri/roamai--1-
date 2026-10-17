@@ -4,16 +4,11 @@ import {
   X, 
   Heart, 
   Search, 
-  UserPlus, 
-  UserCheck, 
   Loader2,
   Check
 } from 'lucide-react';
 import { TrailLiker, fetchTrailLikers } from '../services/sharedTrailsService';
 import { 
-  isUserFollowing, 
-  followUser, 
-  unfollowUser, 
   cleanHandle,
   isFakeMockUser
 } from '../services/followService';
@@ -50,7 +45,6 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
   const [likers, setLikers] = useState<TrailLiker[]>(initialLikers);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const curUname = useMemo(() => {
@@ -184,18 +178,6 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
 
         if (isMounted) {
           setLikers(finalList);
-
-          // Populate following statuses
-          const fMap: Record<string, boolean> = {};
-          if (currentUser?.username) {
-            finalList.forEach((l) => {
-              const targetU = cleanHandle(l.username);
-              if (targetU && targetU !== curUname) {
-                fMap[targetU] = isUserFollowing(curUname, targetU);
-              }
-            });
-          }
-          setFollowingMap(fMap);
           setIsLoading(false);
         }
       } catch (err) {
@@ -257,52 +239,6 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2200);
-  };
-
-  const handleToggleFollow = async (liker: TrailLiker) => {
-    if (!currentUser?.username) {
-      showToast('Please sign in to follow travelers');
-      return;
-    }
-
-    const targetU = cleanHandle(liker.username);
-    if (!targetU || targetU === curUname) return;
-
-    const currentlyFollowing = !!followingMap[targetU];
-
-    // Optimistic UI update
-    setFollowingMap((prev) => ({ ...prev, [targetU]: !currentlyFollowing }));
-
-    try {
-      if (currentlyFollowing) {
-        await unfollowUser(
-          { id: currentUser.id, username: currentUser.username },
-          { id: liker.id, username: liker.username }
-        );
-        showToast(`Unfollowed @${targetU}`);
-      } else {
-        await followUser(
-          { 
-            id: currentUser.id, 
-            username: currentUser.username, 
-            name: currentUser.name, 
-            avatarUrl: currentUser.avatarUrl 
-          },
-          { 
-            id: liker.id, 
-            username: liker.username, 
-            name: liker.name, 
-            avatarUrl: liker.avatarUrl 
-          }
-        );
-        showToast(`Following @${targetU}`);
-      }
-      window.dispatchEvent(new CustomEvent('roamai_follow_changed'));
-    } catch (err) {
-      // Revert optimistic update on failure
-      setFollowingMap((prev) => ({ ...prev, [targetU]: currentlyFollowing }));
-      console.warn('Failed to toggle follow:', err);
-    }
   };
 
   if (!isOpen) return null;
@@ -422,19 +358,16 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
             <div className="space-y-1">
               {filteredLikers.map((liker, idx) => {
                 const isSelf = cleanHandle(liker.username) === curUname;
-                const isFollowing = !!followingMap[cleanHandle(liker.username)];
                 const initial = (liker.name || liker.username || 'U').charAt(0).toUpperCase();
 
                 return (
                   <div
                     key={liker.id || liker.username || idx}
-                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-colors group"
+                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
+                    onClick={() => onSelectUser && onSelectUser(liker.username, liker)}
                   >
                     {/* User Info */}
-                    <div 
-                      className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer pr-3"
-                      onClick={() => onSelectUser && onSelectUser(liker.username, liker)}
-                    >
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
                       <div className="relative w-10 h-10 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center text-xs font-bold text-white">
                         {liker.avatarUrl ? (
                           <img
@@ -469,31 +402,6 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
                         </p>
                       </div>
                     </div>
-
-                    {/* Follow / Unfollow Button */}
-                    {!isSelf && (
-                      <div className="shrink-0">
-                        {isFollowing ? (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleFollow(liker)}
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/15 text-white border border-white/10 transition-all cursor-pointer flex items-center gap-1"
-                          >
-                            <UserCheck className="w-3.5 h-3.5 text-neutral-300" />
-                            <span>Following</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleFollow(liker)}
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer flex items-center gap-1"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Follow</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -503,7 +411,7 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
 
         {/* Modal Footer */}
         <div className="px-5 py-2.5 border-t border-white/5 bg-neutral-950/60 text-center text-[11px] text-neutral-400 shrink-0">
-          Tap on any traveler to view profile or connect
+          Tap on any traveler to view profile
         </div>
       </div>
     </div>,

@@ -63,8 +63,7 @@ import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion'
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
-import { FollowListModal } from './FollowListModal';
-import { getFollowCounts, isFakeMockUser, cleanBio } from '../services/followService';
+import { isFakeMockUser, cleanBio } from '../services/followService';
 import { DeleteAccountModal } from './DeleteAccountModal';
 import {
   resolveInitialProfile,
@@ -697,8 +696,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: getFollowCounts({ id: user?.id, username: cached?.username || getFallbackUsername(user, userMeta) }).followersCount,
-        followingCount: getFollowCounts({ id: user?.id, username: cached?.username || getFallbackUsername(user, userMeta) }).followingCount,
+        followersCount: 0,
+        followingCount: 0,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -711,19 +710,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarToast, setAvatarToast] = useState<string | null>(null);
 
-  // Followers & Following Modal State
-  const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
-  const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
-
   const headerFileInputRef = useRef<HTMLInputElement | null>(null);
   const modalFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const followModalUser = React.useMemo(() => ({
-    id: user?.id,
-    username: profile.username || getFallbackUsername(user, userMeta),
-    name: profile.name || getFallbackName(user, userMeta),
-    avatarUrl: profile.avatarUrl
-  }), [user?.id, profile.username, profile.name, profile.avatarUrl, userMeta?.username, userMeta?.name, userMeta?.full_name]);
 
 
   // Sync profile when user identity or metadata changes
@@ -753,8 +741,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: getFollowCounts({ id: user?.id, username }).followersCount,
-        followingCount: getFollowCounts({ id: user?.id, username }).followingCount,
+        followersCount: 0,
+        followingCount: 0,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -807,28 +795,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     calculatedCountriesCount,
     travelDNAAnalysis.hasCompletedTrips
   ]);
-
-  // Listen to real-time follow/unfollow actions across the app
-  useEffect(() => {
-    const handleFollowChanged = () => {
-      const counts = getFollowCounts({ id: user?.id, username: profile.username });
-      setProfile((prev) => ({
-        ...prev,
-        stats: {
-          ...prev.stats,
-          followersCount: counts.followersCount,
-          followingCount: counts.followingCount
-        }
-      }));
-    };
-
-    window.addEventListener('roamai_follow_changed', handleFollowChanged);
-    window.addEventListener('storage', handleFollowChanged);
-    return () => {
-      window.removeEventListener('roamai_follow_changed', handleFollowChanged);
-      window.removeEventListener('storage', handleFollowChanged);
-    };
-  }, [user?.id, profile.username]);
 
 
   // Sync profile-specific trails from global trails (server API & Supabase)
@@ -1248,12 +1214,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </span>
             </div>
 
-            {/* STATS IN ONE STRAIGHT LINE: POST | FOLLOWERS | FOLLOWING */}
-            <div className="flex items-center justify-between text-center max-w-[280px] sm:max-w-[340px] pt-1">
+            {/* STATS: POST */}
+            <div className="flex items-center text-left pt-1">
               {/* Posts */}
               <div 
                 onClick={() => setActiveTab('trips')}
-                className="cursor-pointer group flex-1"
+                className="cursor-pointer group"
               >
                 <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
                   {displayTrips.length + userTrails.length}
@@ -1262,46 +1228,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   {displayTrips.length + userTrails.length === 1 ? 'post' : 'posts'}
                 </span>
               </div>
-
-              {/* Followers */}
-              <button 
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFollowModalTab('followers');
-                  setIsFollowModalOpen(true);
-                }}
-                className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
-                title="View followers"
-                aria-label="View followers"
-              >
-                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
-                  {profile.stats?.followersCount ?? 0}
-                </span>
-                <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
-                  followers
-                </span>
-              </button>
-
-              {/* Following */}
-              <button 
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFollowModalTab('following');
-                  setIsFollowModalOpen(true);
-                }}
-                className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
-                title="View following"
-                aria-label="View following"
-              >
-                <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
-                  {profile.stats?.followingCount ?? 0}
-                </span>
-                <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
-                  following
-                </span>
-              </button>
             </div>
           </div>
         </div>
@@ -2631,36 +2557,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         onOpenDeleteAccount={() => {
           setIsDrawerOpen(false);
           setIsDeleteAccountModalOpen(true);
-        }}
-      />
-
-      {/* Followers & Following List Modal */}
-      <FollowListModal
-        isOpen={isFollowModalOpen}
-        onClose={() => setIsFollowModalOpen(false)}
-        initialTab={followModalTab}
-        profileUser={followModalUser}
-        currentUser={followModalUser}
-        onSelectUser={(selectedUser) => {
-          setIsFollowModalOpen(false);
-          const detail = {
-            id: selectedUser.id,
-            username: selectedUser.username,
-            name: selectedUser.name,
-            avatarUrl: selectedUser.avatarUrl,
-            location: selectedUser.location,
-            bio: selectedUser.bio,
-            isFollowing: selectedUser.isFollowing
-          };
-          try {
-            sessionStorage.setItem('roamai_pending_view_traveller', JSON.stringify(detail));
-          } catch {}
-          window.dispatchEvent(
-            new CustomEvent('roamai_view_traveller', {
-              detail
-            })
-          );
-          onNavigate?.('travellers_search');
         }}
       />
 

@@ -70,7 +70,9 @@ try {
           rec &&
           rec.id &&
           !rec.id.startsWith('sample-trail-') &&
-          !isFakeMockUser(rec.creator?.username)
+          !isFakeMockUser(rec.creator?.username) &&
+          rec.mediaType !== 'video' &&
+          !rec.videoUrl?.includes('.mp4')
         ) {
           trailsMap.set(rec.id, rec);
         }
@@ -107,7 +109,9 @@ export async function syncServerTrailsFromStorage(): Promise<void> {
             rec &&
             rec.id &&
             !rec.id.startsWith('sample-trail-') &&
-            !isFakeMockUser(rec.creator?.username)
+            !isFakeMockUser(rec.creator?.username) &&
+            rec.mediaType !== 'video' &&
+            !rec.videoUrl?.includes('.mp4')
           ) {
             trailsMap.set(rec.id, rec);
           }
@@ -164,7 +168,7 @@ function saveMediaFileToDisk(trailId: string, base64Data: string, prefix: string
  */
 export function getAllServerTrails(): ServerTrailRecord[] {
   const records = Array.from(trailsMap.values()).filter(
-    (t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username)
+    (t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && t.mediaType !== 'video' && !t.videoUrl?.includes('.mp4')
   );
   return records.sort((a, b) => {
     const timeA = new Date(a.createdAt || 0).getTime();

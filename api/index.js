@@ -4064,7 +4064,7 @@ try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
-        if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username)) {
+        if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !rec.videoUrl?.includes(".mp4")) {
           trailsMap.set(rec.id, rec);
         }
       });
@@ -4093,7 +4093,7 @@ async function syncServerTrailsFromStorage() {
       const parsed = await res.json();
       if (Array.isArray(parsed)) {
         parsed.forEach((rec) => {
-          if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username)) {
+          if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !rec.videoUrl?.includes(".mp4")) {
             trailsMap.set(rec.id, rec);
           }
         });
@@ -4133,7 +4133,7 @@ function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
 }
 function getAllServerTrails() {
   const records = Array.from(trailsMap.values()).filter(
-    (t) => t && !t.id?.startsWith("sample-trail-") && !isFakeMockUser(t.creator?.username)
+    (t) => t && !t.id?.startsWith("sample-trail-") && !isFakeMockUser(t.creator?.username) && t.mediaType !== "video" && !t.videoUrl?.includes(".mp4")
   );
   return records.sort((a, b) => {
     const timeA = new Date(a.createdAt || 0).getTime();

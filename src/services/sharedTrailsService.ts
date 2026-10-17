@@ -55,7 +55,7 @@ export function sanitizeTrail(t: any): TrailReel {
     id: String(t.id || `trail-${Date.now()}`),
     videoUrl: t.videoUrl || '',
     posterUrl: t.posterUrl || undefined,
-    mediaType: t.mediaType === 'video' ? 'video' : 'image',
+    mediaType: 'image',
     title: t.title || 'Trail',
     caption: t.caption || '',
     destination: t.destination || '',
@@ -385,14 +385,20 @@ export function fileToBase64(file: File | Blob): Promise<string> {
  */
 export function isValidTrailMedia(t: any): boolean {
   if (!t || !t.id) return false;
+  // Discard any existing/legacy video trails
+  if (t.mediaType === 'video') return false;
+  const mediaUrl = t.videoUrl || '';
+  if (typeof mediaUrl === 'string' && /\.(mp4|mov|webm)(\?.*)?$/i.test(mediaUrl)) {
+    return false;
+  }
   try {
     const currentUrl = config.supabase.url;
     if (currentUrl && currentUrl.startsWith('http')) {
       const currentHost = new URL(currentUrl).hostname;
-      const mediaUrl = t.videoUrl || t.posterUrl || '';
-      if (typeof mediaUrl === 'string' && mediaUrl.includes('.supabase.co')) {
+      const fullUrl = t.videoUrl || t.posterUrl || '';
+      if (typeof fullUrl === 'string' && fullUrl.includes('.supabase.co')) {
         // If it references a Supabase storage bucket from another project, discard
-        if (!mediaUrl.includes(currentHost)) {
+        if (!fullUrl.includes(currentHost)) {
           return false;
         }
       }

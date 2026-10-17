@@ -102,9 +102,9 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
           </div>
           <ul className="space-y-1.5 pl-5 list-disc text-zinc-400 text-[11px] sm:text-xs">
             <li>All your saved, active & completed travel itineraries</li>
-            <li>All your uploaded travel trail videos, photos & captions</li>
+            <li>All your uploaded travel trail photos & captions</li>
             <li>Your <span className="text-zinc-200 font-bold">@{username || 'handle'}</span> username reservation</li>
-            <li>Your travel stats, followers & community interactions</li>
+            <li>Your travel stats, saved places & community interactions</li>
           </ul>
         </div>
 

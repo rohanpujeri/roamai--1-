@@ -31,14 +31,7 @@ import { searchRealTravellers } from '../services/usernameService';
 import { fetchGlobalTrails, getLocalTrails, TrailReel, isValidTrailMedia } from '../services/sharedTrailsService';
 import { calculateTravelDNA, TravelDNAAnalysis } from '../utils/travelDNA';
 import { isTripCompleted } from '../utils/tripCompletion';
-import { FollowListModal } from './FollowListModal';
 import { 
-  getFollowCounts, 
-  isUserFollowing,
-  isFollowedBy,
-  getMutualFollowers,
-  followUser,
-  unfollowUser,
   isFakeMockUser,
   isSelfRel,
   cleanBio
@@ -143,17 +136,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [activeReelTrailId, setActiveReelTrailId] = useState<string | null>(null);
   const [activeReelTrails, setActiveReelTrails] = useState<TrailReel[] | null>(null);
   const [activeReelTitle, setActiveReelTitle] = useState<string>('Trails');
-
-  // Followers & Following Modal State
-  const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
-  const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
-
-  const followModalViewingUser = useMemo(() => ({
-    id: viewingProfile?.id,
-    username: viewingProfile?.username || '',
-    name: viewingProfile?.name,
-    avatarUrl: viewingProfile?.avatarUrl
-  }), [viewingProfile?.id, viewingProfile?.username, viewingProfile?.name, viewingProfile?.avatarUrl]);
 
   // Listen for navigation event to open a traveller's profile
   useEffect(() => {
@@ -447,211 +429,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     };
   }, []);
 
-  // Instagram Unfollow Confirmation Dialog State
-  const [unfollowConfirmUser, setUnfollowConfirmUser] = useState<{ id: string; username: string; name?: string; avatarUrl?: string } | null>(null);
-  const [inFlightFollowIds, setInFlightFollowIds] = useState<Set<string>>(new Set());
-
-  // Execute Unfollow with immediate optimistic UI response & rollback
-  const executeUnfollow = useCallback(async (target: { id: string; username: string }) => {
-    const cleanUser = target.username.replace(/^@+/, '').toLowerCase();
-    if (inFlightFollowIds.has(target.id) || inFlightFollowIds.has(cleanUser)) return;
-
-    // Snapshot previous state for rollback
-    const prevFollowedSet = new Set(followedSet);
-    const prevTravellers = [...travellers];
-    const prevViewingProfile = viewingProfile ? { ...viewingProfile } : null;
-
-    // 1. Immediate optimistic UI response (<5ms)
-    setInFlightFollowIds((prev) => new Set(prev).add(target.id).add(cleanUser));
-    setFollowedSet((prev) => {
-      const next = new Set(prev);
-      next.delete(target.id);
-      next.delete(cleanUser);
-      saveFollowedUserIds(next);
-      return next;
-    });
-
-    setTravellers((prevTravellers) =>
-      prevTravellers.map((t) => {
-        const tClean = t.username.replace(/^@+/, '').toLowerCase();
-        if (t.id === target.id || tClean === cleanUser) {
-          return { ...t, isFollowing: false };
-        }
-        return t;
-      })
-    );
-
-    setViewingProfile((cur) => {
-      if (!cur) return null;
-      const curClean = cur.username.replace(/^@+/, '').toLowerCase();
-      if (cur.id === target.id || curClean === cleanUser) {
-        return { ...cur, isFollowing: false };
-      }
-      return cur;
-    });
-
-    // 2. Background request
-    try {
-      await unfollowUser(currentUserProfile, target);
-    } catch (err) {
-      console.warn('Failed to unfollow user, rolling back:', err);
-      setFollowedSet(prevFollowedSet);
-      saveFollowedUserIds(prevFollowedSet);
-      setTravellers(prevTravellers);
-      setViewingProfile(prevViewingProfile);
-    } finally {
-      setInFlightFollowIds((prev) => {
-        const next = new Set(prev);
-        next.delete(target.id);
-        next.delete(cleanUser);
-        return next;
-      });
-    }
-  }, [currentUserProfile, followedSet, travellers, viewingProfile, inFlightFollowIds]);
-
-  // Execute Follow with immediate optimistic UI response & rollback
-  const executeFollow = useCallback(async (target: { id: string; username: string; name?: string; avatarUrl?: string }) => {
-    const cleanUser = target.username.replace(/^@+/, '').toLowerCase();
-    if (inFlightFollowIds.has(target.id) || inFlightFollowIds.has(cleanUser)) return;
-
-    // Snapshot previous state for rollback
-    const prevFollowedSet = new Set(followedSet);
-    const prevTravellers = [...travellers];
-    const prevViewingProfile = viewingProfile ? { ...viewingProfile } : null;
-
-    // 1. Immediate optimistic UI response (<5ms)
-    setInFlightFollowIds((prev) => new Set(prev).add(target.id).add(cleanUser));
-    setFollowedSet((prev) => {
-      const next = new Set(prev);
-      next.add(target.id);
-      next.add(cleanUser);
-      saveFollowedUserIds(next);
-      return next;
-    });
-
-    setTravellers((prevTravellers) =>
-      prevTravellers.map((t) => {
-        const tClean = t.username.replace(/^@+/, '').toLowerCase();
-        if (t.id === target.id || tClean === cleanUser) {
-          return { ...t, isFollowing: true };
-        }
-        return t;
-      })
-    );
-
-    setViewingProfile((cur) => {
-      if (!cur) return null;
-      const curClean = cur.username.replace(/^@+/, '').toLowerCase();
-      if (cur.id === target.id || curClean === cleanUser) {
-        return { ...cur, isFollowing: true };
-      }
-      return cur;
-    });
-
-    // 2. Background request
-    try {
-      await followUser(currentUserProfile, target);
-    } catch (err) {
-      console.warn('Failed to follow user, rolling back:', err);
-      setFollowedSet(prevFollowedSet);
-      saveFollowedUserIds(prevFollowedSet);
-      setTravellers(prevTravellers);
-      setViewingProfile(prevViewingProfile);
-    } finally {
-      setInFlightFollowIds((prev) => {
-        const next = new Set(prev);
-        next.delete(target.id);
-        next.delete(cleanUser);
-        return next;
-      });
-    }
-  }, [currentUserProfile, followedSet, travellers, viewingProfile, inFlightFollowIds]);
-
-  // Handle follow button click (prompts confirmation if already following)
-  const handleFollowAction = useCallback((id: string, username: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!session?.user) {
-      onRequireAuth?.();
-      return;
-    }
-    const cleanUser = username.replace(/^@+/, '').toLowerCase();
-    const isAlreadyFollowing = followedSet.has(id) || followedSet.has(cleanUser) || isUserFollowing(currentUserProfile.username, username);
-
-    const matched = travellers.find((t) => t.id === id || t.username.replace(/^@+/, '').toLowerCase() === cleanUser);
-    const targetName = matched?.name || (viewingProfile && viewingProfile.username.replace(/^@+/, '').toLowerCase() === cleanUser ? viewingProfile.name : cleanUser);
-    const targetAvatar = matched?.avatarUrl || (viewingProfile && viewingProfile.username.replace(/^@+/, '').toLowerCase() === cleanUser ? viewingProfile.avatarUrl : undefined);
-
-    const target = { id, username: cleanUser, name: targetName, avatarUrl: targetAvatar };
-
-    if (isAlreadyFollowing) {
-      setUnfollowConfirmUser(target);
-    } else {
-      executeFollow(target);
-    }
-  }, [followedSet, currentUserProfile, travellers, viewingProfile, executeFollow]);
-
-  // Backwards compatible toggleFollow
-  const toggleFollow = handleFollowAction;
-
-  // Instagram Unfollow Confirmation Dialog (Portaled to document.body)
-  const renderUnfollowDialog = () => {
-    if (!unfollowConfirmUser || typeof document === 'undefined') return null;
-    return createPortal(
-      <div 
-        className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-        onClick={() => setUnfollowConfirmUser(null)}
-      >
-        <div 
-          className="w-full max-w-[320px] bg-[#262626] rounded-2xl overflow-hidden shadow-2xl text-center animate-in zoom-in-95 duration-150 divide-y divide-neutral-700/60"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="p-6">
-            {unfollowConfirmUser.avatarUrl ? (
-              <img
-                src={unfollowConfirmUser.avatarUrl}
-                alt={unfollowConfirmUser.username}
-                className="w-16 h-16 rounded-full mx-auto object-cover mb-4 border border-neutral-700"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-                {unfollowConfirmUser.name?.charAt(0).toUpperCase() || unfollowConfirmUser.username?.replace(/^@/, '').charAt(0).toUpperCase() || 'U'}
-              </div>
-            )}
-            <h3 className="text-base font-bold text-white leading-tight">
-              Unfollow @{unfollowConfirmUser.username.replace(/^@/, '')}?
-            </h3>
-            <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-              Their posts and trails will no longer appear in your feed. They won't know you unfollowed them.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (unfollowConfirmUser) {
-                executeUnfollow(unfollowConfirmUser);
-                setUnfollowConfirmUser(null);
-              }
-            }}
-            className="w-full py-3.5 text-sm font-bold text-red-500 hover:bg-neutral-700/30 transition-colors cursor-pointer"
-          >
-            Unfollow
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setUnfollowConfirmUser(null)}
-            className="w-full py-3.5 text-sm font-normal text-white hover:bg-neutral-700/30 transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>,
-      document.body
-    );
-  };
-
   // Global user trails list synced across all profiles
   const [globalTrailsList, setGlobalTrailsList] = useState<any[]>(() => getLocalTrails());
 
@@ -879,12 +656,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   // VIEW A: INSTAGRAM OTHER USER'S PROFILE (Rendered in same page)
   // =========================================================================
   if (viewingProfile) {
-    const cleanUser = viewingProfile.username.replace(/^@+/, '').toLowerCase();
-    const isFollowing = followedSet.has(viewingProfile.id) || followedSet.has(cleanUser) || isUserFollowing(currentUserProfile.username, viewingProfile.username) || !!viewingProfile.isFollowing;
-    const viewingFollowCounts = getFollowCounts({ id: viewingProfile.id, username: viewingProfile.username });
-    const followsYou = isFollowedBy(currentUserProfile.username, viewingProfile.username);
-    const mutuals = getMutualFollowers(currentUserProfile.username, viewingProfile.username);
-
     return (
       <div className="min-h-screen bg-black text-white pb-40 select-none animate-in fade-in duration-200">
         {/* Top Sticky Profile Header Bar */}
@@ -903,11 +674,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
           <div className="flex items-center gap-1.5 font-bold text-sm text-white">
             <span>{viewingProfile.username}</span>
-            {followsYou && (
-              <span className="text-[10px] bg-neutral-800 text-neutral-300 font-medium px-2 py-0.5 rounded-full border border-neutral-700">
-                Follows you
-              </span>
-            )}
           </div>
 
           <button
@@ -966,12 +732,12 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 </span>
               </div>
 
-              {/* STATS IN ONE STRAIGHT LINE: POST | FOLLOWERS | FOLLOWING */}
-              <div className="flex items-center justify-between text-center max-w-[280px] sm:max-w-[340px] pt-1">
+              {/* STATS: POST */}
+              <div className="flex items-center text-left pt-1">
                 {/* Posts */}
                 <div
                   onClick={() => setProfileTab('trips')}
-                  className="cursor-pointer group flex-1"
+                  className="cursor-pointer group"
                 >
                   <span className="block font-bold text-base sm:text-lg text-white group-hover:text-zinc-300 transition-colors leading-tight">
                     {viewingProfileTripsCount + viewingProfileTrails.length}
@@ -980,46 +746,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                     {viewingProfileTripsCount + viewingProfileTrails.length === 1 ? 'post' : 'posts'}
                   </span>
                 </div>
-
-                {/* Followers */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFollowModalTab('followers');
-                    setIsFollowModalOpen(true);
-                  }}
-                  className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
-                  title="View followers"
-                  aria-label="View followers"
-                >
-                  <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
-                    {viewingFollowCounts.followersCount}
-                  </span>
-                  <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
-                    followers
-                  </span>
-                </button>
-
-                {/* Following */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFollowModalTab('following');
-                    setIsFollowModalOpen(true);
-                  }}
-                  className="cursor-pointer group flex-1 bg-transparent border-0 p-0 text-center active:scale-95 transition-transform"
-                  title="View following"
-                  aria-label="View following"
-                >
-                  <span className="block font-bold text-base sm:text-lg text-white group-hover:text-neutral-300 transition-colors leading-tight">
-                    {viewingFollowCounts.followingCount}
-                  </span>
-                  <span className="block text-xs text-zinc-300 font-normal mt-0.5 group-hover:text-white transition-colors">
-                    following
-                  </span>
-                </button>
               </div>
             </div>
           </div>
@@ -1036,33 +762,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 {viewingProfile.username}
               </span>
             </div>
-
-            {/* Mutual Connections (Instagram: Followed by @user and N others) */}
-            {mutuals.length > 0 && (
-              <div className="flex items-center gap-1.5 pt-2 text-[11px] text-neutral-400">
-                <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-                <p className="truncate">
-                  Followed by <strong className="text-white font-semibold">@{mutuals[0]}</strong>
-                  {mutuals.length > 1 ? ` and ${mutuals.length - 1} other${mutuals.length > 2 ? 's' : ''}` : ''}
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* Action Buttons: Follow / Following & Plan a Trip (instead of Edit profile & Share profile) */}
-          <div className="flex items-center gap-2 mt-4">
-            <button
-              type="button"
-              onClick={(e) => handleFollowAction(viewingProfile.id, viewingProfile.username, e)}
-              className={`flex-1 py-1.5 sm:py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center ${
-                isFollowing
-                  ? 'bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-neutral-200 border border-neutral-700'
-                  : 'bg-[#0095f6] hover:bg-[#1877f2] text-white'
-              }`}
-            >
-              {isFollowing ? 'Following' : (followsYou ? 'Follow Back' : 'Follow')}
-            </button>
-
+          {/* Action Button: Plan a Trip */}
+          <div className="mt-4">
             <button
               type="button"
               onClick={() => {
@@ -1070,9 +773,10 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   onStartPlanning(viewingProfileCompletedTrips[0]?.destination);
                 }
               }}
-              className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg bg-[#262626] hover:bg-[#333333] active:bg-[#1f1f1f] text-white text-xs sm:text-sm font-semibold border border-neutral-800 transition-colors cursor-pointer text-center"
+              className="w-full py-2 px-3 rounded-lg bg-[#0095f6] hover:bg-[#1877f2] active:bg-[#0077c5] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
             >
-              Plan a Trip
+              <Sparkles className="w-4 h-4" />
+              <span>Plan a Trip</span>
             </button>
           </div>
 
@@ -1443,57 +1147,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
             </div>
           </div>
         )}
-
-        {/* Followers & Following List Modal */}
-        <FollowListModal
-          isOpen={isFollowModalOpen}
-          onClose={() => setIsFollowModalOpen(false)}
-          initialTab={followModalTab}
-          profileUser={followModalViewingUser}
-          currentUser={currentUserProfile}
-          onSelectUser={(selectedUser) => {
-            setIsFollowModalOpen(false);
-            const cleanU = selectedUser.username.replace(/^@+/, '');
-            const cleanLower = cleanU.toLowerCase();
-
-            // If selected user is self, redirect to own profile tab
-            if (currentUserProfile && isSelfRel(currentUserProfile.id, currentUserProfile.username, selectedUser.id, selectedUser.username)) {
-              setViewingProfile(null);
-              onOpenOwnProfile?.();
-              return;
-            }
-
-            const matched = travellers.find((t) => {
-              const tClean = (t.username || '').replace(/^@+/, '').toLowerCase();
-              return (
-                tClean === cleanLower ||
-                tClean.replace(/_/g, '') === cleanLower.replace(/_/g, '') ||
-                (t.id && selectedUser.id && (t.id === selectedUser.id || t.id.replace(/^supa_/, '') === String(selectedUser.id).replace(/^supa_/, '')))
-              );
-            });
-
-            setViewingProfile({
-              id: selectedUser.id || matched?.id || `user_${cleanU}`,
-              name: selectedUser.name || matched?.name || cleanU,
-              username: selectedUser.username?.startsWith('@') ? selectedUser.username : (matched?.username || `@${cleanU}`),
-              avatarUrl: selectedUser.avatarUrl || matched?.avatarUrl || '',
-              location: selectedUser.location || matched?.location || 'Traveler',
-              bio: cleanBio(selectedUser.bio) || cleanBio(matched?.bio) || '',
-              level: matched?.level || 'Travel Explorer',
-              tripsCount: matched?.tripsCount || 0,
-              placesCount: matched?.placesCount || 0,
-              countriesCount: matched?.countriesCount || 0,
-              topDNA: matched?.topDNA || [],
-              recentPlaces: matched?.recentPlaces || [],
-              isFollowing: selectedUser.isFollowing ?? matched?.isFollowing
-            });
-            setProfileTab('trips');
-            try {
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            } catch {}
-          }}
-        />
-        {renderUnfollowDialog()}
       </div>
     );
   }
@@ -1553,7 +1206,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <div className="divide-y divide-neutral-900 bg-[#121212] border border-neutral-800/80 rounded-2xl overflow-hidden shadow-md">
                   {filteredTravellers.map((tr) => {
                     const cleanUser = tr.username.replace(/^@+/, '').toLowerCase();
-                    const isFollowing = followedSet.has(tr.id) || followedSet.has(cleanUser) || !!tr.isFollowing;
                     const isOwn = isCurrentUser(tr);
 
                     return (
@@ -1618,14 +1270,13 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                         ) : (
                           <button
                             type="button"
-                            onClick={(e) => handleFollowAction(tr.id, tr.username, e)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                              isFollowing
-                                ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
-                                : 'bg-[#0095f6] hover:bg-[#1877f2] text-white shadow-sm'
-                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleProfileClick(tr);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700/60 transition-all cursor-pointer shrink-0"
                           >
-                            {isFollowing ? 'Following' : (isFollowedBy(currentUserProfile.username, tr.username) ? 'Follow Back' : 'Follow')}
+                            View
                           </button>
                         )}
                       </div>
@@ -1727,7 +1378,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 px-0.5">
                   {suggestedProfiles.map((tr) => {
                     const cleanUser = tr.username.replace(/^@+/, '').toLowerCase();
-                    const isFollowing = followedSet.has(tr.id) || followedSet.has(cleanUser) || !!tr.isFollowing;
 
                     return (
                       <div
@@ -1758,19 +1408,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                         <p className="text-[11px] text-neutral-400 truncate w-full mt-0.5">
                           {tr.name}
                         </p>
-
-                        {/* Follow / Following Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleFollowAction(tr.id, tr.username, e)}
-                          className={`w-full mt-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                            isFollowing
-                              ? 'bg-[#262626] hover:bg-[#333333] text-neutral-200 border border-neutral-700'
-                              : 'bg-[#0095f6] hover:bg-[#1877f2] text-white shadow-sm'
-                          }`}
-                        >
-                          {isFollowing ? 'Following' : (isFollowedBy(currentUserProfile.username, tr.username) ? 'Follow Back' : 'Follow')}
-                        </button>
                       </div>
                     );
                   })}
@@ -1997,8 +1634,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
         </div>
       )}
 
-      {/* Instagram Unfollow Confirmation Dialog */}
-      {renderUnfollowDialog()}
+
 
       {/* --- INSTAGRAM REELS FULL-SCREEN VIEWER --- */}
       {activeReelTrailId && (
