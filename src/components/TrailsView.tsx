@@ -1046,21 +1046,19 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     });
   };
 
-  // Video / Photo File Selection Handler
+  // Photo File Selection Handler
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file (JPG, PNG, WEBP, HEIC). Video uploads are not supported for Trails.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
       setUploadVideoFile(file);
       const previewUrl = URL.createObjectURL(file);
       setUploadVideoPreview(previewUrl);
-
-      // Generate instant video thumbnail
-      try {
-        const poster = await generateVideoPoster(file);
-        setUploadPosterPreview(poster);
-      } catch (err) {
-        console.warn('Could not generate poster:', err);
-      }
+      setUploadPosterPreview(previewUrl);
     }
   };
 
@@ -1155,7 +1153,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       id: trailId,
       videoUrl: uploadVideoPreview,
       posterUrl: poster || undefined,
-      mediaType: isImg ? 'image' : 'video',
+      mediaType: 'image',
       title: cleanTitle,
       creator: {
         id: session?.user?.id,
@@ -1601,8 +1599,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </div>
           )}
 
-          {/* Play/Pause Center Overlay Animation */}
-          {!isPlaying && !activeMediaError && (
+          {/* Play/Pause Center Overlay Animation (video reels only) */}
+          {!isPlaying && !activeMediaError && activeReel.mediaType !== 'image' && !activeMediaUrl.startsWith('data:image') && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none transition-all">
               <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl scale-110">
                 <Play className="w-8 h-8 fill-white ml-1" />
@@ -1692,19 +1690,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             </span>
           </button>
 
-          {/* Sound Mute/Unmute Toggle */}
-          <button
-            type="button"
-            onClick={toggleMute}
-            className="flex items-center justify-center transition-transform active:scale-75 hover:scale-110 cursor-pointer pt-0.5"
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-neutral-300 stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-            ) : (
-              <Volume2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
-            )}
-          </button>
+          {/* Sound Mute/Unmute Toggle (only for video reels) */}
+          {activeReel.mediaType !== 'image' && !activeMediaUrl.startsWith('data:image') && (
+            <button
+              type="button"
+              onClick={toggleMute}
+              className="flex items-center justify-center transition-transform active:scale-75 hover:scale-110 cursor-pointer pt-0.5"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-neutral-300 stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+              ) : (
+                <Volume2 className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" />
+              )}
+            </button>
+          )}
         </div>
 
         {/* Bottom Left Info & Caption Overlay (Above playline & low bottom nav) */}
@@ -1883,21 +1883,23 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           );
         })()}
 
-        {/* Video Playline directly above Bottom Navigation Bar with doubled gap */}
-        <div 
-          onClick={handlePlaylineClick}
-          className="absolute left-3.5 right-3.5 sm:left-6 sm:right-6 z-30 h-4 flex items-center cursor-pointer pointer-events-auto group/playline"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)' }}
-          title="Video playback progress"
-        >
-          <div className="w-full h-[3px] sm:h-[4px] bg-white/40 group-hover/playline:h-[6px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
-            <div
-              ref={progressBarRef}
-              className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
-              style={{ width: '0%' }}
-            />
+        {/* Video Playline directly above Bottom Navigation Bar with doubled gap (video reels only) */}
+        {activeReel.mediaType !== 'image' && !activeMediaUrl.startsWith('data:image') && (
+          <div 
+            onClick={handlePlaylineClick}
+            className="absolute left-3.5 right-3.5 sm:left-6 sm:right-6 z-30 h-4 flex items-center cursor-pointer pointer-events-auto group/playline"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)' }}
+            title="Video playback progress"
+          >
+            <div className="w-full h-[3px] sm:h-[4px] bg-white/40 group-hover/playline:h-[6px] rounded-full overflow-hidden transition-all duration-150 backdrop-blur-xs shadow-xs">
+              <div
+                ref={progressBarRef}
+                className="h-full bg-white rounded-full transition-all duration-100 ease-linear"
+                style={{ width: '0%' }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
       )}
 
@@ -2342,7 +2344,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/*,image/*"
+              accept="image/*"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -2369,15 +2371,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                 {/* Body: Select from device */}
                 <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 bg-transparent">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
-                    <Film className="w-10 h-10 sm:w-12 sm:h-12" />
+                    <Camera className="w-10 h-10 sm:w-12 sm:h-12" />
                   </div>
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Upload Travel Trail
+                      Upload Travel Photo
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                      Select a travel video or photo from your device to share with the community
+                      Select a travel photo from your device to share with the community
                     </p>
                   </div>
 
@@ -2387,18 +2389,18 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     className="px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/50 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    Select from device
+                    Select picture from device
                   </button>
 
                   <p className="text-[11px] text-zinc-500">
-                    Supports MP4, MOV, WebM, JPG, PNG up to 100MB
+                    Supports JPG, JPEG, PNG, WEBP, HEIC up to 25MB
                   </p>
                 </div>
               </div>
             ) : (
               /* STEP 2: Instagram "New reel" layout (matching attached design) */
               <form id="upload-reel-form" onSubmit={handleUploadSubmit} className="flex flex-col h-full max-h-[92vh] sm:max-h-[850px] bg-black text-white">
-                {/* Header: Circle Back Button & Centered "New reel" */}
+                {/* Header: Circle Back Button & Centered "New trail photo" */}
                 <div className="relative flex items-center justify-center px-4 py-3.5 border-b border-zinc-900 shrink-0">
                   <button
                     type="button"
@@ -2409,7 +2411,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
-                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New reel</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New trail photo</h2>
                 </div>
 
                 {/* Scrollable Form Body */}
@@ -2428,59 +2430,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                         : 'w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px]'
                     }`}
                   >
-                    {uploadVideoFile?.type.startsWith('image/') ? (
-                      <>
-                        <img
-                          src={uploadPosterPreview || uploadVideoPreview}
-                          alt=""
-                          aria-hidden="true"
-                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                        />
-                        <img
-                          src={uploadPosterPreview || uploadVideoPreview}
-                          alt="Trail preview"
-                          className={`relative z-10 max-h-[380px] mx-auto ${
-                            uploadAspectRatio === 'original'
-                              ? 'w-auto max-w-full object-contain'
-                              : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                          }`}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        {uploadPosterPreview && (
-                          <img
-                            src={uploadPosterPreview}
-                            alt=""
-                            aria-hidden="true"
-                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                          />
-                        )}
-                        <video
-                          src={uploadVideoPreview}
-                          poster={uploadPosterPreview}
-                          playsInline
-                          loop
-                          autoPlay={isPreviewPlaying}
-                          muted
-                          className={`relative z-10 max-h-[380px] mx-auto ${
-                            uploadAspectRatio === 'original'
-                              ? 'w-auto max-w-full object-contain'
-                              : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                          }`}
-                        />
-                      </>
-                    )}
-
-                    {/* "Preview" Pill on Top */}
-                    <button
-                      type="button"
-                      onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
-                      className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5 z-20"
-                    >
-                      {isPreviewPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
-                      <span>Preview</span>
-                    </button>
+                    <img
+                      src={uploadPosterPreview || uploadVideoPreview}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                    />
+                    <img
+                      src={uploadPosterPreview || uploadVideoPreview}
+                      alt="Trail preview"
+                      className={`relative z-10 max-h-[380px] mx-auto ${
+                        uploadAspectRatio === 'original'
+                          ? 'w-auto max-w-full object-contain'
+                          : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
+                      }`}
+                    />
 
                     {/* "Edit cover" Pill on Bottom */}
                     <button
@@ -2492,7 +2456,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                       }}
                       className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 z-20"
                     >
-                      Edit cover
+                      Edit cover / crop
                     </button>
                   </div>
 
@@ -2501,7 +2465,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                         <Crop className="w-3.5 h-3.5 text-emerald-400" />
-                        Video Ratio
+                        Photo Ratio
                       </span>
                       {uploadAspectRatio !== 'original' && (
                         <button

@@ -1,23 +1,20 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   ChevronLeft, 
-  Play, 
-  Pause, 
   Upload, 
-  Film, 
   Hash, 
   Camera, 
   MapPin, 
   Loader2, 
   ChevronRight,
   Check,
-  Crop
+  Crop,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
-import { optimizeMp4ForWeb } from '../utils/mp4Faststart';
 import { EditCoverModal } from './EditCoverModal';
 import type { SelectedTrailLocation } from './TrailLocationPickerModal';
 
@@ -44,7 +41,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [taggedPeople, setTaggedPeople] = useState<string>('');
   const [showTagInput, setShowTagInput] = useState<boolean>(false);
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState<boolean>(false);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
@@ -59,12 +55,17 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   // Initialize from initialFile prop if passed
   useEffect(() => {
     if (initialFile) {
+      if (!initialFile.type.startsWith('image/')) {
+        alert('Please select a picture. Videos are not supported for Trails.');
+        setVideoFile(null);
+        setVideoPreview('');
+        setPosterPreview('');
+        return;
+      }
       setVideoFile(initialFile);
       const url = URL.createObjectURL(initialFile);
       setVideoPreview(url);
-      generateVideoPoster(initialFile)
-        .then((poster) => setPosterPreview(poster))
-        .catch(() => {});
+      setPosterPreview(url);
     }
   }, [initialFile]);
 
@@ -93,16 +94,15 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file (JPG, PNG, WEBP, HEIC). Video uploads are not supported.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
       setVideoFile(file);
       const previewUrl = URL.createObjectURL(file);
       setVideoPreview(previewUrl);
-
-      try {
-        const poster = await generateVideoPoster(file);
-        setPosterPreview(poster);
-      } catch (err) {
-        console.warn('Could not generate poster:', err);
-      }
+      setPosterPreview(previewUrl);
     }
   };
 
@@ -110,6 +110,11 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        if (coverInputRef.current) coverInputRef.current.value = '';
+        return;
+      }
       const url = URL.createObjectURL(file);
       setPosterPreview(url);
     }
@@ -120,7 +125,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     setVideoFile(null);
     setVideoPreview('');
     setPosterPreview('');
-    setIsPreviewPlaying(false);
     setAspectRatio('original');
     setFitMode('contain');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -156,28 +160,16 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     const trailId = `user-trail-${Date.now()}`;
 
     try {
-      // 1. Optimize video with faststart if MP4/video container
-      let readyFile = videoFile;
-      if (videoFile && (videoFile.type.includes('mp4') || videoFile.type.includes('video') || videoFile.type.includes('quicktime'))) {
-        try {
-          readyFile = (await optimizeMp4ForWeb(videoFile)) as File;
-        } catch {
-          readyFile = videoFile;
-        }
-      }
+      const readyFile = videoFile;
 
       // Save binary file to IndexedDB for instant local playback
       if (readyFile) {
         await saveTrailMedia(trailId, readyFile);
       }
 
-      // 2. Poster frame
-      let poster = posterPreview;
-      if (!poster && readyFile) {
-        poster = await generateVideoPoster(readyFile);
-      }
+      // Poster frame (same as picture)
+      const poster = posterPreview || videoPreview;
 
-      const isImg = readyFile?.type.startsWith('image/');
       const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
       const meta = session?.user?.user_metadata || {};
       const creatorName = cached?.name || meta.full_name || meta.name || cached?.username?.replace(/^@/, '') || 'Traveller';
@@ -193,7 +185,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         id: trailId,
         videoUrl: videoPreview,
         posterUrl: poster || undefined,
-        mediaType: isImg ? 'image' : 'video',
+        mediaType: 'image',
         title: cleanTitle,
         creator: {
           id: session?.user?.id,
@@ -246,7 +238,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/*,image/*"
+        accept="image/*"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -286,25 +278,25 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         </button>
 
         <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
-          {videoPreview ? 'New trail' : 'Upload Trail'}
+          {videoPreview ? 'New trail photo' : 'Upload Trail Photo'}
         </h1>
 
         <div className="w-10" />
       </header>
 
-      {/* STEP 1: Select media from device if none selected */}
+      {/* STEP 1: Select picture from device if none selected */}
       {!videoPreview ? (
         <main className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 text-center max-w-md mx-auto space-y-6">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-2xl shadow-emerald-950/50 animate-pulse">
-            <Film className="w-12 h-12 sm:w-14 sm:h-14" />
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-2xl shadow-emerald-950/50">
+            <Camera className="w-12 h-12 sm:w-14 sm:h-14" />
           </div>
 
           <div className="space-y-2">
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Create New Trail
+              Share Travel Photo
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 max-w-xs mx-auto leading-relaxed">
-              Select a travel video or photo from your device to share with explorers across the world.
+              Select a travel picture from your device to share with explorers across the world.
             </p>
           </div>
 
@@ -314,11 +306,11 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
             className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm sm:text-base shadow-xl shadow-emerald-950/60 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2.5"
           >
             <Upload className="w-5 h-5" />
-            <span>Select from device</span>
+            <span>Select picture from device</span>
           </button>
 
           <p className="text-xs text-zinc-500">
-            Supports MP4, MOV, WebM, JPG, PNG up to 100MB
+            Supports JPG, JPEG, PNG, WEBP, HEIC up to 25MB
           </p>
         </main>
       ) : (
@@ -339,59 +331,21 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                   : 'w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px]'
               }`}
             >
-              {videoFile?.type.startsWith('image/') ? (
-                <>
-                  <img
-                    src={posterPreview || videoPreview}
-                    alt=""
-                    aria-hidden="true"
-                    className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                  />
-                  <img
-                    src={posterPreview || videoPreview}
-                    alt="Trail preview"
-                    className={`relative z-10 max-h-[380px] mx-auto ${
-                      aspectRatio === 'original'
-                        ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
-                        : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                    }`}
-                  />
-                </>
-              ) : (
-                <>
-                  {posterPreview && (
-                    <img
-                      src={posterPreview}
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                    />
-                  )}
-                  <video
-                    src={videoPreview}
-                    poster={posterPreview}
-                    playsInline
-                    loop
-                    autoPlay={isPreviewPlaying}
-                    muted
-                    className={`relative z-10 max-h-[380px] mx-auto ${
-                      aspectRatio === 'original'
-                        ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
-                        : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                    }`}
-                  />
-                </>
-              )}
-
-              {/* "Preview" Pill on Top */}
-              <button
-                type="button"
-                onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
-                className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/65 hover:bg-black/85 text-white text-xs font-semibold backdrop-blur-md border border-white/20 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5 z-20"
-              >
-                {isPreviewPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
-                <span>Preview</span>
-              </button>
+              <img
+                src={posterPreview || videoPreview}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+              />
+              <img
+                src={posterPreview || videoPreview}
+                alt="Trail preview"
+                className={`relative z-10 max-h-[380px] mx-auto ${
+                  aspectRatio === 'original'
+                    ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
+                    : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
+                }`}
+              />
 
               {/* "Edit cover" Pill on Bottom */}
               <button
@@ -404,7 +358,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
                 }}
                 className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/20 cursor-pointer shadow-md transition-all active:scale-95 z-20"
               >
-                Edit cover
+                Edit cover / crop
               </button>
             </div>
 
@@ -413,7 +367,7 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Crop className="w-3.5 h-3.5 text-emerald-400" />
-                  Video Ratio
+                  Photo Ratio
                 </span>
                 <button
                   type="button"

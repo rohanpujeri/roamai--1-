@@ -375,20 +375,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, WEBP, HEIC). Video uploads are not supported for Trails.');
+      if (trailUploadInputRef.current) trailUploadInputRef.current.value = '';
+      return;
+    }
+
     setTrailFile(file);
     const objUrl = URL.createObjectURL(file);
     setTrailPreviewUrl(objUrl);
-
-    if (file.type.startsWith('video/')) {
-      try {
-        const poster = await generateVideoPoster(file);
-        setTrailPosterUrl(poster);
-      } catch {
-        setTrailPosterUrl('');
-      }
-    } else {
-      setTrailPosterUrl(objUrl);
-    }
+    setTrailPosterUrl(objUrl);
   };
 
 
@@ -434,7 +430,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         likesCount: '0',
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
-        mediaType: isImg ? 'image' : 'video',
+        mediaType: 'image',
         caption: captionVal
       };
 
@@ -442,7 +438,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         id: trailId,
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
-        mediaType: isImg ? ('image' as const) : ('video' as const),
+        mediaType: 'image' as const,
         title: cleanTitle,
         creator: {
           id: user?.id,
@@ -2004,7 +2000,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <input
               ref={trailUploadInputRef}
               type="file"
-              accept="video/*,image/*"
+              accept="image/*"
               className="hidden"
               onChange={handleTrailFileSelected}
             />
@@ -2031,15 +2027,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 {/* Body: Select from device */}
                 <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-5 bg-transparent">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
-                    <Film className="w-10 h-10 sm:w-12 sm:h-12" />
+                    <Camera className="w-10 h-10 sm:w-12 sm:h-12" />
                   </div>
 
                   <div className="space-y-1.5">
                     <h4 className="text-base sm:text-lg font-bold text-white">
-                      Upload Travel Trail
+                      Upload Travel Photo
                     </h4>
                     <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                      Select a video or photo from your device to share on your profile and discover feed
+                      Select a photo from your device to share on your profile and discover feed
                     </p>
                   </div>
 
@@ -2049,18 +2045,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     className="px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/50 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    Select from device
+                    Select picture from device
                   </button>
 
                   <p className="text-[11px] text-zinc-500">
-                    Supports MP4, MOV, WebM, JPG, PNG up to 100MB
+                    Supports JPG, JPEG, PNG, WEBP, HEIC up to 25MB
                   </p>
                 </div>
               </div>
             ) : (
               /* STEP 2: Instagram "New reel" layout (matching attached design) */
               <form id="profile-upload-reel-form" onSubmit={handlePublishTrail} className="flex flex-col h-full max-h-[92vh] sm:max-h-[850px] bg-black text-white">
-                {/* Header: Circle Back Button & Centered "New reel" */}
+                {/* Header: Circle Back Button & Centered "New trail photo" */}
                 <div className="relative flex items-center justify-center px-4 py-3.5 border-b border-zinc-900 shrink-0">
                   <button
                     type="button"
@@ -2071,58 +2067,24 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
-                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New trail</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">New trail photo</h2>
                 </div>
 
                 {/* Scrollable Form Body */}
                 <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
                   {/* Centered Preview Card sticking to original aspect ratio */}
                   <div className="relative w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px] mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center group">
-                    {trailFile?.type.startsWith('image/') ? (
-                      <>
-                        <img
-                          src={trailPosterUrl || trailPreviewUrl}
-                          alt=""
-                          aria-hidden="true"
-                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                        />
-                        <img
-                          src={trailPosterUrl || trailPreviewUrl}
-                          alt="Trail preview"
-                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
-                        />
-                      </>
-                    ) : (
-                      <>
-                        {trailPosterUrl && (
-                          <img
-                            src={trailPosterUrl}
-                            alt=""
-                            aria-hidden="true"
-                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
-                          />
-                        )}
-                        <video
-                          src={trailPreviewUrl}
-                          poster={trailPosterUrl}
-                          playsInline
-                          loop
-                          autoPlay={isPreviewPlayingTrail}
-                          muted
-                          className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
-                        />
-                      </>
-                    )}
-
-                    {/* "Preview" Pill on Top */}
-                    <button
-                      type="button"
-                      onClick={() => setIsPreviewPlayingTrail(!isPreviewPlayingTrail)}
-                      className="absolute top-3 inset-x-0 mx-auto w-fit px-3.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 flex items-center gap-1.5"
-                    >
-                      {isPreviewPlayingTrail ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
-                      <span>Preview</span>
-                    </button>
+                    <img
+                      src={trailPosterUrl || trailPreviewUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none scale-110"
+                    />
+                    <img
+                      src={trailPosterUrl || trailPreviewUrl}
+                      alt="Trail preview"
+                      className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
+                    />
 
                     {/* "Edit cover" Pill on Bottom */}
                     <button
@@ -2135,7 +2097,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       }}
                       className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 z-20"
                     >
-                      Edit cover
+                      Edit cover / crop
                     </button>
                   </div>
 
