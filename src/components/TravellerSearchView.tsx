@@ -61,7 +61,6 @@ export interface ExploreTile {
   destination: string;
   imageUrl: string;
   mediaUrl?: string;
-  videoUrl?: string;
   creator: {
     id?: string;
     name: string;
@@ -547,8 +546,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           title: t.title || t.caption || 'Travel Reel',
           destination: t.destination || 'Explore Destination',
           imageUrl: cleanPoster,
-          mediaUrl: t.mediaUrl || t.videoUrl,
-          videoUrl: t.mediaUrl || t.videoUrl,
+          mediaUrl: t.mediaUrl,
           creator: {
             id: t.creator?.id,
             name: t.creator?.name || 'Traveler',

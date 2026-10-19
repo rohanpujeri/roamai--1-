@@ -6,7 +6,6 @@ import { serverConfig } from '../config';
 export interface ServerTrailRecord {
   id: string;
   mediaUrl: string;
-  videoUrl?: string;
   posterUrl?: string;
   mediaType: 'video' | 'image';
   title: string;
@@ -49,7 +48,7 @@ try {
           !rec.id.startsWith('sample-trail-') &&
           !isFakeMockUser(rec.creator?.username) &&
           rec.mediaType !== 'video' &&
-          !(rec.mediaUrl || rec.videoUrl)?.includes('.mp4')
+          !rec.mediaUrl?.includes('.mp4')
         ) {
           trailsMap.set(rec.id, rec);
         }
@@ -88,7 +87,7 @@ export async function syncServerTrailsFromStorage(): Promise<void> {
             !rec.id.startsWith('sample-trail-') &&
             !isFakeMockUser(rec.creator?.username) &&
             rec.mediaType !== 'video' &&
-            !(rec.mediaUrl || rec.videoUrl)?.includes('.mp4')
+            !rec.mediaUrl?.includes('.mp4')
           ) {
             trailsMap.set(rec.id, rec);
           }
@@ -145,7 +144,7 @@ function saveMediaFileToDisk(trailId: string, base64Data: string, prefix: string
  */
 export function getAllServerTrails(): ServerTrailRecord[] {
   const records = Array.from(trailsMap.values()).filter(
-    (t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && t.mediaType !== 'video' && !(t.mediaUrl || t.videoUrl)?.includes('.mp4')
+    (t) => t && !t.id?.startsWith('sample-trail-') && !isFakeMockUser(t.creator?.username) && t.mediaType !== 'video' && !t.mediaUrl?.includes('.mp4')
   );
   return records.sort((a, b) => {
     const timeA = new Date(a.createdAt || 0).getTime();
@@ -162,7 +161,7 @@ export function saveServerTrail(
   mediaBase64?: string,
   posterBase64?: string
 ): ServerTrailRecord {
-  let mediaUrl = trailData.mediaUrl || trailData.videoUrl || '';
+  let mediaUrl = trailData.mediaUrl || '';
   let posterUrl = trailData.posterUrl || '';
 
   // If base64 media was sent, attempt to write to disk for static serving
@@ -188,8 +187,7 @@ export function saveServerTrail(
 
   const cleanRecord: ServerTrailRecord = {
     id: trailData.id,
-    mediaUrl: mediaUrl || existing?.mediaUrl || existing?.videoUrl || '',
-    videoUrl: mediaUrl || existing?.mediaUrl || existing?.videoUrl || '',
+    mediaUrl: mediaUrl || existing?.mediaUrl || '',
     posterUrl: posterUrl || existing?.posterUrl || undefined,
     mediaType: trailData.mediaType || existing?.mediaType || (mediaUrl.includes('image') ? 'image' : 'video'),
     title: trailData.title || existing?.title || 'Travel Trail',

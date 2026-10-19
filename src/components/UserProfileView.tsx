@@ -92,7 +92,6 @@ export interface UserTrailItem {
   title: string;
   destination: string;
   mediaUrl: string;
-  videoUrl?: string;
   posterUrl?: string;
   duration?: string;
   mediaType?: 'image' | 'video';
@@ -187,8 +186,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               id: t.id,
               title: t.title || t.caption || t.destination || '',
               destination: t.destination || '',
-              mediaUrl: t.mediaUrl || t.videoUrl || '',
-              videoUrl: t.mediaUrl || t.videoUrl || '',
+              mediaUrl: t.mediaUrl || '',
               posterUrl: t.posterUrl,
               duration: t.duration,
               mediaType: t.mediaType || 'video',
@@ -231,8 +229,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           id: newTrail.id,
           title: newTrail.title || newTrail.caption || newTrail.destination || 'Travel Trail',
           destination: newTrail.destination || 'Travel Destination',
-          mediaUrl: newTrail.mediaUrl || newTrail.videoUrl || '',
-          videoUrl: newTrail.mediaUrl || newTrail.videoUrl || '',
+          mediaUrl: newTrail.mediaUrl || '',
           posterUrl: newTrail.posterUrl,
           duration: '0:30',
           mediaType: newTrail.mediaType || 'video',
@@ -386,7 +383,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         title: cleanTitle,
         destination: destinationVal,
         mediaUrl: trailPreviewUrl,
-        videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
         mediaType: 'image',
         caption: captionVal
@@ -395,7 +391,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const newReelForStorage: TrailReel = {
         id: trailId,
         mediaUrl: trailPreviewUrl,
-        videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
         mediaType: 'image' as const,
         title: cleanTitle,
@@ -447,7 +442,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setModalMediaError(false);
     setIsModalPlaying(true);
 
-    const activeMedia = selectedTrail.mediaUrl || selectedTrail.videoUrl || '';
+    const activeMedia = selectedTrail.mediaUrl || '';
     resolveTrailMediaUrl(selectedTrail.id, activeMedia).then((resolved) => {
       if (isMounted) {
         setModalMediaUrl(resolved);
@@ -458,7 +453,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedTrail?.id, selectedTrail?.mediaUrl, selectedTrail?.videoUrl]);
+  }, [selectedTrail?.id, selectedTrail?.mediaUrl]);
 
   // Keyboard navigation for selectedTrail modal (Escape to close, Space to pause/play)
   useEffect(() => {
@@ -492,7 +487,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const updatedTrail: UserTrailItem = {
         ...selectedTrail,
         mediaUrl: newMediaUrl,
-        videoUrl: newMediaUrl,
         posterUrl: poster || selectedTrail.posterUrl,
         mediaType: 'image'
       };
@@ -781,8 +775,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           id: t.id,
           title: t.title || t.caption || t.destination || 'Travel Trail',
           destination: t.destination || 'Travel Destination',
-          mediaUrl: t.mediaUrl || t.videoUrl || '',
-          videoUrl: t.mediaUrl || t.videoUrl || '',
+          mediaUrl: t.mediaUrl || '',
           posterUrl: t.posterUrl,
           duration: (t as any).duration,
           mediaType: t.mediaType || 'video',

@@ -25,7 +25,6 @@ export function sanitizeTrail(t: any): TrailReel {
     return {
       id: `trail-${Date.now()}`,
       mediaUrl: '',
-      videoUrl: '',
       mediaType: 'image',
       title: 'Trail',
       caption: '',
@@ -47,13 +46,12 @@ export function sanitizeTrail(t: any): TrailReel {
     isVerified: Boolean(creatorRaw.isVerified),
   };
 
-  const primaryMediaUrl = t.mediaUrl || t.videoUrl || '';
+  const primaryMediaUrl = t.mediaUrl || '';
 
   return {
     ...t,
     id: String(t.id || `trail-${Date.now()}`),
     mediaUrl: primaryMediaUrl,
-    videoUrl: primaryMediaUrl,
     posterUrl: t.posterUrl || undefined,
     mediaType: 'image',
     title: t.title || 'Trail',
@@ -70,7 +68,6 @@ export function sanitizeTrail(t: any): TrailReel {
 export interface TrailReel {
   id: string;
   mediaUrl: string;
-  videoUrl?: string; // backwards compatibility alias for legacy cached trails
   posterUrl?: string;
   mediaType: 'video' | 'image';
   title: string;
@@ -151,7 +148,7 @@ export function isValidTrailMedia(t: any): boolean {
   if (!t || !t.id) return false;
   // Discard any existing/legacy video trails
   if (t.mediaType === 'video') return false;
-  const mediaUrl = t.mediaUrl || t.videoUrl || '';
+  const mediaUrl = t.mediaUrl || '';
   if (typeof mediaUrl === 'string' && /\.(mp4|mov|webm)(\?.*)?$/i.test(mediaUrl)) {
     return false;
   }
@@ -159,7 +156,7 @@ export function isValidTrailMedia(t: any): boolean {
     const currentUrl = config.supabase.url;
     if (currentUrl && currentUrl.startsWith('http')) {
       const currentHost = new URL(currentUrl).hostname;
-      const fullUrl = t.mediaUrl || t.videoUrl || t.posterUrl || '';
+      const fullUrl = t.mediaUrl || t.posterUrl || '';
       if (typeof fullUrl === 'string' && fullUrl.includes('.supabase.co')) {
         // If it references a Supabase storage bucket from another project, discard
         if (!fullUrl.includes(currentHost)) {
@@ -647,7 +644,6 @@ export async function publishGlobalTrail(
 
         if (publicUrlObj?.publicUrl) {
           serverSavedTrail.mediaUrl = publicUrlObj.publicUrl;
-          serverSavedTrail.videoUrl = publicUrlObj.publicUrl;
         }
       } else if (uploadError) {
         console.warn('[sharedTrailsService] Supabase storage upload warning:', uploadError.message);
@@ -685,7 +681,7 @@ export async function publishGlobalTrail(
   // 4. Send to backend Express API if running
   try {
     let mediaDataUrl: string | undefined = undefined;
-    const currentMedia = serverSavedTrail.mediaUrl || serverSavedTrail.videoUrl;
+    const currentMedia = serverSavedTrail.mediaUrl;
     if (file && file.size < 10 * 1024 * 1024 && (!currentMedia || currentMedia.startsWith('blob:'))) {
       try {
         mediaDataUrl = await fileToBase64(file);
@@ -708,7 +704,7 @@ export async function publishGlobalTrail(
       const data = await res.json();
       if (data.trail) {
         // Prefer server saved trail if local media was still a blob
-        const checkMedia = serverSavedTrail.mediaUrl || serverSavedTrail.videoUrl;
+        const checkMedia = serverSavedTrail.mediaUrl;
         if (!checkMedia || checkMedia.startsWith('blob:')) {
           serverSavedTrail = data.trail;
         }

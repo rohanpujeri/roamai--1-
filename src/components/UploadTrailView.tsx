@@ -161,7 +161,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
       const newTrail: TrailReel = {
         id: trailId,
         mediaUrl: videoPreview,
-        videoUrl: videoPreview,
         posterUrl: poster || undefined,
         mediaType: 'image',
         title: cleanTitle,

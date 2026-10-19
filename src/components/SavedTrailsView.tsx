@@ -170,7 +170,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {savedTrails.map((trail) => {
-            const trailMedia = trail.mediaUrl || trail.videoUrl || '';
+            const trailMedia = trail.mediaUrl || '';
             const previewImage = trail.posterUrl || trailMedia;
 
             return (
@@ -295,9 +295,9 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
           >
             {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl ? (
+              {activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl ? (
                 <img
-                  src={activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl}
+                  src={activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl}
                   alt=""
                   className="w-full h-full object-cover blur-2xl opacity-35 scale-110"
                 />
@@ -308,7 +308,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
             {activePlaybackTrail.mediaType === 'video' ? (
               <video
                 ref={videoRef}
-                src={activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl}
+                src={activePlaybackTrail.mediaUrl}
                 poster={activePlaybackTrail.posterUrl}
                 className="relative z-10 w-full h-full object-contain"
                 autoPlay
@@ -318,7 +318,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
               />
             ) : (
               <img
-                src={activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl || activePlaybackTrail.posterUrl}
+                src={activePlaybackTrail.mediaUrl || activePlaybackTrail.posterUrl}
                 alt={activePlaybackTrail.title}
                 className="relative z-10 w-full h-full object-contain"
               />

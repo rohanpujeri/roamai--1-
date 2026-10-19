@@ -129,7 +129,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
             const cleaned = parsed.filter((t: any) => {
               if (!t) return false;
               if (t.mediaType === 'video') return false;
-              const u = (t.mediaUrl || t.videoUrl || '').toLowerCase();
+              const u = (t.mediaUrl || '').toLowerCase();
               if (u.includes('.mp4') || u.includes('.mov') || u.includes('.webm')) return false;
               return true;
             });
@@ -355,7 +355,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   // Active media resolution states - initialized immediately so media/background is instantly visible
   const [activeMediaUrl, setActiveMediaUrl] = useState<string>(() => {
     const reel = trails[currentIndex] || trails[0];
-    const initialUrl = reel?.mediaUrl || reel?.videoUrl;
+    const initialUrl = reel?.mediaUrl;
     if (initialUrl && !initialUrl.startsWith('blob:')) {
       return initialUrl;
     }
@@ -410,7 +410,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setIsMediaLoading(true);
     setIsVideoReady(false);
 
-    const activeMedia = activeReel.mediaUrl || activeReel.videoUrl || '';
+    const activeMedia = activeReel.mediaUrl || '';
     resolveTrailMediaUrl(activeReel.id, activeMedia).then((resolved) => {
       if (isMounted) {
         setActiveMediaUrl(resolved);
@@ -421,7 +421,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     // Proactively pre-resolve and warm next reel media and poster for instantaneous transitions
     const nextReel = trails[currentIndex + 1];
     if (nextReel && nextReel.id) {
-      const nextMedia = nextReel.mediaUrl || nextReel.videoUrl || '';
+      const nextMedia = nextReel.mediaUrl || '';
       resolveTrailMediaUrl(nextReel.id, nextMedia).then((resUrl) => {
         if (isMounted && resUrl) {
           setNextMediaUrl(resUrl);
@@ -438,7 +438,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [isActive, activeReel?.id, activeReel?.mediaUrl, activeReel?.videoUrl, currentIndex, trails]);
+  }, [isActive, activeReel?.id, activeReel?.mediaUrl, currentIndex, trails]);
 
   // Auto-play when active reel changes or when trails page opens
   useEffect(() => {
@@ -775,7 +775,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     const newTrail: TrailReel = {
       id: trailId,
       mediaUrl: uploadVideoPreview,
-      videoUrl: uploadVideoPreview,
       posterUrl: poster || undefined,
       mediaType: 'image',
       title: cleanTitle,
@@ -1045,7 +1044,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
               return activeReel.mediaType === 'image' || activeMediaUrl.startsWith('data:image') ? (
                 <img
-                  src={activeMediaUrl || effectivePoster || activeReel.mediaUrl || activeReel.videoUrl}
+                  src={activeMediaUrl || effectivePoster || activeReel.mediaUrl}
                   alt={activeReel.caption}
                   className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'} select-none`}
                   style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
