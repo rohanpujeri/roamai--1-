@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Heart, 
-  MessageCircle, 
   Bookmark, 
   Share2, 
   Volume2, 
@@ -26,13 +24,9 @@ import {
   Camera,
   Sparkles,
   Compass,
-  Crop,
-  Smile,
-  Info,
-  CornerDownRight
+  Info
 } from 'lucide-react';
 import { ThemeConfig, SavedPlace } from '../types';
-import { EditCoverModal } from './EditCoverModal';
 import { resolvePlaceImage } from '../utils/placeImages';
 import type { SelectedTrailLocation } from './TrailLocationPickerModal';
 
@@ -41,28 +35,20 @@ import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
 import {
   saveTrailMedia,
-  resolveTrailMediaUrl,
-  generateVideoPoster
+  resolveTrailMediaUrl
 } from '../services/trailMediaStorage';
 import {
   getLocalTrails,
   fetchGlobalTrails,
   fetchMoreGlobalTrails,
   publishGlobalTrail,
-  likeGlobalTrail,
-  commentOnGlobalTrail,
-  isTrailLikedByUser,
-  TrailLiker,
   TrailReel,
-  TrailComment,
-  recordTrailView,
   sanitizeTrail,
   DEFAULT_TRAIL_CREATOR
 } from '../services/sharedTrailsService';
 import { isTrailSaved, toggleSaveTrail } from '../services/savedTrailsService';
-import { isFakeMockUser, cleanBio } from '../services/followService';
+import { isFakeMockUser, cleanBio } from '../utils/userUtils';
 import { getSavedPlaces, savePlaceToStorage, removeSavedPlace } from '../services/placesService';
-import { TrailLikesModal } from './TrailLikesModal';
 
 export type { TrailReel };
 
@@ -80,7 +66,6 @@ interface TrailsViewProps {
     name?: string;
     avatarUrl?: string;
     location?: string;
-    isFollowing?: boolean;
   }) => void;
   onOpenOwnProfile?: () => void;
   customTrails?: TrailReel[];
@@ -123,14 +108,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (customTrails && customTrails.length > 0) {
       return customTrails.map((t) => sanitizeTrail({
         ...t,
-        isSaved: isTrailSaved(t.id),
-        isLiked: isTrailLikedByUser(t.id)
+        isSaved: isTrailSaved(t.id)
       }));
     }
     return getLocalTrails().map((t) => sanitizeTrail({ 
       ...t, 
-      isSaved: isTrailSaved(t.id),
-      isLiked: isTrailLikedByUser(t.id)
+      isSaved: isTrailSaved(t.id)
     }));
   });
 
@@ -166,8 +149,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         customTrails.map((t) =>
           sanitizeTrail({
             ...t,
-            isSaved: isTrailSaved(t.id),
-            isLiked: isTrailLikedByUser(t.id)
+            isSaved: isTrailSaved(t.id)
           })
         )
       );
@@ -187,23 +169,21 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               .filter((g) => g && !g.id?.startsWith('sample-trail-') && !isFakeMockUser(g.creator?.username))
               .map((g) => sanitizeTrail({ 
                 ...g, 
-                isSaved: isTrailSaved(g.id),
-                isLiked: isTrailLikedByUser(g.id)
+                isSaved: isTrailSaved(g.id)
               }));
             const prevIds = prev.map((p) => p.id).join(',');
             const nextIds = mapped.map((g) => g.id).join(',');
             if (prevIds !== nextIds || prev.length !== mapped.length) {
               return mapped;
             }
-            // Check if any like or save status changed before creating a new state reference
+            // Check if any save status changed before creating a new state reference
             const anyDiff = prev.some((p) => {
-              return p.isSaved !== isTrailSaved(p.id) || p.isLiked !== isTrailLikedByUser(p.id);
+              return p.isSaved !== isTrailSaved(p.id);
             });
             if (anyDiff) {
               return prev.map((p) => sanitizeTrail({ 
                 ...p, 
-                isSaved: isTrailSaved(p.id),
-                isLiked: isTrailLikedByUser(p.id)
+                isSaved: isTrailSaved(p.id)
               }));
             }
             return prev;
@@ -266,49 +246,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   }, [initialTrailId, trails.length]);
 
-  // Listen for view count updates
-  useEffect(() => {
-    const handleTrailViewed = (e: any) => {
-      const { trailId, viewsCount } = e.detail || {};
-      if (trailId && typeof viewsCount === 'number') {
-        setTrails((prev) =>
-          prev.map((t) => (t.id === trailId ? { ...t, viewsCount } : t))
-        );
-      }
-    };
-    window.addEventListener('roamai_trail_viewed', handleTrailViewed);
-    return () => window.removeEventListener('roamai_trail_viewed', handleTrailViewed);
-  }, []);
-
-  // Listen for trail liked updates
-  useEffect(() => {
-    const handleTrailLiked = (e: any) => {
-      const { trailId, increment, liker, likesCount } = e.detail || {};
-      if (!trailId) return;
-      setTrails((prev) =>
-        prev.map((t) => {
-          if (t.id === trailId) {
-            const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
-            const cleanU = (liker?.username || '').toLowerCase().replace(/^@+/, '');
-            const updatedLikers = increment && liker
-              ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
-              : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
-            const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
-            const resolvedCount = typeof likesCount === 'number' ? likesCount : (increment ? Math.max(prevCount + 1, updatedLikers.length) : Math.max(0, prevCount - 1));
-            return {
-              ...t,
-              isLiked: cleanU === currentUsername ? increment : t.isLiked,
-              likesCount: resolvedCount,
-              likedBy: updatedLikers
-            };
-          }
-          return t;
-        })
-      );
-    };
-    window.addEventListener('roamai_trail_liked', handleTrailLiked);
-    return () => window.removeEventListener('roamai_trail_liked', handleTrailLiked);
-  }, [currentUsername]);
 
   // Listen for non-blocking background creator profile hydration updates
   useEffect(() => {
@@ -400,35 +337,12 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
   });
   const [showMuteIndicator, setShowMuteIndicator] = useState<boolean>(false);
-  const [showComments, setShowComments] = useState<boolean>(false);
-  const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
-  const [newCommentText, setNewCommentText] = useState<string>('');
-  const [replyingTo, setReplyingTo] = useState<{ id: string; user: string } | null>(null);
-  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
-  const [likedComments, setLikedComments] = useState<Record<string, boolean>>({});
-  const commentInputRef = useRef<HTMLInputElement | null>(null);
-  const QUICK_EMOJIS = ['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
-  const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
   const [locationActionTrail, setLocationActionTrail] = useState<TrailReel | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>(() => getSavedPlaces());
   const [locationToast, setLocationToast] = useState<string | null>(null);
-  const lastTapRef = useRef<number>(0);
-
-  const getCurrentUserLiker = (): TrailLiker | undefined => {
-    if (!session?.user) return undefined;
-    const cached = getCachedUserProfile(session.user.id);
-    const meta = session.user.user_metadata || {};
-    const uName = cached?.username || (meta.username ? `@${meta.username.replace(/^@/, '')}` : `@user_${session.user.id.slice(0, 8)}`);
-    return {
-      id: session.user.id,
-      name: cached?.name || meta.full_name || meta.name || uName.replace(/^@/, ''),
-      username: uName,
-      avatarUrl: sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '')
-    };
-  };
 
   const activeReel = trails[currentIndex] || trails[0];
 
@@ -455,7 +369,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [uploadVideoFile, setUploadVideoFile] = useState<File | null>(null);
   const [uploadVideoPreview, setUploadVideoPreview] = useState<string>('');
   const [uploadPosterPreview, setUploadPosterPreview] = useState<string>('');
-  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
   const [uploadCaption, setUploadCaption] = useState<string>('');
   const [uploadDestination, setUploadDestination] = useState<string>('');
   const [uploadTags, setUploadTags] = useState<string>('');
@@ -468,11 +381,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const [isTrailLocationModalOpen, setIsTrailLocationModalOpen] = useState<boolean>(false);
   const [uploadLocationError, setUploadLocationError] = useState<string | null>(null);
-  const [uploadAspectRatio, setUploadAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
-  const [uploadFitMode, setUploadFitMode] = useState<'contain' | 'cover'>('cover');
   const [slideState, setSlideState] = useState<'idle' | 'sliding-up' | 'sliding-down'>('idle');
   const slideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Automatically detect hashtags typed inside the combined caption & hashtags input box
   const detectedHashtags = useMemo(() => {
@@ -485,22 +395,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dragDistanceRef = useRef<number>(0);
 
-  // Record view count strictly for signed-up users
-  useEffect(() => {
-    if (!isActive || !activeReel?.id) return;
-    if (!session?.user) return; // ONLY signed-up users increase view count!
-
-    const viewer = {
-      id: session.user.id,
-      username: currentUsername || session.user.email?.split('@')[0] || `user_${session.user.id.slice(0, 8)}`
-    };
-
-    const timer = setTimeout(() => {
-      recordTrailView(activeReel.id, viewer);
-    }, 700);
-
-    return () => clearTimeout(timer);
-  }, [isActive, activeReel?.id, session?.user?.id, currentUsername]);
 
   // Resolve active media URL whenever active reel changes and view is active, and preload next reel
   useEffect(() => {
@@ -545,7 +439,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   // Auto-play when active reel changes or when trails page opens
   useEffect(() => {
-    if (!isActive || showUploadModal || showLikesModal) {
+    if (!isActive || showUploadModal) {
       if (videoRef.current) {
         videoRef.current.pause();
       }
@@ -567,7 +461,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         }
       });
     }
-  }, [currentIndex, isActive, showUploadModal, showLikesModal]);
+  }, [currentIndex, isActive, showUploadModal]);
 
   // Keep video DOM element's muted property synchronized with isMuted state
   useEffect(() => {
@@ -592,7 +486,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           videoRef.current.pause();
           setIsPlaying(false);
         }
-      } else if (isActive && !showUploadModal && !showLikesModal) {
+      } else if (isActive && !showUploadModal) {
         if (videoRef.current) {
           videoRef.current.play().catch(() => {});
           setIsPlaying(true);
@@ -603,7 +497,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isActive, showUploadModal, showLikesModal]);
+  }, [isActive, showUploadModal]);
 
   // Listen to instant global pause events (e.g. user swiping away from trails)
   useEffect(() => {
@@ -714,7 +608,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
   // Mouse wheel scroll to change trails (with throttle)
   const lastWheelTimeRef = useRef<number>(0);
   const handleWheel = (e: React.WheelEvent) => {
-    if (showComments || showUploadModal || showLikesModal || locationActionTrail) return;
+    if (showUploadModal || locationActionTrail) return;
     const now = Date.now();
     if (now - lastWheelTimeRef.current < 450) return;
 
@@ -729,7 +623,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
   // Keyboard navigation for full screen reels (ArrowDown/Up, J/K, Space, M)
   useEffect(() => {
-    if (!isActive || showComments || showUploadModal || showLikesModal || locationActionTrail) return;
+    if (!isActive || showUploadModal || locationActionTrail) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
@@ -753,45 +647,9 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, showComments, showUploadModal, showLikesModal, locationActionTrail, currentIndex, trails.length, isMuted, isPlaying]);
+  }, [isActive, showUploadModal, locationActionTrail, currentIndex, trails.length, isMuted, isPlaying]);
 
-  const handleLike = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!activeReel) return;
-    if (!session?.user) {
-      if (onRequireAuth) onRequireAuth();
-      return;
-    }
-    const isLiked = !activeReel.isLiked;
-    const liker = getCurrentUserLiker();
-    if (!liker) {
-      if (onRequireAuth) onRequireAuth();
-      return;
-    }
-    setTrails((prev) =>
-      prev.map((t, idx) => {
-        if (idx === currentIndex) {
-          const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
-          const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-          const updatedLikers = isLiked
-            ? [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)]
-            : currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
 
-          const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
-          const nextCount = isLiked ? Math.max(prevCount + 1, updatedLikers.length) : Math.max(0, prevCount - 1);
-
-          return {
-            ...t,
-            isLiked,
-            likesCount: nextCount,
-            likedBy: updatedLikers
-          };
-        }
-        return t;
-      })
-    );
-    likeGlobalTrail(activeReel.id, isLiked, liker);
-  };
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -817,259 +675,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       setTimeout(() => setShareToast(null), 2500);
     }
   };
-
-  const getDisplayUsername = (rawUser: string): string => {
-    if (!rawUser) return 'user';
-    return rawUser.toLowerCase().replace(/^@/, '').replace(/\s+/g, '_');
-  };
-
-  const formatInstagramTime = (timeStr?: string, timestamp?: number, id?: string): string => {
-    let timeMs: number | null = null;
-
-    if (typeof timestamp === 'number' && !isNaN(timestamp) && timestamp > 0) {
-      timeMs = timestamp;
-    } else if (id && typeof id === 'string') {
-      const match = id.match(/(\d{12,14})/);
-      if (match) {
-        const parsed = parseInt(match[1], 10);
-        if (parsed > 1500000000000 && parsed <= Date.now() + 10000) {
-          timeMs = parsed;
-        }
-      }
-    }
-
-    if (timeStr && /^\d+[smhdwy]$/i.test(String(timeStr).trim())) {
-      return String(timeStr).trim().toLowerCase();
-    }
-
-    if (!timeMs && timeStr && timeStr !== 'Just now') {
-      const parsedDate = Date.parse(timeStr);
-      if (!isNaN(parsedDate) && parsedDate > 1500000000000) {
-        timeMs = parsedDate;
-      } else {
-        const agoMatch = String(timeStr).match(/(\d+)\s*(minute|min|hour|hr|day|week|month|year)s?\s*(ago)?/i);
-        if (agoMatch) {
-          const val = agoMatch[1];
-          const unit = agoMatch[2].toLowerCase();
-          if (unit.startsWith('min')) return `${val}m`;
-          if (unit.startsWith('h')) return `${val}h`;
-          if (unit.startsWith('d')) return `${val}d`;
-          if (unit.startsWith('w')) return `${val}w`;
-          if (unit.startsWith('m')) return `${val}w`;
-          if (unit.startsWith('y')) return `${val}y`;
-        }
-      }
-    }
-
-    if (timeMs) {
-      const diffSec = Math.max(0, Math.floor((Date.now() - timeMs) / 1000));
-      const diffMin = Math.floor(diffSec / 60);
-      const diffHr = Math.floor(diffMin / 60);
-      const diffDays = Math.floor(diffHr / 24);
-      const diffWeeks = Math.floor(diffDays / 7);
-      const diffYears = Math.floor(diffDays / 365);
-
-      if (diffMin < 1) return '1m';
-      if (diffMin < 60) return `${diffMin}m`;
-      if (diffHr < 24) return `${diffHr}h`;
-      if (diffDays < 7) return `${diffDays}d`;
-      if (diffWeeks < 52) return `${diffWeeks}w`;
-      return `${diffYears}y`;
-    }
-
-    if (timeStr === 'Just now' || !timeStr) {
-      return '1m';
-    }
-
-    return String(timeStr);
-  };
-
-  const handleAddComment = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!newCommentText.trim() || !activeReel) return;
-
-    if (!session?.user && onRequireAuth) {
-      onRequireAuth();
-      return;
-    }
-
-    const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
-    const userHandle = getDisplayUsername(
-      currentUsername ||
-      cached?.username ||
-      session?.user?.user_metadata?.username ||
-      session?.user?.email?.split('@')[0] ||
-      'user'
-    );
-    const rawAvatar = cached?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || '';
-    const userAvatar = sanitizeAvatarUrl(rawAvatar);
-
-    const isAuthor = Boolean(
-      (session?.user?.id && activeReel.creator.id && session.user.id === activeReel.creator.id) ||
-      (currentUsername && activeReel.creator.username && currentUsername === activeReel.creator.username.toLowerCase().replace(/^@/, ''))
-    );
-
-    const now = Date.now();
-    const newCommentId = `comm-${now}`;
-    const newComment: TrailComment = {
-      id: newCommentId,
-      user: userHandle,
-      avatar: userAvatar,
-      text: newCommentText.trim(),
-      time: '1m',
-      timestamp: now,
-      likesCount: 0,
-      isLiked: false,
-      isAuthor: isAuthor,
-      isAuthorLiked: false,
-      replyToUser: replyingTo?.user
-    };
-
-    commentOnGlobalTrail(activeReel.id, newComment);
-
-    setTrails((prev) =>
-      prev.map((t, idx) => {
-        if (idx === currentIndex) {
-          const existingComments = Array.isArray(t.comments) ? [...t.comments] : [];
-          if (replyingTo) {
-            const updated = existingComments.map((c) => {
-              if (c.id === replyingTo.id) {
-                return {
-                  ...c,
-                  replies: [...(c.replies || []), newComment]
-                };
-              }
-              return c;
-            });
-            setExpandedReplies((exp) => ({ ...exp, [replyingTo.id]: true }));
-            return {
-              ...t,
-              commentsCount: t.commentsCount + 1,
-              comments: updated
-            };
-          } else {
-            return {
-              ...t,
-              commentsCount: t.commentsCount + 1,
-              comments: [newComment, ...existingComments]
-            };
-          }
-        }
-        return t;
-      })
-    );
-
-    setNewCommentText('');
-    setReplyingTo(null);
-  };
-
-  const handleToggleCommentLike = (commentId: string, parentCommentId?: string) => {
-    if (!session?.user && onRequireAuth) {
-      onRequireAuth();
-      return;
-    }
-    const isCurrentlyLiked = !!likedComments[commentId];
-    setLikedComments((prev) => ({ ...prev, [commentId]: !isCurrentlyLiked }));
-
-    const isAuthor = Boolean(
-      (session?.user?.id && activeReel?.creator?.id && session.user.id === activeReel.creator.id) ||
-      (currentUsername && activeReel?.creator?.username && currentUsername === activeReel.creator.username.toLowerCase().replace(/^@/, ''))
-    );
-
-    setTrails((prev) =>
-      prev.map((t, idx) => {
-        if (idx === currentIndex && t.comments) {
-          const updated = t.comments.map((c) => {
-            if (!parentCommentId && c.id === commentId) {
-              const currentCount = c.likesCount || 0;
-              const nextCount = isCurrentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
-              return {
-                ...c,
-                likesCount: nextCount,
-                isLiked: !isCurrentlyLiked,
-                isAuthorLiked: isAuthor ? !isCurrentlyLiked : c.isAuthorLiked
-              };
-            }
-            if (parentCommentId && c.id === parentCommentId && c.replies) {
-              const updatedReplies = c.replies.map((r) => {
-                if (r.id === commentId) {
-                  const currentCount = r.likesCount || 0;
-                  const nextCount = isCurrentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1;
-                  return {
-                    ...r,
-                    likesCount: nextCount,
-                    isLiked: !isCurrentlyLiked,
-                    isAuthorLiked: isAuthor ? !isCurrentlyLiked : r.isAuthorLiked
-                  };
-                }
-                return r;
-              });
-              return { ...c, replies: updatedReplies };
-            }
-            return c;
-          });
-          return { ...t, comments: updated };
-        }
-        return t;
-      })
-    );
-  };
-
-  const handleReplyClick = (comm: { id: string; user: string }) => {
-    const rawClean = getDisplayUsername(comm.user);
-    setReplyingTo({ id: comm.id, user: rawClean });
-    setNewCommentText(`@${rawClean} `);
-    setTimeout(() => {
-      commentInputRef.current?.focus();
-    }, 60);
-  };
-
-  const handleInsertEmoji = (emoji: string) => {
-    setNewCommentText((prev) => prev + emoji);
-    setTimeout(() => {
-      commentInputRef.current?.focus();
-    }, 60);
-  };
-
-  const handleCommentUserClick = (userName: string, avatarUrl?: string) => {
-    const cleanU = getDisplayUsername(userName);
-    if (currentUsername && cleanU === currentUsername) {
-      if (onOpenOwnProfile) onOpenOwnProfile();
-      else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
-    } else {
-      const d = { 
-        username: `@${cleanU}`, 
-        name: cleanU, 
-        avatarUrl: avatarUrl || '' 
-      };
-      if (onOpenUserProfile) onOpenUserProfile(d);
-      else window.dispatchEvent(new CustomEvent('roamai_view_traveller', { detail: d }));
-    }
-    setShowComments(false);
-  };
-
-  const renderCommentText = (text: string) => {
-    if (!text) return null;
-    const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        return (
-          <span 
-            key={i} 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCommentUserClick(part);
-            }}
-            className="text-blue-400 font-semibold cursor-pointer hover:underline"
-          >
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
-  };
-
   // Photo File Selection Handler
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1126,13 +731,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     setIsPreviewPlaying(false);
     setIsTrailLocationModalOpen(false);
     setUploadLocationError(null);
-    setUploadAspectRatio('original');
-    setUploadFitMode('contain');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-    }
-    if (coverInputRef.current) {
-      coverInputRef.current.value = '';
     }
   };
 
@@ -1156,12 +756,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     }
 
     // 2. Poster frame
-    let poster = uploadPosterPreview;
-    if (!poster && uploadVideoFile) {
-      poster = await generateVideoPoster(uploadVideoFile);
-    }
+    const poster = uploadPosterPreview || uploadVideoPreview;
 
-    const isImg = uploadVideoFile?.type.startsWith('image/');
     const cached = session?.user ? getCachedUserProfile(session.user.id) : null;
     const meta = session?.user?.user_metadata || {};
     const creatorName = cached?.name || meta.full_name || meta.name || cached?.username?.replace(/^@/, '') || 'Traveller';
@@ -1184,21 +780,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         name: creatorName,
         username: username,
         avatarUrl: avatarUrl,
-        isFollowed: false,
         isVerified: false
       },
       caption: finalCaption,
       destination: uploadDestination.trim(),
       tags: extractedHashtags.length > 0 ? extractedHashtags : (uploadTags ? uploadTags.split(' ').filter(Boolean) : []),
       audioTitle: uploadAudio.trim() || 'Original Sound',
-      likesCount: 0,
-      commentsCount: 0,
-      viewsCount: 0,
-      isLiked: false,
-      likedBy: [],
-      comments: [],
-      aspectRatio: uploadAspectRatio,
-      fitMode: uploadFitMode
+      aspectRatio: 'original',
+      fitMode: 'contain'
     };
 
     // 3. Publish to global server and Supabase so anyone / other profiles can view it immediately
@@ -1236,7 +825,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
           <div className="space-y-2">
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">Log in to watch Trails</h2>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Watch travel trails, like and comment on creator spots, and save trails to your personal collection.
+              Watch travel trails and save trails to your personal collection.
             </p>
           </div>
 
@@ -1402,57 +991,10 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               dragDistanceRef.current = 0;
               return;
             }
-            const now = Date.now();
-            if (now - lastTapRef.current < 320) {
-              // Double tap detected! Like the trail with heart burst animation
-              if (!session?.user) {
-                if (onRequireAuth) onRequireAuth();
-                return;
-              }
-              if (activeReel && !activeReel.isLiked) {
-                const liker = getCurrentUserLiker();
-                if (liker) {
-                  likeGlobalTrail(activeReel.id, true, liker);
-                  setTrails((prev) =>
-                    prev.map((t, idx) => {
-                      if (idx === currentIndex) {
-                        const currentLikers = Array.isArray(t.likedBy) ? t.likedBy : [];
-                        const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-                        const updatedLikers = [liker, ...currentLikers.filter((u) => (u.username || '').toLowerCase().replace(/^@+/, '') !== cleanU)];
-
-                        const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
-                        const nextCount = Math.max(prevCount + 1, updatedLikers.length);
-
-                        return {
-                          ...t,
-                          isLiked: true,
-                          likesCount: nextCount,
-                          likedBy: updatedLikers
-                        };
-                      }
-                      return t;
-                    })
-                  );
-                }
-              }
-              setShowHeartBurst(true);
-              setTimeout(() => setShowHeartBurst(false), 950);
-              lastTapRef.current = 0;
-              return;
-            }
-            lastTapRef.current = now;
             togglePlay();
           }}
           className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center cursor-pointer group shrink-0"
         >
-          {/* Instagram Double-Tap Heart Burst Animation */}
-          {showHeartBurst && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-in fade-in zoom-in duration-150">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center animate-bounce">
-                <Heart className="w-full h-full fill-red-500 text-red-500 drop-shadow-[0_10px_35px_rgba(239,68,68,0.9)]" />
-              </div>
-            </div>
-          )}
 
           {/* Animated Mute / Unmute Visual Indicator Badge */}
           {showMuteIndicator && (
@@ -1514,14 +1056,14 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     playsInline
                     webkit-playsinline="true"
                     loop
-                    autoPlay={isActive && !showUploadModal && !showLikesModal}
+                    autoPlay={isActive && !showUploadModal}
                     preload={isActive ? 'auto' : 'metadata'}
                     muted={isMuted}
                     className={`w-full h-full ${isContain ? 'object-contain' : 'object-cover'}`}
                     style={{ width: '100%', height: '100%', objectFit: isContain ? 'contain' : 'cover' }}
                     onCanPlay={() => setIsVideoReady(true)}
                     onPlay={() => {
-                      if (!isActive || showUploadModal || showLikesModal) {
+                      if (!isActive || showUploadModal) {
                         videoRef.current?.pause();
                         setIsPlaying(false);
                         return;
@@ -1714,7 +1256,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               className="absolute left-3.5 sm:left-6 right-16 sm:right-24 z-20 space-y-2 pointer-events-none max-w-xl"
               style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 116px)' }}
             >
-              {/* Creator Row: Photo beside Profile Username + Follow Button */}
+              {/* Creator Row: Photo beside Profile Username */}
               <div className="flex items-center gap-2.5 pointer-events-auto flex-wrap">
                 {/* Clean Circular Photo (Instagram Reels style) */}
                 <div 
@@ -1825,403 +1367,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </button>
       </div>
 
-      {/* Trail Likes Modal (Instagram Reels Style) */}
-      <TrailLikesModal
-        isOpen={showLikesModal}
-        onClose={() => setShowLikesModal(false)}
-        trailId={activeReel?.id || ''}
-        trailTitle={activeReel?.title || activeReel?.destination}
-        likesCount={activeReel?.likesCount || 0}
-        initialLikers={activeReel?.likedBy}
-        currentUser={getCurrentUserLiker()}
-        onLikeTrail={() => {
-          if (!session?.user) {
-            if (onRequireAuth) onRequireAuth();
-            return;
-          }
-          if (activeReel && !activeReel.isLiked) {
-            handleLike({ stopPropagation: () => {} } as React.MouseEvent);
-          }
-        }}
-        onSelectUser={(likerUsername, likerObj) => {
-          setShowLikesModal(false);
-          const rawU = typeof likerUsername === 'string' ? likerUsername : (likerObj?.username || '');
-          const cleanU = rawU.toLowerCase().replace(/^@+/, '');
-          
-          if (currentUsername && cleanU === currentUsername) {
-            if (onOpenOwnProfile) onOpenOwnProfile();
-            else window.dispatchEvent(new CustomEvent('roamai_view_own_profile'));
-          } else {
-            const travellerData = {
-              id: likerObj?.id,
-              username: rawU.startsWith('@') ? rawU : `@${rawU}`,
-              name: likerObj?.name || rawU,
-              avatarUrl: likerObj?.avatarUrl || '',
-              location: 'Traveler'
-            };
-            if (onOpenUserProfile) {
-              onOpenUserProfile(travellerData);
-            } else {
-              window.dispatchEvent(
-                new CustomEvent('roamai_view_traveller', {
-                  detail: travellerData
-                })
-              );
-            }
-          }
-        }}
-      />
 
-      {/* Instagram-Style Comments Drawer / Sheet (Rendered at top-level body via createPortal) */}
-      {showComments && typeof document !== 'undefined' && createPortal(
-        <div 
-          className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex justify-center items-end animate-in fade-in duration-200"
-          onClick={() => setShowComments(false)}
-        >
-          <div 
-            className="w-full max-w-lg bg-[#121212] border-t border-neutral-800 rounded-t-[26px] h-[75vh] max-h-[640px] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Grab Handle */}
-            <div className="w-full flex justify-center pt-2.5 pb-1">
-              <div className="w-10 h-1 bg-neutral-600 rounded-full" />
-            </div>
 
-            {/* Header */}
-            <div className="px-4 py-2 border-b border-neutral-800/80 flex items-center justify-between">
-              <div className="w-8" />
-              <h3 className="text-sm font-bold text-white text-center tracking-wide">
-                Comments
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowComments(false)}
-                className="w-8 h-8 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
-                aria-label="Close comments"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Comments List */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-              {activeReel?.comments && activeReel.comments.length > 0 ? (
-                activeReel.comments.map((comm) => {
-                  const commentDisplayUser = getDisplayUsername(comm.user);
-                  const isAuthorComment = comm.isAuthor || Boolean(
-                    activeReel.creator?.username && 
-                    commentDisplayUser === getDisplayUsername(activeReel.creator.username)
-                  );
-                  const isCommentLiked = Boolean(comm.isLiked || likedComments[comm.id]);
-                  const hasReplies = Boolean(comm.replies && comm.replies.length > 0);
-                  const areRepliesExpanded = Boolean(expandedReplies[comm.id]);
-
-                  return (
-                    <div key={comm.id} className="space-y-2">
-                      {/* Main Comment Row */}
-                      <div className="flex items-start justify-between gap-3 group">
-                        {/* Avatar */}
-                        <div 
-                          onClick={() => handleCommentUserClick(commentDisplayUser, comm.avatar)}
-                          className="shrink-0 cursor-pointer pt-0.5"
-                        >
-                          {comm.avatar ? (
-                            <img 
-                              src={comm.avatar} 
-                              alt={commentDisplayUser} 
-                              className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85 transition-opacity"
-                              referrerPolicy="no-referrer"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/10 hover:opacity-85 transition-opacity">
-                              {commentDisplayUser.charAt(0).toUpperCase() || 'U'}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Text & Meta */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center flex-wrap gap-1.5 leading-tight">
-                            <span 
-                              onClick={() => handleCommentUserClick(commentDisplayUser, comm.avatar)}
-                              className="text-xs sm:text-sm font-bold text-white hover:underline cursor-pointer"
-                            >
-                              {commentDisplayUser}
-                            </span>
-                            {/* Time */}
-                            <span className="text-xs text-neutral-400">
-                              {formatInstagramTime(comm.time, comm.timestamp, comm.id)}
-                            </span>
-                            {/* Author Badge (No pin symbol) */}
-                            {isAuthorComment && (
-                              <span className="text-xs text-neutral-400 font-medium">
-                                · Author
-                              </span>
-                            )}
-                            {/* Liked by Author Badge */}
-                            {comm.isAuthorLiked && (
-                              <span className="text-[11px] text-neutral-400 flex items-center gap-1 font-medium">
-                                · <Heart className="w-3 h-3 fill-red-500 text-red-500 inline-block" /> by author
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Comment Body */}
-                          <div className="text-xs sm:text-sm text-neutral-100 mt-1 leading-snug break-words">
-                            {renderCommentText(comm.text)}
-                          </div>
-
-                          {/* Reply Action */}
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleReplyClick(comm)}
-                              className="text-xs font-semibold text-neutral-400 hover:text-white cursor-pointer transition-colors"
-                            >
-                              Reply
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Like Button & Count */}
-                        <div className="flex flex-col items-center shrink-0 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleCommentLike(comm.id)}
-                            className="p-1 cursor-pointer transition-transform active:scale-125"
-                            aria-label="Like comment"
-                          >
-                            <Heart 
-                              className={`w-4 h-4 transition-colors ${
-                                isCommentLiked
-                                  ? 'fill-red-500 text-red-500' 
-                                  : 'text-neutral-400 hover:text-white'
-                              }`} 
-                            />
-                          </button>
-                          {Boolean((comm.likesCount || 0) > 0 || isCommentLiked) && (
-                            <span className="text-[11px] text-neutral-400 font-medium">
-                              {(comm.likesCount || 0) + (isCommentLiked && !comm.isLiked ? 1 : 0)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Nested Replies Toggle */}
-                      {hasReplies && (
-                        <div className="pl-12">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedReplies((prev) => ({ ...prev, [comm.id]: !prev[comm.id] }))}
-                            className="text-xs text-neutral-400 font-semibold flex items-center gap-2 hover:text-neutral-200 cursor-pointer py-1"
-                          >
-                            <span className="w-6 h-[1px] bg-neutral-600 inline-block" />
-                            <span>
-                              {areRepliesExpanded 
-                                ? 'Hide replies' 
-                                : `View ${comm.replies!.length} more ${comm.replies!.length === 1 ? 'reply' : 'replies'}`}
-                            </span>
-                          </button>
-
-                          {/* Expanded Replies */}
-                          {areRepliesExpanded && (
-                            <div className="mt-2 space-y-3 pl-2 border-l border-neutral-800">
-                              {comm.replies!.map((reply) => {
-                                const replyDisplayUser = getDisplayUsername(reply.user);
-                                const isReplyLiked = Boolean(reply.isLiked || likedComments[reply.id]);
-                                const isReplyAuthor = reply.isAuthor || Boolean(
-                                  activeReel.creator?.username && 
-                                  replyDisplayUser === getDisplayUsername(activeReel.creator.username)
-                                );
-
-                                return (
-                                  <div key={reply.id} className="flex items-start justify-between gap-2.5">
-                                    <div 
-                                      onClick={() => handleCommentUserClick(replyDisplayUser, reply.avatar)}
-                                      className="shrink-0 cursor-pointer pt-0.5"
-                                    >
-                                      {reply.avatar ? (
-                                        <img 
-                                          src={reply.avatar} 
-                                          alt={replyDisplayUser} 
-                                          className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10 hover:opacity-85"
-                                          referrerPolicy="no-referrer"
-                                          onError={(e) => {
-                                            (e.target as HTMLElement).style.display = 'none';
-                                          }}
-                                        />
-                                      ) : (
-                                        <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-700 flex items-center justify-center text-white font-bold text-[10px] ring-1 ring-white/10 hover:opacity-85">
-                                          {replyDisplayUser.charAt(0).toUpperCase() || 'U'}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center flex-wrap gap-1.5 leading-tight">
-                                        <span 
-                                          onClick={() => handleCommentUserClick(replyDisplayUser, reply.avatar)}
-                                          className="text-xs font-bold text-white hover:underline cursor-pointer"
-                                        >
-                                          {replyDisplayUser}
-                                        </span>
-                                        <span className="text-[11px] text-neutral-400">
-                                          {formatInstagramTime(reply.time, reply.timestamp, reply.id)}
-                                        </span>
-                                        {isReplyAuthor && (
-                                          <span className="text-[11px] text-neutral-400 font-medium">
-                                            · Author
-                                          </span>
-                                        )}
-                                        {reply.isAuthorLiked && (
-                                          <span className="text-[10px] text-neutral-400 flex items-center gap-0.5">
-                                            · <Heart className="w-2.5 h-2.5 fill-red-500 text-red-500 inline-block" /> by author
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div className="text-xs text-neutral-200 mt-1 leading-snug break-words">
-                                        {renderCommentText(reply.text)}
-                                      </div>
-
-                                      <div className="flex items-center gap-3 mt-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleReplyClick({ id: comm.id, user: replyDisplayUser })}
-                                          className="text-[11px] font-semibold text-neutral-400 hover:text-white cursor-pointer"
-                                        >
-                                          Reply
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex flex-col items-center shrink-0 pt-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleCommentLike(reply.id, comm.id)}
-                                        className="p-1 cursor-pointer transition-transform active:scale-125"
-                                        aria-label="Like reply"
-                                      >
-                                        <Heart 
-                                          className={`w-3.5 h-3.5 transition-colors ${
-                                            isReplyLiked
-                                              ? 'fill-red-500 text-red-500' 
-                                              : 'text-neutral-400 hover:text-white'
-                                          }`} 
-                                        />
-                                      </button>
-                                      {Boolean((reply.likesCount || 0) > 0 || isReplyLiked) && (
-                                        <span className="text-[10px] text-neutral-400 font-medium">
-                                          {(reply.likesCount || 0) + (isReplyLiked && !reply.isLiked ? 1 : 0)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="h-48 flex flex-col items-center justify-center text-center p-6 text-neutral-500">
-                  <MessageCircle className="w-10 h-10 mb-2 stroke-1 text-neutral-600" />
-                  <p className="text-sm font-semibold text-neutral-400">No comments yet</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">Start the conversation.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Emoji Bar (Matching Instagram Reel Comments Image 3) */}
-            <div className="px-4 py-2 border-t border-neutral-800/60 bg-[#121212] flex items-center justify-between select-none">
-              {QUICK_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => handleInsertEmoji(emoji)}
-                  className="text-xl sm:text-2xl hover:scale-125 active:scale-95 transition-transform cursor-pointer p-1"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-
-            {/* Replying banner if active */}
-            {replyingTo && (
-              <div className="px-4 py-1.5 bg-neutral-800/90 flex items-center justify-between text-xs text-neutral-300">
-                <span className="flex items-center gap-1.5">
-                  <CornerDownRight className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Replying to <strong className="text-white">@{replyingTo.user}</strong></span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReplyingTo(null);
-                    setNewCommentText('');
-                  }}
-                  className="text-neutral-400 hover:text-white cursor-pointer p-0.5"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Bottom Input Area (Matching Image 3) */}
-            <div className="p-3 border-t border-neutral-800 bg-[#121212] pb-[calc(env(safe-area-inset-bottom,0px)+12px)]">
-              <form onSubmit={handleAddComment} className="flex items-center gap-2.5">
-                {/* User Avatar */}
-                <div className="shrink-0">
-                  {currentUserAvatar ? (
-                    <img 
-                      src={currentUserAvatar} 
-                      alt="You" 
-                      className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/10">
-                      {currentUsername ? currentUsername.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Pill Input */}
-                <div className="flex-1 bg-[#1e1e1e] border border-neutral-800 focus-within:border-neutral-700 rounded-full px-4 py-2 flex items-center gap-2">
-                  <input
-                    ref={commentInputRef}
-                    type="text"
-                    value={newCommentText}
-                    onChange={(e) => setNewCommentText(e.target.value)}
-                    placeholder={
-                      replyingTo 
-                        ? `Reply to @${replyingTo.user}...` 
-                        : `Add a comment for ${getDisplayUsername(activeReel?.creator?.username || 'creator')}...`
-                    }
-                    className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder:text-neutral-500 focus:outline-hidden"
-                  />
-                  <Smile className="w-4 h-4 text-neutral-400 shrink-0" />
-                </div>
-
-                {/* Post Button */}
-                <button
-                  type="submit"
-                  disabled={!newCommentText.trim()}
-                  className="text-sm font-bold text-blue-500 hover:text-blue-400 disabled:opacity-30 disabled:pointer-events-none px-2 cursor-pointer transition-colors"
-                >
-                  Post
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
 
       {/* Instagram Reel Style Upload Modal */}
@@ -2317,20 +1464,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
 
                 {/* Scrollable Form Body */}
                 <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 max-w-md mx-auto w-full">
-                  {/* Centered Preview Card with dynamic aspect ratio */}
-                  <div 
-                    className={`relative mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center group transition-all duration-300 ${
-                      uploadAspectRatio === '9:16'
-                        ? 'aspect-[9/16] w-full max-w-[230px] sm:max-w-[250px]'
-                        : uploadAspectRatio === '1:1'
-                        ? 'aspect-square w-full max-w-[270px] sm:max-w-[290px]'
-                        : uploadAspectRatio === '4:5'
-                        ? 'aspect-[4/5] w-full max-w-[250px] sm:max-w-[270px]'
-                        : uploadAspectRatio === '16:9'
-                        ? 'aspect-[16/9] w-full max-w-[340px] sm:max-w-[370px]'
-                        : 'w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px]'
-                    }`}
-                  >
+                  {/* Centered Preview Card with original natural photo aspect ratio */}
+                  <div className="relative mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/10 shadow-2xl flex items-center justify-center w-full max-w-[340px] sm:max-w-sm max-h-[460px]">
                     <img
                       src={uploadPosterPreview || uploadVideoPreview}
                       alt=""
@@ -2340,74 +1475,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                     <img
                       src={uploadPosterPreview || uploadVideoPreview}
                       alt="Trail preview"
-                      className={`relative z-10 max-h-[380px] mx-auto ${
-                        uploadAspectRatio === 'original'
-                          ? 'w-auto max-w-full object-contain'
-                          : `w-full h-full ${uploadFitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                      }`}
+                      className="relative z-10 w-auto max-w-full max-h-[460px] object-contain mx-auto"
                     />
-
-                    {/* "Edit cover" Pill on Bottom */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsEditCoverModalOpen(true);
-                      }}
-                      className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 z-20"
-                    >
-                      Edit cover / crop
-                    </button>
-                  </div>
-
-                  {/* Aspect Ratio & Framing Controls */}
-                  <div className="bg-[#141419] border border-white/10 rounded-2xl p-3 space-y-2.5 max-w-md mx-auto w-full">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <Crop className="w-3.5 h-3.5 text-emerald-400" />
-                        Photo Ratio
-                      </span>
-                      {uploadAspectRatio !== 'original' && (
-                        <button
-                          type="button"
-                          onClick={() => setUploadFitMode(uploadFitMode === 'cover' ? 'contain' : 'cover')}
-                          className="text-[11px] font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Toggle between fill (crop) and fit (original letterbox)"
-                        >
-                          <span>Mode:</span>
-                          <span className="text-emerald-400 font-bold">{uploadFitMode === 'cover' ? 'Fill (Crop)' : 'Fit (Original)'}</span>
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {[
-                        { id: 'original', label: 'Original', sub: 'Natural' },
-                        { id: '9:16', label: '9:16', sub: 'Reels' },
-                        { id: '1:1', label: '1:1', sub: 'Square' },
-                        { id: '4:5', label: '4:5', sub: 'Portrait' },
-                        { id: '16:9', label: '16:9', sub: 'Wide' },
-                      ].map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
-                            setUploadAspectRatio(next);
-                            if (next === 'original') setUploadFitMode('contain');
-                          }}
-                          className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                            uploadAspectRatio === item.id
-                              ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-950/40 scale-[1.02]'
-                              : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
-                          }`}
-                        >
-                          <span className="text-xs">{item.label}</span>
-                          <span className={`text-[9px] ${uploadAspectRatio === item.id ? 'text-emerald-100' : 'text-zinc-500'}`}>{item.sub}</span>
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Caption Input: "Add a caption..." */}
@@ -2780,16 +1849,6 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         </div>,
         document.body
       )}
-
-      {/* Edit Cover Modal */}
-      <EditCoverModal
-        isOpen={isEditCoverModalOpen}
-        videoFile={uploadVideoFile}
-        videoUrl={uploadVideoPreview}
-        initialPoster={uploadPosterPreview}
-        onClose={() => setIsEditCoverModalOpen(false)}
-        onSave={(newPoster) => setUploadPosterPreview(newPoster)}
-      />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
       {isTrailLocationModalOpen && (

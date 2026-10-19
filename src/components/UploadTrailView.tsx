@@ -8,14 +8,12 @@ import {
   Loader2, 
   ChevronRight,
   Check,
-  Crop,
   Image as ImageIcon
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { getCachedUserProfile, sanitizeAvatarUrl, getCanonicalUsername } from '../services/supabaseClient';
-import { saveTrailMedia, generateVideoPoster } from '../services/trailMediaStorage';
+import { saveTrailMedia } from '../services/trailMediaStorage';
 import { publishGlobalTrail, TrailReel } from '../services/sharedTrailsService';
-import { EditCoverModal } from './EditCoverModal';
 import type { SelectedTrailLocation } from './TrailLocationPickerModal';
 
 const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
@@ -43,14 +41,10 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<'original' | '9:16' | '1:1' | '4:5' | '16:9'>('original');
-  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Initialize from initialFile prop if passed
   useEffect(() => {
@@ -106,29 +100,12 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
     }
   };
 
-  // Handle custom cover image
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file.');
-        if (coverInputRef.current) coverInputRef.current.value = '';
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      setPosterPreview(url);
-    }
-  };
-
   // Reset file selection
   const handleReset = () => {
     setVideoFile(null);
     setVideoPreview('');
     setPosterPreview('');
-    setAspectRatio('original');
-    setFitMode('contain');
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (coverInputRef.current) coverInputRef.current.value = '';
   };
 
   // Save draft
@@ -192,21 +169,14 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
           name: creatorName,
           username: username,
           avatarUrl: avatarUrl,
-          isFollowed: false,
           isVerified: false
         },
         caption: finalCaption,
         destination: destination.trim(),
         tags: extractedHashtags,
-        audioTitle: '',
-        likesCount: 0,
-        commentsCount: 0,
-        viewsCount: 0,
-        isLiked: false,
-        likedBy: [],
-        comments: [],
-        aspectRatio,
-        fitMode
+        audioTitle: 'Original Audio',
+        aspectRatio: 'original',
+        fitMode: 'contain'
       };
 
       // 3. Publish to Supabase and API
@@ -234,19 +204,12 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
 
   return (
     <div className="min-h-[100dvh] min-h-screen w-full bg-[#0a0a0f] text-white flex flex-col relative z-50">
-      {/* Hidden file inputs */}
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         onChange={handleFileChange}
-        className="hidden"
-      />
-      <input
-        ref={coverInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleCoverChange}
         className="hidden"
       />
 
@@ -317,20 +280,8 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
         /* STEP 2: Dedicated "New trail" Details Collection Page */
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full pb-8">
           <div className="px-4 sm:px-6 py-4 space-y-5">
-            {/* Centered Preview Card with dynamic aspect ratio */}
-            <div 
-              className={`relative mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/15 shadow-2xl flex items-center justify-center group transition-all duration-300 ${
-                aspectRatio === '9:16'
-                  ? 'aspect-[9/16] w-full max-w-[230px] sm:max-w-[250px]'
-                  : aspectRatio === '1:1'
-                  ? 'aspect-square w-full max-w-[270px] sm:max-w-[290px]'
-                  : aspectRatio === '4:5'
-                  ? 'aspect-[4/5] w-full max-w-[250px] sm:max-w-[270px]'
-                  : aspectRatio === '16:9'
-                  ? 'aspect-[16/9] w-full max-w-[340px] sm:max-w-[370px]'
-                  : 'w-full max-w-[280px] sm:max-w-xs min-h-[180px] max-h-[380px]'
-              }`}
-            >
+            {/* Centered Preview Card with original natural photo aspect ratio */}
+            <div className="relative mx-auto rounded-3xl overflow-hidden bg-black/95 border border-white/15 shadow-2xl flex items-center justify-center w-full max-w-[340px] sm:max-w-sm max-h-[460px]">
               <img
                 src={posterPreview || videoPreview}
                 alt=""
@@ -340,73 +291,8 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
               <img
                 src={posterPreview || videoPreview}
                 alt="Trail preview"
-                className={`relative z-10 max-h-[380px] mx-auto ${
-                  aspectRatio === 'original'
-                    ? (fitMode === 'cover' ? 'w-full h-full object-cover' : 'w-auto max-w-full object-contain')
-                    : `w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}`
-                }`}
+                className="relative z-10 w-auto max-w-full max-h-[460px] object-contain mx-auto"
               />
-
-              {/* "Edit cover" Pill on Bottom */}
-              <button
-                type="button"
-                data-cover-action="true"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsEditCoverModalOpen(true);
-                }}
-                className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/20 cursor-pointer shadow-md transition-all active:scale-95 z-20"
-              >
-                Edit cover / crop
-              </button>
-            </div>
-
-            {/* Aspect Ratio & Framing Controls */}
-            <div className="bg-[#141419] border border-white/10 rounded-2xl p-3 space-y-2.5 max-w-md mx-auto w-full">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Crop className="w-3.5 h-3.5 text-emerald-400" />
-                  Photo Ratio
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setFitMode(fitMode === 'cover' ? 'contain' : 'cover')}
-                  className="text-[11px] font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Toggle between fill (crop full screen) and fit (original letterbox)"
-                >
-                  <span>Mode:</span>
-                  <span className="text-emerald-400 font-bold">{fitMode === 'cover' ? 'Fill (Crop)' : 'Fit (Original)'}</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-5 gap-1.5">
-                {[
-                  { id: 'original', label: 'Original', sub: 'Natural' },
-                  { id: '9:16', label: '9:16', sub: 'Reels' },
-                  { id: '1:1', label: '1:1', sub: 'Square' },
-                  { id: '4:5', label: '4:5', sub: 'Portrait' },
-                  { id: '16:9', label: '16:9', sub: 'Wide' },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      const next = item.id as 'original' | '9:16' | '1:1' | '4:5' | '16:9';
-                      setAspectRatio(next);
-                      setFitMode(next === '16:9' ? 'cover' : 'contain');
-                    }}
-                    className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      aspectRatio === item.id
-                        ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-950/40 scale-[1.02]'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
-                    }`}
-                  >
-                    <span className="text-xs">{item.label}</span>
-                    <span className={`text-[9px] ${aspectRatio === item.id ? 'text-emerald-100' : 'text-zinc-500'}`}>{item.sub}</span>
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Combined Caption & Hashtags Box */}
@@ -577,15 +463,6 @@ export const UploadTrailView: React.FC<UploadTrailViewProps> = ({
           </div>
         </form>
       )}
-      {/* Edit Cover Modal (Matching Reel Cover Selector) */}
-      <EditCoverModal
-        isOpen={isEditCoverModalOpen}
-        videoFile={videoFile}
-        videoUrl={videoPreview}
-        initialPoster={posterPreview}
-        onClose={() => setIsEditCoverModalOpen(false)}
-        onSave={(newPoster) => setPosterPreview(newPoster)}
-      />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
       {isLocationModalOpen && (

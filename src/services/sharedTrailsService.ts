@@ -1,8 +1,7 @@
 import { config } from '../config';
 import { getSupabaseClient } from './supabaseClient';
 import { saveTrailMedia, deleteTrailMedia } from './trailMediaStorage';
-import { isFakeMockUser } from './followService';
-import { optimizeMp4ForWeb } from '../utils/mp4Faststart';
+import { isFakeMockUser } from '../utils/userUtils';
 
 export interface TrailCreator {
   id?: string;
@@ -10,7 +9,6 @@ export interface TrailCreator {
   username: string;
   avatarUrl?: string;
   bio?: string;
-  isFollowed?: boolean;
   isVerified?: boolean;
 }
 
@@ -19,7 +17,6 @@ export const DEFAULT_TRAIL_CREATOR: TrailCreator = {
   name: 'User',
   username: '',
   avatarUrl: '',
-  isFollowed: false,
   isVerified: false,
 };
 
@@ -34,9 +31,9 @@ export function sanitizeTrail(t: any): TrailReel {
       destination: '',
       tags: [],
       audioTitle: 'Original Audio',
-      likesCount: 0,
-      commentsCount: 0,
       creator: { ...DEFAULT_TRAIL_CREATOR },
+      aspectRatio: 'original',
+      fitMode: 'contain',
     };
   }
 
@@ -46,7 +43,6 @@ export function sanitizeTrail(t: any): TrailReel {
     name: creatorRaw.name || 'User',
     username: creatorRaw.username ? (creatorRaw.username.startsWith('@') ? creatorRaw.username : `@${creatorRaw.username}`) : '',
     avatarUrl: creatorRaw.avatarUrl || '',
-    isFollowed: Boolean(creatorRaw.isFollowed),
     isVerified: Boolean(creatorRaw.isVerified),
   };
 
@@ -61,45 +57,10 @@ export function sanitizeTrail(t: any): TrailReel {
     destination: t.destination || '',
     tags: Array.isArray(t.tags) ? t.tags : [],
     audioTitle: t.audioTitle || 'Original Audio',
-    likesCount: typeof t.likesCount === 'number' && !isNaN(t.likesCount)
-      ? Math.max(t.likesCount, Array.isArray(t.likedBy) ? t.likedBy.length : 0)
-      : (Array.isArray(t.likedBy) && t.likedBy.length > 0
-          ? t.likedBy.length
-          : Math.max(0, Number(t.likesCount) || 0)),
-    commentsCount: typeof t.commentsCount === 'number' ? t.commentsCount : (Number(t.commentsCount) || 0),
-    viewsCount: typeof t.viewsCount === 'number' ? Math.max(0, t.viewsCount) : (Number(t.viewsCount) || 0),
-    viewedBy: Array.isArray(t.viewedBy) ? t.viewedBy : [],
-    comments: Array.isArray(t.comments) ? t.comments : [],
-    likedBy: Array.isArray(t.likedBy) ? t.likedBy : [],
     creator,
-    aspectRatio: t.aspectRatio || 'original',
-    fitMode: t.fitMode || (t.aspectRatio === '16:9' ? 'cover' : 'contain'),
+    aspectRatio: 'original',
+    fitMode: 'contain',
   };
-}
-
-export interface TrailComment {
-  id: string;
-  user: string;
-  avatar: string;
-  text: string;
-  time: string;
-  timestamp?: number;
-  likesCount?: number;
-  isLiked?: boolean;
-  isAuthor?: boolean;
-  isAuthorLiked?: boolean;
-  replyToUser?: string;
-  replies?: TrailComment[];
-}
-
-export interface TrailLiker {
-  id?: string;
-  name: string;
-  username: string;
-  avatarUrl?: string;
-  bio?: string;
-  likedAt?: string;
-  isFollowing?: boolean;
 }
 
 export interface TrailReel {
@@ -112,15 +73,8 @@ export interface TrailReel {
   caption: string;
   destination: string;
   tags: string[];
-  audioTitle: string;
-  likesCount: number;
-  commentsCount: number;
-  isLiked?: boolean;
+  audioTitle?: string;
   isSaved?: boolean;
-  viewsCount?: number;
-  viewedBy?: Array<{ id?: string; username: string; viewedAt?: string }>;
-  comments?: TrailComment[];
-  likedBy?: TrailLiker[];
   createdAt?: string;
   aspectRatio?: 'original' | '9:16' | '1:1' | '4:5' | '16:9';
   fitMode?: 'contain' | 'cover';
@@ -128,34 +82,6 @@ export interface TrailReel {
 
 const LOCAL_STORAGE_KEY = 'roamai_user_trails';
 const LEGACY_STORAGE_KEY = 'tripwise_user_trails';
-const LIKED_TRAILS_KEY = 'roamai_liked_trail_ids';
-
-export function getLikedTrailIds(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(LIKED_TRAILS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function isTrailLikedByUser(trailId: string): boolean {
-  if (!trailId) return false;
-  return getLikedTrailIds().includes(trailId);
-}
-
-export function setTrailLikedByUser(trailId: string, liked: boolean): void {
-  if (!trailId || typeof window === 'undefined') return;
-  try {
-    const ids = new Set(getLikedTrailIds());
-    if (liked) ids.add(trailId);
-    else ids.delete(trailId);
-    localStorage.setItem(LIKED_TRAILS_KEY, JSON.stringify(Array.from(ids)));
-  } catch {
-    // ignore
-  }
-}
 
 const DELETED_TRAILS_KEY = 'roamai_deleted_trail_ids';
 
@@ -198,174 +124,7 @@ export function removeDeletedTrailId(trailId: string): void {
   }
 }
 
-const TRAIL_LIKERS_PREFIX = 'roamai_trail_likers_';
 
-export function getLocalTrailLikers(trailId: string): TrailLiker[] {
-  if (typeof window === 'undefined' || !trailId) return [];
-  try {
-    const raw = localStorage.getItem(TRAIL_LIKERS_PREFIX + trailId);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-    // Also check inside trail object
-    const trails = getLocalTrails();
-    const trail = trails.find((t) => t.id === trailId);
-    if (trail?.likedBy && Array.isArray(trail.likedBy)) {
-      return trail.likedBy;
-    }
-  } catch {
-    // ignore
-  }
-  return [];
-}
-
-export function setLocalTrailLikers(trailId: string, likers: TrailLiker[]): void {
-  if (typeof window === 'undefined' || !trailId) return;
-  try {
-    localStorage.setItem(TRAIL_LIKERS_PREFIX + trailId, JSON.stringify(likers));
-  } catch {
-    // ignore
-  }
-}
-
-/**
- * Fetch users who liked a trail globally from server, Supabase, and local cache
- */
-export async function fetchTrailLikers(trailId: string): Promise<TrailLiker[]> {
-  if (!trailId) return [];
-  const likersMap = new Map<string, TrailLiker>();
-
-  // 1. Check local cache
-  getLocalTrailLikers(trailId).forEach((l) => {
-    const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-    if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
-      likersMap.set(cleanU, l);
-    }
-  });
-
-  // 2. Fetch from server API
-  try {
-    const res = await fetch(`/api/trails/${encodeURIComponent(trailId)}/likes`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.likers)) {
-        data.likers.forEach((l: TrailLiker) => {
-          const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-          if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
-            likersMap.set(cleanU, l);
-          }
-        });
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 3. Fetch from Supabase
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
-      if (data?.trail_data?.likedBy && Array.isArray(data.trail_data.likedBy)) {
-        data.trail_data.likedBy.forEach((l: TrailLiker) => {
-          const cleanU = (l.username || '').toLowerCase().replace(/^@+/, '');
-          if (cleanU && !isFakeMockUser(cleanU) && !likersMap.has(cleanU)) {
-            likersMap.set(cleanU, l);
-          }
-        });
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 4. Enrich likers with live profiles from Supabase profiles table
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase && likersMap.size > 0) {
-      const unames: string[] = [];
-      const ids: string[] = [];
-      likersMap.forEach((l) => {
-        const u = (l.username || '').toLowerCase().replace(/^@+/, '');
-        if (u) unames.push(u);
-        if (l.id && !l.id.startsWith('user_') && !l.id.startsWith('claimed_')) {
-          ids.push(l.id.replace(/^supa_/, ''));
-        }
-      });
-
-      const orClauses: string[] = [];
-      if (ids.length > 0) orClauses.push(`id.in.(${ids.join(',')})`);
-      if (unames.length > 0) {
-        orClauses.push(`username.in.(${unames.map((u) => `@${u}`).join(',')})`);
-        orClauses.push(`username.in.(${unames.join(',')})`);
-      }
-
-      if (orClauses.length > 0) {
-        const { data: liveProfiles } = await supabase
-          .from('profiles')
-          .select('id, username, name, avatar_url')
-          .or(orClauses.join(','));
-
-        if (Array.isArray(liveProfiles) && liveProfiles.length > 0) {
-          const profMap = new Map<string, any>();
-          liveProfiles.forEach((p) => {
-            if (p.id) profMap.set(p.id, p);
-            const clean = (p.username || '').toLowerCase().replace(/^@+/, '');
-            if (clean) {
-              profMap.set(clean, p);
-              profMap.set(clean.replace(/[._]/g, ''), p);
-            }
-          });
-
-          likersMap.forEach((liker) => {
-            const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-            const cleanId = (liker.id || '').replace(/^supa_/, '');
-            const matched = (cleanId && profMap.get(cleanId)) ||
-                            (cleanU && (profMap.get(cleanU) || profMap.get(cleanU.replace(/[._]/g, ''))));
-            if (matched) {
-              if (matched.name) liker.name = matched.name;
-              if (matched.username) liker.username = matched.username.startsWith('@') ? matched.username : `@${matched.username}`;
-              if (matched.avatar_url) liker.avatarUrl = matched.avatar_url;
-              if (matched.id) liker.id = matched.id;
-            }
-          });
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to hydrate likers from profiles table:', err);
-  }
-
-  // 5. Also check any cached profiles in localStorage
-  if (typeof window !== 'undefined') {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith('tripwise_user_profile_') || key.startsWith('roamai_user_profile_'))) {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const p = JSON.parse(raw);
-            if (p && p.username) {
-              const u = (p.username || '').toLowerCase().replace(/^@+/, '');
-              likersMap.forEach((liker) => {
-                const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-                if (cleanU === u || cleanU.replace(/[._]/g, '') === u.replace(/[._]/g, '')) {
-                  if (p.name) liker.name = p.name;
-                  if (p.avatarUrl) liker.avatarUrl = p.avatarUrl;
-                }
-              });
-            }
-          }
-        }
-      }
-    } catch {}
-  }
-
-  const list = Array.from(likersMap.values());
-  setLocalTrailLikers(trailId, list);
-  return list;
-}
 
 /**
  * Convert a File or Blob into base64 Data URL for API transmission
@@ -853,17 +612,8 @@ export async function publishGlobalTrail(
   removeDeletedTrailId(trail.id);
   invalidateGlobalTrailsCache();
 
-  // 1. Optimize video with client-side faststart (moves moov atom to start for instant progressive streaming)
-  let uploadFile = file;
-  if (file && (file.type?.includes('mp4') || file.type?.includes('video') || file.type?.includes('quicktime'))) {
-    try {
-      uploadFile = await optimizeMp4ForWeb(file);
-    } catch {
-      uploadFile = file;
-    }
-  }
-
-  // Save optimized binary file to IndexedDB for instant, zero-lag local playback on this device
+  // Save photo binary to IndexedDB for instant, zero-lag local playback on this device
+  const uploadFile = file;
   if (uploadFile) {
     await saveTrailMedia(trail.id, uploadFile);
   }
@@ -1058,8 +808,6 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(current));
       localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(current));
-      localStorage.removeItem(TRAIL_LIKERS_PREFIX + cleanId);
-      setTrailLikedByUser(cleanId, false);
     } catch {
       // ignore
     }
@@ -1142,292 +890,4 @@ export async function deleteGlobalTrail(trailId: string): Promise<void> {
   }
 }
 
-const inFlightLikes = new Set<string>();
 
-/**
- * Like / unlike a trail globally.
- * ONLY signed up users with a valid username can like a trail.
- */
-export async function likeGlobalTrail(
-  trailId: string, 
-  increment: boolean,
-  liker?: TrailLiker
-): Promise<{ success: boolean }> {
-  // Strict check: only registered/signed up users can like
-  if (!liker || (!liker.username && !liker.id)) {
-    console.warn('[sharedTrailsService] likeGlobalTrail requires a signed-up user');
-    return { success: false };
-  }
-
-  if (inFlightLikes.has(trailId)) {
-    return { success: true };
-  }
-  inFlightLikes.add(trailId);
-
-  try {
-    // 1. Update user liked state
-    setTrailLikedByUser(trailId, increment);
-
-    // 2. Update local likers list
-    let currentLikers = getLocalTrailLikers(trailId);
-    const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-    if (!cleanU) return { success: false };
-
-    if (increment) {
-      if (!currentLikers.some((l) => (l.username || '').toLowerCase().replace(/^@+/, '') === cleanU)) {
-        currentLikers = [{ ...liker, likedAt: new Date().toISOString() }, ...currentLikers];
-      }
-    } else {
-      currentLikers = currentLikers.filter((l) => (l.username || '').toLowerCase().replace(/^@+/, '') !== cleanU);
-    }
-    setLocalTrailLikers(trailId, currentLikers);
-
-    // 3. Update local storage cache immediately for zero latency
-    let calculatedLikesCount: number = currentLikers.length;
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
-        if (raw) {
-          const trails: TrailReel[] = JSON.parse(raw);
-          if (Array.isArray(trails)) {
-            const updated = trails.map((t) => {
-              if (t.id === trailId) {
-                const prevCount = typeof t.likesCount === 'number' ? t.likesCount : (Number(t.likesCount) || 0);
-                calculatedLikesCount = increment ? Math.max(prevCount + 1, currentLikers.length) : Math.max(0, prevCount - 1);
-                return { 
-                  ...t, 
-                  likesCount: calculatedLikesCount, 
-                  isLiked: increment,
-                  likedBy: currentLikers 
-                };
-              }
-              return t;
-            });
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-          }
-        }
-        window.dispatchEvent(new CustomEvent('roamai_trail_liked', { detail: { trailId, increment, liker, likesCount: calculatedLikesCount } }));
-        window.dispatchEvent(new Event('storage'));
-      } catch {
-        // ignore
-      }
-    }
-
-    // 4. Update in Supabase & Server concurrently in background
-    Promise.allSettled([
-      (async () => {
-        const supabase = getSupabaseClient();
-        if (supabase) {
-          const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
-          if (data && data.trail_data) {
-            const prevCount = typeof data.trail_data.likesCount === 'number' ? data.trail_data.likesCount : (Number(data.trail_data.likesCount) || 0);
-            const nextCount = increment ? Math.max(prevCount + 1, currentLikers.length) : Math.max(0, prevCount - 1);
-            const updatedTrail = { 
-              ...data.trail_data, 
-              likesCount: nextCount, 
-              likedBy: currentLikers 
-            };
-            await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
-          }
-        }
-      })(),
-      fetch(`/api/trails/${encodeURIComponent(trailId)}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ increment, liker })
-      })
-    ]).catch(() => {});
-
-    return { success: true };
-  } finally {
-    inFlightLikes.delete(trailId);
-  }
-}
-
-/**
- * Record view on a trail globally.
- * ONLY signed up users can increase view count.
- */
-export async function recordTrailView(
-  trailId: string,
-  viewer?: { id?: string; username: string }
-): Promise<number | undefined> {
-  if (!trailId || !viewer || (!viewer.id && !viewer.username)) {
-    // Only signed up users can record views
-    return undefined;
-  }
-
-  // Deduplicate in this browser session
-  const cleanU = (viewer.username || '').toLowerCase().replace(/^@+/, '');
-  const sessionKey = `roamai_viewed_${viewer.id || cleanU}_${trailId}`;
-  if (typeof window !== 'undefined') {
-    try {
-      if (sessionStorage.getItem(sessionKey)) {
-        return undefined; // Already counted this session
-      }
-      sessionStorage.setItem(sessionKey, '1');
-    } catch {
-      // ignore
-    }
-  }
-
-  let updatedViewsCount = 1;
-
-  // 1. Update local storage cache immediately
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (raw) {
-        const trails: TrailReel[] = JSON.parse(raw);
-        if (Array.isArray(trails)) {
-          const updated = trails.map((t) => {
-            if (t.id === trailId) {
-              const currentViews = Number(t.viewsCount || 0);
-              updatedViewsCount = currentViews + 1;
-              const viewedBy = Array.isArray(t.viewedBy) ? t.viewedBy : [];
-              const viewerExists = viewedBy.some((v: any) => 
-                (typeof v === 'string' && v.toLowerCase().replace(/^@+/, '') === cleanU) ||
-                (v && v.username && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
-              );
-              const newViewedBy = viewerExists ? viewedBy : [...viewedBy, { id: viewer.id, username: viewer.username, viewedAt: new Date().toISOString() }];
-              return {
-                ...t,
-                viewsCount: updatedViewsCount,
-                viewedBy: newViewedBy
-              };
-            }
-            return t;
-          });
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-        }
-      }
-      window.dispatchEvent(new CustomEvent('roamai_trail_viewed', { detail: { trailId, viewsCount: updatedViewsCount, viewer } }));
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Update in server API and Supabase concurrently without sequential waterfalls
-  try {
-    const serverPromise = fetch(`/api/trails/${encodeURIComponent(trailId)}/view`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ viewer })
-    }).then(async (res) => {
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.viewsCount === 'number') {
-          updatedViewsCount = data.viewsCount;
-        }
-      }
-    }).catch(() => {});
-
-    const supabasePromise = (async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
-      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
-      if (data && data.trail_data) {
-        const currentViews = Number(data.trail_data.viewsCount || 0);
-        const nextViews = currentViews + 1;
-        const viewedBy = Array.isArray(data.trail_data.viewedBy) ? data.trail_data.viewedBy : [];
-        const viewerExists = viewedBy.some((v: any) => 
-          (typeof v === 'string' && v.toLowerCase().replace(/^@+/, '') === cleanU) ||
-          (v && v.username && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
-        );
-        const newViewedBy = viewerExists ? viewedBy : [...viewedBy, { id: viewer.id, username: viewer.username, viewedAt: new Date().toISOString() }];
-        
-        await supabase.from('trails').update({
-          trail_data: {
-            ...data.trail_data,
-            viewsCount: nextViews,
-            viewedBy: newViewedBy
-          }
-        }).eq('id', trailId);
-      }
-    })().catch(() => {});
-
-    await Promise.allSettled([serverPromise, supabasePromise]);
-  } catch (err) {
-    // ignore
-  }
-
-  return updatedViewsCount;
-}
-
-/**
- * Add comment globally
- */
-export async function commentOnGlobalTrail(
-  trailId: string,
-  comment: { user: string; avatar: string; text: string; time?: string; timestamp?: number }
-): Promise<void> {
-  const now = comment.timestamp || Date.now();
-  const newCommentObj: TrailComment = {
-    id: `comment-${now}`,
-    user: comment.user,
-    avatar: comment.avatar,
-    text: comment.text,
-    time: comment.time || '1m',
-    timestamp: now
-  };
-
-  // 1. Update local cache immediately
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (raw) {
-        const trails: TrailReel[] = JSON.parse(raw);
-        if (Array.isArray(trails)) {
-          const updated = trails.map((t) => {
-            if (t.id === trailId) {
-              const existingComments = Array.isArray(t.comments) ? [...t.comments] : [];
-              const comments = [newCommentObj, ...existingComments];
-              return {
-                ...t,
-                comments,
-                commentsCount: comments.length
-              };
-            }
-            return t;
-          });
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-        }
-      }
-      window.dispatchEvent(new CustomEvent('roamai_trail_commented', { detail: { trailId, comment: newCommentObj } }));
-      window.dispatchEvent(new Event('storage'));
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Update in Supabase
-  try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data } = await supabase.from('trails').select('trail_data').eq('id', trailId).single();
-      if (data && data.trail_data) {
-        const comments = Array.isArray(data.trail_data.comments) ? [...data.trail_data.comments] : [];
-        comments.push(newCommentObj);
-        const updatedTrail = { 
-          ...data.trail_data, 
-          comments,
-          commentsCount: comments.length 
-        };
-        await supabase.from('trails').update({ trail_data: updatedTrail }).eq('id', trailId);
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 3. Update in server
-  try {
-    await fetch(`/api/trails/${encodeURIComponent(trailId)}/comment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(comment)
-    });
-  } catch {
-    // ignore
-  }
-}

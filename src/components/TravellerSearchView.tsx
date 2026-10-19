@@ -4,9 +4,7 @@ import {
   Search, 
   MapPin, 
   Play, 
-  Eye, 
   X, 
-  Heart,
   Video,
   Users,
   Flame,
@@ -20,7 +18,10 @@ import {
   Film,
   Compass,
   Mountain,
-  Award
+  Award,
+  Calendar,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 
 import { Session } from '@supabase/supabase-js';
@@ -33,9 +34,8 @@ import { calculateTravelDNA, TravelDNAAnalysis } from '../utils/travelDNA';
 import { isTripCompleted } from '../utils/tripCompletion';
 import { 
   isFakeMockUser,
-  isSelfRel,
   cleanBio
-} from '../services/followService';
+} from '../utils/userUtils';
 
 
 
@@ -52,7 +52,6 @@ export interface TravellerProfile {
   countriesCount?: number;
   topDNA: string[];
   recentPlaces: string[];
-  isFollowing?: boolean;
 }
 
 export interface ExploreTile {
@@ -62,8 +61,6 @@ export interface ExploreTile {
   destination: string;
   imageUrl: string;
   videoUrl?: string;
-  viewsCount: string;
-  likesCount: string;
   creator: {
     id?: string;
     name: string;
@@ -73,6 +70,127 @@ export interface ExploreTile {
   spanTwoCols?: boolean;
   spanTwoRows?: boolean;
 }
+
+export interface TrendingItinerary {
+  id: string;
+  title: string;
+  destination: string;
+  destinationSubtitle?: string;
+  durationDays: number;
+  estimatedBudget: string;
+  heroImage: string;
+  tags: string[];
+  vibe: string;
+  highlights: string[];
+  description: string;
+}
+
+export const CURATED_TRENDING_ITINERARIES: TrendingItinerary[] = [
+  {
+    id: 'itinerary-bali',
+    title: 'Coastal Surf, Waterfalls & Ancient Temples',
+    destination: 'Bali, Indonesia',
+    destinationSubtitle: 'Tropical Paradise & Sacred Heritage',
+    durationDays: 5,
+    estimatedBudget: '₹42,000',
+    heroImage: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=900&q=80',
+    tags: ['Beaches', 'Culture', 'Surfing', 'Temples'],
+    vibe: 'Tropical & Cultural',
+    highlights: ['Uluwatu Cliff Sunset & Kecak Dance', 'Tegallalang Sacred Rice Terraces', 'Seminyak Beachfront & Cafes'],
+    description: 'Immerse yourself in Bali’s vibrant coastal sunsets, terraced jade rice fields, sacred sea temples, and world-class culinary cafes.'
+  },
+  {
+    id: 'itinerary-kyoto',
+    title: 'Historic Shrines, Zen Gardens & Tea Culture',
+    destination: 'Kyoto, Japan',
+    destinationSubtitle: 'Ancient Imperial Capital',
+    durationDays: 6,
+    estimatedBudget: '₹68,000',
+    heroImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=900&q=80',
+    tags: ['Heritage', 'Nature', 'Gastronomy', 'Photography'],
+    vibe: 'Peaceful & Historic',
+    highlights: ['Fushimi Inari 10,000 Torii Gates', 'Arashiyama Bamboo Forest & River', 'Gion Historic Geisha District'],
+    description: 'Wander serene bamboo groves, centuries-old wooden shrines, tranquil rock gardens, and traditional matcha tea ceremonies.'
+  },
+  {
+    id: 'itinerary-swiss-alps',
+    title: 'Glacier Express & Panoramic Alpine Ridges',
+    destination: 'Swiss Alps, Switzerland',
+    destinationSubtitle: 'Majestic Peaks & Scenic Rail',
+    durationDays: 7,
+    estimatedBudget: '₹1,10,000',
+    heroImage: 'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?auto=format&fit=crop&w=900&q=80',
+    tags: ['Mountains', 'Scenic Trains', 'Hiking', 'Luxury'],
+    vibe: 'Breathtaking & Alpine',
+    highlights: ['Matterhorn Iconic Glacier Viewpoint', 'Jungfraujoch Top of Europe Train', 'Interlaken Turquoise Mountain Lakes'],
+    description: 'Ride world-famous mountain trains through snow-crested passes, crystal alpine lakes, and quaint wooden chalets.'
+  },
+  {
+    id: 'itinerary-amalfi',
+    title: 'Pastel Cliffs, Limoncello Groves & Mediterranean Sun',
+    destination: 'Amalfi Coast, Italy',
+    destinationSubtitle: 'Cliffside Villages & Coastal Romance',
+    durationDays: 5,
+    estimatedBudget: '₹85,000',
+    heroImage: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=900&q=80',
+    tags: ['Coastal', 'Romance', 'Cuisine', 'Sailing'],
+    vibe: 'Romantic & Coastal',
+    highlights: ['Positano Cliffside Walk & Beach', 'Path of the Gods Mountain Hike', 'Capri Island Private Boat Cruise'],
+    description: 'Cruise the sparkling Tyrrhenian Sea, taste fresh handmade pasta and limoncello, and hike trails with dramatic ocean drop-offs.'
+  },
+  {
+    id: 'itinerary-ladakh',
+    title: 'High-Altitude Passes, Monasteries & Azure Lakes',
+    destination: 'Ladakh, India',
+    destinationSubtitle: 'Land of High Passes',
+    durationDays: 7,
+    estimatedBudget: '₹38,000',
+    heroImage: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=900&q=80',
+    tags: ['Adventure', 'Road Trip', 'High Altitude', 'Photography'],
+    vibe: 'Rugged & Spiritual',
+    highlights: ['Khardung La High Mountain Pass', 'Pangong Tso Crystal Azure Waters', 'Nubra Valley Sand Dunes & Camels'],
+    description: 'An epic high-altitude road expedition across prayer-flag laden mountain passes, Tibetan monasteries, and the deep blue Pangong lake.'
+  },
+  {
+    id: 'itinerary-santorini',
+    title: 'Volcanic Caldera, Whitewashed Domes & Golden Sunsets',
+    destination: 'Santorini, Greece',
+    destinationSubtitle: 'Aegean Island Gem',
+    durationDays: 4,
+    estimatedBudget: '₹72,000',
+    heroImage: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=900&q=80',
+    tags: ['Island', 'Sunset', 'Architecture', 'Luxury'],
+    vibe: 'Idyllic & Scenic',
+    highlights: ['Oia Blue Domes Sunset Lookout', 'Catamaran Caldera Cruise & Hot Springs', 'Fira to Oia Cliffside Trek'],
+    description: 'Bask in legendary sunsets over volcanic waters, stroll whitewashed alleys, and sail around volcanic sea craters.'
+  },
+  {
+    id: 'itinerary-iceland',
+    title: 'Black Sand Coast, Geysers & Northern Lights',
+    destination: 'South Coast, Iceland',
+    destinationSubtitle: 'Land of Fire & Ice',
+    durationDays: 6,
+    estimatedBudget: '₹92,000',
+    heroImage: 'https://images.unsplash.com/photo-1504893524553-b855bce32c67?auto=format&fit=crop&w=900&q=80',
+    tags: ['Nature', 'Waterfalls', 'Aurora', 'Wilderness'],
+    vibe: 'Otherworldly & Wild',
+    highlights: ['Seljalandsfoss Walk-Behind Falls', 'Reynisfjara Volcanic Black Sand Beach', 'Blue Lagoon Geothermal Spa'],
+    description: 'Witness thunderous waterfalls, volcanic basalt columns, steaming thermal pools, and the ethereal glow of the Aurora Borealis.'
+  },
+  {
+    id: 'itinerary-hokkaido',
+    title: 'Powder Snow, Alpine Onsen & Coastal Seafood',
+    destination: 'Hokkaido, Japan',
+    destinationSubtitle: 'Winter Wonderland',
+    durationDays: 5,
+    estimatedBudget: '₹65,000',
+    heroImage: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=900&q=80',
+    tags: ['Winter', 'Snow', 'Hot Springs', 'Food'],
+    vibe: 'Cozy & Gastronomic',
+    highlights: ['Niseko World-Class Powder Skiing', 'Otaru Historical Canal Evening Stroll', 'Sapporo Ramen Alley Experience'],
+    description: 'Experience Japan’s premier winter escape with world-renowned powder skiing, soothing outdoor onsens, and legendary ramen.'
+  }
+];
 
 interface TravellerSearchViewProps {
   currentTheme?: ThemeConfig;
@@ -85,31 +203,6 @@ interface TravellerSearchViewProps {
   onRequireAuth?: () => void;
 }
 
-const FOLLOWING_STORAGE_KEY = 'roamai_following_users';
-
-function getFollowedUserIds(): Set<string> {
-  if (typeof window === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(FOLLOWING_STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveFollowedUserIds(followed: Set<string>) {
-  if (typeof window === 'undefined') return;
-  try {
-    const arr = Array.from(followed);
-    localStorage.setItem(FOLLOWING_STORAGE_KEY, JSON.stringify(arr));
-    window.dispatchEvent(new Event('storage'));
-    window.dispatchEvent(new CustomEvent('roamai_follow_changed', { detail: { count: arr.length } }));
-  } catch (e) {
-    console.warn('Failed to save followed users:', e);
-  }
-}
 
 export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   currentTheme,
@@ -123,7 +216,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [travellers, setTravellers] = useState<TravellerProfile[]>([]);
   const [selectedTile, setSelectedTile] = useState<ExploreTile | null>(null);
-  const [followedSet, setFollowedSet] = useState<Set<string>>(() => getFollowedUserIds());
+  const [selectedItinerary, setSelectedItinerary] = useState<TrendingItinerary | null>(null);
 
   // Instagram-style active viewing profile (opens profile in the same page)
   const [viewingProfile, setViewingProfile] = useState<TravellerProfile | null>(null);
@@ -190,8 +283,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           placesCount: d.placesCount ?? (matched?.placesCount ?? (cachedStats?.stats?.placesCount || 0)),
           countriesCount: d.countriesCount ?? (matched?.countriesCount ?? (cachedStats?.stats?.countriesCount || 0)),
           topDNA: d.topDNA || matched?.topDNA || [],
-          recentPlaces: d.recentPlaces || matched?.recentPlaces || [],
-          isFollowing: !!(d.isFollowing ?? matched?.isFollowing)
+          recentPlaces: d.recentPlaces || matched?.recentPlaces || []
         });
         setProfileTab('trips');
         try {
@@ -360,22 +452,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     return { ids, unames };
   }, [session?.user?.id, session?.user?.user_metadata]);
 
-  // Current logged in user profile object for follow relationships
-  const currentUserProfile = useMemo(() => {
-    const cached = session?.user?.id ? getCachedUserProfile(session.user.id) : null;
-    const meta = (session?.user?.user_metadata || {}) as Record<string, any>;
-    const uName = cached?.username || meta.username || '@traveler';
-    const name = cached?.name || meta.full_name || meta.name || uName.replace(/^@/, '');
-    const avatarUrl = sanitizeAvatarUrl(cached?.avatarUrl || meta.avatar_url || meta.avatarUrl || '');
-    return {
-      id: session?.user?.id || `user_${uName.replace(/^@/, '')}`,
-      username: uName.startsWith('@') ? uName : `@${uName}`,
-      name,
-      avatarUrl
-    };
-  }, [session?.user]);
-
-
   // Check if a profile belongs to the currently logged in user
   const isCurrentUser = useCallback((tr: TravellerProfile): boolean => {
     const cleanUname = tr.username.toLowerCase().replace(/^@+/, '');
@@ -397,14 +473,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     const timer = setTimeout(() => {
       searchRealTravellers(searchQuery).then((results) => {
         if (isMounted) {
-          const currentFollows = getFollowedUserIds();
-          const mapped = results
-            .filter((t) => !isFakeMockUser(t.username))
-            .map((t) => {
-              const cleanUser = t.username.replace(/^@+/, '').toLowerCase();
-              const isF = currentFollows.has(t.id) || currentFollows.has(cleanUser);
-              return { ...t, isFollowing: isF };
-            });
+          const mapped = results.filter((t) => !isFakeMockUser(t.username));
           setTravellers(mapped);
         }
       });
@@ -415,19 +484,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       clearTimeout(timer);
     };
   }, [searchQuery, session?.user?.id]);
-
-  // Sync followed set with storage changes
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setFollowedSet(getFollowedUserIds());
-    };
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('roamai_follow_changed', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('roamai_follow_changed', handleStorageChange);
-    };
-  }, []);
 
   // Global user trails list synced across all profiles
   const [globalTrailsList, setGlobalTrailsList] = useState<any[]>(() => getLocalTrails());
@@ -491,8 +547,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
           destination: t.destination || 'Explore Destination',
           imageUrl: cleanPoster,
           videoUrl: t.videoUrl,
-          viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-          likesCount: t.likesCount ? String(t.likesCount) : '0',
           creator: {
             id: t.creator?.id,
             name: t.creator?.name || 'Traveler',
@@ -623,6 +677,49 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     );
   }, [exploreTiles, searchQuery]);
 
+  // Dynamic trending itineraries merged with local saved trips
+  const trendingItineraries = useMemo<TrendingItinerary[]>(() => {
+    const list: TrendingItinerary[] = [...CURATED_TRENDING_ITINERARIES];
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('tripwise_user_trips_v2');
+        if (raw) {
+          const trips: Trip[] = JSON.parse(raw);
+          if (Array.isArray(trips)) {
+            trips.slice(0, 3).forEach((t) => {
+              if (t && t.destination && !list.some((item) => item.destination.toLowerCase() === t.destination.toLowerCase())) {
+                list.unshift({
+                  id: `user-trip-${t.id}`,
+                  title: t.title || `${t.destination} Itinerary`,
+                  destination: t.destination,
+                  destinationSubtitle: t.destinationStateOrCountry || 'Planned Itinerary',
+                  durationDays: t.durationDays || (t.days?.length || 3),
+                  estimatedBudget: t.currency && t.targetBudget ? `${t.currency}${t.targetBudget.toLocaleString()}` : 'Custom Plan',
+                  heroImage: t.heroImage || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=900&q=80',
+                  tags: t.preferences?.styles && t.preferences.styles.length > 0 ? t.preferences.styles.slice(0, 4) : ['Custom Itinerary', 'Travel Plan'],
+                  vibe: 'Custom Trip',
+                  highlights: t.days?.slice(0, 3).map((d) => d.theme || `Day ${d.dayNumber}: ${d.activities?.[0]?.title || 'Explore'}`) || ['Tailored day-by-day plan'],
+                  description: `Custom itinerary generated for ${t.destination} with ${t.durationDays || t.days?.length || 3} days of curated activities.`
+                });
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+    return list;
+  }, []);
+
+  const filteredItineraries = useMemo(() => {
+    if (!searchQuery.trim()) return trendingItineraries;
+    const q = searchQuery.toLowerCase().trim();
+    return trendingItineraries.filter((it) =>
+      it.destination.toLowerCase().includes(q) ||
+      it.title.toLowerCase().includes(q) ||
+      it.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  }, [trendingItineraries, searchQuery]);
+
   const isSearching = searchQuery.trim().length > 0;
 
   // Handle clicking on any profile:
@@ -719,7 +816,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               </div>
             </div>
 
-            {/* Right Column: Name & Level Badge, and Stats (post | followers | following) */}
+            {/* Right Column: Name & Level Badge, and Stats (post) */}
             <div className="flex-1 flex flex-col justify-center">
               {/* User Full Name & Level Badge */}
               <div className="flex items-center gap-2 flex-wrap mb-2.5">
@@ -960,10 +1057,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                       <div className="absolute top-1.5 right-1.5 text-white drop-shadow">
                         <Video className="w-3.5 h-3.5" />
                       </div>
-                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] font-bold text-white drop-shadow">
-                        <Eye className="w-3 h-3" />
-                        <span>{trail.viewsCount}</span>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -1083,17 +1176,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   <X className="w-4 h-4" />
                 </button>
 
-                <div className="absolute bottom-3 left-3 flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
-                    <Eye className="w-3.5 h-3.5 text-blue-400" />
-                    {selectedTile.viewsCount} views
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
-                    <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
-                    {selectedTile.likesCount}
-                  </span>
                 </div>
-              </div>
 
               <div className="p-4 pt-1 space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -1254,7 +1337,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Action Button: If own account, "Your Profile" / else "Follow/Following" */}
+                        {/* Action Button: If own account, "Your Profile" / else "View" */}
                         {isOwn ? (
                           <button
                             type="button"
@@ -1317,11 +1400,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
                       <div className="absolute top-2 right-2 text-white drop-shadow-md">
                         <Video className="w-3.5 h-3.5" />
-                      </div>
-
-                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] font-bold text-white drop-shadow-md">
-                        <Eye className="w-3 h-3" />
-                        <span>{tile.viewsCount}</span>
                       </div>
 
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
@@ -1415,111 +1493,110 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
               </div>
             )}
 
-            {/* 2. "Trending Trails" Instagram 3-Column Explore Grid */}
-            <div className="space-y-2 pt-1">
+            {/* 2. "Trending Itineraries" Section */}
+            <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 text-amber-500" />
-                  Trending Trails
+                  Trending Itineraries
                 </span>
                 <span className="text-[11px] text-neutral-500 font-medium">
-                  {exploreTiles.length} {exploreTiles.length === 1 ? 'trail' : 'trails'}
+                  {filteredItineraries.length} {filteredItineraries.length === 1 ? 'itinerary' : 'itineraries'}
                 </span>
               </div>
 
-              {exploreTiles.length > 0 ? (
-                <div className="grid grid-cols-3 gap-0.5 sm:gap-1.5">
-                  {exploreTiles.map((tile, idx) => {
-                    const isFeatureTile = idx === 0 || idx === 7;
+              {filteredItineraries.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {filteredItineraries.map((itinerary) => (
+                    <div
+                      key={itinerary.id}
+                      onClick={() => setSelectedItinerary(itinerary)}
+                      className="group relative rounded-2xl overflow-hidden bg-[#141419] border border-white/10 hover:border-emerald-500/50 shadow-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl hover:shadow-emerald-950/20 cursor-pointer flex flex-col"
+                    >
+                      {/* Image Header with floating badges */}
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-neutral-900">
+                        <img
+                          src={itinerary.heroImage}
+                          alt={itinerary.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
 
-                    return (
-                      <div
-                        key={tile.id}
-                        onClick={() => setSelectedTile(tile)}
-                        className={`relative overflow-hidden cursor-pointer group bg-neutral-900 ${
-                          isFeatureTile ? 'row-span-2' : 'aspect-square'
-                        }`}
-                      >
-                        {tile.imageUrl ? (
-                          <img
-                            src={tile.imageUrl}
-                            alt={tile.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            loading="lazy"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
-                              const fallback = (e.currentTarget as HTMLElement).parentElement?.querySelector('.trail-fallback-placeholder');
-                              if (fallback) (fallback as HTMLElement).style.display = 'flex';
-                            }}
-                          />
-                        ) : null}
-                        <div 
-                          className="trail-fallback-placeholder w-full h-full bg-neutral-900 flex flex-col items-center justify-center p-2 text-center select-none"
-                          style={{ display: tile.imageUrl ? 'none' : 'flex' }}
-                        >
-                          <Video className="w-5 h-5 text-neutral-600 mb-1" />
-                          <span className="text-[10px] font-semibold text-neutral-400 line-clamp-1">{tile.destination}</span>
+                        {/* Top Badges */}
+                        <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-sm">
+                            <Calendar className="w-3 h-3 text-emerald-400" />
+                            {itinerary.durationDays} Days
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-emerald-950/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-emerald-700/50 shadow-sm">
+                            {itinerary.estimatedBudget}
+                          </span>
                         </div>
 
-                        {/* Gradient Vignette for readability */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-75 group-hover:opacity-90 transition-opacity" />
-
-                        {/* Top Right Video / Reel Indicator */}
-                        <div className="absolute top-2 right-2 text-white drop-shadow-md">
-                          <Video className="w-3.5 h-3.5" />
-                        </div>
-
-                        {/* Bottom Left View Count */}
-                        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[11px] font-bold text-white drop-shadow-md">
-                          <Eye className="w-3 h-3" />
-                          <span>{tile.viewsCount}</span>
-                        </div>
-
-                        {/* Hover Overlay with Destination Title & Creator */}
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
-                          <div className="flex items-center gap-1.5">
-                            {tile.creator?.avatarUrl ? (
-                              <img
-                                src={tile.creator?.avatarUrl}
-                                alt={tile.creator?.username || 'traveler'}
-                                className="w-5 h-5 rounded-full object-cover"
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-5 h-5 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-[9px] text-white font-bold select-none">
-                                {tile.creator?.username ? tile.creator.username.replace(/^@/, '').charAt(0).toUpperCase() : 'T'}
-                              </div>
-                            )}
-                            <span className="text-[11px] font-bold text-white truncate">
-                              {tile.creator?.username || '@traveler'}
-                            </span>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <p className="text-xs font-bold text-white line-clamp-2 leading-tight">
-                              {tile.title}
-                            </p>
-                            <p className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                              <MapPin className="w-2.5 h-2.5 shrink-0" />
-                              <span className="truncate">{tile.destination}</span>
-                            </p>
-                          </div>
+                        {/* Destination Pill at bottom of image */}
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white/95 drop-shadow-md">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">{itinerary.destination}</span>
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Card Body */}
+                      <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+                        <div className="space-y-2">
+                          <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-1">
+                            {itinerary.title}
+                          </h3>
+
+                          {/* Highlights Preview */}
+                          {itinerary.highlights && itinerary.highlights.length > 0 && (
+                            <ul className="space-y-1">
+                              {itinerary.highlights.slice(0, 2).map((h, i) => (
+                                <li key={i} className="text-[11px] text-neutral-400 flex items-center gap-1.5 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                  <span className="truncate">{h}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        {/* Tags and CTA Button */}
+                        <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                          <div className="flex flex-wrap gap-1 overflow-hidden max-h-5">
+                            {itinerary.tags.slice(0, 2).map((t) => (
+                              <span key={t} className="text-[10px] font-semibold text-neutral-400 bg-white/5 px-2 py-0.5 rounded-md">
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStartPlanning?.(itinerary.destination);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-emerald-950/40 transition-all active:scale-95 cursor-pointer shrink-0"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Plan Trip</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="py-16 text-center space-y-3 px-4 bg-[#121212] border border-neutral-800/80 rounded-2xl">
                   <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto text-neutral-400">
-                    <Video className="w-6 h-6 text-rose-500" />
+                    <Calendar className="w-6 h-6 text-emerald-500" />
                   </div>
-                  <h3 className="text-sm font-bold text-white">No Trending Trails Yet</h3>
+                  <h3 className="text-sm font-bold text-white">No Trending Itineraries Found</h3>
                   <p className="text-xs text-neutral-400 max-w-xs mx-auto">
-                    Trails uploaded by community members will appear here in the trending explore grid.
+                    Try searching for a different destination or explore our top recommendations.
                   </p>
                 </div>
               )}
@@ -1554,16 +1631,6 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <X className="w-4 h-4" />
               </button>
 
-              <div className="absolute bottom-3 left-3 flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5 text-blue-400" />
-                  {selectedTile.viewsCount} views
-                </span>
-                <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
-                  {selectedTile.likesCount}
-                </span>
-              </div>
             </div>
 
             {/* Content Details */}
@@ -1627,6 +1694,109 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Plan This Trip</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Interactive Trending Itinerary Preview Modal */}
+      {selectedItinerary && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm sm:max-w-lg bg-[#161616] border border-neutral-800 rounded-3xl overflow-hidden shadow-2xl space-y-4">
+            {/* Header Image */}
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
+              <img
+                src={selectedItinerary.heroImage}
+                alt={selectedItinerary.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+              <button
+                type="button"
+                onClick={() => setSelectedItinerary(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center cursor-pointer hover:bg-black/80 transition-colors z-10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Badges on image */}
+              <div className="absolute top-3 left-3 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                  {selectedItinerary.durationDays} Days
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-300 bg-emerald-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-emerald-700/60">
+                  {selectedItinerary.estimatedBudget}
+                </span>
+              </div>
+
+              <div className="absolute bottom-3 left-4 right-4">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {selectedItinerary.destination}
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-white drop-shadow-md">
+                  {selectedItinerary.title}
+                </h3>
+              </div>
+            </div>
+
+            {/* Content Details */}
+            <div className="p-5 pt-0 space-y-4">
+              <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
+                {selectedItinerary.description}
+              </p>
+
+              {/* Highlights */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  Key Itinerary Highlights
+                </span>
+                <ul className="space-y-1.5 bg-neutral-900/80 border border-neutral-800 rounded-xl p-3">
+                  {selectedItinerary.highlights.map((highlight, idx) => (
+                    <li key={idx} className="text-xs text-neutral-300 flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
+                      <span>{highlight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1.5">
+                {selectedItinerary.tags.map((tag) => (
+                  <span key={tag} className="text-xs font-medium text-neutral-400 bg-neutral-800/80 border border-neutral-700/50 px-2.5 py-1 rounded-lg">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-2 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedItinerary(null)}
+                  className="flex-1 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>Close</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dest = selectedItinerary.destination;
+                    setSelectedItinerary(null);
+                    onStartPlanning?.(dest);
+                  }}
+                  className="flex-2 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/50 transition-all active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Plan This Itinerary</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

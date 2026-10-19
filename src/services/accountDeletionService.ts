@@ -57,16 +57,6 @@ export async function deleteUserAccountCompletely(
       }
     }
 
-    // 4. Delete user's follows & followers from Supabase
-    if (supabase) {
-      try {
-        await supabase.from('follows').delete().eq('follower_id', userId);
-        await supabase.from('follows').delete().eq('following_id', userId);
-      } catch (followErr) {
-        console.warn('Follows cleanup notice during account deletion:', followErr);
-      }
-    }
-
     // 5. Delete username claim from Supabase
     if (supabase) {
       try {
@@ -94,7 +84,7 @@ export async function deleteUserAccountCompletely(
       }
     }
 
-    // 8. Inform backend server to purge cached trails, usernames, and follows
+    // 8. Inform backend server to purge cached trails and usernames
     try {
       const session = (await supabase?.auth.getSession())?.data.session;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -123,7 +113,6 @@ export async function deleteUserAccountCompletely(
               key.startsWith('tripwise_saved_places') ||
               key.startsWith('roamai_user_profile') ||
               key.startsWith('roamai_profile_draft') ||
-              key.startsWith('roamai_user_follow') ||
               key.startsWith('roamai_user_feed') ||
               key.startsWith('tripwise_saved_trails') ||
               key.startsWith('sb-') ||

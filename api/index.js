@@ -1,6 +1,6 @@
 // server/app.ts
 import express from "express";
-import path4 from "path";
+import path3 from "path";
 import dotenv from "dotenv";
 
 // server/services/serverPlanner.ts
@@ -3731,12 +3731,13 @@ Return strictly valid JSON with this exact schema:
 }
 
 // server/services/serverUsernameRegistry.ts
-import fs2 from "fs";
-import path2 from "path";
-
-// server/services/serverFollowsRegistry.ts
 import fs from "fs";
 import path from "path";
+
+// server/services/serverUserUtils.ts
+function isFakeMockUser(_username) {
+  return false;
+}
 
 // server/config.ts
 var serverConfig = {
@@ -3745,135 +3746,6 @@ var serverConfig = {
     anonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_lEh8i3--27fBR0viPcq2mA_K_99EkIO"
   }
 };
-
-// server/services/serverFollowsRegistry.ts
-function cleanHandle(u) {
-  return (u || "").replace(/^@+/, "").trim().toLowerCase();
-}
-function makeKey(followerUsername, followingUsername) {
-  return `${cleanHandle(followerUsername)}->${cleanHandle(followingUsername)}`;
-}
-var followsMap = /* @__PURE__ */ new Map();
-var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
-var dataFile = path.join(dataDir, "follows.json");
-var SUPABASE_URL = serverConfig.supabase.url;
-var SUPABASE_KEY = serverConfig.supabase.anonKey;
-function isFakeMockUser(_username) {
-  return false;
-}
-try {
-  if (fs.existsSync(dataFile)) {
-    const raw = fs.readFileSync(dataFile, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      parsed.forEach((rec) => {
-        if (rec && rec.followerUsername && rec.followingUsername && !isFakeMockUser(rec.followerUsername) && !isFakeMockUser(rec.followingUsername) && !rec.id?.startsWith("seed_") && !rec.id?.startsWith("rel_init_") && !rec.id?.startsWith("rel_follower_")) {
-          const key = makeKey(rec.followerUsername, rec.followingUsername);
-          followsMap.set(key, rec);
-        }
-      });
-    }
-  }
-} catch (err) {
-  console.warn("[serverFollowsRegistry] Could not read follows.json:", err);
-}
-persistToDisk();
-function persistToDisk() {
-  try {
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    const array = Array.from(followsMap.values());
-    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("[serverFollowsRegistry] Could not persist follows to disk:", err);
-  }
-}
-function getAllServerFollows() {
-  return Array.from(followsMap.values());
-}
-function followServerUser(follower, target) {
-  const fClean = cleanHandle(follower.username);
-  const tClean = cleanHandle(target.username);
-  if (!fClean || !tClean || fClean === tClean || isFakeMockUser(fClean) || isFakeMockUser(tClean)) return null;
-  const key = makeKey(fClean, tClean);
-  const existing = followsMap.get(key);
-  if (existing) return existing;
-  const rec = {
-    id: `fol_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    followerId: follower.id || `user_${fClean}`,
-    followerUsername: `@${fClean}`,
-    followerName: follower.name || fClean.charAt(0).toUpperCase() + fClean.slice(1),
-    followerAvatar: follower.avatarUrl || "",
-    followingId: target.id || `user_${tClean}`,
-    followingUsername: `@${tClean}`,
-    followingName: target.name || tClean.charAt(0).toUpperCase() + tClean.slice(1),
-    followingAvatar: target.avatarUrl || "",
-    createdAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  followsMap.set(key, rec);
-  persistToDisk();
-  try {
-    fetch(`${SUPABASE_URL}/rest/v1/follows`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
-      },
-      body: JSON.stringify({
-        follower_id: rec.followerId,
-        following_id: rec.followingId
-      })
-    }).catch(() => {
-    });
-  } catch {
-  }
-  return rec;
-}
-function unfollowServerUser(follower, target) {
-  const fClean = cleanHandle(follower.username);
-  const tClean = cleanHandle(target.username);
-  if (!fClean || !tClean) return false;
-  const key = makeKey(fClean, tClean);
-  const existed = followsMap.delete(key);
-  if (existed) {
-    persistToDisk();
-    try {
-      const fId = follower.id || `user_${fClean}`;
-      const tId = target.id || `user_${tClean}`;
-      fetch(`${SUPABASE_URL}/rest/v1/follows?follower_id=eq.${encodeURIComponent(fId)}&following_id=eq.${encodeURIComponent(tId)}`, {
-        method: "DELETE",
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
-        }
-      }).catch(() => {
-      });
-    } catch {
-    }
-  }
-  return existed;
-}
-function removeServerFollower(currentUser, targetFollower) {
-  return unfollowServerUser(targetFollower, currentUser);
-}
-function deleteServerUserFollows(userId, username) {
-  const clean = cleanHandle(username || "");
-  let changed = false;
-  for (const [key, record] of followsMap.entries()) {
-    const matchesUser = userId && (record.followerId === userId || record.followingId === userId) || clean && (cleanHandle(record.followerUsername) === clean || cleanHandle(record.followingUsername) === clean);
-    if (matchesUser) {
-      followsMap.delete(key);
-      changed = true;
-    }
-  }
-  if (changed) {
-    persistToDisk();
-  }
-  return changed;
-}
 
 // server/services/serverUsernameRegistry.ts
 var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
@@ -3895,11 +3767,11 @@ var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
   "guest"
 ]);
 var claimedUsernamesMap = /* @__PURE__ */ new Map();
-var dataDir2 = path2.join(process.cwd(), "data");
-var dataFile2 = path2.join(dataDir2, "usernames.json");
+var dataDir = path.join(process.cwd(), "data");
+var dataFile = path.join(dataDir, "usernames.json");
 try {
-  if (fs2.existsSync(dataFile2)) {
-    const raw = fs2.readFileSync(dataFile2, "utf-8");
+  if (fs.existsSync(dataFile)) {
+    const raw = fs.readFileSync(dataFile, "utf-8");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
@@ -3912,19 +3784,19 @@ try {
 } catch (err) {
   console.warn("Could not read usernames.json from disk:", err);
 }
-function persistToDisk2() {
+function persistToDisk() {
   try {
-    if (!fs2.existsSync(dataDir2)) {
-      fs2.mkdirSync(dataDir2, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
     const array = Array.from(claimedUsernamesMap.values());
-    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
+    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
   } catch (err) {
     console.warn("Could not persist usernames to disk:", err);
   }
 }
-var SUPABASE_URL2 = serverConfig.supabase.url;
-var SUPABASE_KEY2 = serverConfig.supabase.anonKey;
+var SUPABASE_URL = serverConfig.supabase.url;
+var SUPABASE_KEY = serverConfig.supabase.anonKey;
 var inFlightUsernameChecks = /* @__PURE__ */ new Map();
 var usernameCheckCache = /* @__PURE__ */ new Map();
 var USERNAME_CACHE_TTL_MS = 15e3;
@@ -3971,10 +3843,10 @@ async function isUsernameAvailable(rawUsername, currentUserId) {
   }
   const checkPromise = (async () => {
     try {
-      const res = await fetch(`${SUPABASE_URL2}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
         headers: {
-          "apikey": SUPABASE_KEY2,
-          "Authorization": `Bearer ${SUPABASE_KEY2}`
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
         }
       });
       if (res.ok) {
@@ -4017,7 +3889,7 @@ async function registerServerUsername(rawUsername, userId, email) {
   };
   claimedUsernamesMap.set(clean, record);
   invalidateUsernameCache(clean);
-  persistToDisk2();
+  persistToDisk();
   return { success: true };
 }
 function searchServerUsers(query) {
@@ -4044,23 +3916,23 @@ function deleteServerUsername(userId, rawUsername) {
     }
   }
   if (changed) {
-    persistToDisk2();
+    persistToDisk();
   }
   return changed;
 }
 
 // server/services/serverTrailsRegistry.ts
-import fs3 from "fs";
-import path3 from "path";
+import fs2 from "fs";
+import path2 from "path";
 var trailsMap = /* @__PURE__ */ new Map();
-var dataDir3 = process.env.VERCEL ? "/tmp/roamai_data" : path3.join(process.cwd(), "data");
-var dataFile3 = path3.join(dataDir3, "trails.json");
-var publicUploadsDir = path3.join(process.cwd(), "public/uploads/trails");
+var dataDir2 = process.env.VERCEL ? "/tmp/roamai_data" : path2.join(process.cwd(), "data");
+var dataFile2 = path2.join(dataDir2, "trails.json");
+var publicUploadsDir = path2.join(process.cwd(), "public/uploads/trails");
 var tmpUploadsDir = "/tmp/roamai_uploads";
 var uploadsDir = process.env.VERCEL ? tmpUploadsDir : publicUploadsDir;
 try {
-  if (fs3.existsSync(dataFile3)) {
-    const raw = fs3.readFileSync(dataFile3, "utf-8");
+  if (fs2.existsSync(dataFile2)) {
+    const raw = fs2.readFileSync(dataFile2, "utf-8");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
@@ -4073,22 +3945,22 @@ try {
 } catch (err) {
   console.warn("[serverTrailsRegistry] Could not read trails.json from disk:", err);
 }
-function persistToDisk3() {
+function persistToDisk2() {
   try {
-    if (!fs3.existsSync(dataDir3)) {
-      fs3.mkdirSync(dataDir3, { recursive: true });
+    if (!fs2.existsSync(dataDir2)) {
+      fs2.mkdirSync(dataDir2, { recursive: true });
     }
     const array = Array.from(trailsMap.values());
-    fs3.writeFileSync(dataFile3, JSON.stringify(array, null, 2), "utf-8");
+    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
   } catch (err) {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
-var SUPABASE_URL3 = serverConfig.supabase.url;
-var SUPABASE_KEY3 = serverConfig.supabase.anonKey;
+var SUPABASE_URL2 = serverConfig.supabase.url;
+var SUPABASE_KEY2 = serverConfig.supabase.anonKey;
 async function syncServerTrailsFromStorage() {
   try {
-    const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL2}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const parsed = await res.json();
       if (Array.isArray(parsed)) {
@@ -4097,7 +3969,7 @@ async function syncServerTrailsFromStorage() {
             trailsMap.set(rec.id, rec);
           }
         });
-        persistToDisk3();
+        persistToDisk2();
       }
     }
   } catch {
@@ -4119,12 +3991,12 @@ function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
     else if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
     else if (mimeType.includes("image/png")) ext = "png";
     else if (mimeType.includes("image/webp")) ext = "webp";
-    if (!fs3.existsSync(uploadsDir)) {
-      fs3.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs2.existsSync(uploadsDir)) {
+      fs2.mkdirSync(uploadsDir, { recursive: true });
     }
     const fileName = `${trailId}_${prefix}.${ext}`;
-    const targetPath = path3.join(uploadsDir, fileName);
-    fs3.writeFileSync(targetPath, dataBuffer);
+    const targetPath = path2.join(uploadsDir, fileName);
+    fs2.writeFileSync(targetPath, dataBuffer);
     return `/uploads/trails/${fileName}`;
   } catch (err) {
     console.warn("[serverTrailsRegistry] Could not write media file to disk:", err);
@@ -4171,31 +4043,23 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
       id: trailData.creator?.id || existing?.creator?.id || void 0,
       name: trailData.creator?.name || existing?.creator?.name || "Explorer",
       username: trailData.creator?.username || existing?.creator?.username || "@traveler",
-      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || "",
-      isFollowed: trailData.creator?.isFollowed ?? existing?.creator?.isFollowed ?? false
+      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || ""
     },
     caption: trailData.caption || existing?.caption || "",
     destination: trailData.destination || existing?.destination || "Everywhere",
     tags: Array.isArray(trailData.tags) ? trailData.tags : existing?.tags || [],
     audioTitle: trailData.audioTitle || existing?.audioTitle || "Original Travel Sound",
-    likesCount: typeof trailData.likesCount === "number" ? trailData.likesCount : typeof existing?.likesCount === "number" ? existing.likesCount : Array.isArray(trailData.likedBy) ? trailData.likedBy.length : existing?.likedBy?.length ?? 0,
-    commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
-    viewsCount: typeof trailData.viewsCount === "number" ? trailData.viewsCount : existing?.viewsCount ?? 0,
-    viewedBy: trailData.viewedBy || existing?.viewedBy || [],
-    likedBy: trailData.likedBy || existing?.likedBy || [],
-    isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
     isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
-    comments: trailData.comments || existing?.comments || [],
     createdAt: trailData.createdAt || existing?.createdAt || (/* @__PURE__ */ new Date()).toISOString()
   };
   trailsMap.set(cleanRecord.id, cleanRecord);
-  persistToDisk3();
-  if (SUPABASE_URL3 && SUPABASE_KEY3) {
-    fetch(`${SUPABASE_URL3}/rest/v1/trails`, {
+  persistToDisk2();
+  if (SUPABASE_URL2 && SUPABASE_KEY2) {
+    fetch(`${SUPABASE_URL2}/rest/v1/trails`, {
       method: "POST",
       headers: {
-        "apikey": SUPABASE_KEY3,
-        "Authorization": `Bearer ${SUPABASE_KEY3}`,
+        "apikey": SUPABASE_KEY2,
+        "Authorization": `Bearer ${SUPABASE_KEY2}`,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
       },
@@ -4213,11 +4077,11 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
       try {
         const allTrails = Array.from(trailsMap.values()).filter((t) => t && t.id && !t.id.startsWith("sample-trail-")).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         const jsonBody = JSON.stringify(allTrails, null, 2);
-        await fetch(`${SUPABASE_URL3}/storage/v1/object/trails/meta/global_trails_index.png`, {
+        await fetch(`${SUPABASE_URL2}/storage/v1/object/trails/meta/global_trails_index.png`, {
           method: "POST",
           headers: {
-            "apikey": SUPABASE_KEY3,
-            "Authorization": `Bearer ${SUPABASE_KEY3}`,
+            "apikey": SUPABASE_KEY2,
+            "Authorization": `Bearer ${SUPABASE_KEY2}`,
             "Content-Type": "image/png",
             "x-upsert": "true"
           },
@@ -4243,16 +4107,16 @@ async function deleteServerTrail(trailId) {
       trailsMap.delete(k);
     }
   }
-  persistToDisk3();
+  persistToDisk2();
   const candidateDirs = [uploadsDir, publicUploadsDir, tmpUploadsDir];
   for (const dir of candidateDirs) {
-    if (fs3.existsSync(dir)) {
+    if (fs2.existsSync(dir)) {
       try {
-        const files = fs3.readdirSync(dir);
+        const files = fs2.readdirSync(dir);
         for (const file of files) {
           if (file.startsWith(`${cleanId}_`) || file.startsWith(`${cleanId}.`) || file.startsWith(`${decodedId}_`) || file.startsWith(`${decodedId}.`)) {
             try {
-              fs3.unlinkSync(path3.join(dir, file));
+              fs2.unlinkSync(path2.join(dir, file));
             } catch {
             }
           }
@@ -4278,11 +4142,11 @@ async function deleteServerTrail(trailId) {
       `posters/${decodedId}.jpg`,
       `posters/${decodedId}.png`
     ];
-    await fetch(`${SUPABASE_URL3}/storage/v1/object/trails`, {
+    await fetch(`${SUPABASE_URL2}/storage/v1/object/trails`, {
       method: "DELETE",
       headers: {
-        "apikey": SUPABASE_KEY3,
-        "Authorization": `Bearer ${SUPABASE_KEY3}`,
+        "apikey": SUPABASE_KEY2,
+        "Authorization": `Bearer ${SUPABASE_KEY2}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ prefixes })
@@ -4291,17 +4155,17 @@ async function deleteServerTrail(trailId) {
     console.warn("[serverTrailsRegistry] Supabase storage file remove warning:", err);
   }
   try {
-    const res = await fetch(`${SUPABASE_URL3}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL2}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const list = await res.json();
       if (Array.isArray(list)) {
         const filtered = list.filter((t) => t && t.id !== cleanId && t.id !== decodedId);
         if (filtered.length !== list.length) {
-          await fetch(`${SUPABASE_URL3}/storage/v1/object/trails/meta/global_trails_index.png`, {
+          await fetch(`${SUPABASE_URL2}/storage/v1/object/trails/meta/global_trails_index.png`, {
             method: "POST",
             headers: {
-              "apikey": SUPABASE_KEY3,
-              "Authorization": `Bearer ${SUPABASE_KEY3}`,
+              "apikey": SUPABASE_KEY2,
+              "Authorization": `Bearer ${SUPABASE_KEY2}`,
               "Content-Type": "image/png",
               "x-upsert": "true"
             },
@@ -4313,11 +4177,11 @@ async function deleteServerTrail(trailId) {
   } catch {
   }
   try {
-    await fetch(`${SUPABASE_URL3}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
+    await fetch(`${SUPABASE_URL2}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
       method: "DELETE",
       headers: {
-        "apikey": SUPABASE_KEY3,
-        "Authorization": `Bearer ${SUPABASE_KEY3}`
+        "apikey": SUPABASE_KEY2,
+        "Authorization": `Bearer ${SUPABASE_KEY2}`
       }
     });
   } catch (err) {
@@ -4344,77 +4208,6 @@ async function deleteServerUserTrails(userId, username) {
   }
   return true;
 }
-function toggleLikeServerTrail(trailId, increment, liker) {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return { success: false, likesCount: 0 };
-  if (!liker || !liker.username && !liker.id) {
-    return { success: false, likesCount: typeof trail.likesCount === "number" ? trail.likesCount : trail.likedBy?.length || 0, likedBy: trail.likedBy };
-  }
-  if (!trail.likedBy) trail.likedBy = [];
-  const cleanU = (liker.username || "").toLowerCase().replace(/^@+/, "");
-  if (!cleanU) {
-    return { success: false, likesCount: typeof trail.likesCount === "number" ? trail.likesCount : trail.likedBy?.length || 0, likedBy: trail.likedBy };
-  }
-  if (increment) {
-    if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, "") === cleanU)) {
-      trail.likedBy.unshift({
-        id: liker.id,
-        name: liker.name || cleanU,
-        username: liker.username.startsWith("@") ? liker.username : `@${liker.username}`,
-        avatarUrl: liker.avatarUrl,
-        likedAt: liker.likedAt || (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-  } else {
-    trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, "") !== cleanU);
-  }
-  const prevCount = typeof trail.likesCount === "number" ? trail.likesCount : Number(trail.likesCount) || 0;
-  trail.likesCount = increment ? Math.max(prevCount + 1, trail.likedBy.length) : Math.max(0, prevCount - 1);
-  trail.isLiked = increment;
-  persistToDisk3();
-  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
-}
-function recordServerTrailView(trailId, viewer) {
-  if (!viewer || !viewer.id && !viewer.username) {
-    return { success: false, viewsCount: 0 };
-  }
-  const trail = trailsMap.get(trailId);
-  if (!trail) return { success: false, viewsCount: 0 };
-  if (!trail.viewedBy) trail.viewedBy = [];
-  const cleanU = (viewer.username || "").toLowerCase().replace(/^@+/, "");
-  const alreadyViewed = trail.viewedBy.some(
-    (v) => viewer.id && v.id === viewer.id || cleanU && v.username.toLowerCase().replace(/^@+/, "") === cleanU
-  );
-  if (!alreadyViewed) {
-    trail.viewedBy.push({
-      id: viewer.id,
-      username: viewer.username.startsWith("@") ? viewer.username : `@${viewer.username}`,
-      viewedAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    trail.viewsCount = (trail.viewsCount || 0) + 1;
-    persistToDisk3();
-  }
-  return { success: true, viewsCount: trail.viewsCount || 0 };
-}
-function getServerTrailLikers(trailId) {
-  const trail = trailsMap.get(trailId);
-  return trail?.likedBy || [];
-}
-function addCommentToServerTrail(trailId, comment) {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return false;
-  const newComment = {
-    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    user: comment.user,
-    avatar: comment.avatar,
-    text: comment.text,
-    time: "Just now"
-  };
-  trail.comments = [newComment, ...trail.comments || []];
-  trail.commentsCount = (trail.commentsCount || 0) + 1;
-  persistToDisk3();
-  return true;
-}
 
 // server/app.ts
 dotenv.config();
@@ -4438,10 +4231,10 @@ function createExpressApp() {
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     }
   };
-  app2.use("/Images", express.static(path4.join(process.cwd(), "public/images"), staticImageOptions));
-  app2.use("/images", express.static(path4.join(process.cwd(), "public/images"), staticImageOptions));
-  app2.use("/uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
-  app2.use("/Uploads/trails", express.static(path4.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
+  app2.use("/Images", express.static(path3.join(process.cwd(), "public/images"), staticImageOptions));
+  app2.use("/images", express.static(path3.join(process.cwd(), "public/images"), staticImageOptions));
+  app2.use("/uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
+  app2.use("/Uploads/trails", express.static(path3.join(process.cwd(), "public/uploads/trails"), { maxAge: "7d" }));
   app2.use("/uploads/trails", express.static("/tmp/roamai_uploads", { maxAge: "7d" }));
   const apiRouter = express.Router();
   apiRouter.get("/health", (req, res) => {
@@ -4603,19 +4396,19 @@ function createExpressApp() {
         res.status(400).json({ error: "userId or username is required" });
         return;
       }
-      const SUPABASE_URL4 = serverConfig.supabase.url;
+      const SUPABASE_URL3 = serverConfig.supabase.url;
       const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
       const ANON_KEY = serverConfig.supabase.anonKey;
       const authKey = SERVICE_KEY || ANON_KEY;
       const authHeader = req.headers.authorization;
-      if (SUPABASE_URL4 && ANON_KEY) {
+      if (SUPABASE_URL3 && ANON_KEY) {
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
           res.status(401).json({ error: "Unauthorized: Valid session authorization token is required to delete an account" });
           return;
         }
         const token = authHeader.replace(/^Bearer\s+/i, "").trim();
         try {
-          const verifyRes = await fetch(`${SUPABASE_URL4}/auth/v1/user`, {
+          const verifyRes = await fetch(`${SUPABASE_URL3}/auth/v1/user`, {
             headers: {
               apikey: ANON_KEY,
               Authorization: `Bearer ${token}`
@@ -4638,14 +4431,13 @@ function createExpressApp() {
         }
       }
       await deleteServerUserTrails(userId, username);
-      deleteServerUserFollows(userId, username);
       deleteServerUsername(userId, username);
-      if (SUPABASE_URL4 && authKey && userId) {
+      if (SUPABASE_URL3 && authKey && userId) {
         try {
           const tables = ["trips", "saved_places", "trails", "usernames", "profiles"];
           for (const tbl of tables) {
             const col = tbl === "profiles" ? "id" : "user_id";
-            await fetch(`${SUPABASE_URL4}/rest/v1/${tbl}?${col}=eq.${encodeURIComponent(userId)}`, {
+            await fetch(`${SUPABASE_URL3}/rest/v1/${tbl}?${col}=eq.${encodeURIComponent(userId)}`, {
               method: "DELETE",
               headers: {
                 apikey: authKey,
@@ -4656,7 +4448,7 @@ function createExpressApp() {
             });
           }
           if (SERVICE_KEY) {
-            await fetch(`${SUPABASE_URL4}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+            await fetch(`${SUPABASE_URL3}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
               method: "DELETE",
               headers: {
                 apikey: SERVICE_KEY,
@@ -4723,108 +4515,6 @@ function createExpressApp() {
     } catch (err) {
       console.error("Error deleting trail:", err);
       res.status(500).json({ error: "Failed to delete trail" });
-    }
-  });
-  apiRouter.post("/trails/:id/like", (req, res) => {
-    try {
-      const { id } = req.params;
-      const { increment, liker } = req.body;
-      if (!liker || !liker.username && !liker.id) {
-        res.status(401).json({ error: "Signed up user required to like a trail" });
-        return;
-      }
-      const result = toggleLikeServerTrail(id, increment !== false, liker);
-      res.json(result);
-    } catch (err) {
-      console.error("Error liking trail:", err);
-      res.status(500).json({ error: "Failed to update like status" });
-    }
-  });
-  apiRouter.post("/trails/:id/view", (req, res) => {
-    try {
-      const { id } = req.params;
-      const { viewer } = req.body;
-      if (!viewer || !viewer.id && !viewer.username) {
-        res.status(401).json({ error: "Signed up user required to record a view" });
-        return;
-      }
-      const result = recordServerTrailView(id, viewer);
-      res.json(result);
-    } catch (err) {
-      console.error("Error recording trail view:", err);
-      res.status(500).json({ error: "Failed to record trail view" });
-    }
-  });
-  apiRouter.get("/trails/:id/likes", (req, res) => {
-    try {
-      const { id } = req.params;
-      const likers = getServerTrailLikers(id);
-      res.json({ likers });
-    } catch (err) {
-      console.error("Error fetching trail likers:", err);
-      res.status(500).json({ error: "Failed to fetch likers" });
-    }
-  });
-  apiRouter.post("/trails/:id/comment", (req, res) => {
-    try {
-      const { id } = req.params;
-      const { user, avatar, text } = req.body;
-      if (!text) {
-        res.status(400).json({ error: "Comment text is required" });
-        return;
-      }
-      const success = addCommentToServerTrail(id, { user: user || "Traveler", avatar: avatar || "", text });
-      res.json({ success });
-    } catch (err) {
-      console.error("Error adding comment:", err);
-      res.status(500).json({ error: "Failed to add comment" });
-    }
-  });
-  apiRouter.get("/follows", (_req, res) => {
-    try {
-      const follows = getAllServerFollows();
-      res.json({ follows });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to fetch follows" });
-    }
-  });
-  apiRouter.post("/follows/follow", (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: "follower and target objects are required" });
-        return;
-      }
-      const record = followServerUser(follower, target);
-      res.json({ success: !!record, record });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to follow user" });
-    }
-  });
-  apiRouter.post("/follows/unfollow", (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: "follower and target objects are required" });
-        return;
-      }
-      const success = unfollowServerUser(follower, target);
-      res.json({ success });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to unfollow user" });
-    }
-  });
-  apiRouter.post("/follows/remove-follower", (req, res) => {
-    try {
-      const { currentUser, targetFollower } = req.body;
-      if (!currentUser || !targetFollower) {
-        res.status(400).json({ error: "currentUser and targetFollower are required" });
-        return;
-      }
-      const success = removeServerFollower(currentUser, targetFollower);
-      res.json({ success });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to remove follower" });
     }
   });
   app2.use("/api", apiRouter);

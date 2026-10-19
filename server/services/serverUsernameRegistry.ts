@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { isFakeMockUser } from './serverFollowsRegistry';
+import { isFakeMockUser } from './serverUserUtils';
 import { serverConfig } from '../config';
 
 interface UsernameRecord {

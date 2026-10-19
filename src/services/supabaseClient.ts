@@ -59,7 +59,7 @@ export function purgeStaleStorageIfNeeded(): void {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('tripwise_user_profile_') || k.startsWith('roamai_follows_') || k.startsWith('roamai_followers_'))) {
+        if (k && k.startsWith('tripwise_user_profile_')) {
           keysToRemove.push(k);
         }
       }

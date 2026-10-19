@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { isFakeMockUser } from './serverFollowsRegistry';
+import { isFakeMockUser } from './serverUserUtils';
 import { serverConfig } from '../config';
 
 export interface ServerTrailRecord {
@@ -14,36 +14,12 @@ export interface ServerTrailRecord {
     name: string;
     username: string;
     avatarUrl?: string;
-    isFollowed?: boolean;
   };
   caption: string;
   destination: string;
   tags: string[];
   audioTitle: string;
-  likesCount: number;
-  commentsCount: number;
-  viewsCount?: number;
-  viewedBy?: Array<{
-    id?: string;
-    username: string;
-    viewedAt?: string;
-  }>;
-  isLiked?: boolean;
   isSaved?: boolean;
-  comments?: Array<{
-    id: string;
-    user: string;
-    avatar: string;
-    text: string;
-    time: string;
-  }>;
-  likedBy?: Array<{
-    id?: string;
-    name: string;
-    username: string;
-    avatarUrl?: string;
-    likedAt?: string;
-  }>;
   createdAt: string;
 }
 
@@ -219,21 +195,13 @@ export function saveServerTrail(
       id: trailData.creator?.id || existing?.creator?.id || undefined,
       name: trailData.creator?.name || existing?.creator?.name || 'Explorer',
       username: trailData.creator?.username || existing?.creator?.username || '@traveler',
-      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || '',
-      isFollowed: trailData.creator?.isFollowed ?? existing?.creator?.isFollowed ?? false
+      avatarUrl: trailData.creator?.avatarUrl || existing?.creator?.avatarUrl || ''
     },
     caption: trailData.caption || existing?.caption || '',
     destination: trailData.destination || existing?.destination || 'Everywhere',
     tags: Array.isArray(trailData.tags) ? trailData.tags : (existing?.tags || []),
     audioTitle: trailData.audioTitle || existing?.audioTitle || 'Original Travel Sound',
-    likesCount: typeof trailData.likesCount === 'number' ? trailData.likesCount : (typeof existing?.likesCount === 'number' ? existing.likesCount : (Array.isArray(trailData.likedBy) ? trailData.likedBy.length : (existing?.likedBy?.length ?? 0))),
-    commentsCount: trailData.commentsCount ?? existing?.commentsCount ?? 0,
-    viewsCount: typeof trailData.viewsCount === 'number' ? trailData.viewsCount : (existing?.viewsCount ?? 0),
-    viewedBy: trailData.viewedBy || existing?.viewedBy || [],
-    likedBy: trailData.likedBy || existing?.likedBy || [],
-    isLiked: trailData.isLiked ?? existing?.isLiked ?? false,
     isSaved: trailData.isSaved ?? existing?.isSaved ?? false,
-    comments: trailData.comments || existing?.comments || [],
     createdAt: trailData.createdAt || existing?.createdAt || new Date().toISOString()
   };
 
@@ -439,116 +407,4 @@ export async function deleteServerUserTrails(userId?: string, username?: string)
   return true;
 }
 
-/**
- * Like or unlike a trail globally.
- * ONLY signed up users with a valid username can like a trail.
- */
-export function toggleLikeServerTrail(
-  trailId: string, 
-  increment: boolean,
-  liker?: { id?: string; name: string; username: string; avatarUrl?: string; likedAt?: string }
-): { success: boolean; likesCount: number; likedBy?: any[] } {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return { success: false, likesCount: 0 };
 
-  // Strict check: only registered/signed up users can like
-  if (!liker || (!liker.username && !liker.id)) {
-    return { success: false, likesCount: typeof trail.likesCount === 'number' ? trail.likesCount : (trail.likedBy?.length || 0), likedBy: trail.likedBy };
-  }
-
-  if (!trail.likedBy) trail.likedBy = [];
-  const cleanU = (liker.username || '').toLowerCase().replace(/^@+/, '');
-  if (!cleanU) {
-    return { success: false, likesCount: typeof trail.likesCount === 'number' ? trail.likesCount : (trail.likedBy?.length || 0), likedBy: trail.likedBy };
-  }
-
-  if (increment) {
-    if (!trail.likedBy.some((u) => u.username.toLowerCase().replace(/^@+/, '') === cleanU)) {
-      trail.likedBy.unshift({
-        id: liker.id,
-        name: liker.name || cleanU,
-        username: liker.username.startsWith('@') ? liker.username : `@${liker.username}`,
-        avatarUrl: liker.avatarUrl,
-        likedAt: liker.likedAt || new Date().toISOString()
-      });
-    }
-  } else {
-    trail.likedBy = trail.likedBy.filter((u) => u.username.toLowerCase().replace(/^@+/, '') !== cleanU);
-  }
-
-  const prevCount = typeof trail.likesCount === 'number' ? trail.likesCount : (Number(trail.likesCount) || 0);
-  trail.likesCount = increment ? Math.max(prevCount + 1, trail.likedBy.length) : Math.max(0, prevCount - 1);
-  trail.isLiked = increment;
-  persistToDisk();
-
-  return { success: true, likesCount: trail.likesCount, likedBy: trail.likedBy };
-}
-
-/**
- * Record a view for a trail globally.
- * ONLY signed up users can increase view count.
- */
-export function recordServerTrailView(
-  trailId: string,
-  viewer?: { id?: string; username: string }
-): { success: boolean; viewsCount: number } {
-  if (!viewer || (!viewer.id && !viewer.username)) {
-    return { success: false, viewsCount: 0 };
-  }
-
-  const trail = trailsMap.get(trailId);
-  if (!trail) return { success: false, viewsCount: 0 };
-
-  if (!trail.viewedBy) trail.viewedBy = [];
-  const cleanU = (viewer.username || '').toLowerCase().replace(/^@+/, '');
-
-  const alreadyViewed = trail.viewedBy.some((v) =>
-    (viewer.id && v.id === viewer.id) ||
-    (cleanU && v.username.toLowerCase().replace(/^@+/, '') === cleanU)
-  );
-
-  if (!alreadyViewed) {
-    trail.viewedBy.push({
-      id: viewer.id,
-      username: viewer.username.startsWith('@') ? viewer.username : `@${viewer.username}`,
-      viewedAt: new Date().toISOString()
-    });
-    trail.viewsCount = (trail.viewsCount || 0) + 1;
-    persistToDisk();
-  }
-
-  return { success: true, viewsCount: trail.viewsCount || 0 };
-}
-
-/**
- * Get all likers for a specific trail
- */
-export function getServerTrailLikers(trailId: string): any[] {
-  const trail = trailsMap.get(trailId);
-  return trail?.likedBy || [];
-}
-
-/**
- * Add a comment to a trail globally
- */
-export function addCommentToServerTrail(
-  trailId: string,
-  comment: { user: string; avatar: string; text: string }
-): boolean {
-  const trail = trailsMap.get(trailId);
-  if (!trail) return false;
-
-  const newComment = {
-    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    user: comment.user,
-    avatar: comment.avatar,
-    text: comment.text,
-    time: 'Just now'
-  };
-
-  trail.comments = [newComment, ...(trail.comments || [])];
-  trail.commentsCount = (trail.commentsCount || 0) + 1;
-  persistToDisk();
-
-  return true;
-}

@@ -394,8 +394,6 @@ export interface UserProfileData {
     placesCount?: number;
     countriesCount?: number;
     postsCount?: number;
-    followersCount?: number;
-    followingCount?: number;
     level?: string;
     levelNumber?: number;
   };

@@ -4,8 +4,6 @@ import {
   Bookmark, 
   Play, 
   MapPin, 
-  Heart, 
-  Eye, 
   Share2, 
   Compass, 
   Volume2, 
@@ -250,18 +248,8 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
                     {trail.title || trail.caption || 'Travel Reel'}
                   </h3>
 
-                  {/* Stats & Actions */}
-                  <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px] text-zinc-300">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-rose-400 fill-rose-400" />
-                        {trail.likesCount || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3 h-3 text-zinc-400" />
-                        {trail.viewsCount || 0}
-                      </span>
-                    </div>
+                  {/* Actions */}
+                  <div className="flex items-center justify-end pt-1 border-t border-white/10 text-[10px] text-zinc-300">
 
                     <div className="flex items-center gap-1.5">
                       <button

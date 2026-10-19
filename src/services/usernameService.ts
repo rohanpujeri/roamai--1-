@@ -1,5 +1,5 @@
 import { getSupabaseClient, sanitizeAvatarUrl } from './supabaseClient';
-import { isFakeMockUser, cleanBio } from './followService';
+import { isFakeMockUser, cleanBio } from '../utils/userUtils';
 
 const RESERVED_USERNAMES = new Set([
   'admin',
@@ -313,7 +313,6 @@ export interface RealTravellerResult {
   countriesCount?: number;
   topDNA: string[];
   recentPlaces: string[];
-  isFollowing?: boolean;
 }
 
 // In-flight request deduplication and memory cache for real travellers
@@ -327,7 +326,6 @@ export function invalidateTravellerCache() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('roamai_profile_updated', invalidateTravellerCache);
-  window.addEventListener('roamai_follow_changed', invalidateTravellerCache);
 }
 
 /**
@@ -370,8 +368,7 @@ export async function searchRealTravellers(searchQuery?: string): Promise<RealTr
         placesCount: p.placesCount ?? existing?.placesCount ?? 0,
         countriesCount: p.countriesCount ?? existing?.countriesCount ?? 0,
         topDNA: p.topDNA || existing?.topDNA || [],
-        recentPlaces: p.recentPlaces || existing?.recentPlaces || [],
-        isFollowing: p.isFollowing ?? existing?.isFollowing ?? false
+        recentPlaces: p.recentPlaces || existing?.recentPlaces || []
       };
       profilesMap.set(cleanUser, updated);
     };

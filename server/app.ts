@@ -17,19 +17,8 @@ import {
   saveServerTrail, 
   deleteServerTrail, 
   deleteServerUserTrails,
-  toggleLikeServerTrail, 
-  getServerTrailLikers,
-  addCommentToServerTrail,
-  recordServerTrailView,
   syncServerTrailsFromStorage
 } from './services/serverTrailsRegistry';
-import {
-  getAllServerFollows,
-  followServerUser,
-  unfollowServerUser,
-  removeServerFollower,
-  deleteServerUserFollows
-} from './services/serverFollowsRegistry';
 import { serverConfig } from './config';
 
 dotenv.config();
@@ -305,10 +294,7 @@ export function createExpressApp() {
       // 1. Delete all user trails from disk, memory registry, and storage
       await deleteServerUserTrails(userId, username);
 
-      // 2. Clean up follow graph for user
-      deleteServerUserFollows(userId, username);
-
-      // 3. Remove claimed username handle from registry
+      // 2. Remove claimed username handle from registry
       deleteServerUsername(userId, username);
 
       // 4. Try Supabase direct cleanups if service key or anon REST available
@@ -408,123 +394,7 @@ export function createExpressApp() {
     }
   });
 
-  // Like or unlike a trail (only signed-up users allowed)
-  apiRouter.post('/trails/:id/like', (req, res) => {
-    try {
-      const { id } = req.params;
-      const { increment, liker } = req.body;
-      if (!liker || (!liker.username && !liker.id)) {
-        res.status(401).json({ error: 'Signed up user required to like a trail' });
-        return;
-      }
-      const result = toggleLikeServerTrail(id, increment !== false, liker);
-      res.json(result);
-    } catch (err: any) {
-      console.error('Error liking trail:', err);
-      res.status(500).json({ error: 'Failed to update like status' });
-    }
-  });
 
-  // Record a trail view (only signed-up users increase view count)
-  apiRouter.post('/trails/:id/view', (req, res) => {
-    try {
-      const { id } = req.params;
-      const { viewer } = req.body;
-      if (!viewer || (!viewer.id && !viewer.username)) {
-        res.status(401).json({ error: 'Signed up user required to record a view' });
-        return;
-      }
-      const result = recordServerTrailView(id, viewer);
-      res.json(result);
-    } catch (err: any) {
-      console.error('Error recording trail view:', err);
-      res.status(500).json({ error: 'Failed to record trail view' });
-    }
-  });
-
-  // Get users who liked a trail
-  apiRouter.get('/trails/:id/likes', (req, res) => {
-    try {
-      const { id } = req.params;
-      const likers = getServerTrailLikers(id);
-      res.json({ likers });
-    } catch (err: any) {
-      console.error('Error fetching trail likers:', err);
-      res.status(500).json({ error: 'Failed to fetch likers' });
-    }
-  });
-
-  // Add comment to a trail
-  apiRouter.post('/trails/:id/comment', (req, res) => {
-    try {
-      const { id } = req.params;
-      const { user, avatar, text } = req.body;
-      if (!text) {
-        res.status(400).json({ error: 'Comment text is required' });
-        return;
-      }
-      const success = addCommentToServerTrail(id, { user: user || 'Traveler', avatar: avatar || '', text });
-      res.json({ success });
-    } catch (err: any) {
-      console.error('Error adding comment:', err);
-      res.status(500).json({ error: 'Failed to add comment' });
-    }
-  });
-
-  // Get all follow relationships
-  apiRouter.get('/follows', (_req, res) => {
-    try {
-      const follows = getAllServerFollows();
-      res.json({ follows });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to fetch follows' });
-    }
-  });
-
-  // Follow a user
-  apiRouter.post('/follows/follow', (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: 'follower and target objects are required' });
-        return;
-      }
-      const record = followServerUser(follower, target);
-      res.json({ success: !!record, record });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to follow user' });
-    }
-  });
-
-  // Unfollow a user
-  apiRouter.post('/follows/unfollow', (req, res) => {
-    try {
-      const { follower, target } = req.body;
-      if (!follower || !target) {
-        res.status(400).json({ error: 'follower and target objects are required' });
-        return;
-      }
-      const success = unfollowServerUser(follower, target);
-      res.json({ success });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to unfollow user' });
-    }
-  });
-
-  // Remove a follower
-  apiRouter.post('/follows/remove-follower', (req, res) => {
-    try {
-      const { currentUser, targetFollower } = req.body;
-      if (!currentUser || !targetFollower) {
-        res.status(400).json({ error: 'currentUser and targetFollower are required' });
-        return;
-      }
-      const success = removeServerFollower(currentUser, targetFollower);
-      res.json({ success });
-    } catch (err: any) {
-      res.status(500).json({ error: 'Failed to remove follower' });
-    }
-  });
 
   // Mount router at both /api and / to ensure compatibility with Vercel rewrites and standalone Node server
   app.use('/api', apiRouter);

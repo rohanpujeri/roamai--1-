@@ -43,7 +43,6 @@ import { getSavedPlaces, removeSavedPlace } from '../services/placesService';
 import {
   resolveTrailMediaUrl,
   saveTrailMedia,
-  generateVideoPoster,
   deleteTrailMedia
 } from '../services/trailMediaStorage';
 import {
@@ -55,7 +54,6 @@ import {
   isValidTrailMedia
 } from '../services/sharedTrailsService';
 import { TrailsView } from './TrailsView';
-import { EditCoverModal } from './EditCoverModal';
 import type { SelectedTrailLocation } from './TrailLocationPickerModal';
 
 const TrailLocationPickerModal = React.lazy(() => import('./TrailLocationPickerModal'));
@@ -63,7 +61,7 @@ import { isTripCompleted, setTripCompletedLocal } from '../utils/tripCompletion'
 import { calculateTravelDNA } from '../utils/travelDNA';
 import { validateUsernameFormat, checkUsernameAvailability, claimUsername } from '../services/usernameService';
 import { NavigationDrawer } from './NavigationDrawer';
-import { isFakeMockUser, cleanBio } from '../services/followService';
+import { isFakeMockUser, cleanBio } from '../utils/userUtils';
 import { DeleteAccountModal } from './DeleteAccountModal';
 import {
   resolveInitialProfile,
@@ -93,8 +91,6 @@ export interface UserTrailItem {
   id: string;
   title: string;
   destination: string;
-  viewsCount: string;
-  likesCount: string;
   videoUrl: string;
   posterUrl?: string;
   duration?: string;
@@ -190,8 +186,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               id: t.id,
               title: t.title || t.caption || t.destination || '',
               destination: t.destination || '',
-              viewsCount: t.viewsCount ? String(t.viewsCount) : '0',
-              likesCount: t.likesCount ? String(t.likesCount) : '0',
               videoUrl: t.videoUrl,
               posterUrl: t.posterUrl,
               duration: t.duration,
@@ -235,8 +229,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           id: newTrail.id,
           title: newTrail.title || newTrail.caption || newTrail.destination || 'Travel Trail',
           destination: newTrail.destination || 'Travel Destination',
-          viewsCount: String(newTrail.viewsCount || 0),
-          likesCount: String(newTrail.likesCount || 0),
           videoUrl: newTrail.videoUrl,
           posterUrl: newTrail.posterUrl,
           duration: '0:30',
@@ -252,30 +244,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return () => window.removeEventListener('roamai_trail_uploaded', handleUploaded);
   }, []);
 
-  // Sync likes and views real-time to profile trails
   useEffect(() => {
-    const handleLiked = (e: any) => {
-      const { trailId, likesCount } = e.detail || {};
-      if (!trailId) return;
-      setProfileFullTrails((prev) =>
-        prev.map((t) => (t.id === trailId ? { ...t, likesCount: typeof likesCount === 'number' ? likesCount : t.likesCount } : t))
-      );
-      setUserTrails((prev) =>
-        prev.map((u) => (u.id === trailId ? { ...u, likesCount: String(typeof likesCount === 'number' ? likesCount : u.likesCount) } : u))
-      );
-    };
-
-    const handleViewed = (e: any) => {
-      const { trailId, viewsCount } = e.detail || {};
-      if (!trailId) return;
-      setProfileFullTrails((prev) =>
-        prev.map((t) => (t.id === trailId ? { ...t, viewsCount: typeof viewsCount === 'number' ? viewsCount : t.viewsCount } : t))
-      );
-      setUserTrails((prev) =>
-        prev.map((u) => (u.id === trailId ? { ...u, viewsCount: String(typeof viewsCount === 'number' ? viewsCount : u.viewsCount) } : u))
-      );
-    };
-
     const handleDeleted = (e: any) => {
       const { trailId } = e.detail || {};
       if (!trailId) return;
@@ -287,13 +256,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setActiveReelTrailId(null);
     };
 
-    window.addEventListener('roamai_trail_liked', handleLiked);
-    window.addEventListener('roamai_trail_viewed', handleViewed);
     window.addEventListener('roamai_trail_deleted', handleDeleted);
     window.addEventListener('roamai_close_active_reel', handleCloseActiveReel);
     return () => {
-      window.removeEventListener('roamai_trail_liked', handleLiked);
-      window.removeEventListener('roamai_trail_viewed', handleViewed);
       window.removeEventListener('roamai_trail_deleted', handleDeleted);
       window.removeEventListener('roamai_close_active_reel', handleCloseActiveReel);
     };
@@ -304,7 +269,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [trailFile, setTrailFile] = useState<File | null>(null);
   const [trailPreviewUrl, setTrailPreviewUrl] = useState<string>('');
   const [trailPosterUrl, setTrailPosterUrl] = useState<string>('');
-  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState<boolean>(false);
   const [trailDestination, setTrailDestination] = useState<string>('');
   const [trailCaption, setTrailCaption] = useState<string>('');
   const [trailTags, setTrailTags] = useState<string>('');
@@ -405,14 +369,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         await saveTrailMedia(trailId, trailFile);
       }
 
-      let poster = trailPosterUrl;
-      if (!poster && trailFile && trailFile.type.startsWith('video/')) {
-        try {
-          poster = await generateVideoPoster(trailFile);
-        } catch {
-          // ignore
-        }
-      }
+      const poster = trailPosterUrl || trailPreviewUrl;
 
       const isImg = trailFile ? trailFile.type.startsWith('image/') : false;
       const cleanUsername = profile.username || getFallbackUsername(user, userMeta);
@@ -425,8 +382,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         id: trailId,
         title: cleanTitle,
         destination: destinationVal,
-        viewsCount: '0',
-        likesCount: '0',
         videoUrl: trailPreviewUrl,
         posterUrl: poster || undefined,
         mediaType: 'image',
@@ -444,19 +399,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           name: profile.name,
           username: cleanUsername,
           avatarUrl: profile.avatarUrl,
-          isFollowed: false,
           isVerified: false
         },
         caption: captionVal,
         destination: destinationVal,
         tags: extractedTags.length > 0 ? extractedTags : (trailTags ? trailTags.split(' ').filter(Boolean) : []),
-        audioTitle: 'Original Audio',
-        likesCount: 0,
-        commentsCount: 0,
-        viewsCount: 0,
-        isLiked: false,
-        likedBy: [],
-        comments: []
+        audioTitle: 'Original Audio'
       };
 
       try {
@@ -522,20 +470,24 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     const file = e.target.files?.[0];
     if (!file || !selectedTrail) return;
 
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, WEBP, HEIC). Videos are not supported for Trails.');
+      return;
+    }
+
     try {
       setIsModalMediaLoading(true);
       setModalMediaError(false);
 
       await saveTrailMedia(selectedTrail.id, file);
-      const poster = await generateVideoPoster(file);
       const newMediaUrl = URL.createObjectURL(file);
-      const isImg = file.type.startsWith('image/');
+      const poster = newMediaUrl;
 
       const updatedTrail: UserTrailItem = {
         ...selectedTrail,
         videoUrl: newMediaUrl,
         posterUrl: poster || selectedTrail.posterUrl,
-        mediaType: isImg ? 'image' : 'video'
+        mediaType: 'image'
       };
 
       setSelectedTrail(updatedTrail);
@@ -696,8 +648,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: 0,
-        followingCount: 0,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -741,8 +691,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         placesCount: calculatedPlacesCount,
         countriesCount: calculatedCountriesCount,
         postsCount: completedTrips.length + userTrails.length,
-        followersCount: 0,
-        followingCount: 0,
         level: 'Travel Explorer',
         levelNumber: Math.max(1, Math.min(10, Math.floor(completedTrips.length / 2) + 1))
       }
@@ -826,8 +774,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           id: t.id,
           title: t.title || t.caption || t.destination || 'Travel Trail',
           destination: t.destination || 'Travel Destination',
-          viewsCount: String(t.viewsCount || 0),
-          likesCount: String(t.likesCount || 0),
           videoUrl: t.videoUrl,
           posterUrl: t.posterUrl,
           duration: (t as any).duration,
@@ -1128,7 +1074,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       ) : (
         <>
-          {/* 2. PROFILE HEADER: AVATAR & STATS (POSTS, FOLLOWERS, FOLLOWING) */}
+          {/* 2. PROFILE HEADER: AVATAR & STATS */}
           <div className="px-4 sm:px-6 pt-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-6 sm:gap-8">
           {/* Circular Avatar with Instagram '+' Badge & Tap to Open Instagram Photo Menu */}
@@ -1201,7 +1147,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </button>
           </div>
 
-          {/* Right Column: Name and Stats (post | followers | following) */}
+          {/* Right Column: Name and Stats (post) */}
           <div className="flex-1 flex flex-col justify-center">
             {/* User Full Name & Level Badge */}
             <div className="flex items-center gap-2 flex-wrap mb-2.5">
@@ -1541,11 +1487,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     {/* Dark Vignette */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
-                    {/* Bottom-left: Play Icon + Views Count (Instagram Reels style) */}
-                    <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-bold drop-shadow-md">
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>{trail.viewsCount || '0'}</span>
-                    </div>
 
                     {/* Duration in top left */}
                     {trail.duration && (
@@ -2011,20 +1952,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                       alt="Trail preview"
                       className="relative z-10 max-h-[380px] w-auto max-w-full object-contain mx-auto"
                     />
-
-                    {/* "Edit cover" Pill on Bottom */}
-                    <button
-                      type="button"
-                      data-cover-action="true"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsEditCoverModalOpen(true);
-                      }}
-                      className="absolute bottom-3 inset-x-0 mx-auto w-fit px-4 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/15 cursor-pointer shadow-md transition-all active:scale-95 z-20"
-                    >
-                      Edit cover / crop
-                    </button>
                   </div>
 
                   {/* Caption Input: "Add a caption..." */}
@@ -2558,16 +2485,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           setIsDrawerOpen(false);
           setIsDeleteAccountModalOpen(true);
         }}
-      />
-
-      {/* Edit Cover Modal for Trail Upload */}
-      <EditCoverModal
-        isOpen={isEditCoverModalOpen}
-        videoFile={trailFile}
-        videoUrl={trailPreviewUrl}
-        initialPoster={trailPosterUrl}
-        onClose={() => setIsEditCoverModalOpen(false)}
-        onSave={(newPoster) => setTrailPosterUrl(newPoster)}
       />
 
       {/* Location Picker Modal (Interactive Map or Search) */}
