@@ -3936,7 +3936,7 @@ try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
-        if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !rec.videoUrl?.includes(".mp4")) {
+        if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !(rec.mediaUrl || rec.videoUrl)?.includes(".mp4")) {
           trailsMap.set(rec.id, rec);
         }
       });
@@ -3965,7 +3965,7 @@ async function syncServerTrailsFromStorage() {
       const parsed = await res.json();
       if (Array.isArray(parsed)) {
         parsed.forEach((rec) => {
-          if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !rec.videoUrl?.includes(".mp4")) {
+          if (rec && rec.id && !rec.id.startsWith("sample-trail-") && !isFakeMockUser(rec.creator?.username) && rec.mediaType !== "video" && !(rec.mediaUrl || rec.videoUrl)?.includes(".mp4")) {
             trailsMap.set(rec.id, rec);
           }
         });
@@ -4005,7 +4005,7 @@ function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
 }
 function getAllServerTrails() {
   const records = Array.from(trailsMap.values()).filter(
-    (t) => t && !t.id?.startsWith("sample-trail-") && !isFakeMockUser(t.creator?.username) && t.mediaType !== "video" && !t.videoUrl?.includes(".mp4")
+    (t) => t && !t.id?.startsWith("sample-trail-") && !isFakeMockUser(t.creator?.username) && t.mediaType !== "video" && !(t.mediaUrl || t.videoUrl)?.includes(".mp4")
   );
   return records.sort((a, b) => {
     const timeA = new Date(a.createdAt || 0).getTime();
@@ -4014,14 +4014,14 @@ function getAllServerTrails() {
   });
 }
 function saveServerTrail(trailData, mediaBase64, posterBase64) {
-  let videoUrl = trailData.videoUrl || "";
+  let mediaUrl = trailData.mediaUrl || trailData.videoUrl || "";
   let posterUrl = trailData.posterUrl || "";
   if (mediaBase64 && mediaBase64.startsWith("data:")) {
     const diskMediaUrl = saveMediaFileToDisk(trailData.id, mediaBase64, "media");
     if (diskMediaUrl) {
-      videoUrl = diskMediaUrl;
+      mediaUrl = diskMediaUrl;
     } else {
-      videoUrl = mediaBase64;
+      mediaUrl = mediaBase64;
     }
   }
   if (posterBase64 && posterBase64.startsWith("data:")) {
@@ -4035,9 +4035,10 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
   const existing = trailsMap.get(trailData.id);
   const cleanRecord = {
     id: trailData.id,
-    videoUrl: videoUrl || existing?.videoUrl || "",
+    mediaUrl: mediaUrl || existing?.mediaUrl || existing?.videoUrl || "",
+    videoUrl: mediaUrl || existing?.mediaUrl || existing?.videoUrl || "",
     posterUrl: posterUrl || existing?.posterUrl || void 0,
-    mediaType: trailData.mediaType || existing?.mediaType || (videoUrl.includes("image") ? "image" : "video"),
+    mediaType: trailData.mediaType || existing?.mediaType || (mediaUrl.includes("image") ? "image" : "video"),
     title: trailData.title || existing?.title || "Travel Trail",
     creator: {
       id: trailData.creator?.id || existing?.creator?.id || void 0,

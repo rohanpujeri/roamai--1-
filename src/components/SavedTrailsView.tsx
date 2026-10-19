@@ -170,8 +170,8 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {savedTrails.map((trail) => {
-            const hasVideo = !!trail.videoUrl;
-            const previewImage = trail.posterUrl || (!hasVideo ? trail.videoUrl : '');
+            const trailMedia = trail.mediaUrl || trail.videoUrl || '';
+            const previewImage = trail.posterUrl || trailMedia;
 
             return (
               <div
@@ -187,9 +187,9 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
                       alt={trail.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                  ) : trail.videoUrl ? (
+                  ) : trail.mediaType === 'video' && trailMedia ? (
                     <video
-                      src={trail.videoUrl}
+                      src={trailMedia}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       muted
                       playsInline
@@ -295,20 +295,20 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
           >
             {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {activePlaybackTrail.posterUrl || activePlaybackTrail.videoUrl ? (
+              {activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl ? (
                 <img
-                  src={activePlaybackTrail.posterUrl || activePlaybackTrail.videoUrl}
+                  src={activePlaybackTrail.posterUrl || activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl}
                   alt=""
                   className="w-full h-full object-cover blur-2xl opacity-35 scale-110"
                 />
               ) : null}
             </div>
 
-            {/* Video Player - Sticking to original aspect ratio */}
-            {activePlaybackTrail.videoUrl ? (
+            {/* Media Player - Sticking to original aspect ratio */}
+            {activePlaybackTrail.mediaType === 'video' ? (
               <video
                 ref={videoRef}
-                src={activePlaybackTrail.videoUrl}
+                src={activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl}
                 poster={activePlaybackTrail.posterUrl}
                 className="relative z-10 w-full h-full object-contain"
                 autoPlay
@@ -318,7 +318,7 @@ export const SavedTrailsView: React.FC<SavedTrailsViewProps> = ({
               />
             ) : (
               <img
-                src={activePlaybackTrail.posterUrl}
+                src={activePlaybackTrail.mediaUrl || activePlaybackTrail.videoUrl || activePlaybackTrail.posterUrl}
                 alt={activePlaybackTrail.title}
                 className="relative z-10 w-full h-full object-contain"
               />
