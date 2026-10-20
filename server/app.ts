@@ -11,6 +11,7 @@ import { fetchAiHotelSuggestions } from './services/serverHotelAdvisor';
 import { fetchNearbyPlaces } from './services/serverNearbyPlaces';
 import { reverseGeocodeCoordinates, detectLocationFromIp } from './services/serverLocationDetector';
 import { fetchAiThemePreviewTrip } from './services/serverDestinationInspiration';
+import { fetchAiTrendingItineraries } from './services/serverTrendingItineraries';
 import { isUsernameAvailable, registerServerUsername, searchServerUsers, deleteServerUsername } from './services/serverUsernameRegistry';
 import { 
   getAllServerTrails, 
@@ -170,6 +171,18 @@ export function createExpressApp() {
     } catch (err: any) {
       console.error('AI Theme Preview error:', err);
       res.status(500).json({ error: err.message || 'Failed to fetch theme preview' });
+    }
+  });
+
+  // AI-generated & Trail-based dynamic trending itineraries
+  apiRouter.post('/ai/trending-itineraries', async (req, res) => {
+    try {
+      const { trailDestinations, forceRefresh } = req.body || {};
+      const itineraries = await fetchAiTrendingItineraries(trailDestinations, Boolean(forceRefresh));
+      res.json(itineraries);
+    } catch (err: any) {
+      console.error('AI Trending Itineraries error:', err);
+      res.status(500).json({ error: err.message || 'Failed to fetch trending itineraries' });
     }
   });
 

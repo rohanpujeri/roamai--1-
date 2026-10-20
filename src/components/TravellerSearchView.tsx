@@ -21,7 +21,9 @@ import {
   Award,
   Calendar,
   Clock,
-  ArrowRight
+  ArrowRight,
+  RotateCw,
+  Loader2
 } from 'lucide-react';
 
 import { Session } from '@supabase/supabase-js';
@@ -36,6 +38,13 @@ import {
   isFakeMockUser,
   cleanBio
 } from '../utils/userUtils';
+import { 
+  fetchDynamicTrendingItineraries, 
+  getCachedTrendingItineraries, 
+  TrendingItinerary 
+} from '../services/trendingItinerariesService';
+
+export type { TrendingItinerary };
 
 
 
@@ -71,126 +80,7 @@ export interface ExploreTile {
   spanTwoRows?: boolean;
 }
 
-export interface TrendingItinerary {
-  id: string;
-  title: string;
-  destination: string;
-  destinationSubtitle?: string;
-  durationDays: number;
-  estimatedBudget: string;
-  heroImage: string;
-  tags: string[];
-  vibe: string;
-  highlights: string[];
-  description: string;
-}
 
-export const CURATED_TRENDING_ITINERARIES: TrendingItinerary[] = [
-  {
-    id: 'itinerary-bali',
-    title: 'Coastal Surf, Waterfalls & Ancient Temples',
-    destination: 'Bali, Indonesia',
-    destinationSubtitle: 'Tropical Paradise & Sacred Heritage',
-    durationDays: 5,
-    estimatedBudget: '₹42,000',
-    heroImage: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=900&q=80',
-    tags: ['Beaches', 'Culture', 'Surfing', 'Temples'],
-    vibe: 'Tropical & Cultural',
-    highlights: ['Uluwatu Cliff Sunset & Kecak Dance', 'Tegallalang Sacred Rice Terraces', 'Seminyak Beachfront & Cafes'],
-    description: 'Immerse yourself in Bali’s vibrant coastal sunsets, terraced jade rice fields, sacred sea temples, and world-class culinary cafes.'
-  },
-  {
-    id: 'itinerary-kyoto',
-    title: 'Historic Shrines, Zen Gardens & Tea Culture',
-    destination: 'Kyoto, Japan',
-    destinationSubtitle: 'Ancient Imperial Capital',
-    durationDays: 6,
-    estimatedBudget: '₹68,000',
-    heroImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=900&q=80',
-    tags: ['Heritage', 'Nature', 'Gastronomy', 'Photography'],
-    vibe: 'Peaceful & Historic',
-    highlights: ['Fushimi Inari 10,000 Torii Gates', 'Arashiyama Bamboo Forest & River', 'Gion Historic Geisha District'],
-    description: 'Wander serene bamboo groves, centuries-old wooden shrines, tranquil rock gardens, and traditional matcha tea ceremonies.'
-  },
-  {
-    id: 'itinerary-swiss-alps',
-    title: 'Glacier Express & Panoramic Alpine Ridges',
-    destination: 'Swiss Alps, Switzerland',
-    destinationSubtitle: 'Majestic Peaks & Scenic Rail',
-    durationDays: 7,
-    estimatedBudget: '₹1,10,000',
-    heroImage: 'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?auto=format&fit=crop&w=900&q=80',
-    tags: ['Mountains', 'Scenic Trains', 'Hiking', 'Luxury'],
-    vibe: 'Breathtaking & Alpine',
-    highlights: ['Matterhorn Iconic Glacier Viewpoint', 'Jungfraujoch Top of Europe Train', 'Interlaken Turquoise Mountain Lakes'],
-    description: 'Ride world-famous mountain trains through snow-crested passes, crystal alpine lakes, and quaint wooden chalets.'
-  },
-  {
-    id: 'itinerary-amalfi',
-    title: 'Pastel Cliffs, Limoncello Groves & Mediterranean Sun',
-    destination: 'Amalfi Coast, Italy',
-    destinationSubtitle: 'Cliffside Villages & Coastal Romance',
-    durationDays: 5,
-    estimatedBudget: '₹85,000',
-    heroImage: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=900&q=80',
-    tags: ['Coastal', 'Romance', 'Cuisine', 'Sailing'],
-    vibe: 'Romantic & Coastal',
-    highlights: ['Positano Cliffside Walk & Beach', 'Path of the Gods Mountain Hike', 'Capri Island Private Boat Cruise'],
-    description: 'Cruise the sparkling Tyrrhenian Sea, taste fresh handmade pasta and limoncello, and hike trails with dramatic ocean drop-offs.'
-  },
-  {
-    id: 'itinerary-ladakh',
-    title: 'High-Altitude Passes, Monasteries & Azure Lakes',
-    destination: 'Ladakh, India',
-    destinationSubtitle: 'Land of High Passes',
-    durationDays: 7,
-    estimatedBudget: '₹38,000',
-    heroImage: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=900&q=80',
-    tags: ['Adventure', 'Road Trip', 'High Altitude', 'Photography'],
-    vibe: 'Rugged & Spiritual',
-    highlights: ['Khardung La High Mountain Pass', 'Pangong Tso Crystal Azure Waters', 'Nubra Valley Sand Dunes & Camels'],
-    description: 'An epic high-altitude road expedition across prayer-flag laden mountain passes, Tibetan monasteries, and the deep blue Pangong lake.'
-  },
-  {
-    id: 'itinerary-santorini',
-    title: 'Volcanic Caldera, Whitewashed Domes & Golden Sunsets',
-    destination: 'Santorini, Greece',
-    destinationSubtitle: 'Aegean Island Gem',
-    durationDays: 4,
-    estimatedBudget: '₹72,000',
-    heroImage: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=900&q=80',
-    tags: ['Island', 'Sunset', 'Architecture', 'Luxury'],
-    vibe: 'Idyllic & Scenic',
-    highlights: ['Oia Blue Domes Sunset Lookout', 'Catamaran Caldera Cruise & Hot Springs', 'Fira to Oia Cliffside Trek'],
-    description: 'Bask in legendary sunsets over volcanic waters, stroll whitewashed alleys, and sail around volcanic sea craters.'
-  },
-  {
-    id: 'itinerary-iceland',
-    title: 'Black Sand Coast, Geysers & Northern Lights',
-    destination: 'South Coast, Iceland',
-    destinationSubtitle: 'Land of Fire & Ice',
-    durationDays: 6,
-    estimatedBudget: '₹92,000',
-    heroImage: 'https://images.unsplash.com/photo-1504893524553-b855bce32c67?auto=format&fit=crop&w=900&q=80',
-    tags: ['Nature', 'Waterfalls', 'Aurora', 'Wilderness'],
-    vibe: 'Otherworldly & Wild',
-    highlights: ['Seljalandsfoss Walk-Behind Falls', 'Reynisfjara Volcanic Black Sand Beach', 'Blue Lagoon Geothermal Spa'],
-    description: 'Witness thunderous waterfalls, volcanic basalt columns, steaming thermal pools, and the ethereal glow of the Aurora Borealis.'
-  },
-  {
-    id: 'itinerary-hokkaido',
-    title: 'Powder Snow, Alpine Onsen & Coastal Seafood',
-    destination: 'Hokkaido, Japan',
-    destinationSubtitle: 'Winter Wonderland',
-    durationDays: 5,
-    estimatedBudget: '₹65,000',
-    heroImage: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=900&q=80',
-    tags: ['Winter', 'Snow', 'Hot Springs', 'Food'],
-    vibe: 'Cozy & Gastronomic',
-    highlights: ['Niseko World-Class Powder Skiing', 'Otaru Historical Canal Evening Stroll', 'Sapporo Ramen Alley Experience'],
-    description: 'Experience Japan’s premier winter escape with world-renowned powder skiing, soothing outdoor onsens, and legendary ramen.'
-  }
-];
 
 interface TravellerSearchViewProps {
   currentTheme?: ThemeConfig;
@@ -677,9 +567,42 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
     );
   }, [exploreTiles, searchQuery]);
 
+  // Dynamic AI-generated and Trail-driven trending itineraries
+  const [aiTrendingItineraries, setAiTrendingItineraries] = useState<TrendingItinerary[]>(() => {
+    return getCachedTrendingItineraries() || [];
+  });
+  const [isLoadingTrends, setIsLoadingTrends] = useState<boolean>(() => {
+    return !(getCachedTrendingItineraries()?.length);
+  });
+  const [isRefreshingTrends, setIsRefreshingTrends] = useState<boolean>(false);
+
+  const loadTrendingItineraries = useCallback(async (force = false) => {
+    if (force) {
+      setIsRefreshingTrends(true);
+    } else if (!aiTrendingItineraries.length) {
+      setIsLoadingTrends(true);
+    }
+
+    try {
+      const results = await fetchDynamicTrendingItineraries(globalTrailsList, force);
+      if (Array.isArray(results) && results.length > 0) {
+        setAiTrendingItineraries(results);
+      }
+    } catch (err) {
+      console.warn('Failed to load dynamic trending itineraries:', err);
+    } finally {
+      setIsLoadingTrends(false);
+      setIsRefreshingTrends(false);
+    }
+  }, [globalTrailsList, aiTrendingItineraries.length]);
+
+  useEffect(() => {
+    loadTrendingItineraries(false);
+  }, [globalTrailsList]);
+
   // Dynamic trending itineraries merged with local saved trips
   const trendingItineraries = useMemo<TrendingItinerary[]>(() => {
-    const list: TrendingItinerary[] = [...CURATED_TRENDING_ITINERARIES];
+    const list: TrendingItinerary[] = [...aiTrendingItineraries];
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem('tripwise_user_trips_v2');
@@ -699,7 +622,8 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                   tags: t.preferences?.styles && t.preferences.styles.length > 0 ? t.preferences.styles.slice(0, 4) : ['Custom Itinerary', 'Travel Plan'],
                   vibe: 'Custom Trip',
                   highlights: t.days?.slice(0, 3).map((d) => d.theme || `Day ${d.dayNumber}: ${d.activities?.[0]?.title || 'Explore'}`) || ['Tailored day-by-day plan'],
-                  description: `Custom itinerary generated for ${t.destination} with ${t.durationDays || t.days?.length || 3} days of curated activities.`
+                  description: `Custom itinerary generated for ${t.destination} with ${t.durationDays || t.days?.length || 3} days of curated activities.`,
+                  sourceBadge: 'My Trip'
                 });
               }
             });
@@ -708,7 +632,7 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
       } catch {}
     }
     return list;
-  }, []);
+  }, [aiTrendingItineraries]);
 
   const filteredItineraries = useMemo(() => {
     if (!searchQuery.trim()) return trendingItineraries;
@@ -1499,13 +1423,44 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
                 <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 text-amber-500" />
                   Trending Itineraries
+                  <span className="ml-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-full lowercase tracking-normal">
+                    AI & Trails Live
+                  </span>
                 </span>
-                <span className="text-[11px] text-neutral-500 font-medium">
-                  {filteredItineraries.length} {filteredItineraries.length === 1 ? 'itinerary' : 'itineraries'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => loadTrendingItineraries(true)}
+                    disabled={isRefreshingTrends}
+                    title="Refresh AI Trends"
+                    className="p-1.5 rounded-lg text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex items-center gap-1 text-[11px] font-medium disabled:opacity-50 cursor-pointer"
+                  >
+                    <RotateCw className={`w-3 h-3 ${isRefreshingTrends ? 'animate-spin text-emerald-400' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                  <span className="text-[11px] text-neutral-500 font-medium">
+                    {filteredItineraries.length} {filteredItineraries.length === 1 ? 'itinerary' : 'itineraries'}
+                  </span>
+                </div>
               </div>
 
-              {filteredItineraries.length > 0 ? (
+              {isLoadingTrends && filteredItineraries.length === 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className="rounded-2xl overflow-hidden bg-[#141419] border border-white/5 animate-pulse flex flex-col aspect-[16/14]"
+                    >
+                      <div className="aspect-[16/10] w-full bg-neutral-800/70" />
+                      <div className="p-3.5 space-y-2 flex-1">
+                        <div className="h-4 bg-neutral-800 rounded-md w-3/4" />
+                        <div className="h-3 bg-neutral-800/60 rounded-md w-1/2" />
+                        <div className="h-3 bg-neutral-800/40 rounded-md w-5/6" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredItineraries.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {filteredItineraries.map((itinerary) => (
                     <div
@@ -1525,11 +1480,28 @@ export const TravellerSearchView: React.FC<TravellerSearchViewProps> = ({
 
                         {/* Top Badges */}
                         <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between gap-1.5">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-sm">
-                            <Calendar className="w-3 h-3 text-emerald-400" />
-                            {itinerary.durationDays} Days
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-emerald-950/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-emerald-700/50 shadow-sm">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-sm">
+                              <Calendar className="w-3 h-3 text-emerald-400" />
+                              {itinerary.durationDays} Days
+                            </span>
+                            {itinerary.sourceBadge === 'Trending on Trails' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-600/40 shadow-sm">
+                                <Flame className="w-3 h-3 text-amber-400" />
+                                {itinerary.trailCount ? `${itinerary.trailCount} Trails` : 'On Trails'}
+                              </span>
+                            ) : itinerary.sourceBadge === 'My Trip' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-teal-500/40 shadow-sm">
+                                My Trip
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-300 bg-indigo-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-indigo-500/40 shadow-sm">
+                                <Sparkles className="w-3 h-3 text-indigo-400" />
+                                AI Trend
+                              </span>
+                            )}
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-emerald-950/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-emerald-700/50 shadow-sm shrink-0">
                             {itinerary.estimatedBudget}
                           </span>
                         </div>

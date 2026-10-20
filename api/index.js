@@ -3730,7 +3730,10 @@ Return strictly valid JSON with this exact schema:
   };
 }
 
-// server/services/serverUsernameRegistry.ts
+// server/services/serverTrendingItineraries.ts
+import { GoogleGenAI as GoogleGenAI8 } from "@google/genai";
+
+// server/services/serverTrailsRegistry.ts
 import fs from "fs";
 import path from "path";
 
@@ -3747,192 +3750,16 @@ var serverConfig = {
   }
 };
 
-// server/services/serverUsernameRegistry.ts
-var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
-  "admin",
-  "administrator",
-  "tripwise",
-  "roamai",
-  "support",
-  "official",
-  "help",
-  "root",
-  "system",
-  "moderator",
-  "explore",
-  "trails",
-  "profile",
-  "api",
-  "dev",
-  "guest"
-]);
-var claimedUsernamesMap = /* @__PURE__ */ new Map();
-var dataDir = path.join(process.cwd(), "data");
-var dataFile = path.join(dataDir, "usernames.json");
-try {
-  if (fs.existsSync(dataFile)) {
-    const raw = fs.readFileSync(dataFile, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      parsed.forEach((rec) => {
-        if (rec.username && !isFakeMockUser(rec.username)) {
-          claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
-        }
-      });
-    }
-  }
-} catch (err) {
-  console.warn("Could not read usernames.json from disk:", err);
-}
-function persistToDisk() {
-  try {
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    const array = Array.from(claimedUsernamesMap.values());
-    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("Could not persist usernames to disk:", err);
-  }
-}
-var SUPABASE_URL = serverConfig.supabase.url;
-var SUPABASE_KEY = serverConfig.supabase.anonKey;
-var inFlightUsernameChecks = /* @__PURE__ */ new Map();
-var usernameCheckCache = /* @__PURE__ */ new Map();
-var USERNAME_CACHE_TTL_MS = 15e3;
-function invalidateUsernameCache(username) {
-  if (username) {
-    const clean = username.trim().toLowerCase().replace(/^@+/, "");
-    usernameCheckCache.delete(clean);
-  } else {
-    usernameCheckCache.clear();
-  }
-}
-async function isUsernameAvailable(rawUsername, currentUserId) {
-  if (!rawUsername) {
-    return { available: false, error: "Username is required." };
-  }
-  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
-  if (clean.length < 3) {
-    return { available: false, error: "Username must be at least 3 characters long." };
-  }
-  if (clean.length > 20) {
-    return { available: false, error: "Username cannot exceed 20 characters." };
-  }
-  const validRegex = /^[a-z0-9_.]+$/;
-  if (!validRegex.test(clean)) {
-    return { available: false, error: "Only letters, numbers, periods, and underscores are allowed." };
-  }
-  if (RESERVED_USERNAMES.has(clean)) {
-    return { available: false, error: "This username is reserved. Please choose another." };
-  }
-  const existing = claimedUsernamesMap.get(clean);
-  if (existing) {
-    if (currentUserId && existing.userId === currentUserId) {
-      return { available: true };
-    }
-    return { available: false, error: `@${clean} is already registered. Please choose another username.` };
-  }
-  const cached = usernameCheckCache.get(clean);
-  if (cached && Date.now() - cached.timestamp < USERNAME_CACHE_TTL_MS) {
-    return cached.result;
-  }
-  const inFlightKey = `${clean}:${currentUserId || ""}`;
-  if (inFlightUsernameChecks.has(inFlightKey)) {
-    return inFlightUsernameChecks.get(inFlightKey);
-  }
-  const checkPromise = (async () => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const found = data[0];
-          if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
-            const okResult = { available: true };
-            usernameCheckCache.set(clean, { result: okResult, timestamp: Date.now() });
-            return okResult;
-          }
-          const takenResult = { available: false, error: `@${clean} is already registered. Please choose another username.` };
-          usernameCheckCache.set(clean, { result: takenResult, timestamp: Date.now() });
-          return takenResult;
-        }
-      }
-    } catch (err) {
-      console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
-    } finally {
-      inFlightUsernameChecks.delete(inFlightKey);
-    }
-    const finalOk = { available: true };
-    usernameCheckCache.set(clean, { result: finalOk, timestamp: Date.now() });
-    return finalOk;
-  })();
-  inFlightUsernameChecks.set(inFlightKey, checkPromise);
-  return checkPromise;
-}
-async function registerServerUsername(rawUsername, userId, email) {
-  const check = await isUsernameAvailable(rawUsername, userId);
-  if (!check.available) {
-    return { success: false, error: check.error };
-  }
-  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
-  const record = {
-    username: clean,
-    userId,
-    email,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  claimedUsernamesMap.set(clean, record);
-  invalidateUsernameCache(clean);
-  persistToDisk();
-  return { success: true };
-}
-function searchServerUsers(query) {
-  const all = Array.from(claimedUsernamesMap.values()).filter((u) => !isFakeMockUser(u.username));
-  if (!query || !query.trim()) return all;
-  const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
-  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
-}
-function deleteServerUsername(userId, rawUsername) {
-  let changed = false;
-  const clean = rawUsername ? rawUsername.trim().toLowerCase().replace(/^@+/, "") : "";
-  if (clean && claimedUsernamesMap.has(clean)) {
-    claimedUsernamesMap.delete(clean);
-    invalidateUsernameCache(clean);
-    changed = true;
-  }
-  if (userId) {
-    for (const [key, record] of claimedUsernamesMap.entries()) {
-      if (record.userId === userId) {
-        claimedUsernamesMap.delete(key);
-        invalidateUsernameCache(key);
-        changed = true;
-      }
-    }
-  }
-  if (changed) {
-    persistToDisk();
-  }
-  return changed;
-}
-
 // server/services/serverTrailsRegistry.ts
-import fs2 from "fs";
-import path2 from "path";
 var trailsMap = /* @__PURE__ */ new Map();
-var dataDir2 = process.env.VERCEL ? "/tmp/roamai_data" : path2.join(process.cwd(), "data");
-var dataFile2 = path2.join(dataDir2, "trails.json");
-var publicUploadsDir = path2.join(process.cwd(), "public/uploads/trails");
+var dataDir = process.env.VERCEL ? "/tmp/roamai_data" : path.join(process.cwd(), "data");
+var dataFile = path.join(dataDir, "trails.json");
+var publicUploadsDir = path.join(process.cwd(), "public/uploads/trails");
 var tmpUploadsDir = "/tmp/roamai_uploads";
 var uploadsDir = process.env.VERCEL ? tmpUploadsDir : publicUploadsDir;
 try {
-  if (fs2.existsSync(dataFile2)) {
-    const raw = fs2.readFileSync(dataFile2, "utf-8");
+  if (fs.existsSync(dataFile)) {
+    const raw = fs.readFileSync(dataFile, "utf-8");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((rec) => {
@@ -3945,22 +3772,22 @@ try {
 } catch (err) {
   console.warn("[serverTrailsRegistry] Could not read trails.json from disk:", err);
 }
-function persistToDisk2() {
+function persistToDisk() {
   try {
-    if (!fs2.existsSync(dataDir2)) {
-      fs2.mkdirSync(dataDir2, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
     const array = Array.from(trailsMap.values());
-    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
+    fs.writeFileSync(dataFile, JSON.stringify(array, null, 2), "utf-8");
   } catch (err) {
     console.warn("[serverTrailsRegistry] Could not persist trails to disk:", err);
   }
 }
-var SUPABASE_URL2 = serverConfig.supabase.url;
-var SUPABASE_KEY2 = serverConfig.supabase.anonKey;
+var SUPABASE_URL = serverConfig.supabase.url;
+var SUPABASE_KEY = serverConfig.supabase.anonKey;
 async function syncServerTrailsFromStorage() {
   try {
-    const res = await fetch(`${SUPABASE_URL2}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const parsed = await res.json();
       if (Array.isArray(parsed)) {
@@ -3969,7 +3796,7 @@ async function syncServerTrailsFromStorage() {
             trailsMap.set(rec.id, rec);
           }
         });
-        persistToDisk2();
+        persistToDisk();
       }
     }
   } catch {
@@ -3991,12 +3818,12 @@ function saveMediaFileToDisk(trailId, base64Data, prefix = "media") {
     else if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
     else if (mimeType.includes("image/png")) ext = "png";
     else if (mimeType.includes("image/webp")) ext = "webp";
-    if (!fs2.existsSync(uploadsDir)) {
-      fs2.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
     }
     const fileName = `${trailId}_${prefix}.${ext}`;
-    const targetPath = path2.join(uploadsDir, fileName);
-    fs2.writeFileSync(targetPath, dataBuffer);
+    const targetPath = path.join(uploadsDir, fileName);
+    fs.writeFileSync(targetPath, dataBuffer);
     return `/uploads/trails/${fileName}`;
   } catch (err) {
     console.warn("[serverTrailsRegistry] Could not write media file to disk:", err);
@@ -4053,13 +3880,13 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
     createdAt: trailData.createdAt || existing?.createdAt || (/* @__PURE__ */ new Date()).toISOString()
   };
   trailsMap.set(cleanRecord.id, cleanRecord);
-  persistToDisk2();
-  if (SUPABASE_URL2 && SUPABASE_KEY2) {
-    fetch(`${SUPABASE_URL2}/rest/v1/trails`, {
+  persistToDisk();
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    fetch(`${SUPABASE_URL}/rest/v1/trails`, {
       method: "POST",
       headers: {
-        "apikey": SUPABASE_KEY2,
-        "Authorization": `Bearer ${SUPABASE_KEY2}`,
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
       },
@@ -4077,11 +3904,11 @@ function saveServerTrail(trailData, mediaBase64, posterBase64) {
       try {
         const allTrails = Array.from(trailsMap.values()).filter((t) => t && t.id && !t.id.startsWith("sample-trail-")).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         const jsonBody = JSON.stringify(allTrails, null, 2);
-        await fetch(`${SUPABASE_URL2}/storage/v1/object/trails/meta/global_trails_index.png`, {
+        await fetch(`${SUPABASE_URL}/storage/v1/object/trails/meta/global_trails_index.png`, {
           method: "POST",
           headers: {
-            "apikey": SUPABASE_KEY2,
-            "Authorization": `Bearer ${SUPABASE_KEY2}`,
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
             "Content-Type": "image/png",
             "x-upsert": "true"
           },
@@ -4107,16 +3934,16 @@ async function deleteServerTrail(trailId) {
       trailsMap.delete(k);
     }
   }
-  persistToDisk2();
+  persistToDisk();
   const candidateDirs = [uploadsDir, publicUploadsDir, tmpUploadsDir];
   for (const dir of candidateDirs) {
-    if (fs2.existsSync(dir)) {
+    if (fs.existsSync(dir)) {
       try {
-        const files = fs2.readdirSync(dir);
+        const files = fs.readdirSync(dir);
         for (const file of files) {
           if (file.startsWith(`${cleanId}_`) || file.startsWith(`${cleanId}.`) || file.startsWith(`${decodedId}_`) || file.startsWith(`${decodedId}.`)) {
             try {
-              fs2.unlinkSync(path2.join(dir, file));
+              fs.unlinkSync(path.join(dir, file));
             } catch {
             }
           }
@@ -4142,11 +3969,11 @@ async function deleteServerTrail(trailId) {
       `posters/${decodedId}.jpg`,
       `posters/${decodedId}.png`
     ];
-    await fetch(`${SUPABASE_URL2}/storage/v1/object/trails`, {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/trails`, {
       method: "DELETE",
       headers: {
-        "apikey": SUPABASE_KEY2,
-        "Authorization": `Bearer ${SUPABASE_KEY2}`,
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ prefixes })
@@ -4155,17 +3982,17 @@ async function deleteServerTrail(trailId) {
     console.warn("[serverTrailsRegistry] Supabase storage file remove warning:", err);
   }
   try {
-    const res = await fetch(`${SUPABASE_URL2}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/trails/meta/global_trails_index.png?t=${Date.now()}`);
     if (res.ok) {
       const list = await res.json();
       if (Array.isArray(list)) {
         const filtered = list.filter((t) => t && t.id !== cleanId && t.id !== decodedId);
         if (filtered.length !== list.length) {
-          await fetch(`${SUPABASE_URL2}/storage/v1/object/trails/meta/global_trails_index.png`, {
+          await fetch(`${SUPABASE_URL}/storage/v1/object/trails/meta/global_trails_index.png`, {
             method: "POST",
             headers: {
-              "apikey": SUPABASE_KEY2,
-              "Authorization": `Bearer ${SUPABASE_KEY2}`,
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
               "Content-Type": "image/png",
               "x-upsert": "true"
             },
@@ -4177,11 +4004,11 @@ async function deleteServerTrail(trailId) {
   } catch {
   }
   try {
-    await fetch(`${SUPABASE_URL2}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/trails?id=eq.${encodeURIComponent(decodedId)}`, {
       method: "DELETE",
       headers: {
-        "apikey": SUPABASE_KEY2,
-        "Authorization": `Bearer ${SUPABASE_KEY2}`
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
       }
     });
   } catch (err) {
@@ -4207,6 +4034,366 @@ async function deleteServerUserTrails(userId, username) {
     }
   }
   return true;
+}
+
+// server/services/serverTrendingItineraries.ts
+var memoryCache = null;
+var CACHE_TTL_MS = 2 * 60 * 60 * 1e3;
+function parseJsonSafely7(text) {
+  if (!text || !text.trim()) return null;
+  let cleaned = text.trim();
+  if (cleaned.includes("```")) {
+    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match && match[1]) {
+      cleaned = match[1].trim();
+    } else {
+      cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+    }
+  }
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+}
+function getActiveTrailDestinations() {
+  const trails = getAllServerTrails();
+  const counts = /* @__PURE__ */ new Map();
+  trails.forEach((t) => {
+    const rawDest = (t.destination || "").trim();
+    if (!rawDest || rawDest.toLowerCase() === "everywhere" || rawDest.toLowerCase() === "travel destination") {
+      return;
+    }
+    const key = rawDest.toLowerCase();
+    const existing = counts.get(key);
+    const hero = t.mediaUrl || t.posterUrl;
+    if (existing) {
+      existing.count += 1;
+      if (!existing.sampleHero && hero) existing.sampleHero = hero;
+    } else {
+      counts.set(key, { count: 1, sampleHero: hero });
+    }
+  });
+  return Array.from(counts.entries()).map(([dest, val]) => ({
+    destination: dest.replace(/\b\w/g, (c) => c.toUpperCase()),
+    count: val.count,
+    sampleHero: val.sampleHero
+  })).sort((a, b) => b.count - a.count);
+}
+async function fetchAiTrendingItineraries(clientTrailDestinations, forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && memoryCache && now - memoryCache.timestamp < CACHE_TTL_MS) {
+    return memoryCache.data;
+  }
+  const serverTrails = getActiveTrailDestinations();
+  const trailDestMap = /* @__PURE__ */ new Map();
+  serverTrails.forEach((st) => trailDestMap.set(st.destination.toLowerCase(), st));
+  if (Array.isArray(clientTrailDestinations)) {
+    clientTrailDestinations.forEach((d) => {
+      const clean = (d || "").trim();
+      if (!clean) return;
+      const key = clean.toLowerCase();
+      if (!trailDestMap.has(key)) {
+        trailDestMap.set(key, { count: 1 });
+      } else {
+        trailDestMap.get(key).count += 1;
+      }
+    });
+  }
+  const activeTrailsList = Array.from(trailDestMap.entries()).map(([destKey, val]) => ({
+    destination: val.destination || destKey.replace(/\b\w/g, (c) => c.toUpperCase()),
+    count: val.count,
+    sampleHero: val.sampleHero
+  }));
+  const activeTrailNames = activeTrailsList.map((t) => t.count > 1 ? `${t.count} trails in ${t.destination}` : t.destination).slice(0, 8);
+  const apiKey = getGeminiApiKey();
+  if (apiKey) {
+    try {
+      const ai = new GoogleGenAI8({ apiKey });
+      const prompt = `You are a real-time travel intelligence AI for Roamai.
+Analyze real-world current travel trends, seasonal hotspots, and trending user community video/photo Trails.
+
+Current community hotspots trending on Trails right now:
+${activeTrailNames.length > 0 ? activeTrailNames.join(", ") : "None yet uploaded by users"}
+
+TASK:
+Generate a diverse, highly enticing set of 6 to 8 dynamic trending travel itineraries.
+- At least 2-3 itineraries MUST represent destinations actively trending on user Trails (if any were provided above; otherwise pick viral current travel spots).
+- The remaining 4-5 itineraries MUST represent real-time globally trending destinations for travel lovers (e.g. viral scenic escapes, seasonal gems, cultural wonders).
+
+CRITICAL REQUIREMENTS:
+- Provide authentic, exciting route titles, realistic duration (3 to 7 days), and accurate estimated travel budget (in Indian Rupees with \u20B9 symbol, e.g. \u20B928,000, \u20B954,000, \u20B985,000).
+- Provide 3 distinct day-by-day highlight experiences for each.
+- For each item, set "isFromTrails": true if it matches one of the community trail hotspots above, otherwise false.
+
+Return strictly valid JSON with this exact array schema:
+[
+  {
+    "title": "Evocative, Inspiring Route Title",
+    "destination": "City, Country (or Region, Country)",
+    "destinationSubtitle": "Catchy 2-4 word geographic or aesthetic descriptor",
+    "durationDays": 5,
+    "estimatedBudget": "\u20B938,000",
+    "tags": ["Culture", "Nature", "Photography", "Adventure"],
+    "vibe": "E.g. Tropical & Cultural",
+    "highlights": [
+      "Highlight 1: Famous landmark or sunset experience",
+      "Highlight 2: Scenic natural excursion or trail",
+      "Highlight 3: Local food, market or artisan experience"
+    ],
+    "description": "Engaging 1-2 sentence overview of why this itinerary is trending.",
+    "isFromTrails": false
+  }
+]`;
+      for (const modelName of PREFERRED_GEMINI_MODELS) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+          const parsed = parseJsonSafely7(response.text || "");
+          if (Array.isArray(parsed) && parsed.length >= 3) {
+            const results = parsed.map((item, idx) => {
+              const dest = item.destination || "Scenic Travel";
+              const isTrail = Boolean(item.isFromTrails);
+              const matchedTrail = serverTrails.find(
+                (st) => st.destination.toLowerCase() === dest.toLowerCase() || dest.toLowerCase().includes(st.destination.toLowerCase())
+              );
+              const trailHero = matchedTrail?.sampleHero && !matchedTrail.sampleHero.startsWith("blob:") ? matchedTrail.sampleHero : null;
+              const heroImg = trailHero || resolvePlaceImage(dest, item.tags?.[0] || "sightseeing", "", dest);
+              return {
+                id: `dynamic-trend-${Date.now()}-${idx}`,
+                title: item.title || `${dest} Explorer`,
+                destination: dest,
+                destinationSubtitle: item.destinationSubtitle || "Trending Destination",
+                durationDays: Number(item.durationDays) || 5,
+                estimatedBudget: item.estimatedBudget || "\u20B935,000",
+                heroImage: heroImg,
+                tags: Array.isArray(item.tags) ? item.tags.slice(0, 4) : ["Trending", "Explore"],
+                vibe: item.vibe || "Scenic & Dynamic",
+                highlights: Array.isArray(item.highlights) ? item.highlights.slice(0, 3) : ["Top destination highlights"],
+                description: item.description || `Experience the best of ${dest} with an AI-curated itinerary.`,
+                sourceBadge: isTrail || matchedTrail ? "Trending on Trails" : "AI Trending",
+                trailCount: matchedTrail?.count
+              };
+            });
+            memoryCache = { timestamp: now, data: results };
+            return results;
+          }
+        } catch (modelErr) {
+          console.warn(`[serverTrendingItineraries] Model ${modelName} attempt failed:`, modelErr);
+        }
+      }
+    } catch (err) {
+      console.error("[serverTrendingItineraries] AI generation error:", err);
+    }
+  }
+  const fallbackDestinations = activeTrailsList.length > 0 ? activeTrailsList.slice(0, 6).map((t) => t.destination) : ["Goa, India", "Manali, India", "Bali, Indonesia", "Kyoto, Japan", "Swiss Alps, Switzerland", "Amalfi Coast, Italy"];
+  const dynamicFallback = fallbackDestinations.map((dest, idx) => {
+    const matchedTrail = serverTrails.find((st) => st.destination.toLowerCase() === dest.toLowerCase());
+    const isTrail = Boolean(matchedTrail);
+    const trailHero = matchedTrail?.sampleHero && !matchedTrail.sampleHero.startsWith("blob:") ? matchedTrail.sampleHero : null;
+    return {
+      id: `fallback-trend-${Date.now()}-${idx}`,
+      title: `${dest.split(",")[0]} Scenic Discovery`,
+      destination: dest,
+      destinationSubtitle: isTrail ? "Community Trail Hotspot" : "Global Trending Escape",
+      durationDays: 4 + idx % 3,
+      estimatedBudget: `\u20B9${(28e3 + idx * 9e3).toLocaleString()}`,
+      heroImage: trailHero || resolvePlaceImage(dest, "Nature", "", dest),
+      tags: isTrail ? ["Trails Hotspot", "Community", "Popular"] : ["AI Trending", "Seasonal", "Must Visit"],
+      vibe: isTrail ? "Community Spotlight" : "Wanderlust Vibe",
+      highlights: [
+        `Explore iconic vistas & viewpoints around ${dest.split(",")[0]}`,
+        `Taste authentic local specialties & artisan cafes`,
+        `Hidden gems captured by real travel community creators`
+      ],
+      description: `Trending ${isTrail ? "on Roamai Trails" : "across travel feeds"} with curated highlights and dynamic day-by-day activities.`,
+      sourceBadge: isTrail ? "Trending on Trails" : "AI Trending",
+      trailCount: matchedTrail?.count
+    };
+  });
+  memoryCache = { timestamp: now, data: dynamicFallback };
+  return dynamicFallback;
+}
+
+// server/services/serverUsernameRegistry.ts
+import fs2 from "fs";
+import path2 from "path";
+var RESERVED_USERNAMES = /* @__PURE__ */ new Set([
+  "admin",
+  "administrator",
+  "tripwise",
+  "roamai",
+  "support",
+  "official",
+  "help",
+  "root",
+  "system",
+  "moderator",
+  "explore",
+  "trails",
+  "profile",
+  "api",
+  "dev",
+  "guest"
+]);
+var claimedUsernamesMap = /* @__PURE__ */ new Map();
+var dataDir2 = path2.join(process.cwd(), "data");
+var dataFile2 = path2.join(dataDir2, "usernames.json");
+try {
+  if (fs2.existsSync(dataFile2)) {
+    const raw = fs2.readFileSync(dataFile2, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((rec) => {
+        if (rec.username && !isFakeMockUser(rec.username)) {
+          claimedUsernamesMap.set(rec.username.toLowerCase(), rec);
+        }
+      });
+    }
+  }
+} catch (err) {
+  console.warn("Could not read usernames.json from disk:", err);
+}
+function persistToDisk2() {
+  try {
+    if (!fs2.existsSync(dataDir2)) {
+      fs2.mkdirSync(dataDir2, { recursive: true });
+    }
+    const array = Array.from(claimedUsernamesMap.values());
+    fs2.writeFileSync(dataFile2, JSON.stringify(array, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Could not persist usernames to disk:", err);
+  }
+}
+var SUPABASE_URL2 = serverConfig.supabase.url;
+var SUPABASE_KEY2 = serverConfig.supabase.anonKey;
+var inFlightUsernameChecks = /* @__PURE__ */ new Map();
+var usernameCheckCache = /* @__PURE__ */ new Map();
+var USERNAME_CACHE_TTL_MS = 15e3;
+function invalidateUsernameCache(username) {
+  if (username) {
+    const clean = username.trim().toLowerCase().replace(/^@+/, "");
+    usernameCheckCache.delete(clean);
+  } else {
+    usernameCheckCache.clear();
+  }
+}
+async function isUsernameAvailable(rawUsername, currentUserId) {
+  if (!rawUsername) {
+    return { available: false, error: "Username is required." };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  if (clean.length < 3) {
+    return { available: false, error: "Username must be at least 3 characters long." };
+  }
+  if (clean.length > 20) {
+    return { available: false, error: "Username cannot exceed 20 characters." };
+  }
+  const validRegex = /^[a-z0-9_.]+$/;
+  if (!validRegex.test(clean)) {
+    return { available: false, error: "Only letters, numbers, periods, and underscores are allowed." };
+  }
+  if (RESERVED_USERNAMES.has(clean)) {
+    return { available: false, error: "This username is reserved. Please choose another." };
+  }
+  const existing = claimedUsernamesMap.get(clean);
+  if (existing) {
+    if (currentUserId && existing.userId === currentUserId) {
+      return { available: true };
+    }
+    return { available: false, error: `@${clean} is already registered. Please choose another username.` };
+  }
+  const cached = usernameCheckCache.get(clean);
+  if (cached && Date.now() - cached.timestamp < USERNAME_CACHE_TTL_MS) {
+    return cached.result;
+  }
+  const inFlightKey = `${clean}:${currentUserId || ""}`;
+  if (inFlightUsernameChecks.has(inFlightKey)) {
+    return inFlightUsernameChecks.get(inFlightKey);
+  }
+  const checkPromise = (async () => {
+    try {
+      const res = await fetch(`${SUPABASE_URL2}/rest/v1/profiles?or=(username.ilike.${clean},username.ilike.@${clean})&select=id,username&limit=1`, {
+        headers: {
+          "apikey": SUPABASE_KEY2,
+          "Authorization": `Bearer ${SUPABASE_KEY2}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const found = data[0];
+          if (currentUserId && (found.id === currentUserId || found.id === `supa_${currentUserId}`)) {
+            const okResult = { available: true };
+            usernameCheckCache.set(clean, { result: okResult, timestamp: Date.now() });
+            return okResult;
+          }
+          const takenResult = { available: false, error: `@${clean} is already registered. Please choose another username.` };
+          usernameCheckCache.set(clean, { result: takenResult, timestamp: Date.now() });
+          return takenResult;
+        }
+      }
+    } catch (err) {
+      console.warn("[serverUsernameRegistry] Could not check Supabase profiles:", err);
+    } finally {
+      inFlightUsernameChecks.delete(inFlightKey);
+    }
+    const finalOk = { available: true };
+    usernameCheckCache.set(clean, { result: finalOk, timestamp: Date.now() });
+    return finalOk;
+  })();
+  inFlightUsernameChecks.set(inFlightKey, checkPromise);
+  return checkPromise;
+}
+async function registerServerUsername(rawUsername, userId, email) {
+  const check = await isUsernameAvailable(rawUsername, userId);
+  if (!check.available) {
+    return { success: false, error: check.error };
+  }
+  const clean = rawUsername.trim().toLowerCase().replace(/^@+/, "");
+  const record = {
+    username: clean,
+    userId,
+    email,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  claimedUsernamesMap.set(clean, record);
+  invalidateUsernameCache(clean);
+  persistToDisk2();
+  return { success: true };
+}
+function searchServerUsers(query) {
+  const all = Array.from(claimedUsernamesMap.values()).filter((u) => !isFakeMockUser(u.username));
+  if (!query || !query.trim()) return all;
+  const cleanQ = query.trim().toLowerCase().replace(/^@+/, "");
+  return all.filter((u) => u.username.toLowerCase().includes(cleanQ));
+}
+function deleteServerUsername(userId, rawUsername) {
+  let changed = false;
+  const clean = rawUsername ? rawUsername.trim().toLowerCase().replace(/^@+/, "") : "";
+  if (clean && claimedUsernamesMap.has(clean)) {
+    claimedUsernamesMap.delete(clean);
+    invalidateUsernameCache(clean);
+    changed = true;
+  }
+  if (userId) {
+    for (const [key, record] of claimedUsernamesMap.entries()) {
+      if (record.userId === userId) {
+        claimedUsernamesMap.delete(key);
+        invalidateUsernameCache(key);
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    persistToDisk2();
+  }
+  return changed;
 }
 
 // server/app.ts
@@ -4327,6 +4514,16 @@ function createExpressApp() {
     } catch (err) {
       console.error("AI Theme Preview error:", err);
       res.status(500).json({ error: err.message || "Failed to fetch theme preview" });
+    }
+  });
+  apiRouter.post("/ai/trending-itineraries", async (req, res) => {
+    try {
+      const { trailDestinations, forceRefresh } = req.body || {};
+      const itineraries = await fetchAiTrendingItineraries(trailDestinations, Boolean(forceRefresh));
+      res.json(itineraries);
+    } catch (err) {
+      console.error("AI Trending Itineraries error:", err);
+      res.status(500).json({ error: err.message || "Failed to fetch trending itineraries" });
     }
   });
   apiRouter.get("/places/real-photo", async (req, res) => {
